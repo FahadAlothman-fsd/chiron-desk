@@ -8,6 +8,8 @@ import type {
   GetTransitionExecutionDetailInput,
   GetWorkflowExecutionDetailInput,
   RetrySameWorkflowExecutionInput,
+  StartInvokeWorkUnitTargetInput,
+  StartInvokeWorkflowTargetInput,
   SubmitFormStepExecutionInput,
   StartTransitionExecutionInput,
   SwitchActiveTransitionExecutionInput,
@@ -33,13 +35,15 @@ import {
   RuntimeOverviewService,
   RuntimeWorkflowIndexService,
   RuntimeWorkUnitService,
+  InvokeWorkUnitExecutionService,
   StepExecutionDetailService,
   TransitionExecutionCommandService,
   TransitionExecutionDetailService,
+  InvokeWorkflowExecutionService,
   WorkflowExecutionStepCommandService,
   WorkflowExecutionCommandService,
   WorkflowExecutionDetailService,
-} from "../../../workflow-engine/src/index";
+} from "@chiron/workflow-engine";
 import { protectedProcedure, publicProcedure } from "../index";
 
 const projectIdInput = z.object({ projectId: z.string().min(1) });
@@ -283,6 +287,19 @@ const completeStepExecutionInput = z.object({
   stepExecutionId: z.string().min(1),
 });
 
+const startInvokeWorkflowTargetInput: z.ZodType<StartInvokeWorkflowTargetInput> = z.object({
+  projectId: z.string().min(1),
+  stepExecutionId: z.string().min(1),
+  invokeWorkflowTargetExecutionId: z.string().min(1),
+});
+
+const startInvokeWorkUnitTargetInput: z.ZodType<StartInvokeWorkUnitTargetInput> = z.object({
+  projectId: z.string().min(1),
+  stepExecutionId: z.string().min(1),
+  invokeWorkUnitTargetExecutionId: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+});
+
 const checkArtifactSlotCurrentStateInput = z.object({
   projectId: z.string().min(1),
   projectWorkUnitId: z.string().min(1),
@@ -414,11 +431,14 @@ function runStreamEffect<A>(
   });
 }
 
-export function createProjectRuntimeRouter(serviceLayer: Layer.Layer<any>) {
+export function createProjectRuntimeRouter(
+  serviceLayer: Layer.Layer<any>,
+  queryServiceLayer: Layer.Layer<any> = serviceLayer,
+) {
   return {
     getRuntimeOverview: publicProcedure.input(projectIdInput).handler(async ({ input }) =>
       runEffect(
-        serviceLayer,
+        queryServiceLayer,
         Effect.gen(function* () {
           const runtimeOverviewService = yield* RuntimeOverviewService;
           return yield* runtimeOverviewService.getOverviewRuntimeSummary(input);
@@ -560,7 +580,7 @@ export function createProjectRuntimeRouter(serviceLayer: Layer.Layer<any>) {
       .input(streamRuntimeGuidanceCandidatesInput)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          queryServiceLayer,
           Effect.gen(function* () {
             const runtimeGuidanceService = yield* RuntimeGuidanceService;
             return yield* runtimeGuidanceService.streamCandidates(input);
@@ -570,7 +590,7 @@ export function createProjectRuntimeRouter(serviceLayer: Layer.Layer<any>) {
 
     getRuntimeGuidanceActive: publicProcedure.input(projectIdInput).handler(async ({ input }) =>
       runEffect(
-        serviceLayer,
+        queryServiceLayer,
         Effect.gen(function* () {
           const runtimeGuidanceService = yield* RuntimeGuidanceService;
           return yield* runtimeGuidanceService.getActive(input);
@@ -582,7 +602,7 @@ export function createProjectRuntimeRouter(serviceLayer: Layer.Layer<any>) {
       .input(getRuntimeStartGateDetailInput)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          queryServiceLayer,
           Effect.gen(function* () {
             const runtimeGuidanceService =
               (yield* RuntimeGuidanceService) as RuntimeGuidanceService["Type"] & {
@@ -889,6 +909,30 @@ export function createProjectRuntimeRouter(serviceLayer: Layer.Layer<any>) {
           Effect.gen(function* () {
             const workflowExecutionStepCommandService = yield* WorkflowExecutionStepCommandService;
             return yield* workflowExecutionStepCommandService.completeStepExecution(input);
+          }),
+        ),
+      ),
+
+    startInvokeWorkflowTarget: protectedProcedure
+      .input(startInvokeWorkflowTargetInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const invokeWorkflowExecutionService = yield* InvokeWorkflowExecutionService;
+            return yield* invokeWorkflowExecutionService.startInvokeWorkflowTarget(input);
+          }),
+        ),
+      ),
+
+    startInvokeWorkUnitTarget: protectedProcedure
+      .input(startInvokeWorkUnitTargetInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const invokeWorkUnitExecutionService = yield* InvokeWorkUnitExecutionService;
+            return yield* invokeWorkUnitExecutionService.startInvokeWorkUnitTarget(input);
           }),
         ),
       ),

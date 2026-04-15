@@ -20,6 +20,7 @@ import {
   workflowExecutionContextFacts,
 } from "../schema/runtime";
 import {
+  methodologyWorkflows,
   methodologyWorkflowContextFactDefinitions,
   methodologyWorkflowEdges,
   methodologyWorkflowSteps,
@@ -353,6 +354,23 @@ export function createStepExecutionRepoLayer(db: DB): Layer.Layer<StepExecutionR
           .where(eq(methodologyWorkflowEdges.workflowId, workflowId))
           .orderBy(asc(methodologyWorkflowEdges.createdAt), asc(methodologyWorkflowEdges.id));
         return rows.map(toWorkflowEdgeRow);
+      }),
+
+    getWorkflowEntryStepId: (workflowId: string) =>
+      dbEffect("step-execution.workflow.entry-step-id", async () => {
+        const rows = await db
+          .select({ metadataJson: methodologyWorkflows.metadataJson })
+          .from(methodologyWorkflows)
+          .where(eq(methodologyWorkflows.id, workflowId))
+          .limit(1);
+
+        const metadata = rows[0]?.metadataJson;
+        if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+          return null;
+        }
+
+        const entryStepId = (metadata as Record<string, unknown>).entryStepId;
+        return typeof entryStepId === "string" && entryStepId.length > 0 ? entryStepId : null;
       }),
   });
 }

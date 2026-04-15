@@ -137,7 +137,7 @@
       "name": "@chiron/agent-runtime",
       "dependencies": {
         "@chiron/contracts": "workspace:*",
-        "@opencode-ai/sdk": "^1.4.1",
+        "@opencode-ai/sdk": "^1.4.3",
         "effect": "catalog:",
       },
       "devDependencies": {
@@ -781,7 +781,7 @@
 
     "@open-draft/until": ["@open-draft/until@2.1.0", "", {}, "sha512-U69T3ItWHvLwGg5eJ0n3I62nWuE6ilHlmz7zM0npLBRvPRd7e6NYmg54vvRtP5mZG7kZqZCFVdsTWo7BPtBujg=="],
 
-    "@opencode-ai/sdk": ["@opencode-ai/sdk@1.4.1", "", { "dependencies": { "cross-spawn": "7.0.6" } }, "sha512-7wWHs8Og5W5+fuJmHDi7oy1yK6c9mmVfK1Ll9hPHZZ5xj357fVl+oI4i0jeUdjonEoXb3Svq/U5blraSArX5OQ=="],
+    "@opencode-ai/sdk": ["@opencode-ai/sdk@1.4.3", "", { "dependencies": { "cross-spawn": "7.0.6" } }, "sha512-X0CAVbwoGAjTY2iecpWkx2B+GAa2jSaQKYpJ+xILopeF/OGKZUN15mjqci+L7cEuwLHV5wk3x2TStUOVCa5p0A=="],
 
     "@orpc/client": ["@orpc/client@1.13.5", "", { "dependencies": { "@orpc/shared": "1.13.5", "@orpc/standard-server": "1.13.5", "@orpc/standard-server-fetch": "1.13.5", "@orpc/standard-server-peer": "1.13.5" } }, "sha512-j0VJpiWiFv9Xfan3NOoouHL07nSiHX8haxYaZzHYWSdWh+ABzwa8aRTwQSUpuCfD6i0EtYEZJAB6gVwtAnQoxQ=="],
 

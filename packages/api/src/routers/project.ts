@@ -80,6 +80,7 @@ export function createProjectRouter(
     MethodologyVersionBoundaryService | EligibilityService | ProjectContextService
   >,
   runtimeServiceLayer?: Layer.Layer<any>,
+  runtimeQueryServiceLayer?: Layer.Layer<any>,
 ) {
   type ProjectionFactSchema = {
     key: string;
@@ -282,7 +283,10 @@ export function createProjectRouter(
   });
 
   return {
-    ...createProjectRuntimeRouter(runtimeServiceLayer ?? (baseServiceLayer as Layer.Layer<any>)),
+    ...createProjectRuntimeRouter(
+      runtimeServiceLayer ?? (baseServiceLayer as Layer.Layer<any>),
+      runtimeQueryServiceLayer ?? runtimeServiceLayer ?? (baseServiceLayer as Layer.Layer<any>),
+    ),
 
     listProjects: publicProcedure.handler(async () => {
       return runEffect(

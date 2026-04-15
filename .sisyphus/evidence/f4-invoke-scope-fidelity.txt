@@ -1,0 +1,17 @@
+VERDICT: REJECT
+
+Scope violations:
+- Changed files extend beyond the expected invoke-runtime slice:
+  - `.sisyphus/plans/l3-slice-2-runtime-invoke.md` was modified even though the plan file is read-only and outside implementation scope.
+  - `packages/workflow-engine/src/services/workflow-execution-step-command-service.ts` was modified even though it is not in the approved file list.
+  - Extra workspace artifacts are present outside the approved scope: `.sisyphus/boulder.json` and untracked `.sisyphus/notepads/l3-slice-2-runtime-invoke/` files.
+
+Non-violation checks:
+- No branch runtime implementation was found in the invoke service set or route diff.
+- No invoke-specific streaming/SSE infrastructure was added; the route diff only adds invoke UI actions on top of the existing page.
+- No redundant source-mode ledger split was added; invoke persistence stays rooted in `invoke_step_execution_state`, and source mode remains runtime/authored logic rather than separate storage ledgers.
+- No context-fact propagation occurs during child start; propagation is isolated to `InvokePropagationService` and is invoked from invoke-step completion flow, not from target-start services.
+- The step detail route change is additive invoke UI, not a workflow execution page redesign.
+
+Conclusion:
+- The invoke runtime implementation is directionally within the intended feature scope, but the diff does not stay strictly within the approved file boundary, so scope fidelity fails.

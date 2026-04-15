@@ -14,6 +14,9 @@ import {
 } from "./step-context-mutation-service";
 import type { ReplaceRuntimeWorkflowExecutionContextFactValue } from "../repositories/step-execution-repository";
 import { StepExecutionLifecycleService } from "./step-execution-lifecycle-service";
+import { ExecutionReadRepository } from "../repositories/execution-read-repository";
+import { InvokeCompletionService } from "./invoke-completion-service";
+import { InvokePropagationService } from "./invoke-propagation-service";
 
 export interface SubmitFormStepExecutionParams {
   workflowExecutionId: string;
@@ -89,9 +92,12 @@ export const StepExecutionTransactionServiceLive = Layer.effect(
   Effect.gen(function* () {
     const stepRepo = yield* StepExecutionRepository;
     const workflowRepo = yield* WorkflowExecutionRepository;
+    const executionReadRepo = yield* ExecutionReadRepository;
     const lifecycle = yield* StepExecutionLifecycleService;
     const contextMutation = yield* StepContextMutationService;
     const appliedWriteRepo = yield* AgentStepExecutionAppliedWriteRepository;
+    const invokeCompletion = yield* InvokeCompletionService;
+    const invokePropagation = yield* InvokePropagationService;
 
     const activateFirstStepExecution = (workflowExecutionId: string) =>
       Effect.gen(function* () {
@@ -182,6 +188,38 @@ export const StepExecutionTransactionServiceLive = Layer.effect(
           return yield* makeTransactionError(
             "step execution does not belong to workflow execution",
           );
+        }
+
+        if (stepExecution.status === "completed") {
+          return {
+            stepExecutionId,
+            status: "completed",
+          } satisfies CompleteStepExecutionResult;
+        }
+
+        if (stepExecution.stepType === "invoke") {
+          const workflowDetail =
+            yield* executionReadRepo.getWorkflowExecutionDetail(workflowExecutionId);
+          if (!workflowDetail) {
+            return yield* makeTransactionError("workflow execution detail not found");
+          }
+
+          const eligibility = yield* invokeCompletion.getCompletionEligibility({
+            projectId: workflowDetail.projectId,
+            workflowExecutionId,
+            stepExecutionId,
+          });
+          if (!eligibility.eligible) {
+            return yield* makeTransactionError(
+              eligibility.reasonIfIneligible ?? "invoke step is not eligible for completion",
+            );
+          }
+
+          yield* invokePropagation.propagateInvokeCompletionOutputs({
+            projectId: workflowDetail.projectId,
+            workflowExecutionId,
+            stepExecutionId,
+          });
         }
 
         yield* lifecycle.completeStepExecution({

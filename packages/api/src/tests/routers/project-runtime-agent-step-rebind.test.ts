@@ -2,7 +2,7 @@ import { call } from "@orpc/server";
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 
-import { AgentStepSessionCommandService } from "../../../../workflow-engine/src/index";
+import { AgentStepSessionCommandService } from "@chiron/workflow-engine";
 
 import { createProjectRuntimeRouter } from "../../routers/project-runtime";
 

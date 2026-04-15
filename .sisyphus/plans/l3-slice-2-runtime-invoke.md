@@ -235,7 +235,7 @@ Wave 3: detail query + step execution detail UI + integration tests
 - Wave 3 → visual-engineering / unspecified-high
 
 ## TODOs
-- [ ] 1. Lock invoke runtime contracts and query shapes
+- [x] 1. Lock invoke runtime contracts and query shapes
 
   **What to do**: Update invoke runtime contracts so invoke is a first-class runtime step body and command surface. Define typed outputs for `getRuntimeStepExecutionDetail(...)`, `startInvokeWorkflowTarget(...)`, and `startInvokeWorkUnitTarget(...)` using the exact human-readable-first read-model and command outputs agreed in discussion.
   **Must NOT do**: Do not add branch runtime contracts here. Do not introduce invoke streaming. Do not make command mutations return the full page body.
@@ -276,7 +276,7 @@ Wave 3: detail query + step execution detail UI + integration tests
 
   **Commit**: YES | Message: `feat(runtime-contracts): lock invoke runtime step surfaces` | Files: `packages/contracts/src/**`
 
-- [ ] 2. Add invoke runtime schema and mapping tables
+- [x] 2. Add invoke runtime schema and mapping tables
 
   **What to do**: Add the invoke runtime aggregate root and child tables to `packages/db/src/schema/runtime.ts` and related schema tests: `invoke_step_execution_state`, `invoke_workflow_target_execution`, `invoke_work_unit_target_execution`, `invoke_work_unit_created_fact_instance`, and `invoke_work_unit_created_artifact_snapshot`.
   **Must NOT do**: Do not store target kind/source mode redundantly in the invoke root row. Do not link child rows directly to `step_executions`. Do not make `resolutionOrder` required at schema level.
@@ -316,7 +316,7 @@ Wave 3: detail query + step execution detail UI + integration tests
 
   **Commit**: YES | Message: `feat(runtime-db): add invoke runtime tables and mappings` | Files: `packages/db/src/schema/**`, `packages/db/src/tests/schema/**`
 
-- [ ] 3. Implement invoke aggregate repositories and target resolution
+- [x] 3. Implement invoke aggregate repositories and target resolution
 
   **What to do**: Add repository seams for invoke root/child/mapping tables and implement `InvokeTargetResolutionService` so targets are resolved once on step activation, deduplicated, assigned `resolutionOrder`, and frozen for the life of the invoke step.
   **Must NOT do**: Do not re-resolve targets after activation. Do not leave duplicate target materialization behavior ambiguous. Do not mix child creation into target resolution.
@@ -356,7 +356,7 @@ Wave 3: detail query + step execution detail UI + integration tests
 
   **Commit**: YES | Message: `feat(runtime-invoke): add aggregate repositories and target resolution` | Files: `packages/workflow-engine/src/**`, `packages/db/src/**`
 
-- [ ] 4. Implement workflow child start flow
+- [x] 4. Implement workflow child start flow
 
   **What to do**: Implement `InvokeWorkflowExecutionService` and `startInvokeWorkflowTarget(...)` so workflow-target invoke children start idempotently from a pre-materialized child row and record `workflowExecutionId` transactionally.
   **Must NOT do**: Do not accept loose workflow definition IDs as the authoritative row identity. Do not create duplicate child workflow executions for active/completed rows.
@@ -395,7 +395,7 @@ Wave 3: detail query + step execution detail UI + integration tests
 
   **Commit**: YES | Message: `feat(runtime-invoke): add workflow child start flow` | Files: `packages/workflow-engine/src/**`, `packages/api/src/**`
 
-- [ ] 5. Implement work-unit child start flow and mapping-row creation
+- [x] 5. Implement work-unit child start flow and mapping-row creation
 
   **What to do**: Implement `InvokeWorkUnitExecutionService` and `startInvokeWorkUnitTarget(...)` so work-unit-target invoke child start is one transaction that creates/resolves the project work unit, initial work-unit fact instances, initial artifact snapshots, mapping rows, transition execution, and child workflow execution, then updates the invoke child row.
   **Must NOT do**: Do not delay project work-unit fact/artifact creation until invoke completion. Do not allow partial domain entity creation to survive failed starts. Do not start blocked transitions or invalid workflow selections.
@@ -436,7 +436,7 @@ Wave 3: detail query + step execution detail UI + integration tests
 
   **Commit**: YES | Message: `feat(runtime-invoke): add work-unit child start flow` | Files: `packages/workflow-engine/src/**`, `packages/db/src/**`, `packages/api/src/**`
 
-- [ ] 6. Implement invoke completion and propagation
+- [x] 6. Implement invoke completion and propagation
 
   **What to do**: Implement `InvokeCompletionService` and `InvokePropagationService` so invoke completion re-checks target-kind-specific completion rules, propagates only references into the appropriate workflow context fact kind, and then completes the generic step execution.
   **Must NOT do**: Do not propagate during active execution. Do not create duplicate propagation rows on completion retry. Do not treat work-unit child entity creation as part of propagation.
@@ -478,7 +478,7 @@ Wave 3: detail query + step execution detail UI + integration tests
 
   **Commit**: YES | Message: `feat(runtime-invoke): add completion and propagation flow` | Files: `packages/workflow-engine/src/**`, `packages/api/src/**`
 
-- [ ] 7. Extend step detail query with invoke body and actions
+- [x] 7. Extend step detail query with invoke body and actions
 
   **What to do**: Extend `getRuntimeStepExecutionDetail(...)` and implement `InvokeStepDetailService` so invoke step detail returns the full typed invoke body: shared shell fields, workflow/work-unit child rows, action availability, blocked reasons, completion summary, and propagation preview.
   **Must NOT do**: Do not make IDs the primary visible fields. Do not split invoke into a separate page. Do not add invoke streaming.
@@ -518,7 +518,7 @@ Wave 3: detail query + step execution detail UI + integration tests
 
   **Commit**: YES | Message: `feat(runtime-invoke): add invoke step detail query body` | Files: `packages/workflow-engine/src/**`, `packages/api/src/**`
 
-- [ ] 8. Implement invoke step execution detail UI
+- [x] 8. Implement invoke step execution detail UI
 
   **What to do**: Update `apps/web/src/routes/projects.$projectId.step-executions.$stepExecutionId.tsx` so invoke steps render the agreed invoke section, including shared shell, workflow/work-unit rows, primary workflow selection for startable work-unit rows, propagation preview, and complete-step behavior.
   **Must NOT do**: Do not redesign the workflow execution page here. Do not foreground raw IDs. Do not depend on invoke-specific streams.
@@ -563,10 +563,10 @@ Wave 3: detail query + step execution detail UI + integration tests
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 > **Never mark F1-F4 as checked before getting user's okay.** Rejection or user feedback -> fix -> re-run -> present again -> wait for okay.
-- [ ] F1. Plan Compliance Audit — oracle
-- [ ] F2. Code Quality Review — unspecified-high
-- [ ] F3. Real Manual QA — unspecified-high (+ playwright if UI)
-- [ ] F4. Scope Fidelity Check — deep
+- [x] F1. Plan Compliance Audit — oracle
+- [x] F2. Code Quality Review — unspecified-high
+- [x] F3. Real Manual QA — unspecified-high (+ playwright if UI)
+- [x] F4. Scope Fidelity Check — deep
 
   **Verification Scenarios**:
   ```

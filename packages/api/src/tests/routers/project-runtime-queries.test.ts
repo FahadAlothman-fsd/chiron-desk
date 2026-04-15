@@ -8,7 +8,7 @@ import {
   RuntimeOverviewService,
   RuntimeWorkflowIndexService,
   RuntimeWorkUnitService,
-} from "../../../../workflow-engine/src/index";
+} from "@chiron/workflow-engine";
 
 import { createProjectRouter } from "../../routers/project";
 

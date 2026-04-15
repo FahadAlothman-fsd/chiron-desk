@@ -8,6 +8,7 @@ import {
   type SaveFormStepDraftInput,
   type SaveFormStepDraftOutput,
 } from "./form-step-execution-service";
+import { InvokeCompletionService } from "./invoke-completion-service";
 import { StepProgressionService } from "./step-progression-service";
 import { StepExecutionTransactionService } from "./step-execution-transaction-service";
 import type {
@@ -75,6 +76,7 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
     const formExecution = yield* FormStepExecutionService;
     const progression = yield* StepProgressionService;
     const tx = yield* StepExecutionTransactionService;
+    const invokeCompletion = yield* InvokeCompletionService;
 
     const assertWorkflowOwnership = (input: { projectId: string; workflowExecutionId: string }) =>
       Effect.gen(function* () {
@@ -143,6 +145,24 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
     const completeStepExecution = (input: CompleteStepExecutionInput) =>
       Effect.gen(function* () {
         yield* assertWorkflowOwnership(input);
+        const stepExecution = yield* stepRepo.getStepExecutionById(input.stepExecutionId);
+        if (!stepExecution) {
+          return yield* makeCommandError("step execution not found");
+        }
+
+        if (stepExecution.stepType === "invoke" && stepExecution.status !== "completed") {
+          const eligibility = yield* invokeCompletion.getCompletionEligibility({
+            projectId: input.projectId,
+            workflowExecutionId: input.workflowExecutionId,
+            stepExecutionId: input.stepExecutionId,
+          });
+          if (!eligibility.eligible) {
+            return yield* makeCommandError(
+              eligibility.reasonIfIneligible ?? "invoke step is not eligible for completion",
+            );
+          }
+        }
+
         return yield* tx.completeStepExecution({
           workflowExecutionId: input.workflowExecutionId,
           stepExecutionId: input.stepExecutionId,

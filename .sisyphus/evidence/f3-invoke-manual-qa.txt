@@ -1,0 +1,27 @@
+VERDICT: REJECT
+
+Reviewed:
+- packages/workflow-engine/src/tests/runtime/runtime-invoke-*.test.ts (5 files)
+- apps/web/src/tests/routes/runtime-invoke-step-detail.test.tsx
+- packages/api/src/routers/project-runtime.ts
+
+Execution evidence:
+- workflow-engine targeted tests: 14/14 passed
+- web targeted test: 2/2 passed
+- LSP diagnostics: 0 errors in reviewed runtime test dir, route test, and project-runtime router
+
+Covered well:
+- Workflow target start idempotency (`runtime-invoke-workflow-start.test.ts`)
+- Work-unit transactional creation + rollback (`runtime-invoke-workunit-start.test.ts`)
+- Blocked target resolution / blocked transition handling (`runtime-invoke-target-resolution.test.ts`, `runtime-invoke-workunit-start.test.ts`, `runtime-invoke-step-detail.test.ts`)
+- Completion eligibility + propagation payload correctness for workflow/work-unit paths (`runtime-invoke-completion.test.ts`, `runtime-invoke-step-detail.test.ts`)
+- UI mutation integration + refetch after successful start/complete (`apps/web/...runtime-invoke-step-detail.test.tsx`)
+- Router wiring/input schemas for invoke mutations (`packages/api/src/routers/project-runtime.ts`)
+
+Untested / incorrectly tested scenarios:
+1. Propagation idempotency is only asserted for the workflow-target completion path. The work-unit completion path verifies propagation payloads, but does not retry completion to prove propagation remains single-write/idempotent there too.
+2. UI disabled-action behavior is not explicitly asserted. The route test renders blocked/ineligible data and checks text presence, but does not verify that the blocked "Start work unit" control is disabled or that an ineligible "Complete Step" action renders disabled with its reason.
+3. Router-level invoke error mapping is only reviewed by inspection. `project-runtime.ts` forwards invoke mutations through `runEffect(mapEffectError)`, but there is no test in this QA slice proving invoke-specific failures surface through the API boundary as expected.
+
+Conclusion:
+Core service coverage is strong, but the slice is not yet comprehensive against the requested QA criteria because disabled UI behavior and one completion-idempotency path remain unproven in tests.

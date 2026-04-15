@@ -31,6 +31,7 @@ export {
   WorkflowContextFactRepository,
 } from "./repositories/workflow-context-fact-repository";
 export { createStepExecutionRepoLayer } from "./runtime-repositories/step-execution-repository";
+export { createInvokeExecutionRepoLayer } from "./runtime-repositories/invoke-execution-repository";
 export { createAgentStepExecutionStateRepoLayer } from "./runtime-repositories/agent-step-execution-state-repository";
 export { createAgentStepExecutionHarnessBindingRepoLayer } from "./runtime-repositories/agent-step-execution-harness-binding-repository";
 export { createAgentStepExecutionAppliedWriteRepoLayer } from "./runtime-repositories/agent-step-execution-applied-write-repository";

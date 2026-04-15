@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@chiron/contracts": "workspace:*",
-    "@opencode-ai/sdk": "^1.4.1",
+    "@opencode-ai/sdk": "^1.4.3",
     "effect": "catalog:"
   },
   "devDependencies": {

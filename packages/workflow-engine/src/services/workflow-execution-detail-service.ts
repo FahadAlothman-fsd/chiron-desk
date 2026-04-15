@@ -200,17 +200,25 @@ export const WorkflowExecutionDetailServiceLive = Layer.effect(
           stepRepo.listWorkflowEdges(detail.workflowExecution.workflowId),
         ]);
 
-        const inboundCounts = new Map<string, number>();
-        for (const edge of workflowEdges) {
-          if (!edge.toStepId) {
-            continue;
-          }
-          inboundCounts.set(edge.toStepId, (inboundCounts.get(edge.toStepId) ?? 0) + 1);
-        }
+        const configuredEntryStepId =
+          "getWorkflowEntryStepId" in stepRepo &&
+          typeof stepRepo.getWorkflowEntryStepId === "function"
+            ? yield* stepRepo.getWorkflowEntryStepId(detail.workflowExecution.workflowId)
+            : null;
+        const hasConfiguredEntryStep = configuredEntryStepId !== null;
 
-        const entrySteps = stepDefinitions.filter(
-          (step) => (inboundCounts.get(step.id) ?? 0) === 0,
-        );
+        const entrySteps = hasConfiguredEntryStep
+          ? stepDefinitions.filter((step) => step.id === configuredEntryStepId)
+          : (() => {
+              const inboundCounts = new Map<string, number>();
+              for (const edge of workflowEdges) {
+                if (!edge.toStepId) {
+                  continue;
+                }
+                inboundCounts.set(edge.toStepId, (inboundCounts.get(edge.toStepId) ?? 0) + 1);
+              }
+              return stepDefinitions.filter((step) => (inboundCounts.get(step.id) ?? 0) === 0);
+            })();
         const currentStepExecution = detail.workflowExecution.currentStepExecutionId
           ? (stepExecutions.find(
               (stepExecution) =>
@@ -237,7 +245,10 @@ export const WorkflowExecutionDetailServiceLive = Layer.effect(
             : entrySteps.length !== 1
               ? {
                   state: "invalid_definition",
-                  reason: entrySteps.length === 0 ? "missing_entry_step" : "ambiguous_entry_step",
+                  reason:
+                    hasConfiguredEntryStep || entrySteps.length === 0
+                      ? "missing_entry_step"
+                      : "ambiguous_entry_step",
                 }
               : stepExecutions.length === 0
                 ? {

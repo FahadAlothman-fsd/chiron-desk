@@ -1,0 +1,25 @@
+VERDICT: REJECT
+
+Major requirements satisfied:
+- Invoke aggregate root exists as `invoke_step_execution_state` with `stepExecutionId` FK + unique index and `invokeStepDefinitionId` FK.
+- Child runtime rows link to the invoke root, not directly to `step_executions`.
+- Target resolution is frozen on activation and deduplicated in `InvokeTargetResolutionService`; later activations reuse existing invoke state.
+- Completion remains manual through shared `completeStepExecution(...)`.
+- Propagation is wired only during invoke step completion via `StepExecutionTransactionService` -> `InvokePropagationService`, not during child start.
+- Invoke UI stays on the step execution detail page, keeps labels/status text primary, and adds no invoke-specific streaming.
+- No branch runtime implementation or workflow execution page redesign was found in the reviewed invoke surfaces.
+
+Blocking deviations:
+1. Workflow child start is not transactional.
+   - Plan requires transactional child-start flows and explicitly calls `startInvokeWorkflowTarget(...)` idempotent and transactional.
+   - `packages/workflow-engine/src/services/invoke-workflow-execution-service.ts` performs two separate writes: `createWorkflowExecution(...)` and then `markInvokeWorkflowTargetExecutionStarted(...)`.
+   - If the second write fails, an orphan child workflow execution can be created, which violates the locked transactional start behavior.
+
+2. Zero-target blocking does not surface the locked explicit reason `No invoke targets resolved` to the completion action.
+   - The locked plan requires zero-target invoke steps to be blocked with that exact reason and to disable complete-step with it.
+   - `packages/workflow-engine/src/services/invoke-target-resolution-service.ts` defines `NO_INVOKE_TARGETS_RESOLVED_REASON`, but `packages/workflow-engine/src/services/invoke-completion-service.ts` returns only generic ineligible reasons (`At least one child workflow execution...` / `At least one child transition path...`).
+   - `packages/workflow-engine/src/services/step-execution-detail-service.ts` uses the completion eligibility reason to populate `shell.completionAction.reasonIfDisabled`, so zero-target steps do not expose the required explicit reason.
+
+Required fixes:
+- Make workflow-target start atomic so child workflow execution creation and invoke-row update succeed or fail together.
+- Thread the zero-target blocked reason through invoke completion/detail so disabled completion explicitly reports `No invoke targets resolved`.

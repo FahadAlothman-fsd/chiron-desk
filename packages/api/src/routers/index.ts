@@ -19,6 +19,7 @@ import {
 import {
   ArtifactRepository,
   ExecutionReadRepository,
+  InvokeExecutionRepository,
   ProjectFactRepository,
   ProjectWorkUnitRepository,
   StepExecutionRepository,
@@ -27,7 +28,7 @@ import {
   WorkUnitFactRepository,
   WorkflowEngineRuntimeLive,
   WorkflowEngineRuntimeStepServicesLive,
-} from "../../../workflow-engine/src/index";
+} from "@chiron/workflow-engine";
 import {
   ProjectContextRepository,
   ProjectContextService,
@@ -42,6 +43,7 @@ export function createAppRouter(
   runtimeRepoLayer: Layer.Layer<
     | ProjectWorkUnitRepository
     | ExecutionReadRepository
+    | InvokeExecutionRepository
     | TransitionExecutionRepository
     | WorkflowExecutionRepository
     | ProjectFactRepository
@@ -67,25 +69,23 @@ export function createAppRouter(
     | EligibilityService
     | ProjectContextService
   >;
-  const runtimeServiceLayer = Layer.mergeAll(
-    Layer.provide(
-      WorkflowEngineRuntimeLive,
-      Layer.mergeAll(
-        runtimeRepoLayer,
-        lifecycleRepoLayer,
-        projectContextRepoLayer,
-        OpencodeHarnessServiceLive,
-      ),
+  const runtimeServiceLayer = Layer.provide(
+    Layer.mergeAll(WorkflowEngineRuntimeLive, WorkflowEngineRuntimeStepServicesLive),
+    Layer.mergeAll(
+      runtimeRepoLayer,
+      repoLayer,
+      lifecycleRepoLayer,
+      projectContextRepoLayer,
+      OpencodeHarnessServiceLive,
     ),
-    Layer.provide(
-      WorkflowEngineRuntimeStepServicesLive,
-      Layer.mergeAll(
-        runtimeRepoLayer,
-        repoLayer,
-        lifecycleRepoLayer,
-        projectContextRepoLayer,
-        OpencodeHarnessServiceLive,
-      ),
+  ) as Layer.Layer<any>;
+  const runtimeQueryServiceLayer = Layer.provide(
+    WorkflowEngineRuntimeLive,
+    Layer.mergeAll(
+      runtimeRepoLayer,
+      lifecycleRepoLayer,
+      projectContextRepoLayer,
+      OpencodeHarnessServiceLive,
     ),
   ) as Layer.Layer<any>;
   const projectServiceLayer = Layer.mergeAll(
@@ -104,7 +104,11 @@ export function createAppRouter(
       };
     }),
     methodology: createMethodologyRouter(methodologyServiceLayer),
-    project: createProjectRouter(methodologyServiceLayer, projectServiceLayer),
+    project: createProjectRouter(
+      methodologyServiceLayer,
+      projectServiceLayer,
+      runtimeQueryServiceLayer,
+    ),
   };
 }
 export type AppRouter = ReturnType<typeof createAppRouter>;

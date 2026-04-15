@@ -43,6 +43,12 @@ export const StepProgressionServiceLive = Layer.effect(
           repo.listWorkflowEdges(workflowId),
         ]);
 
+        const configuredEntryStepId =
+          "getWorkflowEntryStepId" in repo && typeof repo.getWorkflowEntryStepId === "function"
+            ? yield* repo.getWorkflowEntryStepId(workflowId)
+            : null;
+        const hasConfiguredEntryStep = configuredEntryStepId !== null;
+
         if (steps.length === 0) {
           return {
             state: "invalid_definition",
@@ -50,16 +56,22 @@ export const StepProgressionServiceLive = Layer.effect(
           } satisfies EntryStepResolution;
         }
 
-        const incoming = new Set(
-          edges.map((edge) => edge.toStepId).filter((id): id is string => !!id),
-        );
-
-        const entrySteps = steps.filter((step) => !incoming.has(step.id));
+        const entrySteps = hasConfiguredEntryStep
+          ? steps.filter((step) => step.id === configuredEntryStepId)
+          : (() => {
+              const incoming = new Set(
+                edges.map((edge) => edge.toStepId).filter((id): id is string => !!id),
+              );
+              return steps.filter((step) => !incoming.has(step.id));
+            })();
 
         if (entrySteps.length !== 1) {
           return {
             state: "invalid_definition",
-            reason: entrySteps.length === 0 ? "missing_entry_step" : "ambiguous_entry_step",
+            reason:
+              hasConfiguredEntryStep || entrySteps.length === 0
+                ? "missing_entry_step"
+                : "ambiguous_entry_step",
           } satisfies EntryStepResolution;
         }
 

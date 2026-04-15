@@ -1,0 +1,26 @@
+VERDICT: APPROVE
+
+Scope fidelity confirmed for the L3 Slice 2 runtime invoke implementation.
+
+Acknowledged non-implementation artifacts:
+- `.sisyphus/plans/l3-slice-2-runtime-invoke.md` changed only to flip orchestrator progress checkboxes; this is not implementation scope creep.
+- `.sisyphus/boulder.json`, `.sisyphus/notepads/l3-slice-2-runtime-invoke/`, and prior evidence files are orchestration/tracking artifacts, not runtime-invoke implementation scope violations.
+
+Changed implementation files remain invoke-scoped:
+- `packages/contracts/src/runtime/executions.ts` adds invoke runtime detail/command contracts only.
+- `packages/db/src/schema/runtime.ts` adds invoke aggregate + mapping tables without a branch runtime surface and without redundant target-kind/source-mode persistence.
+- `packages/workflow-engine/src/services/invoke-*.ts` and `packages/workflow-engine/src/repositories/invoke-execution-repository.ts` implement invoke target resolution, child start, completion eligibility, detail shaping, and completion-time propagation.
+- `packages/api/src/routers/project-runtime.ts` adds only the two invoke start endpoints.
+- `apps/web/src/routes/projects.$projectId.step-executions.$stepExecutionId.tsx` adds an invoke interaction surface inside the existing step-detail page; it does not redesign the workflow execution page and does not add invoke-specific streaming/SSE.
+
+Necessary integration-only supporting changes were also verified as in-scope:
+- `packages/workflow-engine/src/services/workflow-execution-step-command-service.ts` adds invoke completion gating before delegating completion.
+- `packages/workflow-engine/src/services/step-execution-transaction-service.ts` re-checks invoke completion and runs propagation only during completion.
+- `packages/workflow-engine/src/services/step-execution-detail-service.ts`, `packages/workflow-engine/src/index.ts`, and `packages/workflow-engine/src/layers/live.ts` are invoke wiring/export additions.
+
+Core scope checks:
+- No branch runtime implementation was added.
+- No workflow execution page redesign was introduced.
+- No invoke-specific streaming/SSE was added.
+- No redundant source-mode ledger split was introduced.
+- No context-fact propagation occurs during child start; propagation is isolated to completion via `InvokePropagationService`.

@@ -8,6 +8,7 @@ import {
   methodologyArtifactSlotDefinitions,
   methodologyWorkflowContextFactDefinitions,
   methodologyFactDefinitions,
+  methodologyWorkflowInvokeSteps,
   methodologyWorkflowSteps,
   methodologyWorkUnitTypes,
   workUnitFactDefinitions,
@@ -304,6 +305,174 @@ export const stepExecutions = sqliteTable(
     index("step_executions_step_definition_idx").on(table.stepDefinitionId),
     index("step_executions_previous_step_idx").on(table.previousStepExecutionId),
     index("step_executions_status_idx").on(table.status),
+  ],
+);
+
+export const invokeStepExecutionState = sqliteTable(
+  "invoke_step_execution_state",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    stepExecutionId: text("step_execution_id")
+      .notNull()
+      .references(() => stepExecutions.id, { onDelete: "cascade" }),
+    invokeStepDefinitionId: text("invoke_step_definition_id")
+      .notNull()
+      .references(() => methodologyWorkflowInvokeSteps.stepId, { onDelete: "restrict" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(timestampDefault),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(timestampDefault)
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [uniqueIndex("invoke_step_execution_state_step_idx").on(table.stepExecutionId)],
+);
+
+export const invokeWorkflowTargetExecution = sqliteTable(
+  "invoke_workflow_target_execution",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    invokeStepExecutionStateId: text("invoke_step_execution_state_id")
+      .notNull()
+      .references(() => invokeStepExecutionState.id, { onDelete: "cascade" }),
+    workflowDefinitionId: text("workflow_definition_id")
+      .notNull()
+      .references(() => methodologyWorkflows.id, { onDelete: "restrict" }),
+    workflowExecutionId: text("workflow_execution_id").references(() => workflowExecutions.id, {
+      onDelete: "set null",
+    }),
+    resolutionOrder: integer("resolution_order"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(timestampDefault),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(timestampDefault)
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index("invoke_workflow_target_execution_root_idx").on(
+      table.invokeStepExecutionStateId,
+      table.createdAt,
+      table.id,
+    ),
+    index("invoke_workflow_target_execution_definition_idx").on(table.workflowDefinitionId),
+    index("invoke_workflow_target_execution_workflow_execution_idx").on(table.workflowExecutionId),
+  ],
+);
+
+export const invokeWorkUnitTargetExecution = sqliteTable(
+  "invoke_work_unit_target_execution",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    invokeStepExecutionStateId: text("invoke_step_execution_state_id")
+      .notNull()
+      .references(() => invokeStepExecutionState.id, { onDelete: "cascade" }),
+    projectWorkUnitId: text("project_work_unit_id").references(() => projectWorkUnits.id, {
+      onDelete: "set null",
+    }),
+    workUnitDefinitionId: text("work_unit_definition_id")
+      .notNull()
+      .references(() => methodologyWorkUnitTypes.id, { onDelete: "restrict" }),
+    transitionDefinitionId: text("transition_definition_id")
+      .notNull()
+      .references(() => workUnitLifecycleTransitions.id, { onDelete: "restrict" }),
+    transitionExecutionId: text("transition_execution_id").references(
+      () => transitionExecutions.id,
+      {
+        onDelete: "set null",
+      },
+    ),
+    workflowDefinitionId: text("workflow_definition_id").references(() => methodologyWorkflows.id, {
+      onDelete: "set null",
+    }),
+    workflowExecutionId: text("workflow_execution_id").references(() => workflowExecutions.id, {
+      onDelete: "set null",
+    }),
+    resolutionOrder: integer("resolution_order"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(timestampDefault),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(timestampDefault)
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index("invoke_work_unit_target_execution_root_idx").on(
+      table.invokeStepExecutionStateId,
+      table.createdAt,
+      table.id,
+    ),
+    index("invoke_work_unit_target_execution_project_work_unit_idx").on(table.projectWorkUnitId),
+    index("invoke_work_unit_target_execution_definition_idx").on(table.workUnitDefinitionId),
+    index("invoke_work_unit_target_execution_transition_definition_idx").on(
+      table.transitionDefinitionId,
+    ),
+    index("invoke_work_unit_target_execution_transition_execution_idx").on(
+      table.transitionExecutionId,
+    ),
+    index("invoke_work_unit_target_execution_workflow_definition_idx").on(
+      table.workflowDefinitionId,
+    ),
+    index("invoke_work_unit_target_execution_workflow_execution_idx").on(table.workflowExecutionId),
+  ],
+);
+
+export const invokeWorkUnitCreatedFactInstance = sqliteTable(
+  "invoke_work_unit_created_fact_instance",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    invokeWorkUnitTargetExecutionId: text("invoke_work_unit_target_execution_id")
+      .notNull()
+      .references(() => invokeWorkUnitTargetExecution.id, { onDelete: "cascade" }),
+    factDefinitionId: text("fact_definition_id")
+      .notNull()
+      .references(() => workUnitFactDefinitions.id, { onDelete: "restrict" }),
+    workUnitFactInstanceId: text("work_unit_fact_instance_id")
+      .notNull()
+      .references(() => workUnitFactInstances.id, { onDelete: "cascade" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(timestampDefault),
+  },
+  (table) => [
+    index("invoke_work_unit_created_fact_instance_target_idx").on(
+      table.invokeWorkUnitTargetExecutionId,
+      table.createdAt,
+      table.id,
+    ),
+    index("invoke_work_unit_created_fact_instance_definition_idx").on(table.factDefinitionId),
+    index("invoke_work_unit_created_fact_instance_instance_idx").on(table.workUnitFactInstanceId),
+  ],
+);
+
+export const invokeWorkUnitCreatedArtifactSnapshot = sqliteTable(
+  "invoke_work_unit_created_artifact_snapshot",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    invokeWorkUnitTargetExecutionId: text("invoke_work_unit_target_execution_id")
+      .notNull()
+      .references(() => invokeWorkUnitTargetExecution.id, { onDelete: "cascade" }),
+    artifactSlotDefinitionId: text("artifact_slot_definition_id")
+      .notNull()
+      .references(() => methodologyArtifactSlotDefinitions.id, { onDelete: "restrict" }),
+    artifactSnapshotId: text("artifact_snapshot_id")
+      .notNull()
+      .references(() => projectArtifactSnapshots.id, { onDelete: "cascade" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(timestampDefault),
+  },
+  (table) => [
+    index("invoke_work_unit_created_artifact_snapshot_target_idx").on(
+      table.invokeWorkUnitTargetExecutionId,
+      table.createdAt,
+      table.id,
+    ),
+    index("invoke_work_unit_created_artifact_snapshot_slot_idx").on(table.artifactSlotDefinitionId),
+    index("invoke_work_unit_created_artifact_snapshot_snapshot_idx").on(table.artifactSnapshotId),
   ],
 );
 

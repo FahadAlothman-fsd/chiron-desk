@@ -8,8 +8,27 @@ import {
   METHODOLOGY_CANONICAL_TABLE_SEED_ORDER,
   methodologyCanonicalTableSeedRows,
 } from "./seed/methodology/index.ts";
-import { brainstormingDemoFixtureSeedRowsAllVersions } from "./seed/methodology/setup/brainstorming-demo-fixture.ts";
-import { slice1DemoFixtureSeedRowsAllVersions } from "./seed/methodology/setup/slice-1-demo-fixture.ts";
+import {
+  runtimeMethodologyWorkflowAgentStepExplicitReadGrantSeedRows,
+  runtimeMethodologyWorkflowAgentStepWriteItemRequirementSeedRows,
+  runtimeMethodologyWorkflowAgentStepWriteItemSeedRows,
+  runtimeMethodologyWorkflowAgentStepSeedRows,
+  runtimeMethodologyWorkflowContextFactArtifactReferenceSeedRows,
+  runtimeMethodologyWorkflowContextFactDefinitionSeedRows,
+  runtimeMethodologyWorkflowContextFactDraftSpecFactSeedRows,
+  runtimeMethodologyWorkflowContextFactDraftSpecSeedRows,
+  runtimeMethodologyWorkflowContextFactDraftSpecSelectionSeedRows,
+  runtimeMethodologyWorkflowContextFactExternalBindingSeedRows,
+  runtimeMethodologyWorkflowContextFactPlainValueSeedRows,
+  runtimeMethodologyWorkflowContextFactWorkflowReferenceSeedRows,
+  runtimeMethodologyWorkflowEdgeSeedRows,
+  runtimeMethodologyWorkflowFormFieldSeedRows,
+  runtimeMethodologyWorkflowInvokeBindingSeedRows,
+  runtimeMethodologyWorkflowInvokeStepSeedRows,
+  runtimeMethodologyWorkflowInvokeTransitionSeedRows,
+  runtimeMethodologyWorkflowMetadataPatches,
+  runtimeMethodologyWorkflowStepSeedRows,
+} from "./seed/methodology/tables/index.ts";
 import { classifySeedError, shouldSkipSeedError } from "./seed-error-handling.ts";
 import { BASELINE_MANUAL_SEED_PLAN } from "./manual-seed-fixtures.ts";
 
@@ -99,33 +118,72 @@ const CANONICAL_TABLES = {
 };
 
 const RUNTIME_FIXTURE_TABLE_INSERTIONS = [
-  ["methodologyWorkflowContextFactDefinitions", schema.methodologyWorkflowContextFactDefinitions],
-  ["methodologyWorkflowContextFactPlainValues", schema.methodologyWorkflowContextFactPlainValues],
-  ["methodologyWorkflowContextFactExternalBindings", schema.methodologyWorkflowContextFactExternalBindings],
-  ["methodologyWorkflowContextFactWorkflowReferences", schema.methodologyWorkflowContextFactWorkflowReferences],
-  ["methodologyWorkflowContextFactArtifactReferences", schema.methodologyWorkflowContextFactArtifactReferences],
-  ["methodologyWorkflowContextFactDraftSpecs", schema.methodologyWorkflowContextFactDraftSpecs],
+  [
+    "methodologyWorkflowContextFactDefinitions",
+    schema.methodologyWorkflowContextFactDefinitions,
+    runtimeMethodologyWorkflowContextFactDefinitionSeedRows,
+  ],
+  [
+    "methodologyWorkflowContextFactPlainValues",
+    schema.methodologyWorkflowContextFactPlainValues,
+    runtimeMethodologyWorkflowContextFactPlainValueSeedRows,
+  ],
+  [
+    "methodologyWorkflowContextFactExternalBindings",
+    schema.methodologyWorkflowContextFactExternalBindings,
+    runtimeMethodologyWorkflowContextFactExternalBindingSeedRows,
+  ],
+  [
+    "methodologyWorkflowContextFactWorkflowReferences",
+    schema.methodologyWorkflowContextFactWorkflowReferences,
+    runtimeMethodologyWorkflowContextFactWorkflowReferenceSeedRows,
+  ],
+  [
+    "methodologyWorkflowContextFactArtifactReferences",
+    schema.methodologyWorkflowContextFactArtifactReferences,
+    runtimeMethodologyWorkflowContextFactArtifactReferenceSeedRows,
+  ],
+  [
+    "methodologyWorkflowContextFactDraftSpecs",
+    schema.methodologyWorkflowContextFactDraftSpecs,
+    runtimeMethodologyWorkflowContextFactDraftSpecSeedRows,
+  ],
   [
     "methodologyWorkflowContextFactDraftSpecSelections",
     schema.methodologyWorkflowContextFactDraftSpecSelections,
+    runtimeMethodologyWorkflowContextFactDraftSpecSelectionSeedRows,
   ],
-  ["methodologyWorkflowContextFactDraftSpecFacts", schema.methodologyWorkflowContextFactDraftSpecFields],
-  ["methodology_workflow_steps", schema.methodologyWorkflowSteps],
-  ["methodologyWorkflowAgentSteps", schema.methodologyWorkflowAgentSteps],
+  [
+    "methodologyWorkflowContextFactDraftSpecFacts",
+    schema.methodologyWorkflowContextFactDraftSpecFields,
+    runtimeMethodologyWorkflowContextFactDraftSpecFactSeedRows,
+  ],
+  ["methodology_workflow_steps", schema.methodologyWorkflowSteps, runtimeMethodologyWorkflowStepSeedRows],
+  ["methodologyWorkflowAgentSteps", schema.methodologyWorkflowAgentSteps, runtimeMethodologyWorkflowAgentStepSeedRows],
   [
     "methodologyWorkflowAgentStepExplicitReadGrants",
     schema.methodologyWorkflowAgentStepExplicitReadGrants,
+    runtimeMethodologyWorkflowAgentStepExplicitReadGrantSeedRows,
   ],
-  ["methodologyWorkflowAgentStepWriteItems", schema.methodologyWorkflowAgentStepWriteItems],
+  [
+    "methodologyWorkflowAgentStepWriteItems",
+    schema.methodologyWorkflowAgentStepWriteItems,
+    runtimeMethodologyWorkflowAgentStepWriteItemSeedRows,
+  ],
   [
     "methodologyWorkflowAgentStepWriteItemRequirements",
     schema.methodologyWorkflowAgentStepWriteItemRequirements,
+    runtimeMethodologyWorkflowAgentStepWriteItemRequirementSeedRows,
   ],
-  ["methodologyWorkflowInvokeSteps", schema.methodologyWorkflowInvokeSteps],
-  ["methodologyWorkflowInvokeBindings", schema.methodologyWorkflowInvokeBindings],
-  ["methodologyWorkflowInvokeTransitions", schema.methodologyWorkflowInvokeTransitions],
-  ["methodology_workflow_edges", schema.methodologyWorkflowEdges],
-  ["methodologyWorkflowFormFields", schema.methodologyWorkflowFormFields],
+  ["methodologyWorkflowInvokeSteps", schema.methodologyWorkflowInvokeSteps, runtimeMethodologyWorkflowInvokeStepSeedRows],
+  ["methodologyWorkflowInvokeBindings", schema.methodologyWorkflowInvokeBindings, runtimeMethodologyWorkflowInvokeBindingSeedRows],
+  [
+    "methodologyWorkflowInvokeTransitions",
+    schema.methodologyWorkflowInvokeTransitions,
+    runtimeMethodologyWorkflowInvokeTransitionSeedRows,
+  ],
+  ["methodology_workflow_edges", schema.methodologyWorkflowEdges, runtimeMethodologyWorkflowEdgeSeedRows],
+  ["methodologyWorkflowFormFields", schema.methodologyWorkflowFormFields, runtimeMethodologyWorkflowFormFieldSeedRows],
 ];
 
 const seedCanonicalMethodologyTables = (plan) =>
@@ -165,25 +223,33 @@ const seedCanonicalMethodologyTables = (plan) =>
 const seedRuntimeWorkflowFixtures = (plan) =>
   Effect.gen(function* () {
     const versionIds = new Set(plan.methodologyVersions.map((version) => version.id));
-    const bundles = [...slice1DemoFixtureSeedRowsAllVersions, ...brainstormingDemoFixtureSeedRowsAllVersions].filter(
-      (bundle) => versionIds.has(bundle.methodologyVersionId),
+    const workflowMetadataPatches = runtimeMethodologyWorkflowMetadataPatches.filter((patch) =>
+      versionIds.has(patch.workflowId.split(":").at(-1)),
+    );
+    const runtimeWorkflowSteps = runtimeMethodologyWorkflowStepSeedRows.filter((row) =>
+      versionIds.has(row.methodologyVersionId),
+    );
+    const runtimeWorkflowEdges = runtimeMethodologyWorkflowEdgeSeedRows.filter((row) =>
+      versionIds.has(row.methodologyVersionId),
+    );
+    const runtimeContextFacts = runtimeMethodologyWorkflowContextFactDefinitionSeedRows.filter((row) =>
+      versionIds.has(row.workflowId.split(":").at(-1)),
+    );
+    const runtimeDraftSpecs = runtimeMethodologyWorkflowContextFactDraftSpecSeedRows.filter((row) =>
+      runtimeContextFacts.some((contextFact) => contextFact.id === row.contextFactDefinitionId),
     );
 
-    if (bundles.length === 0) {
+    if (workflowMetadataPatches.length === 0) {
       return;
     }
 
-    const workflowIds = bundles.map((bundle) => bundle.workflowId);
-    const stepIds = bundles.flatMap((bundle) => bundle.methodology_workflow_steps.map((row) => row.id));
-    const invokeStepIds = bundles.flatMap((bundle) =>
-      (bundle.methodologyWorkflowInvokeSteps ?? []).map((row) => row.stepId),
-    );
-    const contextFactDefinitionIds = bundles.flatMap((bundle) =>
-      bundle.methodologyWorkflowContextFactDefinitions.map((row) => row.id),
-    );
-    const draftSpecIds = bundles.flatMap((bundle) =>
-      bundle.methodologyWorkflowContextFactDraftSpecs.map((row) => row.id),
-    );
+    const workflowIds = workflowMetadataPatches.map((patch) => patch.workflowId);
+    const stepIds = runtimeWorkflowSteps.map((row) => row.id);
+    const invokeStepIds = runtimeMethodologyWorkflowInvokeStepSeedRows
+      .filter((row) => stepIds.includes(row.stepId))
+      .map((row) => row.stepId);
+    const contextFactDefinitionIds = runtimeContextFacts.map((row) => row.id);
+    const draftSpecIds = runtimeDraftSpecs.map((row) => row.id);
 
     if (invokeStepIds.length > 0) {
       yield* tryDb("clear_fixture_invoke_transitions", () =>
@@ -287,8 +353,48 @@ const seedRuntimeWorkflowFixtures = (plan) =>
         .where(inArray(schema.methodologyWorkflowContextFactDefinitions.workflowId, workflowIds)),
     ).pipe(Effect.asVoid);
 
-    for (const [rowsKey, table] of RUNTIME_FIXTURE_TABLE_INSERTIONS) {
-      const rows = bundles.flatMap((bundle) => bundle[rowsKey] ?? []);
+    for (const [rowsKey, table, allRows] of RUNTIME_FIXTURE_TABLE_INSERTIONS) {
+      const rows = allRows.filter((row) => {
+        if (typeof row?.methodologyVersionId === "string") {
+          return versionIds.has(row.methodologyVersionId);
+        }
+
+        if (typeof row?.workflowId === "string") {
+          return workflowIds.includes(row.workflowId);
+        }
+
+        if (typeof row?.formStepId === "string") {
+          return stepIds.includes(row.formStepId);
+        }
+
+        if (typeof row?.stepId === "string") {
+          return stepIds.includes(row.stepId);
+        }
+
+        if (typeof row?.invokeStepId === "string") {
+          return invokeStepIds.includes(row.invokeStepId);
+        }
+
+        if (typeof row?.agentStepId === "string") {
+          return stepIds.includes(row.agentStepId);
+        }
+
+        if (typeof row?.writeItemRowId === "string") {
+          return runtimeMethodologyWorkflowAgentStepWriteItemSeedRows.some(
+            (writeItem) => writeItem.id === row.writeItemRowId,
+          );
+        }
+
+        if (typeof row?.contextFactDefinitionId === "string") {
+          return contextFactDefinitionIds.includes(row.contextFactDefinitionId);
+        }
+
+        if (typeof row?.draftSpecId === "string") {
+          return draftSpecIds.includes(row.draftSpecId);
+        }
+
+        return true;
+      });
       if (rows.length === 0) {
         continue;
       }
@@ -296,24 +402,24 @@ const seedRuntimeWorkflowFixtures = (plan) =>
       yield* tryDb(`insert_${rowsKey}`, () => db.insert(table).values(rows)).pipe(Effect.asVoid);
     }
 
-    for (const bundle of bundles) {
-      yield* tryDb(`patch_${bundle.workflowId}_metadata`, async () => {
+    for (const patch of workflowMetadataPatches) {
+      yield* tryDb(`patch_${patch.workflowId}_metadata`, async () => {
         const existing = await db
           .select({ metadataJson: schema.methodologyWorkflows.metadataJson })
           .from(schema.methodologyWorkflows)
-          .where(sql`${schema.methodologyWorkflows.id} = ${bundle.workflowId}`)
+          .where(sql`${schema.methodologyWorkflows.id} = ${patch.workflowId}`)
           .limit(1);
 
         const currentMetadata = existing[0]?.metadataJson;
         const nextMetadata =
           currentMetadata && typeof currentMetadata === "object" && !Array.isArray(currentMetadata)
-            ? { ...currentMetadata, ...bundle.workflowMetadataPatch.metadataJson }
-            : { ...bundle.workflowMetadataPatch.metadataJson };
+            ? { ...currentMetadata, ...patch.metadataJson }
+            : { ...patch.metadataJson };
 
         await db
           .update(schema.methodologyWorkflows)
           .set({ metadataJson: nextMetadata })
-          .where(sql`${schema.methodologyWorkflows.id} = ${bundle.workflowId}`);
+          .where(sql`${schema.methodologyWorkflows.id} = ${patch.workflowId}`);
       }).pipe(Effect.asVoid);
     }
   });

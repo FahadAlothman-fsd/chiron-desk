@@ -5,6 +5,8 @@ import {
   DeferredWorkflowStepType,
   FormFieldUiMultiplicityMode,
   FormStepPayload,
+  InvokeSourceMode,
+  InvokeTargetKind,
   WorkflowContextFactKind,
 } from "../methodology/workflow.js";
 import { RuntimeProjectFactDetailDefinition } from "./facts.js";
@@ -450,11 +452,197 @@ export const RuntimeDeferredStepExecutionDetailBody = Schema.Struct({
 export type RuntimeDeferredStepExecutionDetailBody =
   typeof RuntimeDeferredStepExecutionDetailBody.Type;
 
+export const RuntimeInvokeTargetStatus = Schema.Literal(
+  "not_started",
+  "blocked",
+  "active",
+  "completed",
+  "failed",
+  "unavailable",
+);
+export type RuntimeInvokeTargetStatus = typeof RuntimeInvokeTargetStatus.Type;
+
+export const RuntimeInvokeWorkflowTargetRow = Schema.Struct({
+  label: Schema.String,
+  status: RuntimeInvokeTargetStatus,
+  activeChildStepLabel: Schema.optional(Schema.String),
+  invokeWorkflowTargetExecutionId: Schema.NonEmptyString,
+  workflowDefinitionId: Schema.NonEmptyString,
+  workflowDefinitionKey: Schema.optional(Schema.String),
+  workflowDefinitionName: Schema.optional(Schema.String),
+  workflowExecutionId: Schema.optional(Schema.NonEmptyString),
+  actions: Schema.Struct({
+    start: Schema.optional(
+      Schema.Struct({
+        kind: Schema.Literal("start_invoke_workflow_target"),
+        enabled: Schema.Boolean,
+        reasonIfDisabled: Schema.optional(Schema.String),
+        invokeWorkflowTargetExecutionId: Schema.NonEmptyString,
+      }),
+    ),
+    openWorkflow: Schema.optional(
+      Schema.Struct({
+        kind: Schema.Literal("open_workflow_execution"),
+        workflowExecutionId: Schema.NonEmptyString,
+        target: Schema.Struct({
+          page: Schema.Literal("workflow-execution-detail"),
+          workflowExecutionId: Schema.NonEmptyString,
+        }),
+      }),
+    ),
+  }),
+});
+export type RuntimeInvokeWorkflowTargetRow = typeof RuntimeInvokeWorkflowTargetRow.Type;
+
+export const RuntimeInvokePrimaryWorkflowOption = Schema.Struct({
+  workflowDefinitionName: Schema.String,
+  workflowDefinitionId: Schema.NonEmptyString,
+  workflowDefinitionKey: Schema.optional(Schema.String),
+});
+export type RuntimeInvokePrimaryWorkflowOption = typeof RuntimeInvokePrimaryWorkflowOption.Type;
+
+export const RuntimeInvokeWorkUnitTargetRow = Schema.Struct({
+  workUnitLabel: Schema.String,
+  transitionLabel: Schema.String,
+  workflowLabel: Schema.optional(Schema.String),
+  currentWorkUnitStateLabel: Schema.optional(Schema.String),
+  status: RuntimeInvokeTargetStatus,
+  blockedReason: Schema.optional(Schema.String),
+  availablePrimaryWorkflows: Schema.Array(RuntimeInvokePrimaryWorkflowOption),
+  invokeWorkUnitTargetExecutionId: Schema.NonEmptyString,
+  projectWorkUnitId: Schema.optional(Schema.NonEmptyString),
+  workUnitDefinitionId: Schema.NonEmptyString,
+  workUnitDefinitionKey: Schema.optional(Schema.String),
+  workUnitDefinitionName: Schema.optional(Schema.String),
+  transitionDefinitionId: Schema.NonEmptyString,
+  transitionDefinitionKey: Schema.optional(Schema.String),
+  workflowDefinitionId: Schema.optional(Schema.NonEmptyString),
+  workflowDefinitionKey: Schema.optional(Schema.String),
+  transitionExecutionId: Schema.optional(Schema.NonEmptyString),
+  workflowExecutionId: Schema.optional(Schema.NonEmptyString),
+  actions: Schema.Struct({
+    start: Schema.optional(
+      Schema.Struct({
+        kind: Schema.Literal("start_invoke_work_unit_target"),
+        enabled: Schema.Boolean,
+        reasonIfDisabled: Schema.optional(Schema.String),
+        invokeWorkUnitTargetExecutionId: Schema.NonEmptyString,
+      }),
+    ),
+    openWorkUnit: Schema.optional(
+      Schema.Struct({
+        kind: Schema.Literal("open_work_unit"),
+        projectWorkUnitId: Schema.NonEmptyString,
+        target: Schema.Struct({
+          page: Schema.Literal("work-unit-overview"),
+          projectWorkUnitId: Schema.NonEmptyString,
+        }),
+      }),
+    ),
+    openTransition: Schema.optional(
+      Schema.Struct({
+        kind: Schema.Literal("open_transition_execution"),
+        transitionExecutionId: Schema.NonEmptyString,
+        target: Schema.Struct({
+          page: Schema.Literal("transition-execution-detail"),
+          transitionExecutionId: Schema.NonEmptyString,
+        }),
+      }),
+    ),
+    openWorkflow: Schema.optional(
+      Schema.Struct({
+        kind: Schema.Literal("open_workflow_execution"),
+        workflowExecutionId: Schema.NonEmptyString,
+        target: Schema.Struct({
+          page: Schema.Literal("workflow-execution-detail"),
+          workflowExecutionId: Schema.NonEmptyString,
+        }),
+      }),
+    ),
+  }),
+});
+export type RuntimeInvokeWorkUnitTargetRow = typeof RuntimeInvokeWorkUnitTargetRow.Type;
+
+export const RuntimeInvokeCompletionSummary = Schema.Struct({
+  mode: Schema.Literal("manual"),
+  eligible: Schema.Boolean,
+  reasonIfIneligible: Schema.optional(Schema.String),
+  totalTargets: Schema.Number,
+  completedTargets: Schema.Number,
+});
+export type RuntimeInvokeCompletionSummary = typeof RuntimeInvokeCompletionSummary.Type;
+
+export const RuntimeInvokePropagationPreviewItem = Schema.Struct({
+  label: Schema.String,
+  contextFactDefinitionId: Schema.NonEmptyString,
+  contextFactKey: Schema.optional(Schema.String),
+});
+export type RuntimeInvokePropagationPreviewItem = typeof RuntimeInvokePropagationPreviewItem.Type;
+
+export const RuntimeInvokePropagationPreview = Schema.Struct({
+  mode: Schema.Literal("on_step_completion"),
+  summary: Schema.String,
+  outputs: Schema.Array(RuntimeInvokePropagationPreviewItem),
+});
+export type RuntimeInvokePropagationPreview = typeof RuntimeInvokePropagationPreview.Type;
+
+export const RuntimeInvokeStepExecutionDetailBody = Schema.Struct({
+  stepType: Schema.Literal("invoke"),
+  targetKind: InvokeTargetKind,
+  sourceMode: InvokeSourceMode,
+  workflowTargets: Schema.Array(RuntimeInvokeWorkflowTargetRow),
+  workUnitTargets: Schema.Array(RuntimeInvokeWorkUnitTargetRow),
+  completionSummary: RuntimeInvokeCompletionSummary,
+  propagationPreview: RuntimeInvokePropagationPreview,
+});
+export type RuntimeInvokeStepExecutionDetailBody = typeof RuntimeInvokeStepExecutionDetailBody.Type;
+
 export const GetRuntimeStepExecutionDetailOutput = Schema.Struct({
   shell: RuntimeStepExecutionDetailShell,
-  body: Schema.Union(RuntimeFormStepExecutionDetailBody, RuntimeDeferredStepExecutionDetailBody),
+  body: Schema.Union(
+    RuntimeFormStepExecutionDetailBody,
+    RuntimeInvokeStepExecutionDetailBody,
+    RuntimeDeferredStepExecutionDetailBody,
+  ),
 });
 export type GetRuntimeStepExecutionDetailOutput = typeof GetRuntimeStepExecutionDetailOutput.Type;
+
+export const StartInvokeWorkflowTargetInput = Schema.Struct({
+  projectId: Schema.NonEmptyString,
+  stepExecutionId: Schema.NonEmptyString,
+  invokeWorkflowTargetExecutionId: Schema.NonEmptyString,
+});
+export type StartInvokeWorkflowTargetInput = typeof StartInvokeWorkflowTargetInput.Type;
+
+export const StartInvokeWorkflowTargetResult = Schema.Literal("started", "already_started");
+export type StartInvokeWorkflowTargetResult = typeof StartInvokeWorkflowTargetResult.Type;
+
+export const StartInvokeWorkflowTargetOutput = Schema.Struct({
+  invokeWorkflowTargetExecutionId: Schema.NonEmptyString,
+  workflowExecutionId: Schema.NonEmptyString,
+  result: StartInvokeWorkflowTargetResult,
+});
+export type StartInvokeWorkflowTargetOutput = typeof StartInvokeWorkflowTargetOutput.Type;
+
+export const StartInvokeWorkUnitTargetInput = Schema.Struct({
+  projectId: Schema.NonEmptyString,
+  stepExecutionId: Schema.NonEmptyString,
+  invokeWorkUnitTargetExecutionId: Schema.NonEmptyString,
+  workflowDefinitionId: Schema.NonEmptyString,
+});
+export type StartInvokeWorkUnitTargetInput = typeof StartInvokeWorkUnitTargetInput.Type;
+
+export const StartInvokeWorkUnitTargetResult = Schema.Literal("started", "already_started");
+export type StartInvokeWorkUnitTargetResult = typeof StartInvokeWorkUnitTargetResult.Type;
+
+export const StartInvokeWorkUnitTargetOutput = Schema.Struct({
+  invokeWorkUnitTargetExecutionId: Schema.NonEmptyString,
+  projectWorkUnitId: Schema.NonEmptyString,
+  transitionExecutionId: Schema.NonEmptyString,
+  workflowExecutionId: Schema.NonEmptyString,
+  result: StartInvokeWorkUnitTargetResult,
+});
+export type StartInvokeWorkUnitTargetOutput = typeof StartInvokeWorkUnitTargetOutput.Type;
 
 export const StartTransitionExecutionInput = Schema.Struct({
   projectId: Schema.String,

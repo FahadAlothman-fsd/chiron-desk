@@ -26,6 +26,7 @@ export const LOCKED_BMAD_SETUP_WORK_UNIT_FACT_KEYS = [
   "workflow_mode",
   "scan_level",
   "requires_brainstorming",
+  "requires_research",
   "requires_product_brief",
   "deep_dive_target",
 ] as const;
@@ -322,41 +323,7 @@ const canonicalSetupConditionSets = [
     key: "wu.setup.activation_to_done.completion",
     phase: "completion" as const,
     mode: "all" as const,
-    groupsJson: [
-      {
-        key: "required_setup_facts",
-        mode: "all",
-        conditions: [
-          {
-            kind: "fact",
-            required: true,
-            config: {
-              factKey: "initiative_name",
-              operator: "exists",
-            },
-            rationale: "Setup needs a canonical initiative name.",
-          },
-          {
-            kind: "fact",
-            required: true,
-            config: {
-              factKey: "project_kind",
-              operator: "exists",
-            },
-            rationale: "Setup needs the greenfield/brownfield routing decision.",
-          },
-          {
-            kind: "fact",
-            required: true,
-            config: {
-              factKey: "project_knowledge_directory",
-              operator: "exists",
-            },
-            rationale: "Setup needs a durable knowledge output directory.",
-          },
-        ],
-      },
-    ],
+    groupsJson: [],
   },
 ] as const;
 
@@ -476,7 +443,7 @@ const canonicalSetupFactDefinitions = [
       "Use this to declare the intended setup scan mode before discovery begins.",
       "Treat this as the authoritative design-time setup contract for scan-mode selection.",
     ),
-    validationJson: toAllowedValuesValidation(["initial_scan", "full_rescan", "deep_dive"]),
+    validationJson: toAllowedValuesValidation(["lightweight", "invoke_test"]),
   },
   {
     idSuffix: "scan-level",
@@ -507,6 +474,22 @@ const canonicalSetupFactDefinitions = [
     guidanceJson: toGuidanceJson(
       "Turn this on when setup reveals ambiguity or option space that should be widened before commitment.",
       "Treat this as a durable setup decision signal for downstream workflow routing.",
+    ),
+    validationJson: { kind: "none" as const },
+  },
+  {
+    idSuffix: "requires-research",
+    key: "requires_research",
+    name: "Requires Research",
+    factType: "boolean",
+    cardinality: "one" as const,
+    defaultValueJson: null,
+    descriptionJson: toDescriptionJson(
+      "Whether setup should hand off into a lightweight research follow-up for invoke testing.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Turn this on when setup should create one or more research work units via invoke.",
+      "Treat this as a durable setup signal that research follow-up should be created from authored draft specs.",
     ),
     validationJson: { kind: "none" as const },
   },
@@ -774,66 +757,14 @@ const canonicalBrainstormingConditionSets = [
     key: "wu.brainstorming.activation_to_done.start",
     phase: "start" as const,
     mode: "all" as const,
-    groupsJson: [
-      {
-        key: "requires_setup_reference",
-        mode: "all",
-        conditions: [
-          {
-            kind: "fact",
-            required: true,
-            config: {
-              factKey: "setup_work_unit",
-              operator: "exists",
-            },
-            rationale:
-              "Brainstorming must reference the setup work unit that established baseline context.",
-          },
-        ],
-      },
-    ],
+    groupsJson: [],
   },
   {
     idSuffix: "activation-to-done:completion",
     key: "wu.brainstorming.activation_to_done.completion",
     phase: "completion" as const,
     mode: "all" as const,
-    groupsJson: [
-      {
-        key: "required_brainstorming_facts",
-        mode: "all",
-        conditions: [
-          {
-            kind: "fact",
-            required: true,
-            config: {
-              factKey: "objectives",
-              operator: "exists",
-            },
-            rationale: "Brainstorming needs at least one recorded objective.",
-          },
-          {
-            kind: "fact",
-            required: true,
-            config: {
-              factKey: "desired_outcome",
-              operator: "exists",
-            },
-            rationale: "Brainstorming needs an explicit notion of success.",
-          },
-          {
-            kind: "fact",
-            required: true,
-            config: {
-              factKey: "selected_directions",
-              operator: "exists",
-            },
-            rationale:
-              "Brainstorming should converge on durable selected directions before completion.",
-          },
-        ],
-      },
-    ],
+    groupsJson: [],
   },
 ] as const;
 
@@ -915,6 +846,22 @@ const canonicalBrainstormingFactDefinitions = [
     guidanceJson: toGuidanceJson(
       "Describe the outcome the brainstorming session should deliver.",
       "Use this as the convergence target when deciding whether brainstorming is complete.",
+    ),
+    validationJson: { kind: "none" as const },
+  },
+  {
+    idSuffix: "selected-direction",
+    key: "selected_direction",
+    name: "Selected Direction",
+    factType: "string",
+    cardinality: "one" as const,
+    defaultValueJson: null,
+    descriptionJson: toDescriptionJson(
+      "Single lightweight selected direction used by the phase-1 invoke fixture.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Capture the single direction that should be prefilled and optionally refined during the phase-1 brainstorming flow.",
+      "Use this lightweight string fact for invoke-prefilled convergence in the phase-1 seed.",
     ),
     validationJson: { kind: "none" as const },
   },
@@ -1104,9 +1051,42 @@ const canonicalBrainstormingPrimaryWorkflows = [
       "Use this workflow to run the main facilitated brainstorming session and drive completion of the work unit.",
     ),
   },
+  {
+    idSuffix: "brainstorming-primary",
+    key: "brainstorming_primary",
+    displayName: "Brainstorming Primary",
+    descriptionJson: toDescriptionJson(
+      "Phase-1 invoke-only primary brainstorming workflow for lightweight downstream completion.",
+    ),
+    metadataJson: {
+      family: "brainstorming",
+      intent: "phase_1_invoke_primary_brainstorming",
+      supports_modes: ["invoke_test", "continue"],
+      bound_by_default: true,
+      primary_transition_key: "activation_to_done",
+      source_workflow: "brainstorming_primary",
+    },
+    guidanceJson: toGuidanceJson(
+      "Use this lightweight brainstorming workflow for invoke-runtime validation.",
+      "Keep the workflow lightweight: confirm the invoke-prefilled values, then exercise the two workflow-invoke variants.",
+    ),
+  },
 ] as const;
 
 const canonicalBrainstormingSupportWorkflows = [
+  {
+    idSuffix: "brainstorming-support",
+    key: "brainstorming_support",
+    displayName: "Brainstorming Support",
+    sourceMethodCategory: "phase_1_invoke",
+    descriptionJson: toDescriptionJson(
+      "Tiny supporting brainstorming workflow used as a deterministic invoke target in the phase-1 seed.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Use this lightweight support workflow as the invoke target for the phase-1 runtime seed.",
+      "Keep it trivially completable; it exists to validate workflow invoke mechanics rather than richer brainstorming behavior.",
+    ),
+  },
   {
     idSuffix: "five-whys-deep-dive",
     key: "five_whys_deep_dive",
@@ -1358,6 +1338,18 @@ function buildBrainstormingTransitionWorkflowBindingSeedRows(
       transitionId: `seed:transition:brainstorming:activation-to-done:${methodologyVersionId}`,
       workflowId: `seed:workflow:brainstorming:brainstorming:${methodologyVersionId}`,
     },
+    {
+      id: `seed:binding:brainstorming:activation-to-done:brainstorming-primary:${methodologyVersionId}`,
+      methodologyVersionId,
+      transitionId: `seed:transition:brainstorming:activation-to-done:${methodologyVersionId}`,
+      workflowId: `seed:workflow:brainstorming:brainstorming-primary:${methodologyVersionId}`,
+    },
+    {
+      id: `seed:binding:brainstorming:activation-to-done:brainstorming-support:${methodologyVersionId}`,
+      methodologyVersionId,
+      transitionId: `seed:transition:brainstorming:activation-to-done:${methodologyVersionId}`,
+      workflowId: `seed:workflow:brainstorming:brainstorming-support:${methodologyVersionId}`,
+    },
   ];
 }
 
@@ -1433,73 +1425,14 @@ const canonicalResearchConditionSets = [
     key: "wu.research.activation_to_done.start",
     phase: "start" as const,
     mode: "all" as const,
-    groupsJson: [
-      {
-        key: "required_upstream_context",
-        mode: "all",
-        conditions: [
-          {
-            kind: "fact",
-            required: true,
-            config: {
-              factKey: "setup_work_unit",
-              operator: "exists",
-            },
-            rationale: "Research requires a setup context reference.",
-          },
-          {
-            kind: "fact",
-            required: true,
-            config: {
-              factKey: "brainstorming_work_unit",
-              operator: "exists",
-            },
-            rationale: "Research should be connected to an upstream brainstorming context.",
-          },
-        ],
-      },
-    ],
+    groupsJson: [],
   },
   {
     idSuffix: "activation-to-done:completion",
     key: "wu.research.activation_to_done.completion",
     phase: "completion" as const,
     mode: "all" as const,
-    groupsJson: [
-      {
-        key: "required_research_outputs",
-        mode: "all",
-        conditions: [
-          {
-            kind: "fact",
-            required: true,
-            config: {
-              factKey: "research_topic",
-              operator: "exists",
-            },
-            rationale: "The research topic must be recorded.",
-          },
-          {
-            kind: "fact",
-            required: true,
-            config: {
-              factKey: "research_goals",
-              operator: "exists",
-            },
-            rationale: "The research goals set must include at least one recorded goal.",
-          },
-          {
-            kind: "fact",
-            required: true,
-            config: {
-              factKey: "research_synthesis",
-              operator: "exists",
-            },
-            rationale: "A durable synthesis must exist before the research is complete.",
-          },
-        ],
-      },
-    ],
+    groupsJson: [],
   },
 ] as const;
 
@@ -1775,6 +1708,26 @@ function buildResearchArtifactSlotTemplateSeedRows(
 }
 
 const canonicalResearchWorkflows = [
+  {
+    idSuffix: "research-primary",
+    key: "research_primary",
+    displayName: "Research Primary",
+    descriptionJson: toDescriptionJson(
+      "Phase-1 invoke-only primary research workflow for lightweight downstream completion.",
+    ),
+    metadataJson: {
+      family: "research",
+      intent: "phase_1_invoke_primary_research",
+      supports_modes: ["invoke_test", "continue"],
+      bound_by_default: true,
+      primary_transition_key: "activation_to_done",
+      source_workflow: "research_primary",
+    },
+    guidanceJson: toGuidanceJson(
+      "Use this lightweight research workflow for phase-1 invoke validation.",
+      "Keep it minimal and trivially completable so invoke behavior, not research richness, is under test.",
+    ),
+  },
   {
     idSuffix: "market-research",
     key: "market_research",
@@ -2341,6 +2294,8 @@ export const brainstormingSeedMetadata = {
   workUnitKeys: ["brainstorming"] as const,
   workflowKeys: [
     "brainstorming",
+    "brainstorming_primary",
+    "brainstorming_support",
     "five_whys_deep_dive",
     "architecture_decision_records",
     "self_consistency_validation",
@@ -2360,6 +2315,11 @@ export const researchSeedMetadata = {
   methodologyVersionIds,
   slice: "slice_a_research",
   workUnitKeys: ["research"] as const,
-  workflowKeys: ["market_research", "domain_research", "technical_research"] as const,
+  workflowKeys: [
+    "research_primary",
+    "market_research",
+    "domain_research",
+    "technical_research",
+  ] as const,
   sourceRefs: ["docs/plans/2026-03-20-story-3-2-l2-implementation-plan.md"],
 } as const;

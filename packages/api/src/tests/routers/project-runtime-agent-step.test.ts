@@ -7,7 +7,7 @@ import {
   AgentStepExecutionDetailService,
   AgentStepSessionCommandService,
   AgentStepTimelineService,
-} from "../../../../workflow-engine/src/index";
+} from "@chiron/workflow-engine";
 
 import { createProjectRuntimeRouter } from "../../routers/project-runtime";
 

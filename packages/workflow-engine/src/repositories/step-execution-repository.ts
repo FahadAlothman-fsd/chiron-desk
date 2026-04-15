@@ -143,5 +143,8 @@ export class StepExecutionRepository extends Context.Tag(
     readonly listWorkflowEdges: (
       workflowId: string,
     ) => Effect.Effect<readonly RuntimeWorkflowEdgeRow[], RepositoryError>;
+    readonly getWorkflowEntryStepId?: (
+      workflowId: string,
+    ) => Effect.Effect<string | null, RepositoryError>;
   }
 >() {}

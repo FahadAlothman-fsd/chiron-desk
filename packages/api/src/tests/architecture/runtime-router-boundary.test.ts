@@ -32,7 +32,7 @@ describe("runtime router boundary governance", () => {
   it("locks runtime router to workflow-engine services and forbids repository imports", () => {
     const source = readRepoFile("packages/api/src/routers/project-runtime.ts");
 
-    expect(source).toContain("../../../workflow-engine/src/index");
+    expect(source).toContain("@chiron/workflow-engine");
     expect(source).toContain("RuntimeGuidanceService");
     expect(source).toContain("RuntimeOverviewService");
     expect(source).toContain("RuntimeWorkUnitService");

@@ -1,0 +1,25 @@
+VERDICT: APPROVE
+
+Summary:
+- Reviewed invoke runtime services, repository contract, live layer wiring, invoke runtime contracts, and all six runtime invoke test files.
+- All previously identified code-quality issues are fixed.
+
+Verified fixes:
+1. Layer composition is complete: `WorkflowEngineRuntimeStepServicesLive` includes both `InvokeWorkflowExecutionServiceLive` and `InvokeWorkUnitExecutionServiceLive`.
+2. Workflow start is transaction-safe/idempotent at the service boundary: `InvokeWorkflowExecutionService` delegates child creation+linking to `startInvokeWorkflowTargetAtomically(...)`, and integration coverage proves race-safe/idempotent behavior plus failure safety.
+3. Server-side active-step invariant exists in both start services: both reject starts when the parent invoke step is not `active`.
+4. Repository contract is fixed and typed: atomic workflow/work-unit start methods are declared on `InvokeExecutionRepository` with typed params/results and `RepositoryError` failures.
+5. Zero-target logic is deduplicated: `getInvokeTargetsBlockedReason(...)` is the single canonical source used by target resolution and completion eligibility paths.
+6. Integration coverage is present: runtime invoke integration tests cover live-layer wiring, workflow-start race/failure behavior, zero-target completion rejection, and work-unit completion idempotency.
+
+Additional review checks:
+- All six invoke services use the proper `Context.Tag` + `Layer.effect` Effect service pattern.
+- Service boundaries are clean: resolution/materialization, child-start, completion eligibility, propagation, and detail assembly remain separated.
+- No obvious anti-patterns found in scoped invoke files (`any`, `ts-ignore`, `console.log`).
+
+Verification:
+- `bunx vitest run packages/workflow-engine/src/tests/runtime/runtime-invoke-*.test.ts` -> PASS (6 files, 22 tests)
+- `lsp_diagnostics` -> clean for all reviewed invoke services, repository contract, live layer, contracts file, and invoke test files
+
+Conclusion:
+- The L3 Slice 2 Runtime Invoke implementation now meets the requested code-quality bar and the previously rejected issues are resolved.

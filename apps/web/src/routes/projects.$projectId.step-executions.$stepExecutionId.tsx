@@ -7,14 +7,16 @@ import type {
 import type { WorkflowContextFactKind } from "@chiron/contracts/methodology/workflow";
 import type {
   GetRuntimeStepExecutionDetailOutput,
+  RuntimeInvokeWorkUnitTargetRow,
   RuntimeFormNestedField,
   RuntimeFormResolvedField,
+  RuntimeInvokeWorkflowTargetRow,
   RuntimeWorkflowContextFactGroup,
 } from "@chiron/contracts/runtime/executions";
 import type { AgentStepSseEnvelope } from "@chiron/contracts/sse/envelope";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Result } from "better-result";
 import {
   BotIcon,
@@ -59,7 +61,7 @@ import {
   PromptInputTools,
   type PromptInputSubmitStatus,
 } from "@/components/ai-elements/prompt-input";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -159,6 +161,7 @@ const AGENT_STEP_SSE_EVENT_NAMES = [
 ] as const;
 
 type FormBody = Extract<GetRuntimeStepExecutionDetailOutput["body"], { stepType: "form" }>;
+type InvokeBody = Extract<GetRuntimeStepExecutionDetailOutput["body"], { stepType: "invoke" }>;
 type AgentBody = GetAgentStepExecutionDetailOutput["body"];
 type TimelineThinkingItem = Extract<AgentStepTimelineItem, { itemType: "thinking" }>;
 type TimelineToolItem = Extract<AgentStepTimelineItem, { itemType: "tool_activity" }>;
@@ -198,6 +201,62 @@ function formatTimestamp(value: string | undefined): string {
   }
 
   return parsed.toLocaleString();
+}
+
+function formatInvokeStatusLabel(status: RuntimeInvokeWorkflowTargetRow["status"]): string {
+  switch (status) {
+    case "not_started":
+      return "Not started";
+    case "blocked":
+      return "Blocked";
+    case "active":
+      return "Active";
+    case "completed":
+      return "Completed";
+    case "failed":
+      return "Failed";
+    case "unavailable":
+      return "Unavailable";
+  }
+}
+
+function getInvokeStatusTone(status: RuntimeInvokeWorkflowTargetRow["status"]) {
+  switch (status) {
+    case "active":
+      return "emerald" as const;
+    case "completed":
+      return "sky" as const;
+    case "blocked":
+    case "failed":
+      return "rose" as const;
+    case "unavailable":
+      return "slate" as const;
+    case "not_started":
+    default:
+      return "amber" as const;
+  }
+}
+
+function formatInvokeTargetKindLabel(targetKind: InvokeBody["targetKind"]): string {
+  return targetKind === "work_unit" ? "Work unit" : "Workflow";
+}
+
+function formatInvokeSourceModeLabel(sourceMode: InvokeBody["sourceMode"]): string {
+  return sourceMode === "context_fact_backed" ? "Context-fact backed" : "Fixed set";
+}
+
+function formatInvokeCompletionRuleLabel(targetKind: InvokeBody["targetKind"]): string {
+  return targetKind === "workflow"
+    ? "At least one invoked workflow must complete before the parent step can complete."
+    : "At least one invoked work-unit transition must complete before the parent step can complete.";
+}
+
+function formatInvokeProgressLabel(completedTargets: number, totalTargets: number): string {
+  return `${completedTargets} of ${totalTargets} target${totalTargets === 1 ? "" : "s"} completed`;
+}
+
+function getInitialPrimaryWorkflowSelection(row: RuntimeInvokeWorkUnitTargetRow): string {
+  return row.workflowDefinitionId ?? row.availablePrimaryWorkflows[0]?.workflowDefinitionId ?? "";
 }
 
 function toErrorMessage(error: unknown): string {
@@ -2017,6 +2076,517 @@ function ContextFactInstances(props: {
   );
 }
 
+function InvokeInteractionSurface(props: {
+  projectId: string;
+  detail: GetRuntimeStepExecutionDetailOutput & { body: InvokeBody };
+}) {
+  const { detail, projectId } = props;
+  const { orpc, queryClient } = Route.useRouteContext();
+  const shell = detail.shell;
+  const body = detail.body;
+  const [selectedWorkflowsByRowId, setSelectedWorkflowsByRowId] = useState<Record<string, string>>(
+    () =>
+      Object.fromEntries(
+        body.workUnitTargets.map((row) => [
+          row.invokeWorkUnitTargetExecutionId,
+          getInitialPrimaryWorkflowSelection(row),
+        ]),
+      ),
+  );
+
+  useEffect(() => {
+    setSelectedWorkflowsByRowId(
+      Object.fromEntries(
+        body.workUnitTargets.map((row) => [
+          row.invokeWorkUnitTargetExecutionId,
+          getInitialPrimaryWorkflowSelection(row),
+        ]),
+      ),
+    );
+  }, [body.workUnitTargets]);
+
+  const invalidateStepDetail = async () => {
+    await queryClient.invalidateQueries({
+      queryKey: runtimeStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+    });
+  };
+
+  const startWorkflowMutation = useMutation(
+    orpc.project.startInvokeWorkflowTarget.mutationOptions({
+      onSuccess: invalidateStepDetail,
+    }),
+  );
+
+  const startWorkUnitMutation = useMutation(
+    orpc.project.startInvokeWorkUnitTarget.mutationOptions({
+      onSuccess: invalidateStepDetail,
+    }),
+  );
+
+  const completeStepMutation = useMutation(
+    orpc.project.completeStepExecution.mutationOptions({
+      onSuccess: invalidateStepDetail,
+    }),
+  );
+
+  const isBusy =
+    startWorkflowMutation.isPending ||
+    startWorkUnitMutation.isPending ||
+    completeStepMutation.isPending;
+
+  const completionOutcome =
+    shell.status === "completed"
+      ? "Completed"
+      : body.completionSummary.eligible
+        ? "Ready to complete"
+        : (body.completionSummary.reasonIfIneligible ??
+          shell.completionAction.reasonIfDisabled ??
+          "Incomplete");
+
+  const workflowRowsVisible = body.targetKind === "workflow" || body.workflowTargets.length > 0;
+  const workUnitRowsVisible = body.targetKind === "work_unit" || body.workUnitTargets.length > 0;
+  const mutationError =
+    startWorkflowMutation.error ?? startWorkUnitMutation.error ?? completeStepMutation.error;
+
+  return (
+    <div className="space-y-4">
+      <StepExecutionShellCard
+        shell={shell}
+        completionOutcome={completionOutcome}
+        isBusy={isBusy}
+        onComplete={() =>
+          completeStepMutation.mutate({
+            projectId,
+            workflowExecutionId: shell.workflowExecutionId,
+            stepExecutionId: shell.stepExecutionId,
+          })
+        }
+      />
+
+      <Card
+        frame="cut-heavy"
+        tone="runtime"
+        corner="white"
+        style={getStepTypeFrameStyle(shell.stepType)}
+      >
+        <CardHeader>
+          <div className="space-y-1">
+            <DetailEyebrow>Invoke runtime</DetailEyebrow>
+            <CardTitle>Invoke targets, completion rule &amp; propagation preview</CardTitle>
+            <CardDescription>
+              Invoke steps keep the shared shell above, then materialize frozen child targets with
+              explicit start/open actions and completion-time propagation only.
+            </CardDescription>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="border border-border/70 bg-background/40 p-3">
+              <DetailLabel>Target kind</DetailLabel>
+              <DetailPrimary>{formatInvokeTargetKindLabel(body.targetKind)}</DetailPrimary>
+            </div>
+            <div className="border border-border/70 bg-background/40 p-3">
+              <DetailLabel>Source mode</DetailLabel>
+              <DetailPrimary>{formatInvokeSourceModeLabel(body.sourceMode)}</DetailPrimary>
+            </div>
+            <div className="border border-border/70 bg-background/40 p-3">
+              <DetailLabel>Completion progress</DetailLabel>
+              <DetailPrimary>
+                {formatInvokeProgressLabel(
+                  body.completionSummary.completedTargets,
+                  body.completionSummary.totalTargets,
+                )}
+              </DetailPrimary>
+              {!body.completionSummary.eligible && body.completionSummary.reasonIfIneligible ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {body.completionSummary.reasonIfIneligible}
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="border border-border/70 bg-background/40 p-3">
+            <DetailLabel>Completion rule</DetailLabel>
+            <DetailPrimary>{formatInvokeCompletionRuleLabel(body.targetKind)}</DetailPrimary>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Completion remains manual and uses the shared complete-step action in the shell.
+            </p>
+          </div>
+
+          {mutationError ? (
+            <div className="border border-destructive/60 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {toErrorMessage(mutationError)}
+            </div>
+          ) : null}
+
+          {workflowRowsVisible ? (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <DetailEyebrow>Workflow targets</DetailEyebrow>
+                <CardTitle>Invoked workflows</CardTitle>
+                <CardDescription>
+                  Human-readable workflow labels lead; definition and execution IDs stay secondary.
+                </CardDescription>
+              </div>
+
+              {body.workflowTargets.length === 0 ? (
+                <div className="border border-border/70 bg-background/40 p-3 text-sm text-muted-foreground">
+                  No workflow targets resolved.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {body.workflowTargets.map((row) => (
+                    <Card
+                      key={row.invokeWorkflowTargetExecutionId}
+                      frame="flat"
+                      tone="runtime"
+                      className="border-border/70 bg-background/40"
+                    >
+                      <CardHeader className="border-b border-border/70">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="space-y-1">
+                            <CardTitle className="text-sm">{row.label}</CardTitle>
+                            <CardDescription>
+                              {row.workflowDefinitionKey ??
+                                row.workflowDefinitionName ??
+                                "Workflow target"}
+                            </CardDescription>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2">
+                            <ExecutionBadge
+                              label={formatInvokeStatusLabel(row.status)}
+                              tone={getInvokeStatusTone(row.status)}
+                            />
+                            {row.activeChildStepLabel ? (
+                              <ExecutionBadge label={row.activeChildStepLabel} tone="violet" />
+                            ) : null}
+                          </div>
+                        </div>
+                      </CardHeader>
+
+                      <CardContent className="space-y-3 pt-4 text-xs text-muted-foreground">
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <div>
+                            <DetailLabel>Workflow label</DetailLabel>
+                            <DetailPrimary>{row.label}</DetailPrimary>
+                            {row.workflowDefinitionId ? (
+                              <DetailCode>{row.workflowDefinitionId}</DetailCode>
+                            ) : null}
+                          </div>
+
+                          <div>
+                            <DetailLabel>Workflow execution</DetailLabel>
+                            <DetailPrimary>
+                              {row.workflowExecutionId ? "Execution started" : "Not started yet"}
+                            </DetailPrimary>
+                            {row.workflowExecutionId ? (
+                              <DetailCode>{row.workflowExecutionId}</DetailCode>
+                            ) : null}
+                          </div>
+
+                          {row.activeChildStepLabel ? (
+                            <div className="md:col-span-2">
+                              <DetailLabel>Active child step</DetailLabel>
+                              <DetailPrimary>{row.activeChildStepLabel}</DetailPrimary>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        {row.actions.start &&
+                        !row.actions.start.enabled &&
+                        row.actions.start.reasonIfDisabled ? (
+                          <p className="text-xs text-muted-foreground">
+                            {row.actions.start.reasonIfDisabled}
+                          </p>
+                        ) : null}
+                      </CardContent>
+
+                      <CardFooter className="justify-end gap-2">
+                        {row.actions.start ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={isBusy || !row.actions.start.enabled}
+                            onClick={() =>
+                              startWorkflowMutation.mutate({
+                                projectId,
+                                stepExecutionId: shell.stepExecutionId,
+                                invokeWorkflowTargetExecutionId:
+                                  row.actions.start.invokeWorkflowTargetExecutionId,
+                              })
+                            }
+                          >
+                            Start workflow
+                          </Button>
+                        ) : null}
+
+                        {row.actions.openWorkflow ? (
+                          <Link
+                            to="/projects/$projectId/workflow-executions/$workflowExecutionId"
+                            params={{
+                              projectId,
+                              workflowExecutionId: row.actions.openWorkflow.workflowExecutionId,
+                            }}
+                            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                          >
+                            Open workflow
+                          </Link>
+                        ) : null}
+                      </CardFooter>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {workUnitRowsVisible ? (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <DetailEyebrow>Work-unit targets</DetailEyebrow>
+                <CardTitle>Invoked work-unit paths</CardTitle>
+                <CardDescription>
+                  Startable rows require an explicit primary workflow selection before runtime child
+                  entities are materialized.
+                </CardDescription>
+              </div>
+
+              {body.workUnitTargets.length === 0 ? (
+                <div className="border border-border/70 bg-background/40 p-3 text-sm text-muted-foreground">
+                  No work-unit targets resolved.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {body.workUnitTargets.map((row) => {
+                    const selectedWorkflowId =
+                      selectedWorkflowsByRowId[row.invokeWorkUnitTargetExecutionId] ??
+                      getInitialPrimaryWorkflowSelection(row);
+
+                    return (
+                      <Card
+                        key={row.invokeWorkUnitTargetExecutionId}
+                        frame="flat"
+                        tone="runtime"
+                        className="border-border/70 bg-background/40"
+                      >
+                        <CardHeader className="border-b border-border/70">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="space-y-1">
+                              <CardTitle className="text-sm">{row.workUnitLabel}</CardTitle>
+                              <CardDescription>{row.transitionLabel}</CardDescription>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                              <ExecutionBadge
+                                label={formatInvokeStatusLabel(row.status)}
+                                tone={getInvokeStatusTone(row.status)}
+                              />
+                              {row.currentWorkUnitStateLabel ? (
+                                <ExecutionBadge
+                                  label={row.currentWorkUnitStateLabel}
+                                  tone="slate"
+                                />
+                              ) : null}
+                            </div>
+                          </div>
+                        </CardHeader>
+
+                        <CardContent className="space-y-3 pt-4 text-xs text-muted-foreground">
+                          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                            <div>
+                              <DetailLabel>Work unit</DetailLabel>
+                              <DetailPrimary>{row.workUnitLabel}</DetailPrimary>
+                              <DetailCode>{row.workUnitDefinitionId}</DetailCode>
+                            </div>
+
+                            <div>
+                              <DetailLabel>Transition</DetailLabel>
+                              <DetailPrimary>{row.transitionLabel}</DetailPrimary>
+                              <DetailCode>{row.transitionDefinitionId}</DetailCode>
+                            </div>
+
+                            <div>
+                              <DetailLabel>Primary workflow</DetailLabel>
+                              {row.actions.start && row.availablePrimaryWorkflows.length > 0 ? (
+                                <Select
+                                  value={selectedWorkflowId}
+                                  onValueChange={(value) =>
+                                    setSelectedWorkflowsByRowId((current) => ({
+                                      ...current,
+                                      [row.invokeWorkUnitTargetExecutionId]: value ?? "",
+                                    }))
+                                  }
+                                >
+                                  <SelectTrigger
+                                    id={`invoke-primary-workflow-${row.invokeWorkUnitTargetExecutionId}`}
+                                    className="w-full bg-background/80 text-foreground"
+                                  >
+                                    <SelectValue placeholder="Choose a primary workflow" />
+                                  </SelectTrigger>
+                                  <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
+                                    {row.availablePrimaryWorkflows.map((option) => (
+                                      <SelectItem
+                                        key={option.workflowDefinitionId}
+                                        value={option.workflowDefinitionId}
+                                      >
+                                        {option.workflowDefinitionName}
+                                        {option.workflowDefinitionKey
+                                          ? ` (${option.workflowDefinitionKey})`
+                                          : ""}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <>
+                                  <DetailPrimary>
+                                    {row.workflowLabel ?? "No primary workflow selected"}
+                                  </DetailPrimary>
+                                  {row.workflowDefinitionId ? (
+                                    <DetailCode>{row.workflowDefinitionId}</DetailCode>
+                                  ) : null}
+                                </>
+                              )}
+                            </div>
+
+                            <div>
+                              <DetailLabel>Current work-unit state</DetailLabel>
+                              <DetailPrimary>
+                                {row.currentWorkUnitStateLabel ?? "Not created yet"}
+                              </DetailPrimary>
+                              {row.projectWorkUnitId ? (
+                                <DetailCode>{row.projectWorkUnitId}</DetailCode>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          {row.blockedReason ? (
+                            <p className="text-xs text-muted-foreground">{row.blockedReason}</p>
+                          ) : null}
+
+                          {row.actions.start &&
+                          !row.actions.start.enabled &&
+                          row.actions.start.reasonIfDisabled ? (
+                            <p className="text-xs text-muted-foreground">
+                              {row.actions.start.reasonIfDisabled}
+                            </p>
+                          ) : null}
+                        </CardContent>
+
+                        <CardFooter className="justify-end gap-2">
+                          {row.actions.start ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={
+                                isBusy ||
+                                !row.actions.start.enabled ||
+                                selectedWorkflowId.length === 0
+                              }
+                              onClick={() => {
+                                if (!selectedWorkflowId) {
+                                  return;
+                                }
+
+                                startWorkUnitMutation.mutate({
+                                  projectId,
+                                  stepExecutionId: shell.stepExecutionId,
+                                  invokeWorkUnitTargetExecutionId:
+                                    row.actions.start.invokeWorkUnitTargetExecutionId,
+                                  workflowDefinitionId: selectedWorkflowId,
+                                });
+                              }}
+                            >
+                              Start work unit
+                            </Button>
+                          ) : null}
+
+                          {row.actions.openWorkUnit ? (
+                            <Link
+                              to="/projects/$projectId/work-units/$projectWorkUnitId"
+                              params={{
+                                projectId,
+                                projectWorkUnitId: row.actions.openWorkUnit.projectWorkUnitId,
+                              }}
+                              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                            >
+                              Open work unit
+                            </Link>
+                          ) : null}
+
+                          {row.actions.openTransition ? (
+                            <Link
+                              to="/projects/$projectId/transition-executions/$transitionExecutionId"
+                              params={{
+                                projectId,
+                                transitionExecutionId:
+                                  row.actions.openTransition.transitionExecutionId,
+                              }}
+                              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                            >
+                              Open transition
+                            </Link>
+                          ) : null}
+
+                          {row.actions.openWorkflow ? (
+                            <Link
+                              to="/projects/$projectId/workflow-executions/$workflowExecutionId"
+                              params={{
+                                projectId,
+                                workflowExecutionId: row.actions.openWorkflow.workflowExecutionId,
+                              }}
+                              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                            >
+                              Open workflow
+                            </Link>
+                          ) : null}
+                        </CardFooter>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          <div className="space-y-3 border border-border/70 bg-background/40 p-3">
+            <div className="space-y-1">
+              <DetailEyebrow>Propagation preview</DetailEyebrow>
+              <CardTitle>Completion-time outputs</CardTitle>
+              <CardDescription>{body.propagationPreview.summary}</CardDescription>
+            </div>
+
+            {body.propagationPreview.outputs.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No context-fact outputs will be written when this invoke step completes.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {body.propagationPreview.outputs.map((output) => (
+                  <li
+                    key={output.contextFactDefinitionId}
+                    className="border border-border/70 bg-background/50 p-2"
+                  >
+                    <DetailPrimary>{output.label}</DetailPrimary>
+                    {output.contextFactKey ? (
+                      <DetailCode>{output.contextFactKey}</DetailCode>
+                    ) : null}
+                    <DetailCode>{output.contextFactDefinitionId}</DetailCode>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function AgentInteractionSurface(props: {
   projectId: string;
   shell: GetRuntimeStepExecutionDetailOutput["shell"];
@@ -3484,6 +4054,11 @@ export function RuntimeFormStepDetailRoute() {
           <FormInteractionSurface
             projectId={projectId}
             detail={detail as typeof detail & { body: FormBody }}
+          />
+        ) : detail.body.stepType === "invoke" ? (
+          <InvokeInteractionSurface
+            projectId={projectId}
+            detail={detail as typeof detail & { body: InvokeBody }}
           />
         ) : detail.shell.stepType === "agent" ? (
           agentDetailQuery.data ? (

@@ -27,6 +27,7 @@ import { ProjectFactRepository } from "../repositories/project-fact-repository";
 import { ProjectWorkUnitRepository } from "../repositories/project-work-unit-repository";
 import { StepExecutionRepository } from "../repositories/step-execution-repository";
 import { WorkUnitFactRepository } from "../repositories/work-unit-fact-repository";
+import { InvokeStepDetailService } from "./invoke-step-detail-service";
 
 const makeDetailError = (cause: string): RepositoryError =>
   new RepositoryError({
@@ -686,6 +687,7 @@ export const StepExecutionDetailServiceLive = Layer.effect(
     const projectFactRepo = yield* ProjectFactRepository;
     const projectWorkUnitRepo = yield* ProjectWorkUnitRepository;
     const workUnitFactRepo = yield* WorkUnitFactRepository;
+    const invokeStepDetailService = yield* InvokeStepDetailService;
 
     const getRuntimeStepExecutionDetail = (input: GetRuntimeStepExecutionDetailInput) =>
       Effect.gen(function* () {
@@ -713,14 +715,6 @@ export const StepExecutionDetailServiceLive = Layer.effect(
 
           return candidate.previousStepExecutionId === stepExecution.id;
         });
-
-        const completionEnabled =
-          stepExecution.status === "active" &&
-          (stepExecution.stepType === "agent" ||
-            (stepExecution.stepType === "form" &&
-              !!formState?.submittedAt &&
-              formState.submittedPayloadJson !== null &&
-              formState.submittedPayloadJson !== undefined));
 
         const body: GetRuntimeStepExecutionDetailOutput["body"] =
           stepExecution.stepType === "form"
@@ -901,14 +895,31 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                   },
                 } satisfies GetRuntimeStepExecutionDetailOutput["body"];
               })
-            : {
-                stepType: stepExecution.stepType as Exclude<
-                  GetRuntimeStepExecutionDetailOutput["body"]["stepType"],
-                  "form"
-                >,
-                mode: "deferred",
-                defaultMessage: `${stepExecution.stepType} step detail remains read-only in this slice.`,
-              };
+            : stepExecution.stepType === "invoke"
+              ? yield* invokeStepDetailService.buildInvokeStepExecutionDetailBody({
+                  projectId: input.projectId,
+                  stepExecution,
+                  workflowDetail,
+                })
+              : {
+                  stepType: stepExecution.stepType as Exclude<
+                    GetRuntimeStepExecutionDetailOutput["body"]["stepType"],
+                    "form"
+                  >,
+                  mode: "deferred",
+                  defaultMessage: `${stepExecution.stepType} step detail remains read-only in this slice.`,
+                };
+
+        const completionEnabled =
+          stepExecution.status === "active" &&
+          (stepExecution.stepType === "agent" ||
+            (stepExecution.stepType === "form" &&
+              !!formState?.submittedAt &&
+              formState.submittedPayloadJson !== null &&
+              formState.submittedPayloadJson !== undefined) ||
+            (stepExecution.stepType === "invoke" &&
+              body.stepType === "invoke" &&
+              body.completionSummary.eligible));
 
         return {
           shell: {
@@ -929,7 +940,9 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                   ? "Step execution is already completed."
                   : completionEnabled
                     ? undefined
-                    : "Form steps can complete only after a submitted payload is present.",
+                    : body.stepType === "invoke"
+                      ? body.completionSummary.reasonIfIneligible
+                      : "Form steps can complete only after a submitted payload is present.",
             },
           },
           body,

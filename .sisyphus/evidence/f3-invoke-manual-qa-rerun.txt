@@ -1,0 +1,12 @@
+VERDICT: APPROVE
+
+- Required verification command passed: `bunx vitest run packages/workflow-engine/src/tests/runtime/runtime-invoke-*.test.ts apps/web/src/tests/routes/runtime-invoke-step-detail.test.tsx packages/api/src/tests/routers/project-runtime-invoke.test.ts`
+- Result: 8/8 test files passed, 27/27 tests passed.
+- Previously identified gaps are now covered:
+  1. Work-unit propagation idempotency with retry scenarios: covered in `packages/workflow-engine/src/tests/runtime/runtime-invoke-integration.test.ts` and `packages/workflow-engine/src/tests/runtime/runtime-invoke-completion.test.ts`.
+  2. UI disabled-action behavior: covered in `apps/web/src/tests/routes/runtime-invoke-step-detail.test.tsx`.
+  3. Router-level error mapping: covered in `packages/api/src/tests/routers/project-runtime-invoke.test.ts`.
+  4. Live-layer composition: covered in `packages/workflow-engine/src/tests/runtime/runtime-invoke-integration.test.ts`.
+  5. Workflow-start race conditions: covered in `packages/workflow-engine/src/tests/runtime/runtime-invoke-integration.test.ts`.
+  6. Zero-target completion-disabled behavior: covered in `packages/workflow-engine/src/tests/runtime/runtime-invoke-target-resolution.test.ts`, `packages/workflow-engine/src/tests/runtime/runtime-invoke-step-detail.test.ts`, `packages/workflow-engine/src/tests/runtime/runtime-invoke-integration.test.ts`, and `apps/web/src/tests/routes/runtime-invoke-step-detail.test.tsx`.
+- QA rerun conclusion: test coverage is comprehensive for the previously reported gaps, and no remaining untested scenarios were found within this rerun scope.

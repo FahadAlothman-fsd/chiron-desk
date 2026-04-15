@@ -1,0 +1,22 @@
+VERDICT: APPROVE
+
+Re-run scope: L3 Slice 2 Runtime Invoke final compliance audit against `.sisyphus/plans/l3-slice-2-runtime-invoke.md`.
+
+Confirmed fixed:
+- Fix 1: Workflow child start is now delegated through the transactional repository seam `startInvokeWorkflowTargetAtomically(...)` from `InvokeWorkflowExecutionService`, and integration coverage proves atomic failure does not orphan child workflow executions.
+- Fix 2: Zero-target blocking now surfaces the canonical reason `No invoke targets resolved` through completion eligibility, shell disabled state, and transaction failure paths.
+
+Major plan requirements satisfied:
+- Invoke aggregate root exists with the correct FK layout in `packages/db/src/schema/runtime.ts` (`invoke_step_execution_state` with child rows linked by `invokeStepExecutionStateId`).
+- Workflow/work-unit child rows link to invoke root, not directly to `step_executions`.
+- Frozen target-set behavior is implemented in `InvokeTargetResolutionService`: targets resolve/materialize once on activation and reuse existing invoke state thereafter.
+- Completion eligibility is target-specific in `InvokeCompletionService`: workflow invoke requires at least one completed child workflow; work-unit invoke requires at least one completed child transition.
+- Propagation occurs only during invoke completion in `step-execution-transaction-service.ts` via `InvokePropagationService`; child-start services do not write output context facts.
+- Invoke UI remains human-readable-first in `apps/web/src/routes/projects.$projectId.step-executions.$stepExecutionId.tsx`, with labels/status text primary and IDs secondary.
+- No branch runtime implementation was introduced in reviewed invoke surfaces.
+- No workflow execution page redesign was introduced; invoke remains on the step execution detail page.
+- No invoke-specific streaming surface was introduced.
+
+Verification:
+- `bunx vitest run packages/workflow-engine/src/tests/runtime/runtime-invoke-*.test.ts`
+- Result: 6 files passed, 22 tests passed.
