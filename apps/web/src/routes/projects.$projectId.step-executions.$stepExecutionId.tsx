@@ -259,6 +259,119 @@ function getInitialPrimaryWorkflowSelection(row: RuntimeInvokeWorkUnitTargetRow)
   return row.workflowDefinitionId ?? row.availablePrimaryWorkflows[0]?.workflowDefinitionId ?? "";
 }
 
+type InvokeWorkUnitBindingPreview = RuntimeInvokeWorkUnitTargetRow["bindingPreview"][number];
+
+function createRuntimeBindingDraftState(
+  rows: readonly RuntimeInvokeWorkUnitTargetRow[],
+): Record<string, Record<string, string>> {
+  return Object.fromEntries(
+    rows.map((row) => {
+      const runtimeDefaults = Object.fromEntries(
+        row.bindingPreview
+          .filter(
+            (binding) =>
+              binding.requiresRuntimeValue && binding.destinationKind === "work_unit_fact",
+          )
+          .map((binding) => [binding.destinationDefinitionId, ""]),
+      );
+
+      return [row.invokeWorkUnitTargetExecutionId, runtimeDefaults];
+    }),
+  );
+}
+
+function formatInvokeBindingSourceValue(binding: InvokeWorkUnitBindingPreview): string {
+  if (binding.sourceKind === "runtime") {
+    return "Provided at runtime";
+  }
+
+  if (binding.sourceKind === "literal") {
+    return `Literal: ${formatUnknown(binding.resolvedValueJson)}`;
+  }
+
+  return binding.sourceContextFactKey
+    ? `Context fact: ${binding.sourceContextFactKey}`
+    : "Context fact";
+}
+
+function parseRuntimeBindingInputValue(params: {
+  binding: InvokeWorkUnitBindingPreview;
+  rawValue: string;
+}): { ok: true; valueJson: unknown } | { ok: false; message: string } {
+  const { binding, rawValue } = params;
+
+  if (binding.destinationKind !== "work_unit_fact") {
+    return {
+      ok: false,
+      message: `Runtime input is not supported for destination '${binding.destinationLabel}'.`,
+    };
+  }
+
+  const isMany = binding.destinationCardinality === "many";
+  const destinationType = binding.destinationFactType;
+
+  if (isMany || destinationType === "json") {
+    if (rawValue.trim().length === 0) {
+      return {
+        ok: false,
+        message: `Enter a JSON ${isMany ? "array" : "value"} for '${binding.destinationLabel}'.`,
+      };
+    }
+
+    const parsed = Result.try({
+      try: () => JSON.parse(rawValue),
+      catch: () => undefined,
+    });
+    if (parsed.isErr() || parsed.value === undefined) {
+      return {
+        ok: false,
+        message: `Invalid JSON for '${binding.destinationLabel}'.`,
+      };
+    }
+
+    if (isMany && !Array.isArray(parsed.value)) {
+      return {
+        ok: false,
+        message: `Runtime value for '${binding.destinationLabel}' must be a JSON array.`,
+      };
+    }
+
+    return { ok: true, valueJson: parsed.value };
+  }
+
+  if (destinationType === "number") {
+    if (rawValue.trim().length === 0) {
+      return {
+        ok: false,
+        message: `Runtime value for '${binding.destinationLabel}' must be a number.`,
+      };
+    }
+
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed)) {
+      return {
+        ok: false,
+        message: `Runtime value for '${binding.destinationLabel}' must be a number.`,
+      };
+    }
+
+    return { ok: true, valueJson: parsed };
+  }
+
+  if (destinationType === "boolean") {
+    if (rawValue !== "true" && rawValue !== "false") {
+      return {
+        ok: false,
+        message: `Runtime value for '${binding.destinationLabel}' must be true or false.`,
+      };
+    }
+
+    return { ok: true, valueJson: rawValue === "true" };
+  }
+
+  return { ok: true, valueJson: rawValue };
+}
+
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -573,12 +686,6 @@ function renderContextFactLabel(
 
 function renderContextFactKindLabel(kind: WorkflowContextFactKind): string {
   return kind.replaceAll("_", " ");
-}
-
-function getToolActivityTone(
-  toolKind: "harness" | "mcp",
-): Parameters<typeof ExecutionBadge>[0]["tone"] {
-  return toolKind === "mcp" ? "amber" : "violet";
 }
 
 function getPromptInputSubmitStatus(params: {
@@ -2093,6 +2200,12 @@ function InvokeInteractionSurface(props: {
         ]),
       ),
   );
+  const [runtimeBindingInputsByRowId, setRuntimeBindingInputsByRowId] = useState<
+    Record<string, Record<string, string>>
+  >(() => createRuntimeBindingDraftState(body.workUnitTargets));
+  const [runtimeBindingValidationError, setRuntimeBindingValidationError] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     setSelectedWorkflowsByRowId(
@@ -2103,6 +2216,8 @@ function InvokeInteractionSurface(props: {
         ]),
       ),
     );
+    setRuntimeBindingInputsByRowId(createRuntimeBindingDraftState(body.workUnitTargets));
+    setRuntimeBindingValidationError(null);
   }, [body.workUnitTargets]);
 
   const invalidateStepDetail = async () => {
@@ -2147,6 +2262,8 @@ function InvokeInteractionSurface(props: {
   const workUnitRowsVisible = body.targetKind === "work_unit" || body.workUnitTargets.length > 0;
   const mutationError =
     startWorkflowMutation.error ?? startWorkUnitMutation.error ?? completeStepMutation.error;
+  const surfacedError =
+    runtimeBindingValidationError ?? (mutationError ? toErrorMessage(mutationError) : null);
 
   return (
     <div className="space-y-4">
@@ -2214,9 +2331,9 @@ function InvokeInteractionSurface(props: {
             </p>
           </div>
 
-          {mutationError ? (
+          {surfacedError ? (
             <div className="border border-destructive/60 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {toErrorMessage(mutationError)}
+              {surfacedError}
             </div>
           ) : null}
 
@@ -2236,108 +2353,110 @@ function InvokeInteractionSurface(props: {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {body.workflowTargets.map((row) => (
-                    <Card
-                      key={row.invokeWorkflowTargetExecutionId}
-                      frame="flat"
-                      tone="runtime"
-                      className="border-border/70 bg-background/40"
-                    >
-                      <CardHeader className="border-b border-border/70">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div className="space-y-1">
-                            <CardTitle className="text-sm">{row.label}</CardTitle>
-                            <CardDescription>
-                              {row.workflowDefinitionKey ??
-                                row.workflowDefinitionName ??
-                                "Workflow target"}
-                            </CardDescription>
-                          </div>
+                  {body.workflowTargets.map((row) => {
+                    const startAction = row.actions.start;
 
-                          <div className="flex flex-wrap gap-2">
-                            <ExecutionBadge
-                              label={formatInvokeStatusLabel(row.status)}
-                              tone={getInvokeStatusTone(row.status)}
-                            />
-                            {row.activeChildStepLabel ? (
-                              <ExecutionBadge label={row.activeChildStepLabel} tone="violet" />
-                            ) : null}
-                          </div>
-                        </div>
-                      </CardHeader>
-
-                      <CardContent className="space-y-3 pt-4 text-xs text-muted-foreground">
-                        <div className="grid gap-3 md:grid-cols-2">
-                          <div>
-                            <DetailLabel>Workflow label</DetailLabel>
-                            <DetailPrimary>{row.label}</DetailPrimary>
-                            {row.workflowDefinitionId ? (
-                              <DetailCode>{row.workflowDefinitionId}</DetailCode>
-                            ) : null}
-                          </div>
-
-                          <div>
-                            <DetailLabel>Workflow execution</DetailLabel>
-                            <DetailPrimary>
-                              {row.workflowExecutionId ? "Execution started" : "Not started yet"}
-                            </DetailPrimary>
-                            {row.workflowExecutionId ? (
-                              <DetailCode>{row.workflowExecutionId}</DetailCode>
-                            ) : null}
-                          </div>
-
-                          {row.activeChildStepLabel ? (
-                            <div className="md:col-span-2">
-                              <DetailLabel>Active child step</DetailLabel>
-                              <DetailPrimary>{row.activeChildStepLabel}</DetailPrimary>
+                    return (
+                      <Card
+                        key={row.invokeWorkflowTargetExecutionId}
+                        frame="flat"
+                        tone="runtime"
+                        className="border-border/70 bg-background/40"
+                      >
+                        <CardHeader className="border-b border-border/70">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="space-y-1">
+                              <CardTitle className="text-sm">{row.label}</CardTitle>
+                              <CardDescription>
+                                {row.workflowDefinitionKey ??
+                                  row.workflowDefinitionName ??
+                                  "Workflow target"}
+                              </CardDescription>
                             </div>
+
+                            <div className="flex flex-wrap gap-2">
+                              <ExecutionBadge
+                                label={formatInvokeStatusLabel(row.status)}
+                                tone={getInvokeStatusTone(row.status)}
+                              />
+                              {row.activeChildStepLabel ? (
+                                <ExecutionBadge label={row.activeChildStepLabel} tone="violet" />
+                              ) : null}
+                            </div>
+                          </div>
+                        </CardHeader>
+
+                        <CardContent className="space-y-3 pt-4 text-xs text-muted-foreground">
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <div>
+                              <DetailLabel>Workflow label</DetailLabel>
+                              <DetailPrimary>{row.label}</DetailPrimary>
+                              {row.workflowDefinitionId ? (
+                                <DetailCode>{row.workflowDefinitionId}</DetailCode>
+                              ) : null}
+                            </div>
+
+                            <div>
+                              <DetailLabel>Workflow execution</DetailLabel>
+                              <DetailPrimary>
+                                {row.workflowExecutionId ? "Execution started" : "Not started yet"}
+                              </DetailPrimary>
+                              {row.workflowExecutionId ? (
+                                <DetailCode>{row.workflowExecutionId}</DetailCode>
+                              ) : null}
+                            </div>
+
+                            {row.activeChildStepLabel ? (
+                              <div className="md:col-span-2">
+                                <DetailLabel>Active child step</DetailLabel>
+                                <DetailPrimary>{row.activeChildStepLabel}</DetailPrimary>
+                              </div>
+                            ) : null}
+                          </div>
+
+                          {startAction && !startAction.enabled && startAction.reasonIfDisabled ? (
+                            <p className="text-xs text-muted-foreground">
+                              {startAction.reasonIfDisabled}
+                            </p>
                           ) : null}
-                        </div>
+                        </CardContent>
 
-                        {row.actions.start &&
-                        !row.actions.start.enabled &&
-                        row.actions.start.reasonIfDisabled ? (
-                          <p className="text-xs text-muted-foreground">
-                            {row.actions.start.reasonIfDisabled}
-                          </p>
-                        ) : null}
-                      </CardContent>
+                        <CardFooter className="justify-end gap-2">
+                          {startAction ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={isBusy || !startAction.enabled}
+                              onClick={() =>
+                                startWorkflowMutation.mutate({
+                                  projectId,
+                                  stepExecutionId: shell.stepExecutionId,
+                                  invokeWorkflowTargetExecutionId:
+                                    startAction.invokeWorkflowTargetExecutionId,
+                                })
+                              }
+                            >
+                              Start workflow
+                            </Button>
+                          ) : null}
 
-                      <CardFooter className="justify-end gap-2">
-                        {row.actions.start ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={isBusy || !row.actions.start.enabled}
-                            onClick={() =>
-                              startWorkflowMutation.mutate({
+                          {row.actions.openWorkflow ? (
+                            <Link
+                              to="/projects/$projectId/workflow-executions/$workflowExecutionId"
+                              params={{
                                 projectId,
-                                stepExecutionId: shell.stepExecutionId,
-                                invokeWorkflowTargetExecutionId:
-                                  row.actions.start.invokeWorkflowTargetExecutionId,
-                              })
-                            }
-                          >
-                            Start workflow
-                          </Button>
-                        ) : null}
-
-                        {row.actions.openWorkflow ? (
-                          <Link
-                            to="/projects/$projectId/workflow-executions/$workflowExecutionId"
-                            params={{
-                              projectId,
-                              workflowExecutionId: row.actions.openWorkflow.workflowExecutionId,
-                            }}
-                            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-                          >
-                            Open workflow
-                          </Link>
-                        ) : null}
-                      </CardFooter>
-                    </Card>
-                  ))}
+                                workflowExecutionId: row.actions.openWorkflow.workflowExecutionId,
+                              }}
+                              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                            >
+                              Open workflow
+                            </Link>
+                          ) : null}
+                        </CardFooter>
+                      </Card>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -2364,6 +2483,18 @@ function InvokeInteractionSurface(props: {
                     const selectedWorkflowId =
                       selectedWorkflowsByRowId[row.invokeWorkUnitTargetExecutionId] ??
                       getInitialPrimaryWorkflowSelection(row);
+                    const startAction = row.actions.start;
+                    const runtimeBindings = row.bindingPreview.filter(
+                      (binding) => binding.requiresRuntimeValue,
+                    );
+                    const runtimeWorkUnitFactBindings = runtimeBindings.filter(
+                      (binding) => binding.destinationKind === "work_unit_fact",
+                    );
+                    const unsupportedRuntimeBindings = runtimeBindings.filter(
+                      (binding) => binding.destinationKind !== "work_unit_fact",
+                    );
+                    const rowRuntimeInputs =
+                      runtimeBindingInputsByRowId[row.invokeWorkUnitTargetExecutionId] ?? {};
 
                     return (
                       <Card
@@ -2410,7 +2541,7 @@ function InvokeInteractionSurface(props: {
 
                             <div>
                               <DetailLabel>Primary workflow</DetailLabel>
-                              {row.actions.start && row.availablePrimaryWorkflows.length > 0 ? (
+                              {startAction && row.availablePrimaryWorkflows.length > 0 ? (
                                 <Select
                                   value={selectedWorkflowId}
                                   onValueChange={(value) =>
@@ -2467,24 +2598,155 @@ function InvokeInteractionSurface(props: {
                             <p className="text-xs text-muted-foreground">{row.blockedReason}</p>
                           ) : null}
 
-                          {row.actions.start &&
-                          !row.actions.start.enabled &&
-                          row.actions.start.reasonIfDisabled ? (
+                          {startAction && !startAction.enabled && startAction.reasonIfDisabled ? (
                             <p className="text-xs text-muted-foreground">
-                              {row.actions.start.reasonIfDisabled}
+                              {startAction.reasonIfDisabled}
                             </p>
+                          ) : null}
+
+                          {row.bindingPreview.length > 0 ? (
+                            <div className="space-y-2 border border-border/70 bg-background/50 p-3">
+                              <DetailLabel>Binding preview</DetailLabel>
+                              <p className="text-xs text-muted-foreground">
+                                These are the invoke bindings that will initialize the child
+                                work-unit when started.
+                              </p>
+
+                              <ul className="space-y-2">
+                                {row.bindingPreview.map((binding) => {
+                                  const runtimeRawValue =
+                                    rowRuntimeInputs[binding.destinationDefinitionId] ?? "";
+                                  const manyOrJsonInput =
+                                    binding.destinationCardinality === "many" ||
+                                    binding.destinationFactType === "json";
+
+                                  return (
+                                    <li
+                                      key={`${row.invokeWorkUnitTargetExecutionId}-${binding.destinationDefinitionId}`}
+                                      className="space-y-2 border border-border/70 bg-background/60 p-2"
+                                    >
+                                      <div className="grid gap-2 md:grid-cols-2">
+                                        <div>
+                                          <DetailLabel>Destination</DetailLabel>
+                                          <DetailPrimary>{binding.destinationLabel}</DetailPrimary>
+                                          <DetailCode>{binding.destinationDefinitionId}</DetailCode>
+                                        </div>
+                                        <div>
+                                          <DetailLabel>Source</DetailLabel>
+                                          <DetailPrimary>
+                                            {formatInvokeBindingSourceValue(binding)}
+                                          </DetailPrimary>
+                                          {binding.sourceContextFactDefinitionId ? (
+                                            <DetailCode>
+                                              {binding.sourceContextFactDefinitionId}
+                                            </DetailCode>
+                                          ) : null}
+                                        </div>
+                                      </div>
+
+                                      {binding.sourceKind !== "runtime" ? (
+                                        <div>
+                                          <DetailLabel>Resolved value</DetailLabel>
+                                          <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
+                                            {binding.resolvedValueJson === undefined
+                                              ? "No runtime value resolved yet."
+                                              : formatUnknown(binding.resolvedValueJson)}
+                                          </pre>
+                                        </div>
+                                      ) : (
+                                        <div className="space-y-2">
+                                          <DetailLabel>Runtime value input</DetailLabel>
+                                          {binding.destinationKind !== "work_unit_fact" ? (
+                                            <p className="text-xs text-destructive">
+                                              Runtime mapping for artifact slots is not supported
+                                              yet.
+                                            </p>
+                                          ) : binding.destinationFactType === "boolean" &&
+                                            binding.destinationCardinality === "one" ? (
+                                            <Select
+                                              value={runtimeRawValue}
+                                              onValueChange={(value) => {
+                                                setRuntimeBindingValidationError(null);
+                                                setRuntimeBindingInputsByRowId((current) => ({
+                                                  ...current,
+                                                  [row.invokeWorkUnitTargetExecutionId]: {
+                                                    ...current[row.invokeWorkUnitTargetExecutionId],
+                                                    [binding.destinationDefinitionId]: value,
+                                                  },
+                                                }));
+                                              }}
+                                            >
+                                              <SelectTrigger className="w-full bg-background/80 text-foreground">
+                                                <SelectValue placeholder="Select true or false" />
+                                              </SelectTrigger>
+                                              <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
+                                                <SelectItem value="true">true</SelectItem>
+                                                <SelectItem value="false">false</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          ) : manyOrJsonInput ? (
+                                            <Textarea
+                                              value={runtimeRawValue}
+                                              onChange={(event) => {
+                                                setRuntimeBindingValidationError(null);
+                                                setRuntimeBindingInputsByRowId((current) => ({
+                                                  ...current,
+                                                  [row.invokeWorkUnitTargetExecutionId]: {
+                                                    ...current[row.invokeWorkUnitTargetExecutionId],
+                                                    [binding.destinationDefinitionId]:
+                                                      event.target.value,
+                                                  },
+                                                }));
+                                              }}
+                                              rows={3}
+                                              placeholder={
+                                                binding.destinationCardinality === "many"
+                                                  ? '["value-1", "value-2"]'
+                                                  : '{"key":"value"}'
+                                              }
+                                            />
+                                          ) : (
+                                            <Input
+                                              type={
+                                                binding.destinationFactType === "number"
+                                                  ? "number"
+                                                  : "text"
+                                              }
+                                              value={runtimeRawValue}
+                                              onChange={(event) => {
+                                                setRuntimeBindingValidationError(null);
+                                                setRuntimeBindingInputsByRowId((current) => ({
+                                                  ...current,
+                                                  [row.invokeWorkUnitTargetExecutionId]: {
+                                                    ...current[row.invokeWorkUnitTargetExecutionId],
+                                                    [binding.destinationDefinitionId]:
+                                                      event.target.value,
+                                                  },
+                                                }));
+                                              }}
+                                              placeholder="Enter runtime value"
+                                            />
+                                          )}
+                                        </div>
+                                      )}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </div>
                           ) : null}
                         </CardContent>
 
                         <CardFooter className="justify-end gap-2">
-                          {row.actions.start ? (
+                          {startAction ? (
                             <Button
                               type="button"
                               variant="outline"
                               size="sm"
                               disabled={
                                 isBusy ||
-                                !row.actions.start.enabled ||
+                                !startAction.enabled ||
+                                unsupportedRuntimeBindings.length > 0 ||
                                 selectedWorkflowId.length === 0
                               }
                               onClick={() => {
@@ -2492,12 +2754,46 @@ function InvokeInteractionSurface(props: {
                                   return;
                                 }
 
+                                if (unsupportedRuntimeBindings.length > 0) {
+                                  setRuntimeBindingValidationError(
+                                    "Runtime mapping for artifact-slot bindings is not supported yet.",
+                                  );
+                                  return;
+                                }
+
+                                const runtimeFactValues: Array<{
+                                  workUnitFactDefinitionId: string;
+                                  valueJson: unknown;
+                                }> = [];
+
+                                for (const binding of runtimeWorkUnitFactBindings) {
+                                  const rawValue =
+                                    rowRuntimeInputs[binding.destinationDefinitionId] ?? "";
+                                  const parsed = parseRuntimeBindingInputValue({
+                                    binding,
+                                    rawValue,
+                                  });
+
+                                  if (!parsed.ok) {
+                                    setRuntimeBindingValidationError(parsed.message);
+                                    return;
+                                  }
+
+                                  runtimeFactValues.push({
+                                    workUnitFactDefinitionId: binding.destinationDefinitionId,
+                                    valueJson: parsed.valueJson,
+                                  });
+                                }
+
+                                setRuntimeBindingValidationError(null);
+
                                 startWorkUnitMutation.mutate({
                                   projectId,
                                   stepExecutionId: shell.stepExecutionId,
                                   invokeWorkUnitTargetExecutionId:
-                                    row.actions.start.invokeWorkUnitTargetExecutionId,
+                                    startAction.invokeWorkUnitTargetExecutionId,
                                   workflowDefinitionId: selectedWorkflowId,
+                                  ...(runtimeFactValues.length > 0 ? { runtimeFactValues } : {}),
                                 });
                               }}
                             >
@@ -2512,6 +2808,7 @@ function InvokeInteractionSurface(props: {
                                 projectId,
                                 projectWorkUnitId: row.actions.openWorkUnit.projectWorkUnitId,
                               }}
+                              search={{ q: "", hasActiveTransition: "all" }}
                               className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
                             >
                               Open work unit
