@@ -298,6 +298,14 @@ const startInvokeWorkUnitTargetInput: z.ZodType<StartInvokeWorkUnitTargetInput> 
   stepExecutionId: z.string().min(1),
   invokeWorkUnitTargetExecutionId: z.string().min(1),
   workflowDefinitionId: z.string().min(1),
+  runtimeFactValues: z
+    .array(
+      z.object({
+        workUnitFactDefinitionId: z.string().min(1),
+        valueJson: z.unknown(),
+      }),
+    )
+    .optional(),
 });
 
 const checkArtifactSlotCurrentStateInput = z.object({

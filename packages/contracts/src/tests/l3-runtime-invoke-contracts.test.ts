@@ -111,6 +111,7 @@ describe("l3 runtime invoke contracts", () => {
                 },
               },
             },
+            bindingPreview: [],
           },
         ],
         completionSummary: {

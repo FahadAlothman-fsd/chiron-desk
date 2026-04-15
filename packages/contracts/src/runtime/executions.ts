@@ -501,6 +501,20 @@ export const RuntimeInvokePrimaryWorkflowOption = Schema.Struct({
 });
 export type RuntimeInvokePrimaryWorkflowOption = typeof RuntimeInvokePrimaryWorkflowOption.Type;
 
+export const RuntimeInvokeWorkUnitBindingPreview = Schema.Struct({
+  destinationKind: Schema.Literal("work_unit_fact", "artifact_slot"),
+  destinationDefinitionId: Schema.NonEmptyString,
+  destinationLabel: Schema.String,
+  destinationFactType: Schema.optional(FactType),
+  destinationCardinality: Schema.optional(FactCardinality),
+  sourceKind: Schema.Literal("context_fact", "literal", "runtime"),
+  sourceContextFactDefinitionId: Schema.optional(Schema.NonEmptyString),
+  sourceContextFactKey: Schema.optional(Schema.String),
+  resolvedValueJson: Schema.optional(Schema.Unknown),
+  requiresRuntimeValue: Schema.Boolean,
+});
+export type RuntimeInvokeWorkUnitBindingPreview = typeof RuntimeInvokeWorkUnitBindingPreview.Type;
+
 export const RuntimeInvokeWorkUnitTargetRow = Schema.Struct({
   workUnitLabel: Schema.String,
   transitionLabel: Schema.String,
@@ -560,6 +574,7 @@ export const RuntimeInvokeWorkUnitTargetRow = Schema.Struct({
       }),
     ),
   }),
+  bindingPreview: Schema.Array(RuntimeInvokeWorkUnitBindingPreview),
 });
 export type RuntimeInvokeWorkUnitTargetRow = typeof RuntimeInvokeWorkUnitTargetRow.Type;
 
@@ -629,6 +644,14 @@ export const StartInvokeWorkUnitTargetInput = Schema.Struct({
   stepExecutionId: Schema.NonEmptyString,
   invokeWorkUnitTargetExecutionId: Schema.NonEmptyString,
   workflowDefinitionId: Schema.NonEmptyString,
+  runtimeFactValues: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        workUnitFactDefinitionId: Schema.NonEmptyString,
+        valueJson: Schema.Unknown,
+      }),
+    ),
+  ),
 });
 export type StartInvokeWorkUnitTargetInput = typeof StartInvokeWorkUnitTargetInput.Type;
 
