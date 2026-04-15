@@ -1,0 +1,43 @@
+packages/workflow-engine/src/services/workflow-execution-step-command-service.ts
+  0b0efaa693ef3738 2-3,14,79-80,82,96-126,133-149,163-172,185,191-202
+packages/db/src/runtime-repositories/transition-execution-repository.ts
+  0b0efaa693ef3738 194-251
+packages/workflow-engine/src/tests/runtime/l3-slice-1-form-runtime.test.ts
+  0b0efaa693ef3738 7,31-34,627-630,643,653-680,683,691-699,703,715-718
+packages/workflow-engine/src/tests/runtime/runtime-invoke-step-detail.test.ts
+  0b0efaa693ef3738 227-238,556-566,903-920
+packages/workflow-engine/src/repositories/transition-execution-repository.ts
+  0b0efaa693ef3738 3,44-51,72-74
+packages/workflow-engine/src/services/invoke-step-detail-service.ts
+  0b0efaa693ef3738 167-178,186-194,256,363,366,445-446,607,615-616,627
+packages/workflow-engine/src/services/invoke-propagation-service.ts
+  0b0efaa693ef3738 186,192-196,200,204-213,220
+packages/workflow-engine/src/layers/live.ts
+  0b0efaa693ef3738 20,102,183
+packages/workflow-engine/src/tests/runtime/runtime-invoke-integration.test.ts
+  0b0efaa693ef3738 414-428
+packages/workflow-engine/src/tests/runtime/runtime-invoke-completion.test.ts
+  0b0efaa693ef3738 311-321,628-641
+packages/workflow-engine/src/services/invoke-completion-service.ts
+  0b0efaa693ef3738 1,81-82,85,90,94-103,110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "bef3c004c1ea282570cafc83197ef162987a79fb",
+  "prompts": {
+    "0b0efaa693ef3738": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_273da0175ffe9tlB6249OZzgvL",
+        "model": "opencode/kimi-k2.5"
+      },
+      "human_author": "Fahad Alothman",
+      "messages": [],
+      "total_additions": 765,
+      "total_deletions": 58,
+      "accepted_lines": 555,
+      "overriden_lines": 0
+    }
+  }
+}
