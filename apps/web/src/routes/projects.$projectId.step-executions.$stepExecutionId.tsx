@@ -7,7 +7,6 @@ import type {
 import type { WorkflowContextFactKind } from "@chiron/contracts/methodology/workflow";
 import type {
   GetRuntimeStepExecutionDetailOutput,
-  RuntimeFormFieldOption,
   RuntimeInvokeWorkUnitTargetRow,
   RuntimeFormNestedField,
   RuntimeFormResolvedField,
@@ -314,6 +313,21 @@ function createRuntimeBindingDraftState(
       return [row.invokeWorkUnitTargetExecutionId, initialValues];
     }),
   );
+}
+
+function updateRuntimeBindingDraftState(params: {
+  current: Record<string, Record<string, string>>;
+  rowId: string;
+  destinationDefinitionId: string;
+  value: string;
+}): Record<string, Record<string, string>> {
+  return {
+    ...params.current,
+    [params.rowId]: {
+      ...params.current[params.rowId],
+      [params.destinationDefinitionId]: params.value,
+    },
+  };
 }
 
 function formatInvokeBindingSourceValue(binding: InvokeWorkUnitBindingPreview): string {
@@ -2531,6 +2545,10 @@ function InvokeInteractionSurface(props: {
                       selectedWorkflowsByRowId[row.invokeWorkUnitTargetExecutionId] ??
                       getInitialPrimaryWorkflowSelection(row);
                     const startAction = row.actions.start;
+                    const bindingsLocked =
+                      !!row.projectWorkUnitId ||
+                      !!row.transitionExecutionId ||
+                      !!row.workflowExecutionId;
                     const editableWorkUnitFactBindings = row.bindingPreview.filter(
                       (binding) => binding.destinationKind === "work_unit_fact",
                     );
@@ -2704,17 +2722,18 @@ function InvokeInteractionSurface(props: {
                                             <>
                                               <Select
                                                 value={runtimeRawValue}
+                                                disabled={bindingsLocked}
                                                 onValueChange={(value) => {
                                                   setRuntimeBindingValidationError(null);
-                                                  setRuntimeBindingInputsByRowId((current) => ({
-                                                    ...current,
-                                                    [row.invokeWorkUnitTargetExecutionId]: {
-                                                      ...current[
-                                                        row.invokeWorkUnitTargetExecutionId
-                                                      ],
-                                                      [binding.destinationDefinitionId]: value,
-                                                    },
-                                                  }));
+                                                  setRuntimeBindingInputsByRowId((current) =>
+                                                    updateRuntimeBindingDraftState({
+                                                      current,
+                                                      rowId: row.invokeWorkUnitTargetExecutionId,
+                                                      destinationDefinitionId:
+                                                        binding.destinationDefinitionId,
+                                                      value: value ?? "",
+                                                    }),
+                                                  );
                                                 }}
                                               >
                                                 <SelectTrigger className="w-full bg-background/80 text-foreground">
@@ -2747,15 +2766,18 @@ function InvokeInteractionSurface(props: {
                                             binding.destinationCardinality === "one" ? (
                                             <Select
                                               value={runtimeRawValue}
+                                              disabled={bindingsLocked}
                                               onValueChange={(value) => {
                                                 setRuntimeBindingValidationError(null);
-                                                setRuntimeBindingInputsByRowId((current) => ({
-                                                  ...current,
-                                                  [row.invokeWorkUnitTargetExecutionId]: {
-                                                    ...current[row.invokeWorkUnitTargetExecutionId],
-                                                    [binding.destinationDefinitionId]: value,
-                                                  },
-                                                }));
+                                                setRuntimeBindingInputsByRowId((current) =>
+                                                  updateRuntimeBindingDraftState({
+                                                    current,
+                                                    rowId: row.invokeWorkUnitTargetExecutionId,
+                                                    destinationDefinitionId:
+                                                      binding.destinationDefinitionId,
+                                                    value: value ?? "",
+                                                  }),
+                                                );
                                               }}
                                             >
                                               <SelectTrigger className="w-full bg-background/80 text-foreground">
@@ -2769,16 +2791,18 @@ function InvokeInteractionSurface(props: {
                                           ) : manyOrJsonInput ? (
                                             <Textarea
                                               value={runtimeRawValue}
+                                              disabled={bindingsLocked}
                                               onChange={(event) => {
                                                 setRuntimeBindingValidationError(null);
-                                                setRuntimeBindingInputsByRowId((current) => ({
-                                                  ...current,
-                                                  [row.invokeWorkUnitTargetExecutionId]: {
-                                                    ...current[row.invokeWorkUnitTargetExecutionId],
-                                                    [binding.destinationDefinitionId]:
-                                                      event.target.value,
-                                                  },
-                                                }));
+                                                setRuntimeBindingInputsByRowId((current) =>
+                                                  updateRuntimeBindingDraftState({
+                                                    current,
+                                                    rowId: row.invokeWorkUnitTargetExecutionId,
+                                                    destinationDefinitionId:
+                                                      binding.destinationDefinitionId,
+                                                    value: event.target.value,
+                                                  }),
+                                                );
                                               }}
                                               rows={3}
                                               placeholder={
@@ -2795,16 +2819,18 @@ function InvokeInteractionSurface(props: {
                                                   : "text"
                                               }
                                               value={runtimeRawValue}
+                                              disabled={bindingsLocked}
                                               onChange={(event) => {
                                                 setRuntimeBindingValidationError(null);
-                                                setRuntimeBindingInputsByRowId((current) => ({
-                                                  ...current,
-                                                  [row.invokeWorkUnitTargetExecutionId]: {
-                                                    ...current[row.invokeWorkUnitTargetExecutionId],
-                                                    [binding.destinationDefinitionId]:
-                                                      event.target.value,
-                                                  },
-                                                }));
+                                                setRuntimeBindingInputsByRowId((current) =>
+                                                  updateRuntimeBindingDraftState({
+                                                    current,
+                                                    rowId: row.invokeWorkUnitTargetExecutionId,
+                                                    destinationDefinitionId:
+                                                      binding.destinationDefinitionId,
+                                                    value: event.target.value,
+                                                  }),
+                                                );
                                               }}
                                               placeholder="Enter runtime value"
                                             />
