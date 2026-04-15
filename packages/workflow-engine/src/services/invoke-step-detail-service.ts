@@ -47,6 +47,8 @@ type TransitionSummary = {
   transitionLabel: string;
 };
 
+type WorkUnitInvokePayload = Extract<InvokeStepPayload, { targetKind: "work_unit" }>;
+
 const makeDetailError = (cause: string): RepositoryError =>
   new RepositoryError({
     operation: "invoke-step-detail",
@@ -93,11 +95,17 @@ const toPropagationPreview = (params: {
   targetKind: InvokeStepPayload["targetKind"];
   outputs: readonly WorkflowContextFactDto[];
 }): RuntimeInvokeStepExecutionDetailBody["propagationPreview"] => {
-  const outputs = params.outputs.map((contextFact) => ({
-    label: getContextFactLabel(contextFact),
-    contextFactDefinitionId: contextFact.contextFactDefinitionId,
-    contextFactKey: contextFact.key,
-  }));
+  const outputs = params.outputs.flatMap((contextFact) =>
+    typeof contextFact.contextFactDefinitionId === "string"
+      ? [
+          {
+            label: getContextFactLabel(contextFact),
+            contextFactDefinitionId: contextFact.contextFactDefinitionId,
+            contextFactKey: contextFact.key,
+          },
+        ]
+      : [],
+  );
 
   const summary =
     outputs.length === 0
@@ -183,16 +191,19 @@ export const InvokeStepDetailServiceLive = Layer.effect(
           );
         }
 
-        const invokePayload =
+        const invokePayloadRaw =
           typeof invokeDefinition === "object" && invokeDefinition !== null
             ? ((invokeDefinition as { payload?: unknown }).payload as InvokeStepPayload | undefined)
             : undefined;
-        const invokeTargetKind = invokePayload?.targetKind;
+        const invokeTargetKind = invokePayloadRaw?.targetKind;
         if (invokeTargetKind !== "workflow" && invokeTargetKind !== "work_unit") {
           return yield* Effect.fail(
             makeDetailError("invoke step payload missing for runtime detail"),
           );
         }
+        const invokePayload = invokePayloadRaw as InvokeStepPayload;
+        const workUnitInvokePayload: WorkUnitInvokePayload | null =
+          invokePayload.targetKind === "work_unit" ? invokePayload : null;
 
         const invokeState = yield* invokeRepo.getInvokeStepExecutionStateByStepExecutionId(
           stepExecution.id,
@@ -201,7 +212,12 @@ export const InvokeStepDetailServiceLive = Layer.effect(
           return yield* Effect.fail(makeDetailError("invoke step execution state not found"));
         }
 
-        const [workflowTargetRows, workUnitTargetRows, completionEligibility] = yield* Effect.all([
+        const [
+          workflowTargetRows,
+          workUnitTargetRows,
+          completionEligibility,
+          workflowContextFacts,
+        ] = yield* Effect.all([
           invokeRepo.listInvokeWorkflowTargetExecutions(invokeState.id),
           invokeRepo.listInvokeWorkUnitTargetExecutions(invokeState.id),
           invokeCompletionService.getCompletionEligibility({
@@ -209,6 +225,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
             workflowExecutionId: stepExecution.workflowExecutionId,
             stepExecutionId: stepExecution.id,
           }),
+          stepRepo.listWorkflowExecutionContextFacts(stepExecution.workflowExecutionId),
         ]);
 
         const workUnitTypeById = new Map(
@@ -244,7 +261,9 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                       workflowDefinitionId: workflow.workflowDefinitionId,
                       workflowDefinitionKey: workflow.key,
                       workflowDefinitionName: workflow.displayName ?? humanizeKey(workflow.key),
-                      workUnitTypeKey: workflow.workUnitTypeKey,
+                      ...(typeof workflow.workUnitTypeKey === "string"
+                        ? { workUnitTypeKey: workflow.workUnitTypeKey }
+                        : {}),
                     } satisfies WorkflowDefinitionSummary,
                   ] as const,
                 ]
@@ -261,12 +280,40 @@ export const InvokeStepDetailServiceLive = Layer.effect(
 
         const transitionsById = new Map<string, TransitionSummary>();
         const statesByWorkUnitTypeId = new Map<string, Map<string, string>>();
+        const workUnitFactDefinitionsById = new Map<
+          string,
+          {
+            id: string;
+            key: string;
+            label: string;
+            factType: string;
+            cardinality: "one" | "many";
+          }
+        >();
+        const artifactSlotDefinitionsById = new Map<
+          string,
+          {
+            id: string;
+            key: string;
+            label: string;
+          }
+        >();
         for (const workUnitTypeId of relevantWorkUnitTypeIds) {
-          const [transitions, states] = yield* Effect.all([
+          const workUnitType = workUnitTypeById.get(workUnitTypeId);
+          if (!workUnitType) {
+            continue;
+          }
+
+          const [transitions, states, factSchemas, artifactSlots] = yield* Effect.all([
             lifecycleRepo.findLifecycleTransitions(projectPin.methodologyVersionId, {
               workUnitTypeId,
             }),
             lifecycleRepo.findLifecycleStates(projectPin.methodologyVersionId, workUnitTypeId),
+            lifecycleRepo.findFactSchemas(projectPin.methodologyVersionId, workUnitTypeId),
+            methodologyRepo.findArtifactSlotsByWorkUnitType({
+              versionId: projectPin.methodologyVersionId,
+              workUnitTypeKey: workUnitType.key,
+            }),
           ]);
 
           for (const transition of transitions) {
@@ -285,7 +332,132 @@ export const InvokeStepDetailServiceLive = Layer.effect(
               ),
             ),
           );
+
+          for (const factSchema of factSchemas) {
+            if (!workUnitFactDefinitionsById.has(factSchema.id)) {
+              workUnitFactDefinitionsById.set(factSchema.id, {
+                id: factSchema.id,
+                key: factSchema.key,
+                label: humanizeKey(factSchema.key),
+                factType: factSchema.factType,
+                cardinality: factSchema.cardinality === "many" ? "many" : "one",
+              });
+            }
+          }
+
+          for (const slot of artifactSlots) {
+            if (!artifactSlotDefinitionsById.has(slot.id)) {
+              artifactSlotDefinitionsById.set(slot.id, {
+                id: slot.id,
+                key: slot.key,
+                label: slot.displayName ?? humanizeKey(slot.key),
+              });
+            }
+          }
         }
+
+        const contextFactsByDefinitionId = new Map(
+          workflowEditor.contextFacts.flatMap((contextFact) =>
+            typeof contextFact.contextFactDefinitionId === "string"
+              ? [[contextFact.contextFactDefinitionId, contextFact] as const]
+              : [],
+          ),
+        );
+
+        const invokeBindingPreview: RuntimeInvokeStepExecutionDetailBody["workUnitTargets"][number]["bindingPreview"] =
+          invokeTargetKind === "work_unit"
+            ? (workUnitInvokePayload?.bindings ?? []).map((binding) => {
+                if (binding.destination.kind === "work_unit_fact") {
+                  const destination = workUnitFactDefinitionsById.get(
+                    binding.destination.workUnitFactDefinitionId,
+                  );
+                  const sourceContextFact =
+                    binding.source.kind === "context_fact"
+                      ? contextFactsByDefinitionId.get(binding.source.contextFactDefinitionId)
+                      : undefined;
+                  const sourceInstances =
+                    binding.source.kind === "context_fact"
+                      ? workflowContextFacts
+                          .filter(
+                            (fact) =>
+                              fact.contextFactDefinitionId ===
+                              binding.source.contextFactDefinitionId,
+                          )
+                          .sort((left, right) => left.instanceOrder - right.instanceOrder)
+                      : [];
+                  const resolvedValueJson =
+                    binding.source.kind === "literal"
+                      ? binding.source.value
+                      : binding.source.kind === "context_fact"
+                        ? sourceInstances.length === 0
+                          ? undefined
+                          : sourceContextFact?.cardinality === "many"
+                            ? sourceInstances.map((instance) => instance.valueJson)
+                            : sourceInstances[0]?.valueJson
+                        : undefined;
+
+                  return {
+                    destinationKind: "work_unit_fact",
+                    destinationDefinitionId: binding.destination.workUnitFactDefinitionId,
+                    destinationLabel:
+                      destination?.label ??
+                      humanizeKey(binding.destination.workUnitFactDefinitionId),
+                    destinationFactType: destination?.factType,
+                    destinationCardinality: destination?.cardinality,
+                    sourceKind: binding.source.kind,
+                    sourceContextFactDefinitionId:
+                      binding.source.kind === "context_fact"
+                        ? binding.source.contextFactDefinitionId
+                        : undefined,
+                    sourceContextFactKey: sourceContextFact?.key,
+                    resolvedValueJson,
+                    requiresRuntimeValue: binding.source.kind === "runtime",
+                  };
+                }
+
+                const destination = artifactSlotDefinitionsById.get(
+                  binding.destination.artifactSlotDefinitionId,
+                );
+                const sourceContextFact =
+                  binding.source.kind === "context_fact"
+                    ? contextFactsByDefinitionId.get(binding.source.contextFactDefinitionId)
+                    : undefined;
+                const sourceInstances =
+                  binding.source.kind === "context_fact"
+                    ? workflowContextFacts
+                        .filter(
+                          (fact) =>
+                            fact.contextFactDefinitionId === binding.source.contextFactDefinitionId,
+                        )
+                        .sort((left, right) => left.instanceOrder - right.instanceOrder)
+                    : [];
+                const resolvedValueJson =
+                  binding.source.kind === "literal"
+                    ? binding.source.value
+                    : binding.source.kind === "context_fact"
+                      ? sourceInstances.length === 0
+                        ? undefined
+                        : sourceContextFact?.cardinality === "many"
+                          ? sourceInstances.map((instance) => instance.valueJson)
+                          : sourceInstances[0]?.valueJson
+                      : undefined;
+
+                return {
+                  destinationKind: "artifact_slot",
+                  destinationDefinitionId: binding.destination.artifactSlotDefinitionId,
+                  destinationLabel:
+                    destination?.label ?? humanizeKey(binding.destination.artifactSlotDefinitionId),
+                  sourceKind: binding.source.kind,
+                  sourceContextFactDefinitionId:
+                    binding.source.kind === "context_fact"
+                      ? binding.source.contextFactDefinitionId
+                      : undefined,
+                  sourceContextFactKey: sourceContextFact?.key,
+                  resolvedValueJson,
+                  requiresRuntimeValue: binding.source.kind === "runtime",
+                };
+              })
+            : [];
 
         const childWorkflowRows = yield* Effect.forEach(
           workflowTargetRows
@@ -363,7 +535,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
           invokeTargetKind === "workflow"
             ? contextFact.kind === "workflow_reference_fact"
             : contextFact.kind === "work_unit_draft_spec_fact" &&
-              contextFact.workUnitDefinitionId === invokePayload.workUnitDefinitionId,
+              contextFact.workUnitDefinitionId === workUnitInvokePayload?.workUnitDefinitionId,
         );
 
         const workflowTargets = workflowTargetRows.map((row) => {
@@ -392,12 +564,12 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                   const stepDefinition = currentStepRow
                     ? editor?.steps.find((step) => step.stepId === currentStepRow.stepDefinitionId)
                     : undefined;
+                  const stepPayload =
+                    stepDefinition && "payload" in stepDefinition ? stepDefinition.payload : null;
 
                   return (
-                    stepDefinition?.payload.label ??
-                    (stepDefinition?.payload.key
-                      ? humanizeKey(stepDefinition.payload.key)
-                      : undefined)
+                    stepPayload?.label ??
+                    (stepPayload?.key ? humanizeKey(stepPayload.key) : undefined)
                   );
                 })()
               : undefined;
@@ -441,9 +613,12 @@ export const InvokeStepDetailServiceLive = Layer.effect(
           } satisfies RuntimeInvokeStepExecutionDetailBody["workflowTargets"][number];
         });
 
-        const workflowOptionsByTransitionId = new Map(
+        const workflowOptionsByTransitionId = new Map<
+          string,
+          RuntimeInvokeStepExecutionDetailBody["workUnitTargets"][number]["availablePrimaryWorkflows"]
+        >(
           invokeTargetKind === "work_unit"
-            ? invokePayload.activationTransitions.map((transition) => [
+            ? (workUnitInvokePayload?.activationTransitions ?? []).map((transition) => [
                 transition.transitionId,
                 transition.workflowDefinitionIds.map((workflowDefinitionId) => {
                   const summary = workflowDefinitionsById.get(workflowDefinitionId);
@@ -601,6 +776,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                   }
                 : {}),
             },
+            bindingPreview: invokeBindingPreview,
           } satisfies RuntimeInvokeStepExecutionDetailBody["workUnitTargets"][number];
         });
 

@@ -189,7 +189,7 @@ describe("runtime invoke step detail", () => {
       findWorkUnitTypes: () => Effect.succeed(workUnitTypes),
       findLifecycleStates: () => Effect.succeed([]),
       findLifecycleTransitions: () => Effect.succeed([]),
-      findFactSchemas: () => Effect.die("unused"),
+      findFactSchemas: () => Effect.succeed([]),
       findTransitionConditionSets: () => Effect.die("unused"),
       findAgentTypes: () => Effect.die("unused"),
       findTransitionWorkflowBindings: () => Effect.die("unused"),
@@ -236,7 +236,7 @@ describe("runtime invoke step detail", () => {
             workflowDefinitionIds: [],
           },
         }),
-      findArtifactSlotsByWorkUnitType: () => Effect.die("unused"),
+      findArtifactSlotsByWorkUnitType: () => Effect.succeed([]),
       findFactDefinitionsByVersionId: () => Effect.die("unused"),
     } as unknown as Context.Tag.Service<typeof MethodologyRepository>);
 
@@ -435,7 +435,7 @@ describe("runtime invoke step detail", () => {
       findWorkUnitTypes: () => Effect.succeed(workUnitTypes),
       findLifecycleStates: () => Effect.succeed([]),
       findLifecycleTransitions: () => Effect.succeed([]),
-      findFactSchemas: () => Effect.die("unused"),
+      findFactSchemas: () => Effect.succeed([]),
       findTransitionConditionSets: () => Effect.die("unused"),
       findAgentTypes: () => Effect.die("unused"),
       findTransitionWorkflowBindings: () => Effect.die("unused"),
@@ -564,7 +564,7 @@ describe("runtime invoke step detail", () => {
             workflowDefinitionIds: ["workflow-child-1", "workflow-child-2", "workflow-child-3"],
           },
         }),
-      findArtifactSlotsByWorkUnitType: () => Effect.die("unused"),
+      findArtifactSlotsByWorkUnitType: () => Effect.succeed([]),
       findFactDefinitionsByVersionId: () => Effect.die("unused"),
     } as unknown as Context.Tag.Service<typeof MethodologyRepository>);
 
@@ -832,7 +832,7 @@ describe("runtime invoke step detail", () => {
               ]
             : [],
         ),
-      findFactSchemas: () => Effect.die("unused"),
+      findFactSchemas: () => Effect.succeed([]),
       findTransitionConditionSets: () => Effect.die("unused"),
       findAgentTypes: () => Effect.die("unused"),
       findTransitionWorkflowBindings: () => Effect.die("unused"),
@@ -918,7 +918,7 @@ describe("runtime invoke step detail", () => {
             ],
           },
         }),
-      findArtifactSlotsByWorkUnitType: () => Effect.die("unused"),
+      findArtifactSlotsByWorkUnitType: () => Effect.succeed([]),
       findFactDefinitionsByVersionId: () => Effect.die("unused"),
     } as unknown as Context.Tag.Service<typeof MethodologyRepository>);
 
