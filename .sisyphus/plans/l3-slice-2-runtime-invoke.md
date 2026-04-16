@@ -1,5 +1,9 @@
 # L3 Slice 2 Runtime Invoke
 
+> **STATUS: ✅ COMPLETE** — All implementation tasks finished. Final commit: `55712f1a06`
+> **Date Completed**: 2026-04-16
+> **Total Commits**: 3 (including this final commit)
+
 ## TL;DR
 > **Summary**: Implement invoke-only runtime support for the locked 2x2 invoke matrix (`workflow | work_unit` × `fixed_set | context_fact_backed`) with step-execution-detail UI, invoke runtime tables, transactional child-start flows, and completion-time context-fact propagation.
 > **Deliverables**:
@@ -612,3 +616,114 @@ Wave 3: detail query + step execution detail UI + integration tests
 - Work-unit child start creates real project-domain entities transactionally.
 - Completion propagates only references into workflow context facts.
 - Step execution detail is the primary invoke runtime UI surface and uses human-readable display first.
+
+---
+
+## Implementation Reality vs Original Plan
+
+This section documents what we ACTUALLY built that differed from or went beyond the original plan specifications.
+
+### 🔧 Critical Bug Fixes (Not in Original Plan)
+
+#### 1. Context-Backed Work-Unit Zero-Target Freeze Bug
+**Problem**: `context_fact_backed + work_unit` with zero rows would stay at zero forever because existing invoke state short-circuited re-resolution.
+**Fix**: Added rematerialization logic specifically for:
+- `targetKind === "work_unit"`
+- `sourceMode === "context_fact_backed"`
+- Existing invoke state with `workUnitTargetExecutions.length === 0`
+**Files**: `invoke-target-resolution-service.ts`
+
+#### 2. Invoke Completion Deleting Unrelated Draft-Spec Facts
+**Problem**: Completion was replacing ALL `work_unit_draft_spec_fact` definitions in workflow, causing unrelated rows to disappear (repo replacement is delete-first).
+**Fix**: Scope propagation to only `work_unit_draft_spec_fact` whose `workUnitDefinitionId` is actually targeted by the completed invoke state.
+**Files**: `invoke-propagation-service.ts`
+
+#### 3. Work-Unit Target FK Errors (Draft Instance ID Confusion)
+**Problem**: Draft instance IDs like `research-001` were being treated as `workUnitDefinitionId`, causing FK violations.
+**Root Cause**: `normalizeWorkUnitBaseTarget` had `value.id` fallback.
+**Fix**: 
+- Remove `value.id` fallback
+- Infer default work-unit definition ID from authored `work_unit_draft_spec_fact.workUnitDefinitionId`
+- Use that default when runtime value lacks explicit definition ID
+**Files**: `invoke-target-resolution-service.ts`
+
+#### 4. Work-Unit Selector Regression (Text Fallback Bug)
+**Problem**: Route was falling back to text input because selector rendering was gated by `editorOptions?.length`.
+**Additional Issue**: Backend returned `destinationFactType: "string"` for work-unit-like facts (methodology seed data had `factType: "string"` with `validationJson.workUnitKey`).
+**Fix**:
+- Route: Added `isWorkUnitBinding()` helper for selector-first routing
+- Backend: Coerce destination fact type to `work_unit` if `validationJson.workUnitKey` exists, even when seeded `factType` is `"string"`
+**Files**: `invoke-step-detail-service.ts`, route
+
+### 🎨 UI/UX Enhancements (Beyond Original Plan)
+
+#### 5. Artifact-Slot Binding Support for Work-Unit Invoke Start
+**Original Plan**: Did not explicitly cover artifact-slot bindings in invoke start.
+**What We Built**:
+- Artifact-slot bindings render as selectors (not text inputs)
+- Selector options RESTRICTED to exactly two source categories:
+  1. `artifact_reference_fact` context facts with matching `artifactSlotDefinitionId`
+  2. `plain_value_fact` with file path validation (`validation.kind === "path"` and `path.pathKind === "file"`)
+- Start payload carries `runtimeArtifactValues`
+- Backend resolves runtime artifact values and creates snapshot-file rows atomically
+- Literal artifact-slot sources remain unsupported (by design)
+**Files**: `executions.ts`, `invoke-step-detail-service.ts`, `invoke-work-unit-execution-service.ts`, repositories, route
+
+#### 6. Optional Mapping Semantics
+**Original Plan**: Did not specify optional vs required mappings.
+**What We Built**:
+- **Empty work-unit fact mapping**: Sends `valueJson: null` → backend skips creating that fact instance override
+- **Empty artifact mapping**: Sends `{ clear: true }` → backend skips artifact slot entirely
+- **No artifact selected**: No artifact snapshot created (blank snapshots eliminated)
+- **Result**: User can start work unit even if no valid artifact source exists
+**Files**: `invoke-work-unit-execution-service.ts`, route, tests
+
+#### 7. Draft-Spec Artifact-Source Mismatch Handling
+**Problem**: Research artifact invoke binding's authored source was `cf_setup_research_draft_spec` (a `work_unit_draft_spec_fact`, not a direct artifact source). Backend was rejecting it as unsupported.
+**Fix**: When `work_unit_draft_spec_fact` is used as artifact source and no explicit artifact is selected, **skip silently** instead of erroring. Matches optional semantics.
+**Files**: `invoke-work-unit-execution-service.ts`
+
+#### 8. Invoke Detail Explainability Improvements
+**Beyond Plan**: Added visibility for context-backed invoke sources:
+- `sourceContextFactDefinitionId`
+- `sourceContextFactKey`
+- `sourceContextFactInstanceValues`
+**Purpose**: Help users understand WHERE invoke targets are coming from in context-backed mode.
+**Files**: `executions.ts`, `invoke-step-detail-service.ts`, route + tests
+
+### 🧪 Test Coverage Additions
+
+#### Tests Added/Updated (Not All in Original Plan):
+1. `runtime-invoke-target-resolution.test.ts` — Added zero-target and duplicate-target cases
+2. `runtime-invoke-completion.test.ts` — Added scoping regression test
+3. `runtime-invoke-workunit-start.test.ts` — Added artifact-slot support tests
+4. `runtime-invoke-step-detail.test.tsx` — Added context fact visibility tests
+
+### 📊 Stats
+- **Original Plan Tasks**: 8 implementation + 4 verification
+- **Actual Commits**: 3 (not 7 as originally planned)
+  - Commit 1: `e4959484c2` — prefill external context facts
+  - Commit 2: `2caed6fcc2` + `9434a140c2` — binding hydration fixes
+  - Commit 3: `55712f1a06` — comprehensive final implementation
+- **Files Changed**: 12 (vs ~20+ estimated in original commit strategy)
+- **Lines Changed**: +975/-52
+- **Bug Fixes During Implementation**: 4 critical
+- **Enhancement Additions**: 4 major
+
+### 🎯 Key Learnings
+
+1. **Context-backed invoke is harder than fixed-set** — Requires continuous re-resolution logic, not just one-time materialization.
+
+2. **Seed data compatibility matters** — Methodology seed data with `factType: "string"` but `validationJson.workUnitKey` required runtime compatibility layer.
+
+3. **Artifact slots need explicit optional semantics** — Users expect to skip artifacts they don't have, not be blocked.
+
+4. **Propagation scoping is critical** — Delete-first repo pattern + unscoped propagation = data loss.
+
+5. **Real-world testing reveals edge cases** — Zero-target freeze, FK errors, and artifact-source mismatches only appeared during real usage.
+
+---
+
+**Final Commit**: `55712f1a06`
+**Status**: ✅ COMPLETE — All original plan objectives met PLUS critical bug fixes and UX enhancements
+**Date**: 2026-04-16
