@@ -1,7 +1,10 @@
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, Option } from "effect";
 import type { InvokeStepPayload } from "@chiron/contracts/methodology/workflow";
+import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-engine";
+import { ProjectContextRepository } from "@chiron/project-context";
 
 import { RepositoryError } from "../errors";
+import { ExecutionReadRepository } from "../repositories/execution-read-repository";
 import {
   InvokeExecutionRepository,
   type InvokeStepExecutionStateRow,
@@ -131,9 +134,17 @@ const normalizeWorkflowTarget = (value: unknown): InvokeResolvedWorkflowTarget |
 
 const normalizeWorkUnitBaseTarget = (
   value: unknown,
+  defaultWorkUnitDefinitionId?: string,
 ): { workUnitDefinitionId: string; canonicalKey: string } | null => {
   const directId = asNonEmptyString(value);
   if (directId) {
+    if (defaultWorkUnitDefinitionId) {
+      return {
+        workUnitDefinitionId: defaultWorkUnitDefinitionId,
+        canonicalKey: directId,
+      };
+    }
+
     return {
       workUnitDefinitionId: directId,
       canonicalKey: directId,
@@ -145,16 +156,24 @@ const normalizeWorkUnitBaseTarget = (
   }
 
   const workUnitDefinitionId =
-    asNonEmptyString(value.workUnitDefinitionId) ??
-    asNonEmptyString(value.workUnitTypeId) ??
-    asNonEmptyString(value.id);
+    asNonEmptyString(value.workUnitDefinitionId) ?? asNonEmptyString(value.workUnitTypeId);
 
-  if (!workUnitDefinitionId) {
+  if (
+    workUnitDefinitionId &&
+    defaultWorkUnitDefinitionId &&
+    workUnitDefinitionId !== defaultWorkUnitDefinitionId
+  ) {
+    return null;
+  }
+
+  const resolvedWorkUnitDefinitionId = workUnitDefinitionId ?? defaultWorkUnitDefinitionId;
+
+  if (!resolvedWorkUnitDefinitionId) {
     return null;
   }
 
   return {
-    workUnitDefinitionId,
+    workUnitDefinitionId: resolvedWorkUnitDefinitionId,
     canonicalKey: asNonEmptyString(value.canonicalKey) ?? stableStringify(value),
   };
 };
@@ -179,6 +198,70 @@ export const InvokeTargetResolutionServiceLive = Layer.effect(
   Effect.gen(function* () {
     const stepRepo = yield* StepExecutionRepository;
     const invokeRepo = yield* InvokeExecutionRepository;
+    const executionReadRepo = yield* Effect.serviceOption(ExecutionReadRepository);
+    const projectContextRepo = yield* Effect.serviceOption(ProjectContextRepository);
+    const lifecycleRepo = yield* Effect.serviceOption(LifecycleRepository);
+    const methodologyRepo = yield* Effect.serviceOption(MethodologyRepository);
+
+    const inferContextBackedWorkUnitDefinitionId = (params: {
+      workflowExecutionId: string;
+      contextFactDefinitionId: string;
+    }) =>
+      Effect.gen(function* () {
+        if (
+          Option.isNone(executionReadRepo) ||
+          Option.isNone(projectContextRepo) ||
+          Option.isNone(lifecycleRepo) ||
+          Option.isNone(methodologyRepo)
+        ) {
+          return undefined;
+        }
+
+        const workflowDetail = yield* executionReadRepo.value.getWorkflowExecutionDetail(
+          params.workflowExecutionId,
+        );
+        if (!workflowDetail) {
+          return undefined;
+        }
+
+        const projectPin = yield* projectContextRepo.value.findProjectPin(workflowDetail.projectId);
+        if (!projectPin) {
+          return undefined;
+        }
+
+        const workUnitTypes = yield* lifecycleRepo.value.findWorkUnitTypes(
+          projectPin.methodologyVersionId,
+        );
+        const parentWorkUnitType = workUnitTypes.find(
+          (workUnitType) => workUnitType.id === workflowDetail.workUnitTypeId,
+        );
+        if (!parentWorkUnitType) {
+          return undefined;
+        }
+
+        const workflowEditor = yield* methodologyRepo.value.getWorkflowEditorDefinition({
+          versionId: projectPin.methodologyVersionId,
+          workUnitTypeKey: parentWorkUnitType.key,
+          workflowDefinitionId: workflowDetail.workflowExecution.workflowId,
+        });
+
+        const sourceContextFact = workflowEditor.contextFacts.find(
+          (
+            contextFact,
+          ): contextFact is Extract<
+            (typeof workflowEditor.contextFacts)[number],
+            {
+              kind: "work_unit_draft_spec_fact";
+              contextFactDefinitionId: string;
+              workUnitDefinitionId: string;
+            }
+          > =>
+            contextFact.kind === "work_unit_draft_spec_fact" &&
+            contextFact.contextFactDefinitionId === params.contextFactDefinitionId,
+        );
+
+        return sourceContextFact?.workUnitDefinitionId;
+      }).pipe(Effect.catchAll(() => Effect.succeed(undefined)));
 
     const resolveTargets = ({
       workflowExecutionId,
@@ -249,10 +332,18 @@ export const InvokeTargetResolutionServiceLive = Layer.effect(
           } satisfies InvokeResolvedTargetSet;
         }
 
+        const contextBackedWorkUnitDefinitionId =
+          invokeStep.targetKind === "work_unit" && invokeStep.sourceMode === "context_fact_backed"
+            ? yield* inferContextBackedWorkUnitDefinitionId({
+                workflowExecutionId,
+                contextFactDefinitionId: invokeStep.contextFactDefinitionId,
+              })
+            : undefined;
+
         const workUnitTargets = dedupeByCanonicalKey(
           relevantFacts.flatMap((fact) =>
             normalizeToItems(fact.valueJson)
-              .map((value) => normalizeWorkUnitBaseTarget(value))
+              .map((value) => normalizeWorkUnitBaseTarget(value, contextBackedWorkUnitDefinitionId))
               .filter(
                 (value): value is { workUnitDefinitionId: string; canonicalKey: string } =>
                   value !== null,
@@ -292,6 +383,36 @@ export const InvokeTargetResolutionServiceLive = Layer.effect(
             invokeRepo.listInvokeWorkflowTargetExecutions(existingState.id),
             invokeRepo.listInvokeWorkUnitTargetExecutions(existingState.id),
           ]);
+
+          if (
+            invokeStep.targetKind === "work_unit" &&
+            invokeStep.sourceMode === "context_fact_backed" &&
+            workUnitTargetExecutions.length === 0
+          ) {
+            const resolvedTargets = yield* resolveTargets({
+              workflowExecutionId,
+              invokeStep,
+            });
+
+            const backfilledWorkUnitTargetExecutions = yield* Effect.forEach(
+              resolvedTargets.workUnitTargets,
+              (target, resolutionOrder) =>
+                invokeRepo.createInvokeWorkUnitTargetExecution({
+                  invokeStepExecutionStateId: existingState.id,
+                  workUnitDefinitionId: target.workUnitDefinitionId,
+                  transitionDefinitionId: target.transitionDefinitionId,
+                  resolutionOrder,
+                }),
+            );
+
+            return {
+              invokeStepExecutionState: existingState,
+              workflowTargetExecutions,
+              workUnitTargetExecutions: backfilledWorkUnitTargetExecutions,
+              blockingReason: resolvedTargets.blockedReason,
+              materializationState: "already_exists",
+            } satisfies MaterializeInvokeTargetsForActivationResult;
+          }
 
           return {
             invokeStepExecutionState: existingState,

@@ -25,6 +25,27 @@ const makeCommandError = (cause: string): RepositoryError =>
 const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+const hasRelativePath = (
+  value: unknown,
+): value is { relativePath: string; sourceContextFactDefinitionId?: string } =>
+  isPlainRecord(value) &&
+  typeof value.relativePath === "string" &&
+  value.relativePath.trim().length > 0;
+
+const isFilePathPlainContextFact = (contextFact: {
+  kind: string;
+  valueType?: string;
+  cardinality: string;
+  validationJson?: unknown;
+}): boolean =>
+  contextFact.kind === "plain_value_fact" &&
+  contextFact.valueType === "string" &&
+  contextFact.cardinality === "one" &&
+  isPlainRecord(contextFact.validationJson) &&
+  contextFact.validationJson.kind === "path" &&
+  isPlainRecord(contextFact.validationJson.path) &&
+  contextFact.validationJson.path.pathKind === "file";
+
 const toInitialFactDefinition = (params: {
   factDefinitionId: string;
   factType: string;
@@ -224,6 +245,30 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
           );
         }
 
+        const overrideArtifactValuesByDefinitionId = new Map<
+          string,
+          { relativePath: string; sourceContextFactDefinitionId?: string } | null
+        >();
+        for (const runtimeValue of input.runtimeArtifactValues ?? []) {
+          if (overrideArtifactValuesByDefinitionId.has(runtimeValue.artifactSlotDefinitionId)) {
+            return yield* makeCommandError(
+              `duplicate runtime value provided for artifact slot '${runtimeValue.artifactSlotDefinitionId}'`,
+            );
+          }
+
+          if (runtimeValue.clear === true || !runtimeValue.relativePath) {
+            overrideArtifactValuesByDefinitionId.set(runtimeValue.artifactSlotDefinitionId, null);
+            continue;
+          }
+
+          overrideArtifactValuesByDefinitionId.set(runtimeValue.artifactSlotDefinitionId, {
+            relativePath: runtimeValue.relativePath,
+            ...(typeof runtimeValue.sourceContextFactDefinitionId === "string"
+              ? { sourceContextFactDefinitionId: runtimeValue.sourceContextFactDefinitionId }
+              : {}),
+          });
+        }
+
         const contextFactsByDefinitionId = new Map(
           parentWorkflowEditor.contextFacts.flatMap((fact) =>
             typeof fact.contextFactDefinitionId === "string"
@@ -269,16 +314,115 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
           }
         }
 
-        if (invokeBindings.some((binding) => binding.destination.kind === "artifact_slot")) {
-          return yield* makeCommandError(
-            "artifact-slot bindings are not supported for invoke work-unit starts",
-          );
+        const artifactSlotDestinationIds = new Set(
+          invokeBindings.flatMap((binding) =>
+            binding.destination.kind === "artifact_slot"
+              ? [binding.destination.artifactSlotDefinitionId]
+              : [],
+          ),
+        );
+        for (const artifactSlotDefinitionId of overrideArtifactValuesByDefinitionId.keys()) {
+          if (!artifactSlotDestinationIds.has(artifactSlotDefinitionId)) {
+            return yield* makeCommandError(
+              `runtime value provided for unknown artifact binding destination '${artifactSlotDefinitionId}'`,
+            );
+          }
         }
 
         const resolvedWorkUnitFactValuesByDefinitionId = new Map<string, unknown>();
+        const resolvedArtifactValuesByDefinitionId = new Map<
+          string,
+          { relativePath: string; sourceContextFactDefinitionId?: string }
+        >();
         for (const binding of invokeBindings) {
-          if (binding.destination.kind !== "work_unit_fact") {
-            continue;
+          if (binding.destination.kind === "artifact_slot") {
+            const destinationArtifactSlotDefinitionId =
+              binding.destination.artifactSlotDefinitionId;
+
+            if (overrideArtifactValuesByDefinitionId.has(destinationArtifactSlotDefinitionId)) {
+              const overrideArtifactValue = overrideArtifactValuesByDefinitionId.get(
+                destinationArtifactSlotDefinitionId,
+              );
+              if (overrideArtifactValue) {
+                resolvedArtifactValuesByDefinitionId.set(
+                  destinationArtifactSlotDefinitionId,
+                  overrideArtifactValue,
+                );
+              }
+              continue;
+            }
+
+            if (binding.source.kind === "literal") {
+              return yield* makeCommandError(
+                `artifact-slot binding '${destinationArtifactSlotDefinitionId}' does not support literal values`,
+              );
+            }
+
+            if (binding.source.kind === "runtime") {
+              return yield* makeCommandError(
+                `missing runtime value for artifact slot '${destinationArtifactSlotDefinitionId}'`,
+              );
+            }
+
+            const sourceContextFact = contextFactsByDefinitionId.get(
+              binding.source.contextFactDefinitionId,
+            );
+            if (!sourceContextFact) {
+              return yield* makeCommandError(
+                `invoke binding references unknown context fact '${binding.source.contextFactDefinitionId}'`,
+              );
+            }
+
+            const sourceInstances =
+              workflowContextFactInstancesByDefinitionId.get(
+                binding.source.contextFactDefinitionId,
+              ) ?? [];
+            if (sourceInstances.length === 0) {
+              return yield* makeCommandError(
+                `no runtime context value found for context fact '${binding.source.contextFactDefinitionId}'`,
+              );
+            }
+
+            if (
+              sourceContextFact.kind === "artifact_reference_fact" &&
+              sourceContextFact.artifactSlotDefinitionId === destinationArtifactSlotDefinitionId
+            ) {
+              const sourceValue = sourceInstances[0]?.valueJson;
+              if (!hasRelativePath(sourceValue)) {
+                return yield* makeCommandError(
+                  `artifact source for '${destinationArtifactSlotDefinitionId}' must contain a relativePath`,
+                );
+              }
+
+              resolvedArtifactValuesByDefinitionId.set(destinationArtifactSlotDefinitionId, {
+                relativePath: sourceValue.relativePath,
+                sourceContextFactDefinitionId: binding.source.contextFactDefinitionId,
+              });
+              continue;
+            }
+
+            if (isFilePathPlainContextFact(sourceContextFact)) {
+              const sourceValue = sourceInstances[0]?.valueJson;
+              if (typeof sourceValue !== "string" || sourceValue.trim().length === 0) {
+                return yield* makeCommandError(
+                  `plain file-path context fact '${binding.source.contextFactDefinitionId}' must contain a non-empty string`,
+                );
+              }
+
+              resolvedArtifactValuesByDefinitionId.set(destinationArtifactSlotDefinitionId, {
+                relativePath: sourceValue.trim(),
+                sourceContextFactDefinitionId: binding.source.contextFactDefinitionId,
+              });
+              continue;
+            }
+
+            if (sourceContextFact.kind === "work_unit_draft_spec_fact") {
+              continue;
+            }
+
+            return yield* makeCommandError(
+              `context fact '${binding.source.contextFactDefinitionId}' is not a supported artifact source`,
+            );
           }
 
           const destinationFactDefinitionId = binding.destination.workUnitFactDefinitionId;
@@ -350,6 +494,15 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
           }
         }
 
+        const targetArtifactSlotDefinitionIds = new Set(artifactSlots.map((slot) => slot.id));
+        for (const artifactSlotDefinitionId of resolvedArtifactValuesByDefinitionId.keys()) {
+          if (!targetArtifactSlotDefinitionIds.has(artifactSlotDefinitionId)) {
+            return yield* makeCommandError(
+              `invoke binding destination artifact slot '${artifactSlotDefinitionId}' is not available on target work unit`,
+            );
+          }
+        }
+
         const initialFactDefinitions: Array<{
           factDefinitionId: string;
           initialValueJson?: unknown;
@@ -397,9 +550,21 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
           transitionDefinitionId: invokeWorkUnitTarget.transitionDefinitionId,
           workflowDefinitionId: input.workflowDefinitionId,
           initialFactDefinitions,
-          initialArtifactSlotDefinitions: artifactSlots.map((slot) => ({
-            artifactSlotDefinitionId: slot.id,
-          })),
+          initialArtifactSlotDefinitions: artifactSlots.flatMap((slot) =>
+            resolvedArtifactValuesByDefinitionId.has(slot.id)
+              ? [
+                  {
+                    artifactSlotDefinitionId: slot.id,
+                    files: [
+                      {
+                        filePath: resolvedArtifactValuesByDefinitionId.get(slot.id)!.relativePath,
+                        memberStatus: "present" as const,
+                      },
+                    ],
+                  },
+                ]
+              : [],
+          ),
         });
 
         yield* Effect.logInfo("invoke work-unit target atomic start completed").pipe(

@@ -25,6 +25,7 @@ import {
   invokeWorkUnitCreatedArtifactSnapshot,
   invokeWorkUnitCreatedFactInstance,
   invokeWorkUnitTargetExecution,
+  artifactSnapshotFiles,
   invokeWorkflowTargetExecution,
   projectArtifactSnapshots,
   projectWorkUnits,
@@ -504,6 +505,20 @@ export function createInvokeExecutionRepoLayer(db: DB): Layer.Layer<InvokeExecut
           }
 
           if (artifactRows.length > 0) {
+            const artifactFileRows = artifactRows.flatMap((row, index) =>
+              (params.initialArtifactSlotDefinitions[index]?.files ?? []).map((file) => ({
+                artifactSnapshotId: row.id,
+                filePath: file.filePath,
+                memberStatus: file.memberStatus,
+                gitCommitHash: null,
+                gitBlobHash: null,
+              })),
+            );
+
+            if (artifactFileRows.length > 0) {
+              await tx.insert(artifactSnapshotFiles).values(artifactFileRows);
+            }
+
             await tx.insert(invokeWorkUnitCreatedArtifactSnapshot).values(
               artifactRows.map((row, index) => ({
                 invokeWorkUnitTargetExecutionId: target.id,

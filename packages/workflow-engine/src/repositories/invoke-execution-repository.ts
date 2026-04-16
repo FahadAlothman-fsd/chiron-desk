@@ -109,6 +109,10 @@ export interface StartInvokeWorkUnitTargetAtomicallyParams {
   }>;
   initialArtifactSlotDefinitions: ReadonlyArray<{
     artifactSlotDefinitionId: string;
+    files?: ReadonlyArray<{
+      filePath: string;
+      memberStatus: "present";
+    }>;
   }>;
 }
 

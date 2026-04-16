@@ -608,6 +608,9 @@ export const RuntimeInvokeStepExecutionDetailBody = Schema.Struct({
   stepType: Schema.Literal("invoke"),
   targetKind: InvokeTargetKind,
   sourceMode: InvokeSourceMode,
+  sourceContextFactDefinitionId: Schema.optional(Schema.NonEmptyString),
+  sourceContextFactKey: Schema.optional(Schema.String),
+  sourceContextFactInstanceValues: Schema.optional(Schema.Array(Schema.Unknown)),
   workflowTargets: Schema.Array(RuntimeInvokeWorkflowTargetRow),
   workUnitTargets: Schema.Array(RuntimeInvokeWorkUnitTargetRow),
   completionSummary: RuntimeInvokeCompletionSummary,
@@ -652,6 +655,16 @@ export const StartInvokeWorkUnitTargetInput = Schema.Struct({
       Schema.Struct({
         workUnitFactDefinitionId: Schema.NonEmptyString,
         valueJson: Schema.Unknown,
+      }),
+    ),
+  ),
+  runtimeArtifactValues: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        artifactSlotDefinitionId: Schema.NonEmptyString,
+        relativePath: Schema.optional(Schema.NonEmptyString),
+        sourceContextFactDefinitionId: Schema.optional(Schema.NonEmptyString),
+        clear: Schema.optional(Schema.Boolean),
       }),
     ),
   ),

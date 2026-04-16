@@ -49,6 +49,11 @@ type TestState = {
     projectWorkUnitId: string;
     artifactSlotDefinitionId: string;
   }>;
+  artifactSnapshotFiles: Array<{
+    artifactSnapshotId: string;
+    filePath: string;
+    memberStatus: "present" | "removed";
+  }>;
   transitionExecutions: Array<{
     id: string;
     projectWorkUnitId: string;
@@ -116,6 +121,7 @@ function createRuntime(options?: {
     projectWorkUnits: [],
     factInstances: [],
     artifactSnapshots: [],
+    artifactSnapshotFiles: [],
     transitionExecutions: [],
     workflowExecutions: [],
     factMappings: [],
@@ -374,7 +380,10 @@ function createRuntime(options?: {
         initialValueJson?: unknown;
         initialReferencedProjectWorkUnitId?: string | null;
       }>;
-      initialArtifactSlotDefinitions: ReadonlyArray<{ artifactSlotDefinitionId: string }>;
+      initialArtifactSlotDefinitions: ReadonlyArray<{
+        artifactSlotDefinitionId: string;
+        files?: ReadonlyArray<{ filePath: string; memberStatus: "present" }>;
+      }>;
     }) =>
       Effect.try({
         try: () => {
@@ -382,6 +391,7 @@ function createRuntime(options?: {
             projectWorkUnits: [...state.projectWorkUnits],
             factInstances: [...state.factInstances],
             artifactSnapshots: [...state.artifactSnapshots],
+            artifactSnapshotFiles: [...state.artifactSnapshotFiles],
             transitionExecutions: [...state.transitionExecutions],
             workflowExecutions: [...state.workflowExecutions],
             factMappings: [...state.factMappings],
@@ -429,6 +439,13 @@ function createRuntime(options?: {
                   projectWorkUnitId,
                   artifactSlotDefinitionId: definition.artifactSlotDefinitionId,
                 });
+                for (const file of definition.files ?? []) {
+                  state.artifactSnapshotFiles.push({
+                    artifactSnapshotId: id,
+                    filePath: file.filePath,
+                    memberStatus: file.memberStatus,
+                  });
+                }
                 state.artifactMappings.push({
                   id: `artifact-map-${state.artifactMappings.length + 1}`,
                   invokeWorkUnitTargetExecutionId: params.invokeWorkUnitTargetExecutionId,
@@ -485,6 +502,7 @@ function createRuntime(options?: {
             state.projectWorkUnits = snapshot.projectWorkUnits;
             state.factInstances = snapshot.factInstances;
             state.artifactSnapshots = snapshot.artifactSnapshots;
+            state.artifactSnapshotFiles = snapshot.artifactSnapshotFiles;
             state.transitionExecutions = snapshot.transitionExecutions;
             state.workflowExecutions = snapshot.workflowExecutions;
             state.factMappings = snapshot.factMappings;
@@ -887,17 +905,17 @@ describe("InvokeWorkUnitExecutionService", () => {
     );
   });
 
-  it("fails when invoke bindings target artifact slots", async () => {
+  it("creates artifact snapshots from runtime artifact binding selections", async () => {
     const runtime = createRuntime({
       invokeBindings: [
         {
           destination: { kind: "artifact_slot", artifactSlotDefinitionId: "slot-1" },
-          source: { kind: "context_fact", contextFactDefinitionId: "ctx-artifact" },
+          source: { kind: "runtime" },
         },
       ],
     });
 
-    await expectRepositoryErrorMessage(
+    const result = await Effect.runPromise(
       Effect.gen(function* () {
         const service = yield* InvokeWorkUnitExecutionService;
         return yield* service.startInvokeWorkUnitTarget({
@@ -905,11 +923,26 @@ describe("InvokeWorkUnitExecutionService", () => {
           stepExecutionId: "step-exec-1",
           invokeWorkUnitTargetExecutionId: "invoke-wu-target-1",
           workflowDefinitionId: "wf-child-primary",
+          runtimeArtifactValues: [
+            {
+              artifactSlotDefinitionId: "slot-1",
+              relativePath: "research/research-report.md",
+              sourceContextFactDefinitionId: "ctx-artifact",
+            },
+          ],
         });
-      }),
-      runtime.layer,
-      "artifact-slot bindings are not supported for invoke work-unit starts",
+      }).pipe(Effect.provide(runtime.layer)),
     );
+
+    expect(result.result).toBe("started");
+    expect(runtime.state.artifactSnapshots).toHaveLength(1);
+    expect(runtime.state.artifactSnapshotFiles).toEqual([
+      {
+        artifactSnapshotId: runtime.state.artifactSnapshots[0]!.id,
+        filePath: "research/research-report.md",
+        memberStatus: "present",
+      },
+    ]);
   });
 
   it("stores work-unit binding overrides as referenced work units", async () => {

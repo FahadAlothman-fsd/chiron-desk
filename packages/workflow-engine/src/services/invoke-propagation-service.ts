@@ -264,6 +264,9 @@ export const InvokePropagationServiceLive = Layer.effect(
         const workUnitTargets = yield* invokeRepo.listInvokeWorkUnitTargetExecutions(
           invokeState.id,
         );
+        const targetedWorkUnitDefinitionIds = new Set(
+          workUnitTargets.map((target) => target.workUnitDefinitionId),
+        );
         const startedTargets = yield* Effect.forEach(
           workUnitTargets.filter((target) => target.projectWorkUnitId !== null),
           (target) =>
@@ -290,7 +293,8 @@ export const InvokePropagationServiceLive = Layer.effect(
         );
         const outputFacts = workflowEditor.contextFacts.filter(
           (fact): fact is Extract<WorkflowContextFactDto, { kind: "work_unit_draft_spec_fact" }> =>
-            fact.kind === "work_unit_draft_spec_fact",
+            fact.kind === "work_unit_draft_spec_fact" &&
+            targetedWorkUnitDefinitionIds.has(fact.workUnitDefinitionId),
         );
         const affectedContextFactDefinitionIds = outputFacts.map(
           (fact) => fact.contextFactDefinitionId ?? fact.key,

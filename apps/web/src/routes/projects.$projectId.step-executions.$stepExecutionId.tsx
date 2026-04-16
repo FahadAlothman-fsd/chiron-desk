@@ -261,6 +261,12 @@ function getInitialPrimaryWorkflowSelection(row: RuntimeInvokeWorkUnitTargetRow)
 
 type InvokeWorkUnitBindingPreview = RuntimeInvokeWorkUnitTargetRow["bindingPreview"][number];
 
+const isWorkUnitBinding = (binding: InvokeWorkUnitBindingPreview): boolean =>
+  binding.destinationFactType === "work_unit" || typeof binding.editorWorkUnitTypeKey === "string";
+
+const isArtifactBinding = (binding: InvokeWorkUnitBindingPreview): boolean =>
+  binding.destinationKind === "artifact_slot";
+
 function serializeInvokeBindingDraftValue(
   binding: InvokeWorkUnitBindingPreview,
   value: unknown,
@@ -270,7 +276,11 @@ function serializeInvokeBindingDraftValue(
   }
 
   if (binding.destinationKind !== "work_unit_fact") {
-    return "";
+    return isArtifactBinding(binding) ? encodeOptionValue(value) : "";
+  }
+
+  if (isWorkUnitBinding(binding)) {
+    return encodeOptionValue(value);
   }
 
   if (binding.editorOptions?.length) {
@@ -303,7 +313,11 @@ function createRuntimeBindingDraftState(
     rows.map((row) => {
       const initialValues = Object.fromEntries(
         row.bindingPreview
-          .filter((binding) => binding.destinationKind === "work_unit_fact")
+          .filter(
+            (binding) =>
+              binding.destinationKind === "work_unit_fact" ||
+              binding.destinationKind === "artifact_slot",
+          )
           .map((binding) => [
             binding.destinationDefinitionId,
             serializeInvokeBindingDraftValue(binding, binding.resolvedValueJson),
@@ -351,6 +365,31 @@ function parseRuntimeBindingInputValue(params: {
   const { binding, rawValue } = params;
 
   if (binding.destinationKind !== "work_unit_fact") {
+    if (isArtifactBinding(binding)) {
+      if (rawValue.trim().length === 0) {
+        return {
+          ok: false,
+          message: `Select an artifact source for '${binding.destinationLabel}'.`,
+        };
+      }
+
+      const decoded = decodeOptionValue(rawValue);
+      if (
+        typeof decoded !== "object" ||
+        decoded === null ||
+        !("relativePath" in decoded) ||
+        typeof decoded.relativePath !== "string" ||
+        decoded.relativePath.trim().length === 0
+      ) {
+        return {
+          ok: false,
+          message: `Artifact source for '${binding.destinationLabel}' must provide a relativePath string.`,
+        };
+      }
+
+      return { ok: true, valueJson: decoded };
+    }
+
     return {
       ok: false,
       message: `Runtime input is not supported for destination '${binding.destinationLabel}'.`,
@@ -359,6 +398,17 @@ function parseRuntimeBindingInputValue(params: {
 
   const isMany = binding.destinationCardinality === "many";
   const destinationType = binding.destinationFactType;
+
+  if (isWorkUnitBinding(binding)) {
+    if (rawValue.trim().length === 0) {
+      return {
+        ok: false,
+        message: `Select a work unit for '${binding.destinationLabel}'.`,
+      };
+    }
+
+    return { ok: true, valueJson: decodeOptionValue(rawValue) };
+  }
 
   if (binding.editorOptions?.length) {
     if (rawValue.trim().length === 0) {
@@ -2367,6 +2417,24 @@ function InvokeInteractionSurface(props: {
             <div className="border border-border/70 bg-background/40 p-3">
               <DetailLabel>Source mode</DetailLabel>
               <DetailPrimary>{formatInvokeSourceModeLabel(body.sourceMode)}</DetailPrimary>
+              {body.sourceMode === "context_fact_backed" ? (
+                <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+                  <p>
+                    Bound context fact: {body.sourceContextFactKey ?? "(key unavailable)"}
+                    {body.sourceContextFactDefinitionId
+                      ? ` · ${body.sourceContextFactDefinitionId}`
+                      : ""}
+                  </p>
+                  <p>Runtime instances: {(body.sourceContextFactInstanceValues ?? []).length}</p>
+                  {(body.sourceContextFactInstanceValues ?? []).length > 0 ? (
+                    <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all border border-border/60 bg-background/30 p-2 text-[11px] leading-relaxed text-foreground/85">
+                      {body.sourceContextFactInstanceValues
+                        ?.map((value, index) => `#${index + 1}: ${formatUnknown(value)}`)
+                        .join("\n")}
+                    </pre>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             <div className="border border-border/70 bg-background/40 p-3">
               <DetailLabel>Completion progress</DetailLabel>
@@ -2549,12 +2617,20 @@ function InvokeInteractionSurface(props: {
                       !!row.projectWorkUnitId ||
                       !!row.transitionExecutionId ||
                       !!row.workflowExecutionId;
-                    const editableWorkUnitFactBindings = row.bindingPreview.filter(
-                      (binding) => binding.destinationKind === "work_unit_fact",
+                    const editableBindings = row.bindingPreview.filter(
+                      (binding) =>
+                        binding.destinationKind === "work_unit_fact" ||
+                        binding.destinationKind === "artifact_slot",
                     );
                     const unsupportedRuntimeBindings = row.bindingPreview.filter(
-                      (binding) => binding.destinationKind !== "work_unit_fact",
+                      (binding) =>
+                        binding.destinationKind !== "work_unit_fact" &&
+                        binding.destinationKind !== "artifact_slot",
                     );
+                    const unsupportedRuntimeBindingsReason =
+                      unsupportedRuntimeBindings.length > 0
+                        ? "This invoke target includes unsupported binding kinds."
+                        : null;
                     const rowRuntimeInputs =
                       runtimeBindingInputsByRowId[row.invokeWorkUnitTargetExecutionId] ?? {};
 
@@ -2666,6 +2742,12 @@ function InvokeInteractionSurface(props: {
                             </p>
                           ) : null}
 
+                          {unsupportedRuntimeBindingsReason ? (
+                            <p className="text-xs text-muted-foreground">
+                              {unsupportedRuntimeBindingsReason}
+                            </p>
+                          ) : null}
+
                           {row.bindingPreview.length > 0 ? (
                             <div className="space-y-2 border border-border/70 bg-background/50 p-3">
                               <DetailLabel>Binding preview</DetailLabel>
@@ -2681,6 +2763,8 @@ function InvokeInteractionSurface(props: {
                                   const manyOrJsonInput =
                                     binding.destinationCardinality === "many" ||
                                     binding.destinationFactType === "json";
+                                  const isWorkUnitSelector = isWorkUnitBinding(binding);
+                                  const selectorOptions = binding.editorOptions ?? [];
 
                                   return (
                                     <li
@@ -2706,7 +2790,56 @@ function InvokeInteractionSurface(props: {
                                         </div>
                                       </div>
 
-                                      {binding.destinationKind !== "work_unit_fact" ? (
+                                      {binding.destinationKind === "artifact_slot" ? (
+                                        <div className="space-y-2">
+                                          <DetailLabel>Start-time value</DetailLabel>
+                                          <Select
+                                            value={runtimeRawValue}
+                                            disabled={
+                                              bindingsLocked || selectorOptions.length === 0
+                                            }
+                                            onValueChange={(value) => {
+                                              setRuntimeBindingValidationError(null);
+                                              setRuntimeBindingInputsByRowId((current) =>
+                                                updateRuntimeBindingDraftState({
+                                                  current,
+                                                  rowId: row.invokeWorkUnitTargetExecutionId,
+                                                  destinationDefinitionId:
+                                                    binding.destinationDefinitionId,
+                                                  value: value ?? "",
+                                                }),
+                                              );
+                                            }}
+                                          >
+                                            <SelectTrigger className="w-full bg-background/80 text-foreground">
+                                              <SelectValue placeholder="Select an artifact source" />
+                                            </SelectTrigger>
+                                            <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
+                                              {selectorOptions.map((option) => (
+                                                <SelectItem
+                                                  key={`${binding.destinationDefinitionId}-${encodeOptionValue(option.value)}`}
+                                                  value={encodeOptionValue(option.value)}
+                                                >
+                                                  {option.label}
+                                                </SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                          {binding.editorEmptyState ? (
+                                            <p className="text-xs text-muted-foreground">
+                                              {binding.editorEmptyState}
+                                            </p>
+                                          ) : null}
+                                          <div>
+                                            <DetailLabel>Resolved value</DetailLabel>
+                                            <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
+                                              {binding.resolvedValueJson === undefined
+                                                ? "No artifact source resolved yet."
+                                                : formatUnknown(binding.resolvedValueJson)}
+                                            </pre>
+                                          </div>
+                                        </div>
+                                      ) : binding.destinationKind !== "work_unit_fact" ? (
                                         <div>
                                           <DetailLabel>Resolved value</DetailLabel>
                                           <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
@@ -2718,11 +2851,15 @@ function InvokeInteractionSurface(props: {
                                       ) : (
                                         <div className="space-y-2">
                                           <DetailLabel>Start-time value</DetailLabel>
-                                          {binding.editorOptions?.length ? (
+                                          {isWorkUnitSelector || selectorOptions.length > 0 ? (
                                             <>
                                               <Select
                                                 value={runtimeRawValue}
-                                                disabled={bindingsLocked}
+                                                disabled={
+                                                  bindingsLocked ||
+                                                  (isWorkUnitSelector &&
+                                                    selectorOptions.length === 0)
+                                                }
                                                 onValueChange={(value) => {
                                                   setRuntimeBindingValidationError(null);
                                                   setRuntimeBindingInputsByRowId((current) =>
@@ -2739,14 +2876,14 @@ function InvokeInteractionSurface(props: {
                                                 <SelectTrigger className="w-full bg-background/80 text-foreground">
                                                   <SelectValue
                                                     placeholder={
-                                                      binding.destinationFactType === "work_unit"
+                                                      isWorkUnitSelector
                                                         ? "Select a work unit"
                                                         : `Select ${binding.destinationLabel}`
                                                     }
                                                   />
                                                 </SelectTrigger>
                                                 <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
-                                                  {binding.editorOptions.map((option) => (
+                                                  {selectorOptions.map((option) => (
                                                     <SelectItem
                                                       key={`${binding.destinationDefinitionId}-${encodeOptionValue(option.value)}`}
                                                       value={encodeOptionValue(option.value)}
@@ -2756,9 +2893,12 @@ function InvokeInteractionSurface(props: {
                                                   ))}
                                                 </SelectContent>
                                               </Select>
-                                              {binding.editorEmptyState ? (
+                                              {binding.editorEmptyState ||
+                                              (isWorkUnitSelector &&
+                                                selectorOptions.length === 0) ? (
                                                 <p className="text-xs text-muted-foreground">
-                                                  {binding.editorEmptyState}
+                                                  {binding.editorEmptyState ??
+                                                    "No eligible work units are available yet."}
                                                 </p>
                                               ) : null}
                                             </>
@@ -2854,7 +2994,7 @@ function InvokeInteractionSurface(props: {
                               disabled={
                                 isBusy ||
                                 !startAction.enabled ||
-                                unsupportedRuntimeBindings.length > 0 ||
+                                unsupportedRuntimeBindingsReason !== null ||
                                 selectedWorkflowId.length === 0
                               }
                               onClick={() => {
@@ -2862,9 +3002,9 @@ function InvokeInteractionSurface(props: {
                                   return;
                                 }
 
-                                if (unsupportedRuntimeBindings.length > 0) {
+                                if (unsupportedRuntimeBindingsReason) {
                                   setRuntimeBindingValidationError(
-                                    "Runtime mapping for artifact-slot bindings is not supported yet.",
+                                    unsupportedRuntimeBindingsReason,
                                   );
                                   return;
                                 }
@@ -2873,10 +3013,31 @@ function InvokeInteractionSurface(props: {
                                   workUnitFactDefinitionId: string;
                                   valueJson: unknown;
                                 }> = [];
+                                const runtimeArtifactValues: Array<{
+                                  artifactSlotDefinitionId: string;
+                                  relativePath: string;
+                                  sourceContextFactDefinitionId?: string;
+                                }> = [];
 
-                                for (const binding of editableWorkUnitFactBindings) {
+                                for (const binding of editableBindings) {
                                   const rawValue =
                                     rowRuntimeInputs[binding.destinationDefinitionId] ?? "";
+
+                                  if (rawValue.trim().length === 0) {
+                                    if (binding.destinationKind === "work_unit_fact") {
+                                      runtimeFactValues.push({
+                                        workUnitFactDefinitionId: binding.destinationDefinitionId,
+                                        valueJson: null,
+                                      });
+                                    } else if (binding.destinationKind === "artifact_slot") {
+                                      runtimeArtifactValues.push({
+                                        artifactSlotDefinitionId: binding.destinationDefinitionId,
+                                        clear: true,
+                                      });
+                                    }
+                                    continue;
+                                  }
+
                                   const parsed = parseRuntimeBindingInputValue({
                                     binding,
                                     rawValue,
@@ -2887,10 +3048,30 @@ function InvokeInteractionSurface(props: {
                                     return;
                                   }
 
-                                  runtimeFactValues.push({
-                                    workUnitFactDefinitionId: binding.destinationDefinitionId,
-                                    valueJson: parsed.valueJson,
-                                  });
+                                  if (binding.destinationKind === "work_unit_fact") {
+                                    runtimeFactValues.push({
+                                      workUnitFactDefinitionId: binding.destinationDefinitionId,
+                                      valueJson: parsed.valueJson,
+                                    });
+                                  } else if (
+                                    typeof parsed.valueJson === "object" &&
+                                    parsed.valueJson !== null &&
+                                    "relativePath" in parsed.valueJson &&
+                                    typeof parsed.valueJson.relativePath === "string"
+                                  ) {
+                                    runtimeArtifactValues.push({
+                                      artifactSlotDefinitionId: binding.destinationDefinitionId,
+                                      relativePath: parsed.valueJson.relativePath,
+                                      ...("sourceContextFactDefinitionId" in parsed.valueJson &&
+                                      typeof parsed.valueJson.sourceContextFactDefinitionId ===
+                                        "string"
+                                        ? {
+                                            sourceContextFactDefinitionId:
+                                              parsed.valueJson.sourceContextFactDefinitionId,
+                                          }
+                                        : {}),
+                                    });
+                                  }
                                 }
 
                                 setRuntimeBindingValidationError(null);
@@ -2902,6 +3083,9 @@ function InvokeInteractionSurface(props: {
                                     startAction.invokeWorkUnitTargetExecutionId,
                                   workflowDefinitionId: selectedWorkflowId,
                                   ...(runtimeFactValues.length > 0 ? { runtimeFactValues } : {}),
+                                  ...(runtimeArtifactValues.length > 0
+                                    ? { runtimeArtifactValues }
+                                    : {}),
                                 });
                               }}
                             >

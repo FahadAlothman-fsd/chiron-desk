@@ -175,6 +175,16 @@ const workUnitInvokeContextFacts: readonly WorkflowContextFactDto[] = [
     selectedWorkUnitFactDefinitionIds: [],
     selectedArtifactSlotDefinitionIds: [],
   },
+  {
+    contextFactDefinitionId: "ctx-research-all",
+    kind: "work_unit_draft_spec_fact",
+    key: "allResearchDrafts",
+    label: "All Research Drafts",
+    cardinality: "many",
+    workUnitDefinitionId: "wu-research",
+    selectedWorkUnitFactDefinitionIds: [],
+    selectedArtifactSlotDefinitionIds: [],
+  },
 ];
 
 function buildCommonAuxiliaryLayers() {
@@ -591,7 +601,22 @@ function buildWorkUnitInvokeCompletionRuntime() {
         createdAt: new Date("2026-04-14T00:05:00.000Z"),
       },
     ],
-    contextFacts: [],
+    contextFacts: [
+      {
+        id: "ctx-existing-research-1",
+        workflowExecutionId: parentWorkflowDetail.workflowExecution.id,
+        contextFactDefinitionId: "ctx-research-all",
+        instanceOrder: 0,
+        valueJson: {
+          projectWorkUnitId: "existing-research-work-unit-1",
+          workUnitFactInstanceIds: ["existing-research-fact-1"],
+          artifactSnapshotIds: ["existing-research-artifact-1"],
+        },
+        sourceStepExecutionId: "another-step-exec",
+        createdAt: new Date("2026-04-14T00:01:00.000Z"),
+        updatedAt: new Date("2026-04-14T00:01:00.000Z"),
+      },
+    ],
     replaceCalls: [],
     completeCalls: [],
   };
@@ -950,6 +975,17 @@ describe("invoke completion runtime flow", () => {
         projectWorkUnitId: "project-work-unit-2",
         workUnitFactInstanceIds: ["fact-instance-2-title", "fact-instance-2-notes"],
         artifactSnapshotIds: ["artifact-snapshot-2-brief", "artifact-snapshot-2-notes"],
+      },
+    ]);
+    expect(
+      runtime.state.contextFacts
+        .filter((fact) => fact.contextFactDefinitionId === "ctx-research-all")
+        .map((fact) => fact.valueJson),
+    ).toEqual([
+      {
+        projectWorkUnitId: "existing-research-work-unit-1",
+        workUnitFactInstanceIds: ["existing-research-fact-1"],
+        artifactSnapshotIds: ["existing-research-artifact-1"],
       },
     ]);
   });

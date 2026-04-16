@@ -338,4 +338,161 @@ describe("InvokeTargetResolutionService", () => {
     expect(runtime.state.invokeStates).toHaveLength(1);
     expect(runtime.state.workflowTargets).toHaveLength(0);
   });
+
+  it("backfills context-backed work-unit targets when facts appear after initial zero-target materialization", async () => {
+    const runtime = buildInvokeTargetResolutionTestLayer([]);
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* InvokeTargetResolutionService;
+
+        const first = yield* service.materializeTargetsForActivation({
+          workflowExecutionId: "wfexec-parent-4",
+          stepExecutionId: "step-exec-4",
+          invokeStepDefinitionId: "step-def-invoke-4",
+          invokeStep: {
+            key: "invoke-drafted-research-work-units",
+            targetKind: "work_unit",
+            sourceMode: "context_fact_backed",
+            contextFactDefinitionId: "fact-research-draft-specs",
+            bindings: [],
+            activationTransitions: [
+              {
+                transitionId: "transition-ready",
+                workflowDefinitionIds: ["wf-research-primary"],
+              },
+            ],
+          },
+        });
+
+        runtime.state.contextFacts.push({
+          id: "ctx-late-work-unit",
+          workflowExecutionId: "wfexec-parent-4",
+          contextFactDefinitionId: "fact-research-draft-specs",
+          instanceOrder: 0,
+          valueJson: [{ workUnitDefinitionId: "wu-research", id: "research-001" }],
+          sourceStepExecutionId: null,
+          createdAt: new Date("2026-04-14T00:05:00.000Z"),
+          updatedAt: new Date("2026-04-14T00:05:00.000Z"),
+        });
+
+        const second = yield* service.materializeTargetsForActivation({
+          workflowExecutionId: "wfexec-parent-4",
+          stepExecutionId: "step-exec-4",
+          invokeStepDefinitionId: "step-def-invoke-4",
+          invokeStep: {
+            key: "invoke-drafted-research-work-units",
+            targetKind: "work_unit",
+            sourceMode: "context_fact_backed",
+            contextFactDefinitionId: "fact-research-draft-specs",
+            bindings: [],
+            activationTransitions: [
+              {
+                transitionId: "transition-ready",
+                workflowDefinitionIds: ["wf-research-primary"],
+              },
+            ],
+          },
+        });
+
+        return { first, second };
+      }).pipe(Effect.provide(runtime.layer)),
+    );
+
+    expect(result.first.materializationState).toBe("created");
+    expect(result.first.blockingReason).toBe(NO_INVOKE_TARGETS_RESOLVED_REASON);
+    expect(result.first.workUnitTargetExecutions).toEqual([]);
+
+    expect(result.second.materializationState).toBe("already_exists");
+    expect(result.second.blockingReason).toBeNull();
+    expect(result.second.workUnitTargetExecutions).toHaveLength(1);
+    expect(result.second.workUnitTargetExecutions[0]).toMatchObject({
+      workUnitDefinitionId: "wu-research",
+      transitionDefinitionId: "transition-ready",
+      resolutionOrder: 0,
+    });
+    expect(runtime.state.invokeStates).toHaveLength(1);
+    expect(runtime.state.workUnitTargets).toHaveLength(1);
+  });
+
+  it("does not rematerialize context-backed work-unit targets once rows already exist", async () => {
+    const runtime = buildInvokeTargetResolutionTestLayer([
+      {
+        id: "ctx-5",
+        workflowExecutionId: "wfexec-parent-5",
+        contextFactDefinitionId: "fact-research-draft-specs",
+        instanceOrder: 0,
+        valueJson: [{ workUnitDefinitionId: "wu-research", id: "research-001" }],
+        sourceStepExecutionId: null,
+        createdAt: new Date("2026-04-14T00:00:00.000Z"),
+        updatedAt: new Date("2026-04-14T00:00:00.000Z"),
+      },
+    ]);
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* InvokeTargetResolutionService;
+
+        const first = yield* service.materializeTargetsForActivation({
+          workflowExecutionId: "wfexec-parent-5",
+          stepExecutionId: "step-exec-5",
+          invokeStepDefinitionId: "step-def-invoke-5",
+          invokeStep: {
+            key: "invoke-drafted-research-work-units",
+            targetKind: "work_unit",
+            sourceMode: "context_fact_backed",
+            contextFactDefinitionId: "fact-research-draft-specs",
+            bindings: [],
+            activationTransitions: [
+              {
+                transitionId: "transition-ready",
+                workflowDefinitionIds: ["wf-research-primary"],
+              },
+            ],
+          },
+        });
+
+        runtime.state.contextFacts.push({
+          id: "ctx-late-work-unit-2",
+          workflowExecutionId: "wfexec-parent-5",
+          contextFactDefinitionId: "fact-research-draft-specs",
+          instanceOrder: 1,
+          valueJson: [{ workUnitDefinitionId: "wu-research", id: "research-002" }],
+          sourceStepExecutionId: null,
+          createdAt: new Date("2026-04-14T00:05:00.000Z"),
+          updatedAt: new Date("2026-04-14T00:05:00.000Z"),
+        });
+
+        const second = yield* service.materializeTargetsForActivation({
+          workflowExecutionId: "wfexec-parent-5",
+          stepExecutionId: "step-exec-5",
+          invokeStepDefinitionId: "step-def-invoke-5",
+          invokeStep: {
+            key: "invoke-drafted-research-work-units",
+            targetKind: "work_unit",
+            sourceMode: "context_fact_backed",
+            contextFactDefinitionId: "fact-research-draft-specs",
+            bindings: [],
+            activationTransitions: [
+              {
+                transitionId: "transition-ready",
+                workflowDefinitionIds: ["wf-research-primary"],
+              },
+            ],
+          },
+        });
+
+        return { first, second };
+      }).pipe(Effect.provide(runtime.layer)),
+    );
+
+    expect(result.first.materializationState).toBe("created");
+    expect(result.first.blockingReason).toBeNull();
+    expect(result.first.workUnitTargetExecutions).toHaveLength(1);
+
+    expect(result.second.materializationState).toBe("already_exists");
+    expect(result.second.workUnitTargetExecutions).toHaveLength(1);
+    expect(runtime.state.invokeStates).toHaveLength(1);
+    expect(runtime.state.workUnitTargets).toHaveLength(1);
+  });
 });

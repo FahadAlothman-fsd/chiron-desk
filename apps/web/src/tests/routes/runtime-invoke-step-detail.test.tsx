@@ -176,6 +176,15 @@ function buildDetail(): any {
       stepType: "invoke" as const,
       targetKind: "work_unit" as const,
       sourceMode: "context_fact_backed" as const,
+      sourceContextFactDefinitionId:
+        "seed:l3-setup-invoke:setup:mver_bmad_v1_active:fact:research-draft-specs",
+      sourceContextFactKey: "cf_research_draft_specs",
+      sourceContextFactInstanceValues: [
+        {
+          id: "research-001",
+          topic: "Offline-First Architecture Patterns",
+        },
+      ],
       workflowTargets: [
         {
           label: "Draft architecture",
@@ -551,6 +560,13 @@ describe("runtime invoke step detail route", () => {
     expect(screen.getByText("Target kind")).toBeTruthy();
     expect(screen.getAllByText("Work unit").length).toBeGreaterThan(0);
     expect(screen.getByText("Context-fact backed")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Bound context fact: cf_research_draft_specs · seed:l3-setup-invoke:setup:mver_bmad_v1_active:fact:research-draft-specs",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("Runtime instances: 1")).toBeTruthy();
+    expect(screen.getByText(/#1:\s*{\s*"id":\s*"research-001"/)).toBeTruthy();
     expect(
       screen.getByText(/At least one invoked work-unit transition must complete/i),
     ).toBeTruthy();
