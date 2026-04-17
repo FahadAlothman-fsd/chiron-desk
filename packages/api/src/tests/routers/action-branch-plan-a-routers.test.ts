@@ -54,7 +54,15 @@ const actionPayload: ActionStepPayload = {
       actionKind: "propagation",
       contextFactDefinitionId: "ctx-project-context",
       contextFactKind: "definition_backed_external_fact",
-      items: [{ itemId: "item-1", itemKey: "project-name", label: "Project name", sortOrder: 100 }],
+      items: [
+        {
+          itemId: "item-1",
+          itemKey: "project-name",
+          label: "Project name",
+          sortOrder: 100,
+          targetContextFactDefinitionId: "ctx-project-context",
+        },
+      ],
     },
   ],
 };

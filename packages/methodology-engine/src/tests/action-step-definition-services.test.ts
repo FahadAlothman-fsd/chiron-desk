@@ -321,7 +321,7 @@ describe("action-step definition services", () => {
           ),
         );
 
-        const mismatchedFactKind = yield* Effect.either(
+        const staleCompatibilityKind = yield* Effect.either(
           service.createActionStep(
             {
               versionId: "ver-1",
@@ -356,25 +356,24 @@ describe("action-step definition services", () => {
           ),
         );
 
-        return { allDisabled, invalidKind, mismatchedFactKind, duplicateStepKey };
+        return { allDisabled, invalidKind, staleCompatibilityKind, duplicateStepKey };
       }).pipe(Effect.provide(layer)),
     );
 
     expect(Either.isLeft(result.allDisabled)).toBe(true);
     expect(Either.isLeft(result.invalidKind)).toBe(true);
-    expect(Either.isLeft(result.mismatchedFactKind)).toBe(true);
+    expect(Either.isRight(result.staleCompatibilityKind)).toBe(true);
     expect(Either.isLeft(result.duplicateStepKey)).toBe(true);
     if (
       !Either.isLeft(result.allDisabled) ||
       !Either.isLeft(result.invalidKind) ||
-      !Either.isLeft(result.mismatchedFactKind) ||
+      !Either.isRight(result.staleCompatibilityKind) ||
       !Either.isLeft(result.duplicateStepKey)
     ) {
       throw new Error("Expected validation failures");
     }
     expect(result.allDisabled.left.message).toContain("enable at least one action");
     expect(result.invalidKind.left.message).toContain("actionKind 'propagation'");
-    expect(result.mismatchedFactKind.left.message).toContain("mismatched kind");
     expect(result.duplicateStepKey.left.message).toContain("already exists");
   });
 

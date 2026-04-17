@@ -369,6 +369,7 @@ const actionPropagationItemPayloadSchema = z
     itemId: z.string().min(1),
     itemKey: z.string().min(1),
     label: z.string().optional(),
+    targetContextFactDefinitionId: z.string().min(1).optional(),
     sortOrder: z.number(),
   })
   .strict();
@@ -470,8 +471,6 @@ const actionStepPayloadSchema: z.ZodType<ActionStepPayloadContract> = workflowMe
     const actionIds = new Set<string>();
     const actionKeys = new Set<string>();
     const actionSortOrders = new Set<number>();
-    const contextFactDefinitionIds = new Set<string>();
-
     for (const [index, action] of payload.actions.entries()) {
       if (actionIds.has(action.actionId)) {
         ctx.addIssue({
@@ -494,18 +493,9 @@ const actionStepPayloadSchema: z.ZodType<ActionStepPayloadContract> = workflowMe
           path: ["actions", index, "sortOrder"],
         });
       }
-      if (contextFactDefinitionIds.has(action.contextFactDefinitionId)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Duplicate action contextFactDefinitionId '${action.contextFactDefinitionId}'`,
-          path: ["actions", index, "contextFactDefinitionId"],
-        });
-      }
-
       actionIds.add(action.actionId);
       actionKeys.add(action.actionKey);
       actionSortOrders.add(action.sortOrder);
-      contextFactDefinitionIds.add(action.contextFactDefinitionId);
     }
   });
 

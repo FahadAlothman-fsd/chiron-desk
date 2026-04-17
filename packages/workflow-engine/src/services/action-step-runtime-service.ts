@@ -327,16 +327,9 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
           );
         }
 
-        if (contextFact.kind !== params.action.contextFactKind) {
-          return yield* makeActionRuntimeError(
-            "action-step-runtime.target-context",
-            `item '${params.item.itemId}' expected context fact kind '${params.action.contextFactKind}' for '${contextFactDefinitionId}', received '${contextFact.kind}'`,
-          );
-        }
-
         return {
           contextFactDefinitionId,
-          contextFactKind: params.action.contextFactKind,
+          contextFactKind: contextFact.kind,
           contextFactKey: contextFact.key,
           ...(contextFact.label ? { contextFactLabel: contextFact.label } : {}),
         } satisfies EffectiveTargetContext;

@@ -289,15 +289,10 @@ export const ActionStepPayload = Schema.Struct({
       const actionIds = payload.actions.map((action) => action.actionId);
       const actionKeys = payload.actions.map((action) => action.actionKey);
       const actionSortOrders = payload.actions.map((action) => action.sortOrder);
-      const contextFactDefinitionIds = payload.actions.map(
-        (action) => action.contextFactDefinitionId,
-      );
-
       return (
         new Set(actionIds).size === actionIds.length &&
         new Set(actionKeys).size === actionKeys.length &&
-        new Set(actionSortOrders).size === actionSortOrders.length &&
-        new Set(contextFactDefinitionIds).size === contextFactDefinitionIds.length
+        new Set(actionSortOrders).size === actionSortOrders.length
       );
     }),
   );

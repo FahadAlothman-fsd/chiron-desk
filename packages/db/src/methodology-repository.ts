@@ -1546,8 +1546,6 @@ function normalizeActionStepPayload(
   const seenActionIds = new Set<string>();
   const seenActionKeys = new Set<string>();
   const seenActionSortOrders = new Set<number>();
-  const seenContextFactDefinitionIds = new Set<string>();
-
   const normalizedActions = payload.actions.map((action) => {
     if (seenActionIds.has(action.actionId)) {
       throw new RepositoryError({
@@ -1601,28 +1599,9 @@ function normalizeActionStepPayload(
       });
     }
 
-    if (fact.kind !== action.contextFactKind) {
-      throw new RepositoryError({
-        operation: "methodology.actionStep.normalizeActionStepPayload",
-        cause: new Error(
-          `Action '${action.actionId}' expected context fact kind '${fact.kind}' for '${contextFactDefinitionId}', received '${action.contextFactKind}'`,
-        ),
-      });
-    }
-
-    if (seenContextFactDefinitionIds.has(contextFactDefinitionId)) {
-      throw new RepositoryError({
-        operation: "methodology.actionStep.normalizeActionStepPayload",
-        cause: new Error(
-          `Action step '${payload.key}' cannot target context fact '${contextFactDefinitionId}' more than once`,
-        ),
-      });
-    }
-
     seenActionIds.add(action.actionId);
     seenActionKeys.add(action.actionKey);
     seenActionSortOrders.add(action.sortOrder);
-    seenContextFactDefinitionIds.add(contextFactDefinitionId);
 
     if (action.items.length < 1) {
       throw new RepositoryError({
@@ -1699,15 +1678,6 @@ function normalizeActionStepPayload(
             operation: "methodology.actionStep.normalizeActionStepPayload",
             cause: new Error(
               `Action '${action.actionId}' item '${item.itemId}' cannot target workflow context fact '${targetContextFactDefinitionId}' of kind '${targetFact.kind}'`,
-            ),
-          });
-        }
-
-        if (targetFact && targetFact.kind !== action.contextFactKind) {
-          throw new RepositoryError({
-            operation: "methodology.actionStep.normalizeActionStepPayload",
-            cause: new Error(
-              `Action '${action.actionId}' item '${item.itemId}' expected context fact kind '${action.contextFactKind}' for '${targetContextFactDefinitionId}', received '${targetFact.kind}'`,
             ),
           });
         }

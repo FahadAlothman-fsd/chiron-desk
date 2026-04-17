@@ -118,8 +118,6 @@ const validateActionStepPayload = (
     const actionIds = new Set<string>();
     const actionKeys = new Set<string>();
     const actionSortOrders = new Set<number>();
-    const actionContextFactDefinitionIds = new Set<string>();
-
     for (const action of payload.actions) {
       if (action.actionKind !== "propagation") {
         return yield* new ValidationDecodeError({
@@ -145,18 +143,9 @@ const validateActionStepPayload = (
         });
       }
 
-      if (actionContextFactDefinitionIds.has(action.contextFactDefinitionId)) {
-        return yield* new ValidationDecodeError({
-          message:
-            `Action step cannot target workflow context fact '${action.contextFactDefinitionId}' ` +
-            "more than once",
-        });
-      }
-
       actionIds.add(action.actionId);
       actionKeys.add(action.actionKey);
       actionSortOrders.add(action.sortOrder);
-      actionContextFactDefinitionIds.add(action.contextFactDefinitionId);
 
       if (action.items.length < 1) {
         return yield* new ValidationDecodeError({
@@ -176,14 +165,6 @@ const validateActionStepPayload = (
           message:
             `Action '${action.actionId}' targets unsupported workflow context fact kind ` +
             `'${fact.kind}'`,
-        });
-      }
-
-      if (fact.kind !== action.contextFactKind) {
-        return yield* new ValidationDecodeError({
-          message:
-            `Action '${action.actionId}' targets context fact '${action.contextFactDefinitionId}' ` +
-            `with mismatched kind '${action.contextFactKind}'`,
         });
       }
 
@@ -231,15 +212,6 @@ const validateActionStepPayload = (
             message:
               `Action '${action.actionId}' item '${item.itemId}' targets unsupported workflow context fact kind ` +
               `'${effectiveFact.kind}'`,
-          });
-        }
-
-        if (effectiveFact && effectiveFact.kind !== action.contextFactKind) {
-          return yield* new ValidationDecodeError({
-            message:
-              `Action '${action.actionId}' item '${item.itemId}' targets context fact ` +
-              `'${item.targetContextFactDefinitionId ?? action.contextFactDefinitionId}' with mismatched kind ` +
-              `'${action.contextFactKind}'`,
           });
         }
       }

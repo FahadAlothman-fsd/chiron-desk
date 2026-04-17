@@ -95,6 +95,47 @@ describe("l3 plan a action/branch contracts", () => {
     expect(payload.actions[0]?.items[0]?.targetContextFactDefinitionId).toBe("fact-prd-target");
 
     expect(
+      Schema.decodeUnknownSync(ActionStepPayload)({
+        key: "propagate-shared-compat-root",
+        executionMode: "parallel",
+        actions: [
+          {
+            actionId: "action-1",
+            actionKey: "propagate-a",
+            sortOrder: 10,
+            actionKind: "propagation",
+            contextFactDefinitionId: "fact-shared",
+            contextFactKind: "bound_external_fact",
+            items: [
+              {
+                itemId: "item-1",
+                itemKey: "item-a",
+                sortOrder: 10,
+                targetContextFactDefinitionId: "fact-a",
+              },
+            ],
+          },
+          {
+            actionId: "action-2",
+            actionKey: "propagate-b",
+            sortOrder: 20,
+            actionKind: "propagation",
+            contextFactDefinitionId: "fact-shared",
+            contextFactKind: "bound_external_fact",
+            items: [
+              {
+                itemId: "item-2",
+                itemKey: "item-b",
+                sortOrder: 10,
+                targetContextFactDefinitionId: "fact-b",
+              },
+            ],
+          },
+        ],
+      }).actions.map((action) => action.contextFactDefinitionId),
+    ).toEqual(["fact-shared", "fact-shared"]);
+
+    expect(
       Schema.decodeUnknownSync(CreateActionStepInput)({
         workflowDefinitionId: "wf-1",
         afterStepKey: "step-before",
@@ -194,7 +235,7 @@ describe("l3 plan a action/branch contracts", () => {
       }),
     ).toThrow();
 
-    expect(() =>
+    expect(
       decode({
         key: "duplicate-action-context",
         executionMode: "parallel",
@@ -218,8 +259,8 @@ describe("l3 plan a action/branch contracts", () => {
             items: [{ itemId: "item-2", itemKey: "repo-2", sortOrder: 10 }],
           },
         ],
-      }),
-    ).toThrow();
+      }).actions.map((action) => action.contextFactDefinitionId),
+    ).toEqual(["fact-repo", "fact-repo"]);
 
     expect(() =>
       decode({
@@ -371,6 +412,7 @@ describe("l3 plan a action/branch contracts", () => {
                 itemId: "item-1",
                 itemKey: "repo-target",
                 sortOrder: 10,
+                targetContextFactDefinitionId: "fact-repo",
                 status: "not_started",
                 affectedTargets: [],
               },
