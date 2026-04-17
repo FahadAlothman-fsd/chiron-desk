@@ -24,6 +24,7 @@ const payload: AgentStepDesignTimePayload = {
     sessionStart: "explicit",
     continuationMode: "bootstrap_only",
     liveStreamCount: 1,
+    bootstrapPromptNoReply: true,
     nativeMessageLog: false,
     persistedWritePolicy: "applied_only",
   },

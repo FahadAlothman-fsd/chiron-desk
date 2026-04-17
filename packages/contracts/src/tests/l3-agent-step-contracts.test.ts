@@ -78,6 +78,7 @@ describe("l3 agent-step contracts", () => {
         sessionStart: "explicit",
         continuationMode: "bootstrap_only",
         liveStreamCount: 1,
+        bootstrapPromptNoReply: true,
         nativeMessageLog: false,
         persistedWritePolicy: "applied_only",
       },

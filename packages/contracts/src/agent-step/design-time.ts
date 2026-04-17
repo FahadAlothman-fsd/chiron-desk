@@ -52,6 +52,7 @@ export const AgentStepRuntimePolicy = Schema.Struct({
     default: () => "bootstrap_only",
   }),
   liveStreamCount: Schema.optionalWith(Schema.Literal(1), { default: () => 1 }),
+  bootstrapPromptNoReply: Schema.optionalWith(Schema.Boolean, { default: () => true }),
   nativeMessageLog: Schema.optionalWith(Schema.Literal(false), { default: () => false }),
   persistedWritePolicy: Schema.optionalWith(Schema.Literal("applied_only"), {
     default: () => "applied_only",
@@ -83,6 +84,7 @@ export const AgentStepDesignTimePayload = Schema.Struct({
       sessionStart: "explicit",
       continuationMode: "bootstrap_only",
       liveStreamCount: 1,
+      bootstrapPromptNoReply: true,
       nativeMessageLog: false,
       persistedWritePolicy: "applied_only",
     }),

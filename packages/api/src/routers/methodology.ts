@@ -508,6 +508,7 @@ const agentStepRuntimePolicySchema = z.object({
   sessionStart: z.literal("explicit").default("explicit"),
   continuationMode: z.literal("bootstrap_only").default("bootstrap_only"),
   liveStreamCount: z.literal(1).default(1),
+  bootstrapPromptNoReply: z.boolean().default(true),
   nativeMessageLog: z.literal(false).default(false),
   persistedWritePolicy: z.literal("applied_only").default("applied_only"),
 });
@@ -549,6 +550,7 @@ const agentStepPayloadSchema = z.object({
     sessionStart: "explicit",
     continuationMode: "bootstrap_only",
     liveStreamCount: 1,
+    bootstrapPromptNoReply: true,
     nativeMessageLog: false,
     persistedWritePolicy: "applied_only",
   }),
