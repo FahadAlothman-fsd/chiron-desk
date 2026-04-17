@@ -17,9 +17,13 @@ import { InvokeTargetResolutionService } from "./invoke-target-resolution-servic
 import { StepProgressionService } from "./step-progression-service";
 import { StepExecutionTransactionService } from "./step-execution-transaction-service";
 import type {
+  SaveBranchStepSelectionInput,
+  SaveBranchStepSelectionOutput,
   SubmitFormStepExecutionInput,
   SubmitFormStepExecutionOutput,
 } from "@chiron/contracts/runtime/executions";
+import { BranchStepRuntimeRepository } from "../repositories/branch-step-runtime-repository";
+import { evaluateRoutes } from "./branch-route-evaluator";
 
 export interface ActivateWorkflowStepExecutionInput {
   projectId: string;
@@ -67,6 +71,9 @@ export class WorkflowExecutionStepCommandService extends Context.Tag(
     readonly submitFormStep: (
       input: SubmitFormStepExecutionInput,
     ) => Effect.Effect<SubmitFormStepExecutionOutput, RepositoryError>;
+    readonly saveBranchStepSelection: (
+      input: SaveBranchStepSelectionInput,
+    ) => Effect.Effect<SaveBranchStepSelectionOutput, RepositoryError>;
     readonly completeStepExecution: (
       input: CompleteStepExecutionInput,
     ) => Effect.Effect<CompleteStepExecutionOutput, RepositoryError>;
@@ -83,6 +90,7 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
     const lifecycleRepo = yield* LifecycleRepository;
     const projectFactRepo = yield* ProjectFactRepository;
     const workUnitFactRepo = yield* WorkUnitFactRepository;
+    const branchRuntimeRepo = yield* BranchStepRuntimeRepository;
     const formExecution = yield* FormStepExecutionService;
     const invokeTargetResolution = yield* InvokeTargetResolutionService;
     const progression = yield* StepProgressionService;
@@ -385,28 +393,34 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
         }
 
         const nextStep = yield* progression.getNextStepDefinition({
+          workflowExecutionId: input.workflowExecutionId,
           workflowId: detail.workflowExecution.workflowId,
           fromStepDefinitionId: currentStepExecution.stepDefinitionId,
+          fromStepExecutionId: currentStepExecution.id,
         });
 
-        if (!nextStep) {
+        if (nextStep.state === "blocked") {
+          return yield* makeCommandError(nextStep.reason);
+        }
+
+        if (nextStep.state !== "next_step_ready") {
           return yield* makeCommandError("workflow has no next step ready for activation");
         }
 
         const activated = yield* tx.activateStepExecution({
           workflowExecutionId: input.workflowExecutionId,
-          stepDefinitionId: nextStep.id,
-          stepType: nextStep.type,
+          stepDefinitionId: nextStep.nextStep.id,
+          stepType: nextStep.nextStep.type,
           previousStepExecutionId: currentStepExecution.id,
         });
 
-        if (nextStep.type === "invoke") {
+        if (nextStep.nextStep.type === "invoke") {
           yield* ensureInvokeStepMaterialized({
             projectId: input.projectId,
             workflowExecutionId: input.workflowExecutionId,
             workflowDefinitionId: detail.workflowExecution.workflowId,
             stepExecutionId: activated.stepExecutionId,
-            stepDefinitionId: nextStep.id,
+            stepDefinitionId: nextStep.nextStep.id,
           });
         }
 
@@ -426,6 +440,106 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
       Effect.gen(function* () {
         yield* assertWorkflowOwnership(input);
         return yield* formExecution.submitFormStep(input);
+      });
+
+    const saveBranchStepSelection = (input: SaveBranchStepSelectionInput) =>
+      Effect.gen(function* () {
+        const stepExecution = yield* stepRepo.getStepExecutionById(input.stepExecutionId);
+        if (!stepExecution) {
+          return yield* makeCommandError("step execution not found");
+        }
+
+        if (stepExecution.stepType !== "branch") {
+          return yield* makeCommandError("step execution is not a branch step");
+        }
+
+        if (stepExecution.status !== "active") {
+          return yield* makeCommandError("only active branch steps can save a target selection");
+        }
+
+        const workflowDetail = yield* assertWorkflowOwnership({
+          projectId: input.projectId,
+          workflowExecutionId: stepExecution.workflowExecutionId,
+        });
+
+        const projectPin = yield* projectContextRepo.findProjectPin(input.projectId);
+        if (!projectPin) {
+          return yield* makeCommandError("project methodology pin missing");
+        }
+
+        const workUnitTypes = yield* lifecycleRepo.findWorkUnitTypes(
+          projectPin.methodologyVersionId,
+        );
+        const workUnitType = workUnitTypes.find(
+          (entry) => entry.id === workflowDetail.workUnitTypeId,
+        );
+        if (!workUnitType) {
+          return yield* makeCommandError("workflow work-unit type not found");
+        }
+
+        const [branchDefinition, workflowEditor, contextFacts, branchState] = yield* Effect.all([
+          methodologyRepo.getBranchStepDefinition({
+            versionId: projectPin.methodologyVersionId,
+            workflowDefinitionId: workflowDetail.workflowExecution.workflowId,
+            stepId: stepExecution.stepDefinitionId,
+          }),
+          methodologyRepo.getWorkflowEditorDefinition({
+            versionId: projectPin.methodologyVersionId,
+            workUnitTypeKey: workUnitType.key,
+            workflowDefinitionId: workflowDetail.workflowExecution.workflowId,
+          }),
+          stepRepo.listWorkflowExecutionContextFacts(stepExecution.workflowExecutionId),
+          branchRuntimeRepo.loadWithRoutes(stepExecution.id),
+        ]);
+
+        if (!branchDefinition) {
+          return yield* makeCommandError("branch step definition not found");
+        }
+
+        if (!branchState) {
+          return yield* makeCommandError("branch step runtime state not found");
+        }
+
+        const evaluations = evaluateRoutes({
+          routes: branchDefinition.payload.routes.map((route, index) => ({
+            ...route,
+            sortOrder: index,
+          })),
+          contextFacts,
+          contextFactDefinitions: workflowEditor.contextFacts,
+        });
+
+        const validConditionalTargets = evaluations
+          .filter((route) => route.isValid)
+          .map((route) => route.targetStepId);
+        const validTargets = new Set(
+          validConditionalTargets.length > 0
+            ? validConditionalTargets
+            : branchDefinition.payload.defaultTargetStepId
+              ? [branchDefinition.payload.defaultTargetStepId]
+              : [],
+        );
+
+        if (input.selectedTargetStepId !== null && !validTargets.has(input.selectedTargetStepId)) {
+          return yield* makeCommandError(
+            "branch target selection must be one of the currently valid persisted targets",
+          );
+        }
+
+        const saved = yield* branchRuntimeRepo.saveSelection({
+          stepExecutionId: input.stepExecutionId,
+          selectedTargetStepId: input.selectedTargetStepId,
+        });
+
+        if (!saved) {
+          return yield* makeCommandError("branch step runtime state could not be updated");
+        }
+
+        return {
+          stepExecutionId: input.stepExecutionId,
+          selectedTargetStepId: saved.selectedTargetStepId,
+          result: "saved",
+        } satisfies SaveBranchStepSelectionOutput;
       });
 
     const completeStepExecution = (input: CompleteStepExecutionInput) =>
@@ -460,6 +574,7 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
       activateFirstWorkflowStepExecution,
       saveFormStepDraft,
       submitFormStep,
+      saveBranchStepSelection,
       completeStepExecution,
     });
   }),

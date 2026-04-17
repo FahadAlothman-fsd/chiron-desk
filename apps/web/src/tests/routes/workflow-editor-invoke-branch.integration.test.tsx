@@ -1231,6 +1231,13 @@ describe("workflow editor invoke route", () => {
         ]}
         conditionOperators={[
           {
+            key: "exists",
+            label: "Exists",
+            requiresComparison: false,
+            supportsOperand: () => true,
+            validateComparison: () => true,
+          },
+          {
             key: "equals",
             label: "Equals",
             requiresComparison: true,
@@ -1261,6 +1268,9 @@ describe("workflow editor invoke route", () => {
     fireEvent.click(screen.getByRole("button", { name: /Invoke Story Work/i }));
     fireEvent.click(screen.getByRole("combobox", { name: "Context Fact" }));
     fireEvent.click(screen.getByRole("button", { name: /Summary/i }));
+    expect(screen.getByRole("option", { name: /^Exists$/i })).toBeTruthy();
+    expect(screen.getByRole("option", { name: /^Equals$/i })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /^Is Empty$/i })).toBeNull();
     fireEvent.change(screen.getByLabelText("Operator"), {
       target: { value: "equals" },
     });
@@ -1432,7 +1442,7 @@ describe("workflow editor invoke route", () => {
     );
   });
 
-  it("branch route derives current_state comparison options from the referenced work unit type", async () => {
+  it("branch route restricts referenced work-unit operators to the Plan A subset", async () => {
     const { MethodologyWorkflowEditorRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId");
 
@@ -1460,23 +1470,11 @@ describe("workflow editor invoke route", () => {
     fireEvent.click(screen.getByRole("combobox", { name: "Context Fact" }));
     fireEvent.click(screen.getByRole("button", { name: /Current Story/i }));
 
-    fireEvent.change(screen.getByLabelText("Operator"), {
-      target: { value: "current_state" },
-    });
+    expect(screen.getByRole("option", { name: /^Exists$/i })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /^Equals$/i })).toBeNull();
+    expect(screen.queryByRole("option", { name: /^Current State$/i })).toBeNull();
 
     expect(screen.queryByLabelText("Comparison Value")).toBeNull();
-    expect(screen.getByRole("option", { name: "Activation" })).toBeTruthy();
-    expect(screen.getByRole("option", { name: "Draft" })).toBeTruthy();
-    expect(screen.getByRole("option", { name: "Ready" })).toBeTruthy();
-    expect(
-      screen.getByText(
-        /Comparison options come from the lifecycle states defined on the referenced work unit type, plus Activation for the pre-state before first activation\./i,
-      ),
-    ).toBeTruthy();
-
-    const comparisonSelect = screen.getAllByRole("combobox").at(-1);
-    expect(comparisonSelect).toBeTruthy();
-    fireEvent.change(comparisonSelect!, { target: { value: "ready" } });
     fireEvent.click(screen.getByRole("button", { name: "Save Route" }));
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
@@ -1498,8 +1496,8 @@ describe("workflow editor invoke route", () => {
                   conditions: expect.arrayContaining([
                     expect.objectContaining({
                       contextFactDefinitionId: "ctx-current-story",
-                      operator: "current_state",
-                      comparisonJson: { value: "ready" },
+                      operator: "exists",
+                      comparisonJson: null,
                     }),
                   ]),
                 }),
@@ -1540,9 +1538,10 @@ describe("workflow editor invoke route", () => {
     fireEvent.click(screen.getByRole("button", { name: /Story Draft/i }));
 
     expect(screen.getAllByText(/Targeting Work Unit Instance/i).length).toBeGreaterThan(0);
-    expect(screen.getByRole("option", { name: /^Current State$/i })).toBeTruthy();
+    expect(screen.getByRole("option", { name: /^Exists$/i })).toBeTruthy();
     expect(screen.queryByRole("option", { name: /^Fresh$/i })).toBeNull();
     expect(screen.queryByRole("option", { name: /^Equals$/i })).toBeNull();
+    expect(screen.queryByRole("option", { name: /^Current State$/i })).toBeNull();
 
     fireEvent.change(screen.getByLabelText("Draft-spec Sub-field"), {
       target: { value: "fact:wuf-story-title" },
@@ -1550,7 +1549,8 @@ describe("workflow editor invoke route", () => {
 
     expect(screen.getAllByText(/Targeting String Fact Instance/i).length).toBeGreaterThan(0);
     expect(screen.getByRole("option", { name: /^Equals$/i })).toBeTruthy();
-    expect(screen.getByRole("option", { name: /^Contains$/i })).toBeTruthy();
+    expect(screen.getByRole("option", { name: /^Exists$/i })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /^Contains$/i })).toBeNull();
     expect(screen.queryByRole("option", { name: /^Current State$/i })).toBeNull();
   });
 
@@ -1588,7 +1588,8 @@ describe("workflow editor invoke route", () => {
       target: { value: "projectRoot" },
     });
     expect(screen.getByRole("option", { name: /^Exists$/i })).toBeTruthy();
-    expect(screen.getByRole("option", { name: /^Exists In Repo$/i })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /^Equals$/i })).toBeNull();
+    expect(screen.queryByRole("option", { name: /^Exists In Repo$/i })).toBeNull();
     expect(screen.queryByRole("option", { name: /^Contains$/i })).toBeNull();
 
     fireEvent.change(screen.getAllByRole("combobox")[2]!, {
@@ -1604,8 +1605,9 @@ describe("workflow editor invoke route", () => {
     fireEvent.change(screen.getAllByRole("combobox")[2]!, {
       target: { value: "estimatedHours" },
     });
-    expect(screen.getByRole("option", { name: /^Greater Than$/i })).toBeTruthy();
-    expect(screen.getByRole("option", { name: /^Between$/i })).toBeTruthy();
+    expect(screen.getByRole("option", { name: /^Equals$/i })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /^Greater Than$/i })).toBeNull();
+    expect(screen.queryByRole("option", { name: /^Between$/i })).toBeNull();
 
     fireEvent.change(screen.getAllByRole("combobox")[2]!, {
       target: { value: "isCritical" },
@@ -1792,19 +1794,9 @@ describe("workflow editor invoke route", () => {
       }),
     );
     expect(screen.getByRole("option", { name: /^Exists$/i })).toBeTruthy();
-    expect(screen.getByRole("option", { name: /^Exists In Repo$/i })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /^Equals$/i })).toBeNull();
+    expect(screen.queryByRole("option", { name: /^Exists In Repo$/i })).toBeNull();
     expect(screen.queryByRole("option", { name: /^Contains$/i })).toBeNull();
-
-    fireEvent.change(
-      screen.getByRole("combobox", {
-        name: /workflow-editor-branch-condition-operator-/i,
-      }),
-      {
-        target: { value: "exists_in_repo" },
-      },
-    );
-
-    expect(screen.getByText(/Paths are treated as repo-relative/i)).toBeTruthy();
   });
 
   it("artifact reference branch conditions do not offer equals", async () => {
@@ -1843,7 +1835,7 @@ describe("workflow editor invoke route", () => {
     );
 
     expect(screen.getByRole("option", { name: /^Exists$/i })).toBeTruthy();
-    expect(screen.getByRole("option", { name: /^Fresh$/i })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /^Fresh$/i })).toBeNull();
     expect(screen.queryByRole("option", { name: /^Equals$/i })).toBeNull();
   });
 });

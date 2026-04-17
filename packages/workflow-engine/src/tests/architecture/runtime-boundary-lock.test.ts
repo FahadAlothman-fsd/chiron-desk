@@ -84,20 +84,25 @@ describe("runtime boundary lock: workflow-engine ownership", () => {
     }
   });
 
-  it("locks L1/L2 runtime surface without step_executions table or step-level seams", () => {
+  it("locks the current Plan A runtime surface with explicit step-execution seams", () => {
     const runtimeSchema = readRepoFile("packages/db/src/schema/runtime.ts");
-    const runtimeMigration = readRepoFile("packages/db/src/migrations/0001_runtime_l1_l2.sql");
     const runtimeRouter = readRepoFile("packages/api/src/routers/project-runtime.ts");
     const runtimeContracts = readRepoFile("packages/contracts/src/runtime/executions.ts");
 
-    expect(runtimeSchema).not.toContain("step_executions");
-    expect(runtimeMigration).not.toContain("step_executions");
+    expect(runtimeSchema).toContain("step_executions");
+    expect(runtimeSchema).toContain("action_step_executions");
+    expect(runtimeSchema).toContain("branch_step_executions");
 
-    expect(runtimeRouter).not.toContain("getRuntimeStepExecutionDetail");
+    expect(runtimeRouter).toContain("getRuntimeStepExecutionDetail");
+    expect(runtimeRouter).toContain("saveBranchStepSelection");
+    expect(runtimeRouter).toContain("startActionStepExecution");
+    expect(runtimeRouter).toContain("startInvokeWorkflowTarget");
     expect(runtimeRouter).not.toContain("retrySameStepExecution");
     expect(runtimeRouter).not.toContain("streamRuntimeStepExecutions");
 
     expect(runtimeContracts).toContain("RuntimeExcludedL3Entity");
     expect(runtimeContracts).toContain('Schema.Literal("step_executions")');
+    expect(runtimeContracts).toContain("RuntimeStepExecutionDto");
+    expect(runtimeContracts).toContain("GetRuntimeStepExecutionDetailOutput");
   });
 });

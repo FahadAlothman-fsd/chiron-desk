@@ -1144,7 +1144,8 @@ describe("l3 invoke step definition service", () => {
                       conditions: [
                         {
                           ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
-                          operator: "regex",
+                          operator: "contains" as never,
+                          comparisonJson: { value: "ready" },
                         },
                       ],
                     },
@@ -1265,7 +1266,7 @@ describe("l3 invoke step definition service", () => {
                           ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
                           contextFactDefinitionId: "ctx-json-metadata",
                           subFieldKey: "estimatedHours",
-                          operator: "contains",
+                          operator: "contains" as never,
                           comparisonJson: { value: "5" },
                         },
                       ],
@@ -1308,7 +1309,7 @@ describe("l3 invoke step definition service", () => {
     }
   });
 
-  it("branch accepts plain-json typed subfield operators", async () => {
+  it("branch accepts the Plan A exists/equals operator subset across scoped fact shapes", async () => {
     const { layer } = makeLayer();
 
     const created = await Effect.runPromise(
@@ -1330,282 +1331,34 @@ describe("l3 invoke step definition service", () => {
                       conditions: [
                         {
                           ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
-                          contextFactDefinitionId: "ctx-json-metadata",
-                          subFieldKey: "title",
-                          operator: "starts_with",
-                          comparisonJson: { value: "Project" },
-                        },
-                        {
-                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
-                          conditionId: "cond-hours-range",
-                          contextFactDefinitionId: "ctx-json-metadata",
-                          subFieldKey: "estimatedHours",
-                          operator: "between",
-                          comparisonJson: { min: 1, max: 8 },
-                        },
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-          "user-1",
-        );
-      }).pipe(Effect.provide(layer)),
-    );
-
-    expect(created.stepId).toBe("step-branch-1");
-  });
-
-  it("branch accepts path and allowed-values operators for plain-json string subfields", async () => {
-    const { layer } = makeLayer();
-
-    const created = await Effect.runPromise(
-      Effect.gen(function* () {
-        const service = yield* BranchStepDefinitionService;
-        return yield* service.createBranchStep(
-          {
-            versionId: "ver-1",
-            workUnitTypeKey: "WU.STORY",
-            workflowDefinitionId: "wf-1",
-            payload: {
-              ...branchPayload,
-              routes: [
-                {
-                  ...branchPayload.routes[0]!,
-                  groups: [
-                    {
-                      ...branchPayload.routes[0]!.groups[0]!,
-                      conditions: [
-                        {
-                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
-                          contextFactDefinitionId: "ctx-json-metadata",
-                          subFieldKey: "path",
-                          operator: "exists_in_repo",
-                          comparisonJson: null,
-                        },
-                        {
-                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
-                          conditionId: "cond-status-ready",
                           contextFactDefinitionId: "ctx-json-metadata",
                           subFieldKey: "status",
                           operator: "equals",
                           comparisonJson: { value: "ready" },
                         },
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-          "user-1",
-        );
-      }).pipe(Effect.provide(layer)),
-    );
-
-    expect(created.stepId).toBe("step-branch-1");
-  });
-
-  it("branch accepts definition-backed external fact operators across string and work-unit variations", async () => {
-    const { layer } = makeLayer();
-
-    const created = await Effect.runPromise(
-      Effect.gen(function* () {
-        const service = yield* BranchStepDefinitionService;
-        return yield* service.createBranchStep(
-          {
-            versionId: "ver-1",
-            workUnitTypeKey: "WU.STORY",
-            workflowDefinitionId: "wf-1",
-            payload: {
-              ...branchPayload,
-              routes: [
-                {
-                  ...branchPayload.routes[0]!,
-                  groups: [
-                    {
-                      ...branchPayload.routes[0]!.groups[0]!,
-                      conditions: [
                         {
-                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
-                          contextFactDefinitionId: "ctx-external-path",
-                          subFieldKey: null,
-                          operator: "exists_in_repo",
-                          comparisonJson: null,
+                          conditionId: "cond-critical",
+                          contextFactDefinitionId: "ctx-json-metadata",
+                          subFieldKey: "isCritical",
+                          operator: "equals",
+                          isNegated: false,
+                          comparisonJson: { value: true },
                         },
                         {
-                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
                           conditionId: "cond-external-status",
                           contextFactDefinitionId: "ctx-external-status",
                           subFieldKey: null,
                           operator: "equals",
+                          isNegated: false,
                           comparisonJson: { value: "ready" },
                         },
                         {
-                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
-                          conditionId: "cond-external-current-state",
+                          conditionId: "cond-current-story-exists",
                           contextFactDefinitionId: "ctx-external-work-unit",
                           subFieldKey: null,
-                          operator: "current_state",
-                          comparisonJson: { value: "ready" },
-                        },
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-          "user-1",
-        );
-      }).pipe(Effect.provide(layer)),
-    );
-
-    expect(created.stepId).toBe("step-branch-1");
-  });
-
-  it("branch infers work-unit external fact operators from workUnitDefinitionId when valueType is absent", async () => {
-    const { layer } = makeLayer({
-      contextFacts: contextFacts.map((fact) =>
-        fact.contextFactDefinitionId === "ctx-external-work-unit"
-          ? { ...fact, valueType: undefined }
-          : fact,
-      ),
-    });
-
-    const created = await Effect.runPromise(
-      Effect.gen(function* () {
-        const service = yield* BranchStepDefinitionService;
-        return yield* service.createBranchStep(
-          {
-            versionId: "ver-1",
-            workUnitTypeKey: "WU.STORY",
-            workflowDefinitionId: "wf-1",
-            payload: {
-              ...branchPayload,
-              routes: [
-                {
-                  ...branchPayload.routes[0]!,
-                  groups: [
-                    {
-                      ...branchPayload.routes[0]!.groups[0]!,
-                      conditions: [
-                        {
-                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
-                          contextFactDefinitionId: "ctx-external-work-unit",
-                          subFieldKey: null,
-                          operator: "current_state",
-                          comparisonJson: { value: "ready" },
-                        },
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-          "user-1",
-        );
-      }).pipe(Effect.provide(layer)),
-    );
-
-    expect(created.stepId).toBe("step-branch-1");
-  });
-
-  it("branch accepts the activation pseudo-state for external work-unit current_state conditions", async () => {
-    const { layer } = makeLayer();
-
-    const created = await Effect.runPromise(
-      Effect.gen(function* () {
-        const service = yield* BranchStepDefinitionService;
-        return yield* service.createBranchStep(
-          {
-            versionId: "ver-1",
-            workUnitTypeKey: "WU.STORY",
-            workflowDefinitionId: "wf-1",
-            payload: {
-              ...branchPayload,
-              routes: [
-                {
-                  ...branchPayload.routes[0]!,
-                  groups: [
-                    {
-                      ...branchPayload.routes[0]!.groups[0]!,
-                      conditions: [
-                        {
-                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
-                          contextFactDefinitionId: "ctx-external-work-unit",
-                          subFieldKey: null,
-                          operator: "current_state",
-                          comparisonJson: { value: "__absent__" },
-                        },
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-          },
-          "user-1",
-        );
-      }).pipe(Effect.provide(layer)),
-    );
-
-    expect(created.stepId).toBe("step-branch-1");
-  });
-
-  it("branch accepts external JSON subfield operators across string, number, and boolean types", async () => {
-    const { layer } = makeLayer();
-
-    const created = await Effect.runPromise(
-      Effect.gen(function* () {
-        const service = yield* BranchStepDefinitionService;
-        return yield* service.createBranchStep(
-          {
-            versionId: "ver-1",
-            workUnitTypeKey: "WU.STORY",
-            workflowDefinitionId: "wf-1",
-            payload: {
-              ...branchPayload,
-              routes: [
-                {
-                  ...branchPayload.routes[0]!,
-                  groups: [
-                    {
-                      ...branchPayload.routes[0]!.groups[0]!,
-                      conditions: [
-                        {
-                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
-                          contextFactDefinitionId: "ctx-external-json",
-                          subFieldKey: "projectRoot",
-                          operator: "exists_in_repo",
+                          operator: "exists",
+                          isNegated: false,
                           comparisonJson: null,
-                        },
-                        {
-                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
-                          conditionId: "cond-external-json-status",
-                          contextFactDefinitionId: "ctx-external-json",
-                          subFieldKey: "status",
-                          operator: "equals",
-                          comparisonJson: { value: "ready" },
-                        },
-                        {
-                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
-                          conditionId: "cond-external-json-estimate",
-                          contextFactDefinitionId: "ctx-external-json",
-                          subFieldKey: "estimatedHours",
-                          operator: "gte",
-                          comparisonJson: { value: 5 },
-                        },
-                        {
-                          ...branchPayload.routes[0]!.groups[0]!.conditions[0]!,
-                          conditionId: "cond-external-json-critical",
-                          contextFactDefinitionId: "ctx-external-json",
-                          subFieldKey: "isCritical",
-                          operator: "equals",
-                          comparisonJson: { value: true },
                         },
                       ],
                     },

@@ -10,7 +10,7 @@ type StepTile = {
 const STEP_TILES: readonly StepTile[] = [
   { key: "form", label: "Form", iconCode: "45", enabled: true },
   { key: "agent", label: "Agent", iconCode: "58", enabled: true },
-  { key: "action", label: "Action", iconCode: "08", enabled: false },
+  { key: "action", label: "Action", iconCode: "08", enabled: true },
   { key: "invoke", label: "Invoke", iconCode: "33", enabled: true },
   { key: "branch", label: "Branch", iconCode: "61", enabled: true },
   { key: "display", label: "Display", iconCode: "22", enabled: false },
@@ -19,6 +19,7 @@ const STEP_TILES: readonly StepTile[] = [
 type StepTypesGridProps = {
   onCreateFormStep: () => void;
   onCreateAgentStep: () => void;
+  onCreateActionStep: () => void;
   onCreateInvokeStep: () => void;
   onCreateBranchStep: () => void;
 };
@@ -26,6 +27,7 @@ type StepTypesGridProps = {
 export function StepTypesGrid({
   onCreateFormStep,
   onCreateAgentStep,
+  onCreateActionStep,
   onCreateInvokeStep,
   onCreateBranchStep,
 }: StepTypesGridProps) {
@@ -47,6 +49,10 @@ export function StepTypesGrid({
 
               if (tile.key === "agent") {
                 onCreateAgentStep();
+              }
+
+              if (tile.key === "action") {
+                onCreateActionStep();
               }
 
               if (tile.key === "invoke") {

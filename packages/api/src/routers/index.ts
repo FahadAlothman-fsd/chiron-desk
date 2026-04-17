@@ -18,6 +18,7 @@ import {
 } from "@chiron/methodology-engine";
 import {
   ArtifactRepository,
+  BranchStepRuntimeRepository,
   ExecutionReadRepository,
   InvokeExecutionRepository,
   ProjectFactRepository,
@@ -49,6 +50,7 @@ export function createAppRouter(
     | ProjectFactRepository
     | WorkUnitFactRepository
     | ArtifactRepository
+    | BranchStepRuntimeRepository
     | StepExecutionRepository
   >,
 ) {

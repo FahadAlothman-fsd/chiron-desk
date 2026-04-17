@@ -20,6 +20,7 @@ import { WorkUnitFactRepository } from "../repositories/work-unit-fact-repositor
 import {
   StepExecutionRepository,
   type RuntimeStepExecutionRow,
+  type RuntimeWorkflowExecutionContextFactRow,
 } from "../repositories/step-execution-repository";
 import { TransitionExecutionRepository } from "../repositories/transition-execution-repository";
 import { WorkflowExecutionRepository } from "../repositories/workflow-execution-repository";
@@ -163,7 +164,8 @@ const workUnitOptionsFromValidation = (params: {
 const hasWorkUnitValidationKey = (validationJson: unknown): boolean =>
   isPlainRecord(validationJson) && typeof validationJson.workUnitKey === "string";
 
-const isFilePathPlainContextFact = (contextFact: WorkflowContextFactDto): boolean =>
+const isFilePathPlainContextFact = (contextFact: WorkflowContextFactDto | undefined): boolean =>
+  !!contextFact &&
   contextFact.kind === "plain_value_fact" &&
   contextFact.valueType === "string" &&
   contextFact.cardinality === "one" &&

@@ -6,8 +6,16 @@ import {
   WorkflowEditorDefinitionService,
   WorkflowTopologyMutationService,
   FormStepDefinitionService,
+  ActionStepDefinitionService,
+  ActionStepDefinitionServiceLive,
   InvokeStepDefinitionService,
+  InvokeStepDefinitionServiceLive,
   BranchStepDefinitionService,
+  BranchStepDefinitionServiceLive,
+  AgentStepDefinitionService,
+  AgentStepDefinitionServiceLive,
+  AgentStepEditorDefinitionService,
+  AgentStepEditorDefinitionServiceLive,
   WorkflowContextFactDefinitionService,
   type MethodologyVersionRow,
   type MethodologyVersionEventRow,
@@ -60,7 +68,9 @@ import type {
   GetWorkUnitArtifactSlotsInput,
   UpdateWorkUnitArtifactSlotInput,
 } from "@chiron/contracts/methodology/artifact-slot";
+import { BRANCH_STEP_CONDITION_OPERATORS } from "@chiron/contracts/methodology/workflow";
 import type {
+  ActionStepPayload as ActionStepPayloadContract,
   CreateWorkUnitWorkflowInput,
   BranchStepPayload as BranchStepPayloadContract,
   DeleteWorkUnitWorkflowInput,
@@ -74,16 +84,6 @@ import type {
 import type { UpdateDraftWorkflowsInputDto } from "@chiron/contracts/methodology/dto";
 import { Effect, Layer } from "effect";
 import { z } from "zod";
-import {
-  AgentStepDefinitionService,
-  AgentStepDefinitionServiceLive,
-} from "../../../methodology-engine/src/services/agent-step-definition-service";
-import {
-  AgentStepEditorDefinitionService,
-  AgentStepEditorDefinitionServiceLive,
-} from "../../../methodology-engine/src/services/agent-step-editor-definition-service";
-import { BranchStepDefinitionServiceLive } from "../../../methodology-engine/src/services/branch-step-definition-service";
-import { InvokeStepDefinitionServiceLive } from "../../../methodology-engine/src/services/invoke-step-definition-service";
 import { HarnessService } from "../../../agent-runtime/src/index";
 import { protectedProcedure, publicProcedure } from "../index";
 
@@ -334,7 +334,7 @@ const branchRouteConditionSchema = z
     conditionId: z.string().min(1),
     contextFactDefinitionId: z.string().min(1),
     subFieldKey: z.string().min(1).nullable().optional().default(null),
-    operator: z.string().min(1),
+    operator: z.enum(BRANCH_STEP_CONDITION_OPERATORS),
     isNegated: z.boolean().optional().default(false),
     comparisonJson: z.unknown(),
   })
@@ -363,6 +363,151 @@ const branchStepPayloadSchema: z.ZodType<BranchStepPayloadContract> = invokePayl
     routes: z.array(branchRouteSchema),
   })
   .strict();
+
+const actionPropagationItemPayloadSchema = z
+  .object({
+    itemId: z.string().min(1),
+    itemKey: z.string().min(1),
+    label: z.string().optional(),
+    sortOrder: z.number(),
+  })
+  .strict();
+
+const actionStepActionPayloadSchema = z
+  .object({
+    actionId: z.string().min(1),
+    actionKey: z.string().min(1),
+    label: z.string().optional(),
+    enabled: z.boolean().optional().default(true),
+    sortOrder: z.number(),
+    actionKind: z.literal("propagation"),
+    contextFactDefinitionId: z.string().min(1),
+    contextFactKind: z.enum([
+      "definition_backed_external_fact",
+      "bound_external_fact",
+      "artifact_reference_fact",
+    ]),
+    items: z.array(actionPropagationItemPayloadSchema),
+  })
+  .strict()
+  .superRefine((action, ctx) => {
+    if (action.items.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Action must include at least one propagation item",
+        path: ["items"],
+      });
+      return;
+    }
+
+    const itemIds = new Set<string>();
+    const itemKeys = new Set<string>();
+    const itemSortOrders = new Set<number>();
+
+    for (const [index, item] of action.items.entries()) {
+      if (itemIds.has(item.itemId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Duplicate action itemId '${item.itemId}'`,
+          path: ["items", index, "itemId"],
+        });
+      }
+      if (itemKeys.has(item.itemKey)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Duplicate action itemKey '${item.itemKey}'`,
+          path: ["items", index, "itemKey"],
+        });
+      }
+      if (itemSortOrders.has(item.sortOrder)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Duplicate action item sortOrder '${item.sortOrder}'`,
+          path: ["items", index, "sortOrder"],
+        });
+      }
+
+      itemIds.add(item.itemId);
+      itemKeys.add(item.itemKey);
+      itemSortOrders.add(item.sortOrder);
+    }
+  });
+
+const actionStepPayloadSchema: z.ZodType<ActionStepPayloadContract> = workflowMetadataSchema
+  .pick({ key: true, displayName: true, descriptionJson: true, guidance: true })
+  .extend({
+    label: z.string().optional(),
+    executionMode: z.enum(["sequential", "parallel"]),
+    actions: z.array(actionStepActionPayloadSchema),
+  })
+  .transform((value) => ({
+    key: value.key,
+    label: value.label ?? value.displayName,
+    descriptionJson: value.descriptionJson,
+    guidance: value.guidance,
+    executionMode: value.executionMode,
+    actions: value.actions,
+  }))
+  .superRefine((payload, ctx) => {
+    if (payload.actions.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Action step must include at least one action",
+        path: ["actions"],
+      });
+      return;
+    }
+
+    if (!payload.actions.some((action) => action.enabled !== false)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Action step must enable at least one action",
+        path: ["actions"],
+      });
+      return;
+    }
+
+    const actionIds = new Set<string>();
+    const actionKeys = new Set<string>();
+    const actionSortOrders = new Set<number>();
+    const contextFactDefinitionIds = new Set<string>();
+
+    for (const [index, action] of payload.actions.entries()) {
+      if (actionIds.has(action.actionId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Duplicate actionId '${action.actionId}'`,
+          path: ["actions", index, "actionId"],
+        });
+      }
+      if (actionKeys.has(action.actionKey)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Duplicate actionKey '${action.actionKey}'`,
+          path: ["actions", index, "actionKey"],
+        });
+      }
+      if (actionSortOrders.has(action.sortOrder)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Duplicate action sortOrder '${action.sortOrder}'`,
+          path: ["actions", index, "sortOrder"],
+        });
+      }
+      if (contextFactDefinitionIds.has(action.contextFactDefinitionId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Duplicate action contextFactDefinitionId '${action.contextFactDefinitionId}'`,
+          path: ["actions", index, "contextFactDefinitionId"],
+        });
+      }
+
+      actionIds.add(action.actionId);
+      actionKeys.add(action.actionKey);
+      actionSortOrders.add(action.sortOrder);
+      contextFactDefinitionIds.add(action.contextFactDefinitionId);
+    }
+  });
 
 const agentStepModelReferenceSchema = z.object({
   provider: z.string().min(1),
@@ -544,6 +689,33 @@ const deleteBranchStepSchema = z.object({
   versionId: z.string().min(1),
   workUnitTypeKey: z.string().min(1),
   workflowDefinitionId: z.string().min(1),
+  stepId: z.string().min(1),
+});
+
+const createActionStepSchema = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+  afterStepKey: z.string().min(1).nullable().optional().default(null),
+  payload: actionStepPayloadSchema,
+});
+
+const updateActionStepSchema = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+  stepId: z.string().min(1),
+  payload: actionStepPayloadSchema,
+});
+
+const deleteActionStepSchema = z.object({
+  versionId: z.string().min(1),
+  workUnitTypeKey: z.string().min(1),
+  workflowDefinitionId: z.string().min(1),
+  stepId: z.string().min(1),
+});
+
+const getActionStepDefinitionSchema = workflowEditorRouteIdentitySchema.extend({
   stepId: z.string().min(1),
 });
 
@@ -2290,6 +2462,25 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         ),
       ),
 
+    getActionStepDefinition: publicProcedure
+      .input(getActionStepDefinitionSchema)
+      .handler(async ({ input }) =>
+        runEffect(
+          Layer.mergeAll(
+            serviceLayer,
+            Layer.provide(ActionStepDefinitionServiceLive, serviceLayer),
+          ),
+          Effect.gen(function* () {
+            const svc = yield* ActionStepDefinitionService;
+            return yield* svc.getActionStepDefinition({
+              versionId: input.versionId,
+              workflowDefinitionId: input.workflowDefinitionId,
+              stepId: input.stepId,
+            });
+          }),
+        ),
+      ),
+
     discoverAgentStepHarnessMetadata: publicProcedure
       .input(z.object({}).default({}))
       .handler(async () =>
@@ -2539,6 +2730,80 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           Effect.gen(function* () {
             const svc = yield* BranchStepDefinitionService;
             return yield* svc.deleteBranchStep(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                workflowDefinitionId: input.workflowDefinitionId,
+                stepId: input.stepId,
+              },
+              actorId,
+            );
+          }),
+        );
+      }),
+
+    createActionStep: protectedProcedure
+      .input(createActionStepSchema)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        return runEffect(
+          Layer.mergeAll(
+            serviceLayer,
+            Layer.provide(ActionStepDefinitionServiceLive, serviceLayer),
+          ),
+          Effect.gen(function* () {
+            const svc = yield* ActionStepDefinitionService;
+            return yield* svc.createActionStep(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                workflowDefinitionId: input.workflowDefinitionId,
+                afterStepKey: input.afterStepKey,
+                payload: input.payload,
+              },
+              actorId,
+            );
+          }),
+        );
+      }),
+
+    updateActionStep: protectedProcedure
+      .input(updateActionStepSchema)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        return runEffect(
+          Layer.mergeAll(
+            serviceLayer,
+            Layer.provide(ActionStepDefinitionServiceLive, serviceLayer),
+          ),
+          Effect.gen(function* () {
+            const svc = yield* ActionStepDefinitionService;
+            return yield* svc.updateActionStep(
+              {
+                versionId: input.versionId,
+                workUnitTypeKey: input.workUnitTypeKey,
+                workflowDefinitionId: input.workflowDefinitionId,
+                stepId: input.stepId,
+                payload: input.payload,
+              },
+              actorId,
+            );
+          }),
+        );
+      }),
+
+    deleteActionStep: protectedProcedure
+      .input(deleteActionStepSchema)
+      .handler(async ({ input, context }) => {
+        const actorId = context.session.user.id;
+        return runEffect(
+          Layer.mergeAll(
+            serviceLayer,
+            Layer.provide(ActionStepDefinitionServiceLive, serviceLayer),
+          ),
+          Effect.gen(function* () {
+            const svc = yield* ActionStepDefinitionService;
+            return yield* svc.deleteActionStep(
               {
                 versionId: input.versionId,
                 workUnitTypeKey: input.workUnitTypeKey,
@@ -3951,11 +4216,15 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           delete: router.deleteWorkUnitWorkflow,
           getEditorDefinition: router.getEditorDefinition,
           getAgentStepDefinition: router.getAgentStepDefinition,
+          getActionStepDefinition: router.getActionStepDefinition,
           discoverAgentStepHarnessMetadata: router.discoverAgentStepHarnessMetadata,
           updateWorkflowMetadata: router.updateWorkflowMetadata,
           createFormStep: router.createFormStep,
           updateFormStep: router.updateFormStep,
           deleteFormStep: router.deleteFormStep,
+          createActionStep: router.createActionStep,
+          updateActionStep: router.updateActionStep,
+          deleteActionStep: router.deleteActionStep,
           createInvokeStep: router.createInvokeStep,
           updateInvokeStep: router.updateInvokeStep,
           deleteInvokeStep: router.deleteInvokeStep,

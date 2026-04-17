@@ -23,10 +23,13 @@ import { Context, Effect, Layer } from "effect";
 
 import { RepositoryError } from "../errors";
 import { ExecutionReadRepository } from "../repositories/execution-read-repository";
+import { BranchStepRuntimeRepository } from "../repositories/branch-step-runtime-repository";
 import { ProjectFactRepository } from "../repositories/project-fact-repository";
 import { ProjectWorkUnitRepository } from "../repositories/project-work-unit-repository";
 import { StepExecutionRepository } from "../repositories/step-execution-repository";
 import { WorkUnitFactRepository } from "../repositories/work-unit-fact-repository";
+import { ActionStepDetailService } from "./action-step-detail-service";
+import { evaluateRoutes, getSuggestedTarget } from "./branch-route-evaluator";
 import { InvokeStepDetailService } from "./invoke-step-detail-service";
 
 const makeDetailError = (cause: string): RepositoryError =>
@@ -790,12 +793,14 @@ export const StepExecutionDetailServiceLive = Layer.effect(
   Effect.gen(function* () {
     const stepRepo = yield* StepExecutionRepository;
     const readRepo = yield* ExecutionReadRepository;
+    const branchRuntimeRepo = yield* BranchStepRuntimeRepository;
     const lifecycleRepo = yield* LifecycleRepository;
     const methodologyRepo = yield* MethodologyRepository;
     const projectContextRepo = yield* ProjectContextRepository;
     const projectFactRepo = yield* ProjectFactRepository;
     const projectWorkUnitRepo = yield* ProjectWorkUnitRepository;
     const workUnitFactRepo = yield* WorkUnitFactRepository;
+    const actionStepDetailService = yield* ActionStepDetailService;
     const invokeStepDetailService = yield* InvokeStepDetailService;
 
     const getRuntimeStepExecutionDetail = (input: GetRuntimeStepExecutionDetailInput) =>
@@ -1014,20 +1019,153 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                   },
                 } satisfies GetRuntimeStepExecutionDetailOutput["body"];
               })
-            : stepExecution.stepType === "invoke"
-              ? yield* invokeStepDetailService.buildInvokeStepExecutionDetailBody({
+            : stepExecution.stepType === "action"
+              ? yield* actionStepDetailService.buildActionStepExecutionDetailBody({
                   projectId: input.projectId,
                   stepExecution,
                   workflowDetail,
                 })
-              : {
-                  stepType: stepExecution.stepType as Exclude<
-                    GetRuntimeStepExecutionDetailOutput["body"]["stepType"],
-                    "form" | "invoke"
-                  >,
-                  mode: "deferred",
-                  defaultMessage: `${stepExecution.stepType} step detail remains read-only in this slice.`,
-                };
+              : stepExecution.stepType === "branch"
+                ? yield* Effect.gen(function* () {
+                    const projectPin = yield* projectContextRepo.findProjectPin(
+                      workflowDetail.projectId,
+                    );
+                    if (!projectPin) {
+                      return yield* Effect.fail(
+                        makeDetailError("project methodology pin missing for branch step detail"),
+                      );
+                    }
+
+                    const [workUnitTypes, branchState, contextFacts] = yield* Effect.all([
+                      lifecycleRepo.findWorkUnitTypes(projectPin.methodologyVersionId),
+                      branchRuntimeRepo.loadWithRoutes(stepExecution.id),
+                      stepRepo.listWorkflowExecutionContextFacts(stepExecution.workflowExecutionId),
+                    ]);
+
+                    const workUnitType = workUnitTypes.find(
+                      (candidate) => candidate.id === workflowDetail.workUnitTypeId,
+                    );
+                    if (!workUnitType) {
+                      return yield* Effect.fail(
+                        makeDetailError("work unit type missing for branch step detail"),
+                      );
+                    }
+
+                    if (!branchState) {
+                      return yield* Effect.fail(
+                        makeDetailError("branch runtime state missing for branch step detail"),
+                      );
+                    }
+
+                    const [branchDefinition, workflowEditor] = yield* Effect.all([
+                      methodologyRepo.getBranchStepDefinition({
+                        versionId: projectPin.methodologyVersionId,
+                        workflowDefinitionId: workflowDetail.workflowExecution.workflowId,
+                        stepId: stepExecution.stepDefinitionId,
+                      }),
+                      methodologyRepo.getWorkflowEditorDefinition({
+                        versionId: projectPin.methodologyVersionId,
+                        workUnitTypeKey: workUnitType.key,
+                        workflowDefinitionId: workflowDetail.workflowExecution.workflowId,
+                      }),
+                    ]);
+
+                    if (!branchDefinition) {
+                      return yield* Effect.fail(
+                        makeDetailError("branch definition missing for branch step detail"),
+                      );
+                    }
+
+                    const conditionalRoutes = evaluateRoutes({
+                      routes: branchDefinition.payload.routes.map((route, index) => ({
+                        ...route,
+                        sortOrder: index,
+                      })),
+                      contextFacts,
+                      contextFactDefinitions: workflowEditor.contextFacts,
+                    });
+
+                    const defaultTargetStepId =
+                      branchDefinition.payload.defaultTargetStepId ?? null;
+                    const suggestion = getSuggestedTarget({
+                      evaluations: conditionalRoutes,
+                      defaultTargetStepId,
+                    });
+
+                    const validConditionalTargets = conditionalRoutes
+                      .filter((route) => route.isValid)
+                      .map((route) => route.targetStepId);
+                    const validTargets = new Set(
+                      validConditionalTargets.length > 0
+                        ? validConditionalTargets
+                        : defaultTargetStepId
+                          ? [defaultTargetStepId]
+                          : [],
+                    );
+
+                    const selectedTargetStepId = branchState.branch.selectedTargetStepId;
+                    const persistedSelectionValid =
+                      typeof selectedTargetStepId === "string" &&
+                      validTargets.has(selectedTargetStepId);
+                    const blockingReason =
+                      selectedTargetStepId === null
+                        ? "Branch completion is blocked until a valid target selection is explicitly saved."
+                        : persistedSelectionValid
+                          ? undefined
+                          : "Branch completion is blocked because the saved target selection is no longer valid.";
+
+                    return {
+                      stepType: "branch",
+                      resolutionContract: "explicit_save_selection_v1",
+                      persistedSelection: {
+                        selectedTargetStepId,
+                        isValid: persistedSelectionValid,
+                        savedAt: toIso(branchState.branch.savedAt),
+                        ...(blockingReason ? { blockingReason } : {}),
+                      },
+                      suggestion: {
+                        suggestedTargetStepId: suggestion.suggestedTargetStepId,
+                        source: suggestion.source,
+                        ...(suggestion.routeId ? { routeId: suggestion.routeId } : {}),
+                      },
+                      conditionalRoutes: conditionalRoutes.map((route) => ({
+                        routeId: route.routeId,
+                        targetStepId: route.targetStepId,
+                        sortOrder: route.sortOrder,
+                        isValid: route.isValid,
+                        conditionMode: route.conditionMode,
+                        evaluationTree: route.evaluationTree,
+                      })),
+                      defaultTargetStepId,
+                      saveSelectionAction: {
+                        kind: "save_branch_step_selection",
+                        enabled: stepExecution.status === "active",
+                        reasonIfDisabled:
+                          stepExecution.status !== "active"
+                            ? "Only active Branch steps can save a target selection."
+                            : undefined,
+                      },
+                      completionSummary: {
+                        mode: "explicit_saved_selection",
+                        eligible: persistedSelectionValid,
+                        ...(blockingReason ? { reasonIfIneligible: blockingReason } : {}),
+                      },
+                    } satisfies GetRuntimeStepExecutionDetailOutput["body"];
+                  })
+                : stepExecution.stepType === "invoke"
+                  ? yield* invokeStepDetailService.buildInvokeStepExecutionDetailBody({
+                      projectId: input.projectId,
+                      stepExecution,
+                      workflowDetail,
+                    })
+                  : {
+                      stepType: stepExecution.stepType as Exclude<
+                        GetRuntimeStepExecutionDetailOutput["body"]["stepType"],
+                        "form" | "invoke" | "action" | "branch"
+                      >,
+                      mode: "deferred",
+                      defaultMessage: `${stepExecution.stepType} step detail remains read-only in this slice.`,
+                    };
 
         const completionEnabled =
           stepExecution.status === "active" &&
@@ -1036,6 +1174,13 @@ export const StepExecutionDetailServiceLive = Layer.effect(
               !!formState?.submittedAt &&
               formState.submittedPayloadJson !== null &&
               formState.submittedPayloadJson !== undefined) ||
+            (stepExecution.stepType === "action" &&
+              body.stepType === "action" &&
+              "completionSummary" in body &&
+              body.completionSummary.eligible) ||
+            (stepExecution.stepType === "branch" &&
+              body.stepType === "branch" &&
+              body.completionSummary.eligible) ||
             (stepExecution.stepType === "invoke" &&
               body.stepType === "invoke" &&
               body.completionSummary.eligible));
@@ -1059,9 +1204,13 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                   ? "Step execution is already completed."
                   : completionEnabled
                     ? undefined
-                    : body.stepType === "invoke"
+                    : body.stepType === "action" && "completionSummary" in body
                       ? body.completionSummary.reasonIfIneligible
-                      : "Form steps can complete only after a submitted payload is present.",
+                      : body.stepType === "branch"
+                        ? body.completionSummary.reasonIfIneligible
+                        : body.stepType === "invoke"
+                          ? body.completionSummary.reasonIfIneligible
+                          : "Form steps can complete only after a submitted payload is present.",
             },
           },
           body,

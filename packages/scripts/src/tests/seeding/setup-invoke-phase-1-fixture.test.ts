@@ -7,13 +7,15 @@ async function loadSeedArtifacts() {
   process.env.CORS_ORIGIN ??= "http://localhost:3000";
 
   const fixture = await import("../../seed/methodology/setup/setup-invoke-phase-1-fixture");
-  return { fixture };
+  const manualSeed = await import("../../manual-seed.mjs");
+  return { fixture, manualSeed };
 }
 
 describe("setup invoke phase-1 fixture", () => {
   it("seeds the invoke-only phase-1 workflow fixture", async () => {
-    const { fixture } = await loadSeedArtifacts();
-    const { setupInvokePhase1FixtureSeedRows } = fixture;
+    const { fixture, manualSeed } = await loadSeedArtifacts();
+    const { setupInvokePhase1FixtureSeedRows, setupInvokePhase1FixtureSeedRowsAllVersions } =
+      fixture;
 
     expect(setupInvokePhase1FixtureSeedRows.workflowIds).toEqual([
       "seed:workflow:setup:setup-project:mver_bmad_v1_active",
@@ -22,16 +24,21 @@ describe("setup invoke phase-1 fixture", () => {
       "seed:workflow:brainstorming:brainstorming-support:mver_bmad_v1_active",
     ]);
 
-    const stepsByWorkflow = Object.groupBy(
-      setupInvokePhase1FixtureSeedRows.methodology_workflow_steps,
-      (row) => row.workflowId,
-    );
+    const stepsByWorkflow: Record<
+      string,
+      Array<(typeof setupInvokePhase1FixtureSeedRows.methodology_workflow_steps)[number]>
+    > = {};
+    for (const row of setupInvokePhase1FixtureSeedRows.methodology_workflow_steps) {
+      const workflowId = row.workflowId;
+      const existingRows = stepsByWorkflow[workflowId] ?? [];
+      stepsByWorkflow[workflowId] = [...existingRows, row];
+    }
 
     expect(
       stepsByWorkflow["seed:workflow:setup:setup-project:mver_bmad_v1_active"]?.map(
         (row) => row.type,
       ),
-    ).toEqual(["form", "agent", "invoke", "invoke"]);
+    ).toEqual(["form", "agent", "action", "branch", "invoke", "invoke"]);
     expect(
       stepsByWorkflow["seed:workflow:brainstorming:brainstorming-primary:mver_bmad_v1_active"]?.map(
         (row) => row.type,
@@ -86,8 +93,67 @@ describe("setup invoke phase-1 fixture", () => {
       expect.arrayContaining([
         "cf_setup_brainstorming_draft_spec",
         "cf_setup_research_draft_spec",
+        "cf_setup_branch_note",
+        "cf_setup_followup_workflows",
         "cf_brainstorming_support_workflows",
         "cf_project_overview_artifact",
+      ]),
+    );
+
+    expect(setupInvokePhase1FixtureSeedRows.methodologyWorkflowContextFactPlainValues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          contextFactDefinitionId:
+            "seed:l3-setup-invoke:brainstorming-support:mver_bmad_v1_active:ctx:cf-support-note",
+          valueType: "string",
+        }),
+      ]),
+    );
+    expect(
+      setupInvokePhase1FixtureSeedRows.methodologyWorkflowContextFactPlainValues.find(
+        (row) =>
+          row.contextFactDefinitionId ===
+          "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-branch-note",
+      ),
+    ).toBeUndefined();
+    expect(setupInvokePhase1FixtureSeedRows.methodologyWorkflowContextFactExternalBindings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          contextFactDefinitionId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-requires-brainstorming",
+          provider: "definition_backed_external_fact",
+          bindingKey: "requires_brainstorming",
+        }),
+        expect.objectContaining({
+          contextFactDefinitionId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-requires-research",
+          provider: "definition_backed_external_fact",
+          bindingKey: "requires_research",
+        }),
+        expect.objectContaining({
+          contextFactDefinitionId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-branch-note",
+          provider: "definition_backed_external_fact",
+          bindingKey: "branch_note",
+        }),
+      ]),
+    );
+
+    expect(
+      setupInvokePhase1FixtureSeedRows.methodologyWorkflowContextFactWorkflowReferences,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          contextFactDefinitionId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-followup-workflows",
+          workflowDefinitionId:
+            "seed:workflow:brainstorming:brainstorming-primary:mver_bmad_v1_active",
+        }),
+        expect.objectContaining({
+          contextFactDefinitionId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-followup-workflows",
+          workflowDefinitionId: "seed:workflow:research:research-primary:mver_bmad_v1_active",
+        }),
       ]),
     );
 
@@ -149,6 +215,14 @@ describe("setup invoke phase-1 fixture", () => {
           },
           {
             contextFactDefinitionId:
+              "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-branch-note",
+          },
+          {
+            contextFactDefinitionId:
+              "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-followup-workflows",
+          },
+          {
+            contextFactDefinitionId:
               "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-brainstorming-draft-spec",
           },
           {
@@ -167,9 +241,146 @@ describe("setup invoke phase-1 fixture", () => {
         "cf_project_overview_artifact",
         "cf_setup_requires_brainstorming",
         "cf_setup_requires_research",
+        "cf_setup_branch_note",
+        "cf_setup_followup_workflows",
         "cf_setup_brainstorming_draft_spec",
         "cf_setup_research_draft_spec",
       ]),
     );
+
+    expect(setupInvokePhase1FixtureSeedRows.methodologyWorkflowActionSteps).toEqual([
+      {
+        stepId: "seed:l3-setup-invoke:setup:mver_bmad_v1_active:step:propagate-setup-context",
+        executionMode: "sequential",
+      },
+    ]);
+    expect(setupInvokePhase1FixtureSeedRows.methodologyWorkflowActionStepActions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actionStepId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:step:propagate-setup-context",
+          actionKey: "propagate_setup_decision_facts",
+          contextFactDefinitionId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-requires-brainstorming",
+          contextFactKind: "definition_backed_external_fact",
+        }),
+        expect.objectContaining({
+          actionKey: "propagate_setup_environment_bindings",
+          contextFactDefinitionId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-method-project-knowledge-directory",
+          contextFactKind: "bound_external_fact",
+        }),
+        expect.objectContaining({
+          actionKey: "propagate_project_overview_artifact_reference",
+          contextFactDefinitionId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-project-overview-artifact",
+          contextFactKind: "artifact_reference_fact",
+        }),
+      ]),
+    );
+    expect(setupInvokePhase1FixtureSeedRows.methodologyWorkflowActionStepActionItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          itemKey: "setup_decision.requires_brainstorming",
+          actionRowId: "seed:l3-setup-invoke:setup:mver_bmad_v1_active:action-row:decision-facts",
+        }),
+        expect.objectContaining({
+          itemKey: "setup_decision.requires_research",
+          actionRowId: "seed:l3-setup-invoke:setup:mver_bmad_v1_active:action-row:decision-facts",
+          targetContextFactDefinitionId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-requires-research",
+        }),
+        expect.objectContaining({
+          itemKey: "setup_decision.branch_note",
+          actionRowId: "seed:l3-setup-invoke:setup:mver_bmad_v1_active:action-row:decision-facts",
+          targetContextFactDefinitionId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-branch-note",
+        }),
+      ]),
+    );
+    expect(setupInvokePhase1FixtureSeedRows.methodologyWorkflowBranchSteps).toEqual([
+      {
+        stepId: "seed:l3-setup-invoke:setup:mver_bmad_v1_active:step:route-setup-followups",
+        defaultTargetStepId: null,
+        configJson: null,
+      },
+    ]);
+    expect(setupInvokePhase1FixtureSeedRows.methodologyWorkflowBranchRoutes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          branchStepId: "seed:l3-setup-invoke:setup:mver_bmad_v1_active:step:route-setup-followups",
+          routeId: "branch_to_brainstorming_then_research",
+          targetStepId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:step:invoke-brainstorming-fixed",
+          conditionMode: "all",
+        }),
+        expect.objectContaining({
+          routeId: "branch_to_research_only",
+          targetStepId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:step:invoke-research-from-draft-spec",
+          conditionMode: "any",
+        }),
+      ]),
+    );
+    expect(manualSeed.RUNTIME_FIXTURE_TABLE_INSERTIONS.map(([rowsKey]) => rowsKey)).toEqual(
+      expect.arrayContaining([
+        "methodologyWorkflowActionSteps",
+        "methodologyWorkflowActionStepActions",
+        "methodologyWorkflowActionStepActionItems",
+        "methodologyWorkflowBranchSteps",
+        "methodologyWorkflowBranchRoutes",
+        "methodologyWorkflowBranchRouteGroups",
+        "methodologyWorkflowBranchRouteConditions",
+      ]),
+    );
+
+    expect(
+      setupInvokePhase1FixtureSeedRowsAllVersions.map((bundle) => {
+        const setupWorkflowId = `seed:workflow:setup:setup-project:${bundle.methodologyVersionId}`;
+        return {
+          version: bundle.methodologyVersionId,
+          setupStepKeys: bundle.methodology_workflow_steps
+            .filter((row) => row.workflowId === setupWorkflowId)
+            .map((row) => row.key),
+          actionKeys: bundle.methodologyWorkflowActionStepActions.map((row) => row.actionKey),
+          branchRouteIds: bundle.methodologyWorkflowBranchRoutes.map((row) => row.routeId),
+        };
+      }),
+    ).toEqual([
+      {
+        version: "mver_bmad_v1_draft",
+        setupStepKeys: [
+          "collect_setup_baseline",
+          "synthesize_setup_for_invoke",
+          "propagate_setup_context",
+          "route_setup_followups",
+          "invoke_brainstorming_fixed",
+          "invoke_research_from_draft_spec",
+        ],
+        actionKeys: [
+          "propagate_setup_decision_facts",
+          "propagate_setup_environment_bindings",
+          "propagate_project_overview_artifact_reference",
+        ],
+        branchRouteIds: ["branch_to_brainstorming_then_research", "branch_to_research_only"],
+      },
+      {
+        version: "mver_bmad_v1_active",
+        setupStepKeys: [
+          "collect_setup_baseline",
+          "synthesize_setup_for_invoke",
+          "propagate_setup_context",
+          "route_setup_followups",
+          "invoke_brainstorming_fixed",
+          "invoke_research_from_draft_spec",
+        ],
+        actionKeys: [
+          "propagate_setup_decision_facts",
+          "propagate_setup_environment_bindings",
+          "propagate_project_overview_artifact_reference",
+        ],
+        branchRouteIds: ["branch_to_brainstorming_then_research", "branch_to_research_only"],
+      },
+    ]);
   });
 });

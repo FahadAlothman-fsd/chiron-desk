@@ -27,6 +27,7 @@ export const LOCKED_BMAD_SETUP_WORK_UNIT_FACT_KEYS = [
   "scan_level",
   "requires_brainstorming",
   "requires_research",
+  "branch_note",
   "requires_product_brief",
   "deep_dive_target",
 ] as const;
@@ -310,28 +311,86 @@ function buildSetupLifecycleTransitionSeedRows(
   }));
 }
 
-const canonicalSetupConditionSets = [
-  {
-    idSuffix: "activation-to-done:start",
-    key: "wu.setup.activation_to_done.start",
-    phase: "start" as const,
-    mode: "all" as const,
-    groupsJson: [],
-  },
-  {
-    idSuffix: "activation-to-done:completion",
-    key: "wu.setup.activation_to_done.completion",
-    phase: "completion" as const,
-    mode: "all" as const,
-    groupsJson: [],
-  },
-] as const;
+function buildCanonicalSetupConditionSets(methodologyVersionId: CanonicalMethodologyVersionId) {
+  return [
+    {
+      idSuffix: "activation-to-done:start",
+      key: "wu.setup.activation_to_done.start",
+      phase: "start" as const,
+      mode: "all" as const,
+      groupsJson: [],
+    },
+    {
+      idSuffix: "activation-to-done:completion",
+      key: "wu.setup.activation_to_done.completion",
+      phase: "completion" as const,
+      mode: "all" as const,
+      groupsJson: [
+        {
+          mode: "all",
+          conditions: [
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "initiative_name",
+                factDefinitionId: `seed:work-unit-fact:setup:initiative-name:${methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "project_kind",
+                factDefinitionId: `seed:work-unit-fact:setup:project-kind:${methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+          ],
+        },
+        {
+          mode: "any",
+          conditions: [
+            {
+              kind: "artifact",
+              required: true,
+              config: {
+                slotKey: "PROJECT_OVERVIEW",
+                slotDefinitionId: `seed:artifact-slot:setup:project-overview:${methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "requires_brainstorming",
+                factDefinitionId: `seed:work-unit-fact:setup:requires-brainstorming:${methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "requires_research",
+                factDefinitionId: `seed:work-unit-fact:setup:requires-research:${methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+          ],
+        },
+      ],
+    },
+  ] as const;
+}
 
 function buildSetupTransitionConditionSetSeedRows(
   methodologyVersionId: CanonicalMethodologyVersionId,
 ): readonly MethodologyTransitionConditionSetSeedRow[] {
   const transitionId = `seed:transition:setup:activation-to-done:${methodologyVersionId}`;
-  return canonicalSetupConditionSets.map((conditionSet) => ({
+  return buildCanonicalSetupConditionSets(methodologyVersionId).map((conditionSet) => ({
     id: `seed:condition-set:setup:${conditionSet.idSuffix}:${methodologyVersionId}`,
     methodologyVersionId,
     transitionId,
@@ -492,6 +551,22 @@ const canonicalSetupFactDefinitions = [
       "Treat this as a durable setup signal that research follow-up should be created from authored draft specs.",
     ),
     validationJson: { kind: "none" as const },
+  },
+  {
+    idSuffix: "branch-note",
+    key: "branch_note",
+    name: "Branch Note",
+    factType: "string",
+    cardinality: "one" as const,
+    defaultValueJson: null,
+    descriptionJson: toDescriptionJson(
+      "Lightweight setup routing note that explains whether follow-up should branch into brainstorming first or go straight to research.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Use this as the durable routing note emitted by setup when downstream branching should stay explicit.",
+      "Treat this as the persisted setup routing note that Plan A branch evaluation can inspect through external-fact propagation.",
+    ),
+    validationJson: toAllowedValuesValidation(["brainstorm_then_research", "research_only"]),
   },
   {
     idSuffix: "deep-dive-target",
@@ -751,28 +826,94 @@ function buildBrainstormingLifecycleTransitionSeedRows(
   }));
 }
 
-const canonicalBrainstormingConditionSets = [
-  {
-    idSuffix: "activation-to-done:start",
-    key: "wu.brainstorming.activation_to_done.start",
-    phase: "start" as const,
-    mode: "all" as const,
-    groupsJson: [],
-  },
-  {
-    idSuffix: "activation-to-done:completion",
-    key: "wu.brainstorming.activation_to_done.completion",
-    phase: "completion" as const,
-    mode: "all" as const,
-    groupsJson: [],
-  },
-] as const;
+function buildCanonicalBrainstormingConditionSets(
+  methodologyVersionId: CanonicalMethodologyVersionId,
+) {
+  return [
+    {
+      idSuffix: "activation-to-done:start",
+      key: "wu.brainstorming.activation_to_done.start",
+      phase: "start" as const,
+      mode: "all" as const,
+      groupsJson: [
+        {
+          mode: "all",
+          conditions: [
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "setup_work_unit",
+                factDefinitionId: `seed:work-unit-fact:brainstorming:setup-work-unit:${methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+          ],
+        },
+      ],
+    },
+    {
+      idSuffix: "activation-to-done:completion",
+      key: "wu.brainstorming.activation_to_done.completion",
+      phase: "completion" as const,
+      mode: "all" as const,
+      groupsJson: [
+        {
+          mode: "all",
+          conditions: [
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "desired_outcome",
+                factDefinitionId: `seed:work-unit-fact:brainstorming:desired-outcome:${methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "selected_direction",
+                factDefinitionId: `seed:work-unit-fact:brainstorming:selected-direction:${methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+          ],
+        },
+        {
+          mode: "any",
+          conditions: [
+            {
+              kind: "artifact",
+              required: true,
+              config: {
+                slotKey: "brainstorming_session",
+                slotDefinitionId: `seed:artifact-slot:brainstorming:brainstorming-session:${methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "objectives",
+                factDefinitionId: `seed:work-unit-fact:brainstorming:objectives:${methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+          ],
+        },
+      ],
+    },
+  ] as const;
+}
 
 function buildBrainstormingTransitionConditionSetSeedRows(
   methodologyVersionId: CanonicalMethodologyVersionId,
 ): readonly MethodologyTransitionConditionSetSeedRow[] {
   const transitionId = `seed:transition:brainstorming:activation-to-done:${methodologyVersionId}`;
-  return canonicalBrainstormingConditionSets.map((conditionSet) => ({
+  return buildCanonicalBrainstormingConditionSets(methodologyVersionId).map((conditionSet) => ({
     id: `seed:condition-set:brainstorming:${conditionSet.idSuffix}:${methodologyVersionId}`,
     methodologyVersionId,
     transitionId,
@@ -1419,28 +1560,92 @@ function buildResearchLifecycleTransitionSeedRows(
   }));
 }
 
-const canonicalResearchConditionSets = [
-  {
-    idSuffix: "activation-to-done:start",
-    key: "wu.research.activation_to_done.start",
-    phase: "start" as const,
-    mode: "all" as const,
-    groupsJson: [],
-  },
-  {
-    idSuffix: "activation-to-done:completion",
-    key: "wu.research.activation_to_done.completion",
-    phase: "completion" as const,
-    mode: "all" as const,
-    groupsJson: [],
-  },
-] as const;
+function buildCanonicalResearchConditionSets(methodologyVersionId: CanonicalMethodologyVersionId) {
+  return [
+    {
+      idSuffix: "activation-to-done:start",
+      key: "wu.research.activation_to_done.start",
+      phase: "start" as const,
+      mode: "all" as const,
+      groupsJson: [
+        {
+          mode: "all",
+          conditions: [
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "setup_work_unit",
+                factDefinitionId: `seed:work-unit-fact:research:setup-work-unit:${methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "research_topic",
+                factDefinitionId: `seed:work-unit-fact:research:research-topic:${methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+          ],
+        },
+      ],
+    },
+    {
+      idSuffix: "activation-to-done:completion",
+      key: "wu.research.activation_to_done.completion",
+      phase: "completion" as const,
+      mode: "all" as const,
+      groupsJson: [
+        {
+          mode: "all",
+          conditions: [
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "research_topic",
+                factDefinitionId: `seed:work-unit-fact:research:research-topic:${methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+          ],
+        },
+        {
+          mode: "any",
+          conditions: [
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "research_synthesis",
+                factDefinitionId: `seed:work-unit-fact:research:research-synthesis:${methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+            {
+              kind: "artifact",
+              required: true,
+              config: {
+                slotKey: "research_report",
+                slotDefinitionId: `seed:artifact-slot:research:research-report:${methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+          ],
+        },
+      ],
+    },
+  ] as const;
+}
 
 function buildResearchTransitionConditionSetSeedRows(
   methodologyVersionId: CanonicalMethodologyVersionId,
 ): readonly MethodologyTransitionConditionSetSeedRow[] {
   const transitionId = `seed:transition:research:activation-to-done:${methodologyVersionId}`;
-  return canonicalResearchConditionSets.map((conditionSet) => ({
+  return buildCanonicalResearchConditionSets(methodologyVersionId).map((conditionSet) => ({
     id: `seed:condition-set:research:${conditionSet.idSuffix}:${methodologyVersionId}`,
     methodologyVersionId,
     transitionId,

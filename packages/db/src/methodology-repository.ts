@@ -3,6 +3,7 @@ import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { Effect, Layer } from "effect";
 import {
   MethodologyRepository,
+  type WorkflowActionStepDefinitionReadModel,
   type BranchStepDefinitionReadModel,
   RepositoryError,
   type RepositoryErrorCode,
@@ -10,6 +11,7 @@ import {
   type GetPublicationEvidenceParams,
   type GetBranchStepDefinitionParams,
   type UpdateDraftParams,
+  type GetActionStepDefinitionParams,
   type GetInvokeStepDefinitionParams,
   type GetVersionEventsParams,
   type InvokeStepDefinitionReadModel,
@@ -39,6 +41,7 @@ import type {
   WorkflowDefinition,
 } from "@chiron/contracts/methodology/version";
 import type {
+  ActionStepPayload,
   BranchStepPayload,
   FormStepPayload,
   InvokeStepPayload,
@@ -66,6 +69,9 @@ import {
   methodologyWorkflowAgentStepExplicitReadGrants,
   methodologyWorkflowAgentStepWriteItems,
   methodologyWorkflowAgentStepWriteItemRequirements,
+  methodologyWorkflowActionStepActions,
+  methodologyWorkflowActionStepActionItems,
+  methodologyWorkflowActionSteps,
   methodologyWorkflowBranchRouteConditions,
   methodologyWorkflowBranchRouteGroups,
   methodologyWorkflowBranchRoutes,
@@ -92,6 +98,9 @@ type StepRow = typeof methodologyWorkflowSteps.$inferSelect;
 type InvokeStepRow = typeof methodologyWorkflowInvokeSteps.$inferSelect;
 type InvokeBindingRow = typeof methodologyWorkflowInvokeBindings.$inferSelect;
 type InvokeTransitionRow = typeof methodologyWorkflowInvokeTransitions.$inferSelect;
+type ActionStepRow = typeof methodologyWorkflowActionSteps.$inferSelect;
+type ActionStepActionRow = typeof methodologyWorkflowActionStepActions.$inferSelect;
+type ActionStepActionItemRow = typeof methodologyWorkflowActionStepActionItems.$inferSelect;
 type BranchRouteRow = typeof methodologyWorkflowBranchRoutes.$inferSelect;
 type BranchRouteGroupRow = typeof methodologyWorkflowBranchRouteGroups.$inferSelect;
 type BranchRouteConditionRow = typeof methodologyWorkflowBranchRouteConditions.$inferSelect;
@@ -1161,7 +1170,10 @@ async function readWorkflowContextFacts(
           key: definition.factKey,
           ...metadata,
           cardinality: definition.cardinality as "one" | "many",
-          valueType: row.valueType as FactValueType,
+          valueType: row.valueType as Extract<
+            FactValueType,
+            "string" | "number" | "boolean" | "json"
+          >,
           ...(typeof row.validationJson === "undefined" || row.validationJson === null
             ? {}
             : { validationJson: row.validationJson }),
@@ -1474,6 +1486,508 @@ async function readWorkflowAgentDefinitions(
       },
     } satisfies WorkflowAgentStepDefinitionReadModel;
   });
+}
+
+function buildActionStepPayload(
+  step: StepRow,
+  actionStep: ActionStepRow,
+  actions: readonly ActionStepActionRow[],
+  itemsByActionRowId: ReadonlyMap<string, readonly ActionStepActionItemRow[]>,
+): ActionStepPayload {
+  const configJson = isRecord(step.configJson) ? step.configJson : {};
+  const descriptionJson =
+    isRecord(configJson.descriptionJson) && typeof configJson.descriptionJson.markdown === "string"
+      ? (configJson.descriptionJson as { readonly markdown: string })
+      : undefined;
+
+  return {
+    key: step.key,
+    ...(step.displayName ? { label: step.displayName } : {}),
+    ...(descriptionJson ? { descriptionJson } : {}),
+    ...(getAudienceGuidance(step.guidanceJson)
+      ? { guidance: getAudienceGuidance(step.guidanceJson) }
+      : {}),
+    executionMode: actionStep.executionMode as ActionStepPayload["executionMode"],
+    actions: actions.map((action) => ({
+      actionId: action.actionId,
+      actionKey: action.actionKey,
+      ...(action.label ? { label: action.label } : {}),
+      enabled: action.enabled,
+      sortOrder: action.sortOrder,
+      actionKind: "propagation",
+      contextFactDefinitionId: action.contextFactDefinitionId,
+      contextFactKind:
+        action.contextFactKind as ActionStepPayload["actions"][number]["contextFactKind"],
+      items: (itemsByActionRowId.get(action.id) ?? []).map((item) => ({
+        itemId: item.itemId,
+        itemKey: item.itemKey,
+        ...(item.label ? { label: item.label } : {}),
+        sortOrder: item.sortOrder,
+        ...(item.targetContextFactDefinitionId
+          ? { targetContextFactDefinitionId: item.targetContextFactDefinitionId }
+          : {}),
+      })),
+    })),
+  };
+}
+
+function normalizeActionStepPayload(
+  workflowDefinitionId: string,
+  factByIdentifier: ReadonlyMap<string, WorkflowContextFactDto>,
+  payload: ActionStepPayload,
+): ActionStepPayload {
+  if (payload.actions.length < 1) {
+    throw new RepositoryError({
+      operation: "methodology.actionStep.normalizeActionStepPayload",
+      cause: new Error(`Action step '${payload.key}' must contain at least one action`),
+    });
+  }
+
+  const seenActionIds = new Set<string>();
+  const seenActionKeys = new Set<string>();
+  const seenActionSortOrders = new Set<number>();
+  const seenContextFactDefinitionIds = new Set<string>();
+
+  const normalizedActions = payload.actions.map((action) => {
+    if (seenActionIds.has(action.actionId)) {
+      throw new RepositoryError({
+        operation: "methodology.actionStep.normalizeActionStepPayload",
+        cause: new Error(
+          `Action step '${payload.key}' cannot define action '${action.actionId}' more than once`,
+        ),
+      });
+    }
+
+    if (seenActionKeys.has(action.actionKey)) {
+      throw new RepositoryError({
+        operation: "methodology.actionStep.normalizeActionStepPayload",
+        cause: new Error(
+          `Action step '${payload.key}' cannot define action key '${action.actionKey}' more than once`,
+        ),
+      });
+    }
+
+    if (seenActionSortOrders.has(action.sortOrder)) {
+      throw new RepositoryError({
+        operation: "methodology.actionStep.normalizeActionStepPayload",
+        cause: new Error(
+          `Action step '${payload.key}' cannot reuse action sort order '${action.sortOrder}'`,
+        ),
+      });
+    }
+
+    const fact = factByIdentifier.get(action.contextFactDefinitionId);
+    const contextFactDefinitionId = fact?.contextFactDefinitionId ?? action.contextFactDefinitionId;
+
+    if (!fact || typeof fact.contextFactDefinitionId !== "string") {
+      throw new RepositoryError({
+        operation: "methodology.actionStep.normalizeActionStepPayload",
+        cause: new Error(
+          `Workflow '${workflowDefinitionId}' is missing context fact '${action.contextFactDefinitionId}' for action '${action.actionId}'`,
+        ),
+      });
+    }
+
+    if (
+      fact.kind !== "definition_backed_external_fact" &&
+      fact.kind !== "bound_external_fact" &&
+      fact.kind !== "artifact_reference_fact"
+    ) {
+      throw new RepositoryError({
+        operation: "methodology.actionStep.normalizeActionStepPayload",
+        cause: new Error(
+          `Action '${action.actionId}' cannot target workflow context fact '${contextFactDefinitionId}' of kind '${fact.kind}'`,
+        ),
+      });
+    }
+
+    if (fact.kind !== action.contextFactKind) {
+      throw new RepositoryError({
+        operation: "methodology.actionStep.normalizeActionStepPayload",
+        cause: new Error(
+          `Action '${action.actionId}' expected context fact kind '${fact.kind}' for '${contextFactDefinitionId}', received '${action.contextFactKind}'`,
+        ),
+      });
+    }
+
+    if (seenContextFactDefinitionIds.has(contextFactDefinitionId)) {
+      throw new RepositoryError({
+        operation: "methodology.actionStep.normalizeActionStepPayload",
+        cause: new Error(
+          `Action step '${payload.key}' cannot target context fact '${contextFactDefinitionId}' more than once`,
+        ),
+      });
+    }
+
+    seenActionIds.add(action.actionId);
+    seenActionKeys.add(action.actionKey);
+    seenActionSortOrders.add(action.sortOrder);
+    seenContextFactDefinitionIds.add(contextFactDefinitionId);
+
+    if (action.items.length < 1) {
+      throw new RepositoryError({
+        operation: "methodology.actionStep.normalizeActionStepPayload",
+        cause: new Error(`Action '${action.actionId}' must contain at least one propagation item`),
+      });
+    }
+
+    const seenItemIds = new Set<string>();
+    const seenItemKeys = new Set<string>();
+    const seenItemSortOrders = new Set<number>();
+
+    return {
+      ...action,
+      contextFactDefinitionId,
+      items: action.items.map((item) => {
+        if (seenItemIds.has(item.itemId)) {
+          throw new RepositoryError({
+            operation: "methodology.actionStep.normalizeActionStepPayload",
+            cause: new Error(
+              `Action '${action.actionId}' cannot define item '${item.itemId}' more than once`,
+            ),
+          });
+        }
+
+        if (seenItemKeys.has(item.itemKey)) {
+          throw new RepositoryError({
+            operation: "methodology.actionStep.normalizeActionStepPayload",
+            cause: new Error(
+              `Action '${action.actionId}' cannot define item key '${item.itemKey}' more than once`,
+            ),
+          });
+        }
+
+        if (seenItemSortOrders.has(item.sortOrder)) {
+          throw new RepositoryError({
+            operation: "methodology.actionStep.normalizeActionStepPayload",
+            cause: new Error(
+              `Action '${action.actionId}' cannot reuse item sort order '${item.sortOrder}'`,
+            ),
+          });
+        }
+
+        seenItemIds.add(item.itemId);
+        seenItemKeys.add(item.itemKey);
+        seenItemSortOrders.add(item.sortOrder);
+
+        const targetFact = item.targetContextFactDefinitionId
+          ? factByIdentifier.get(item.targetContextFactDefinitionId)
+          : fact;
+        const targetContextFactDefinitionId = item.targetContextFactDefinitionId
+          ? (targetFact?.contextFactDefinitionId ?? item.targetContextFactDefinitionId)
+          : undefined;
+
+        if (
+          item.targetContextFactDefinitionId &&
+          (!targetFact || typeof targetFact.contextFactDefinitionId !== "string")
+        ) {
+          throw new RepositoryError({
+            operation: "methodology.actionStep.normalizeActionStepPayload",
+            cause: new Error(
+              `Action '${action.actionId}' item '${item.itemId}' targets unknown context fact '${item.targetContextFactDefinitionId}'`,
+            ),
+          });
+        }
+
+        if (
+          targetFact &&
+          targetFact.kind !== "definition_backed_external_fact" &&
+          targetFact.kind !== "bound_external_fact" &&
+          targetFact.kind !== "artifact_reference_fact"
+        ) {
+          throw new RepositoryError({
+            operation: "methodology.actionStep.normalizeActionStepPayload",
+            cause: new Error(
+              `Action '${action.actionId}' item '${item.itemId}' cannot target workflow context fact '${targetContextFactDefinitionId}' of kind '${targetFact.kind}'`,
+            ),
+          });
+        }
+
+        if (targetFact && targetFact.kind !== action.contextFactKind) {
+          throw new RepositoryError({
+            operation: "methodology.actionStep.normalizeActionStepPayload",
+            cause: new Error(
+              `Action '${action.actionId}' item '${item.itemId}' expected context fact kind '${action.contextFactKind}' for '${targetContextFactDefinitionId}', received '${targetFact.kind}'`,
+            ),
+          });
+        }
+
+        return {
+          ...item,
+          ...(targetContextFactDefinitionId ? { targetContextFactDefinitionId } : {}),
+        };
+      }),
+    };
+  });
+
+  return {
+    ...payload,
+    actions: normalizedActions,
+  };
+}
+
+async function syncActionStepDefinition(
+  tx: TransactionClient,
+  versionId: string,
+  workflowDefinitionId: string,
+  stepId: string,
+  payload: ActionStepPayload,
+): Promise<ActionStepPayload> {
+  const facts = await readWorkflowContextFacts(tx, versionId, workflowDefinitionId);
+  const factByIdentifier = buildFactIdentifierMap(facts);
+  const normalizedPayload = normalizeActionStepPayload(
+    workflowDefinitionId,
+    factByIdentifier,
+    payload,
+  );
+
+  await tx
+    .insert(methodologyWorkflowActionSteps)
+    .values({
+      stepId,
+      executionMode: normalizedPayload.executionMode,
+    })
+    .onConflictDoUpdate({
+      target: methodologyWorkflowActionSteps.stepId,
+      set: { executionMode: normalizedPayload.executionMode },
+    });
+
+  const existingActions = await tx
+    .select()
+    .from(methodologyWorkflowActionStepActions)
+    .where(eq(methodologyWorkflowActionStepActions.actionStepId, stepId))
+    .orderBy(
+      asc(methodologyWorkflowActionStepActions.sortOrder),
+      asc(methodologyWorkflowActionStepActions.id),
+    );
+
+  const existingActionsByActionId = new Map(existingActions.map((row) => [row.actionId, row]));
+  const retainedActionRowIds = existingActions
+    .filter((row) => normalizedPayload.actions.some((action) => action.actionId === row.actionId))
+    .map((row) => row.id);
+
+  if (retainedActionRowIds.length > 0) {
+    for (const [index, rowId] of retainedActionRowIds.entries()) {
+      await tx
+        .update(methodologyWorkflowActionStepActions)
+        .set({ actionKey: `__reconciling__${index}__${rowId}` })
+        .where(eq(methodologyWorkflowActionStepActions.id, rowId));
+    }
+  }
+
+  const payloadActionIds = new Set(normalizedPayload.actions.map((action) => action.actionId));
+  const removedActionRowIds = existingActions
+    .filter((row) => !payloadActionIds.has(row.actionId))
+    .map((row) => row.id);
+  if (removedActionRowIds.length > 0) {
+    await tx
+      .delete(methodologyWorkflowActionStepActions)
+      .where(inArray(methodologyWorkflowActionStepActions.id, removedActionRowIds));
+  }
+
+  for (const action of normalizedPayload.actions) {
+    const existingAction = existingActionsByActionId.get(action.actionId);
+
+    if (existingAction) {
+      await tx
+        .update(methodologyWorkflowActionStepActions)
+        .set({
+          actionKey: action.actionKey,
+          label: action.label ?? null,
+          enabled: action.enabled,
+          sortOrder: action.sortOrder,
+          actionKind: action.actionKind,
+          contextFactDefinitionId: action.contextFactDefinitionId,
+          contextFactKind: action.contextFactKind,
+        })
+        .where(eq(methodologyWorkflowActionStepActions.id, existingAction.id));
+
+      const existingItems = await tx
+        .select()
+        .from(methodologyWorkflowActionStepActionItems)
+        .where(eq(methodologyWorkflowActionStepActionItems.actionRowId, existingAction.id))
+        .orderBy(
+          asc(methodologyWorkflowActionStepActionItems.sortOrder),
+          asc(methodologyWorkflowActionStepActionItems.id),
+        );
+      const existingItemsByItemId = new Map(existingItems.map((row) => [row.itemId, row]));
+      const retainedItemRowIds = existingItems
+        .filter((row) => action.items.some((item) => item.itemId === row.itemId))
+        .map((row) => row.id);
+
+      if (retainedItemRowIds.length > 0) {
+        for (const [index, rowId] of retainedItemRowIds.entries()) {
+          await tx
+            .update(methodologyWorkflowActionStepActionItems)
+            .set({ itemKey: `__reconciling__${index}__${rowId}` })
+            .where(eq(methodologyWorkflowActionStepActionItems.id, rowId));
+        }
+      }
+
+      const payloadItemIds = new Set(action.items.map((item) => item.itemId));
+      const removedItemRowIds = existingItems
+        .filter((row) => !payloadItemIds.has(row.itemId))
+        .map((row) => row.id);
+      if (removedItemRowIds.length > 0) {
+        await tx
+          .delete(methodologyWorkflowActionStepActionItems)
+          .where(inArray(methodologyWorkflowActionStepActionItems.id, removedItemRowIds));
+      }
+
+      for (const item of action.items) {
+        const existingItem = existingItemsByItemId.get(item.itemId);
+        if (existingItem) {
+          await tx
+            .update(methodologyWorkflowActionStepActionItems)
+            .set({
+              itemKey: item.itemKey,
+              label: item.label ?? null,
+              targetContextFactDefinitionId: item.targetContextFactDefinitionId ?? null,
+              sortOrder: item.sortOrder,
+            })
+            .where(eq(methodologyWorkflowActionStepActionItems.id, existingItem.id));
+        } else {
+          await tx.insert(methodologyWorkflowActionStepActionItems).values({
+            actionRowId: existingAction.id,
+            itemId: item.itemId,
+            itemKey: item.itemKey,
+            label: item.label ?? null,
+            targetContextFactDefinitionId: item.targetContextFactDefinitionId ?? null,
+            sortOrder: item.sortOrder,
+          });
+        }
+      }
+    } else {
+      const inserted = await tx
+        .insert(methodologyWorkflowActionStepActions)
+        .values({
+          actionStepId: stepId,
+          actionId: action.actionId,
+          actionKey: action.actionKey,
+          label: action.label ?? null,
+          enabled: action.enabled,
+          sortOrder: action.sortOrder,
+          actionKind: action.actionKind,
+          contextFactDefinitionId: action.contextFactDefinitionId,
+          contextFactKind: action.contextFactKind,
+        })
+        .returning({ id: methodologyWorkflowActionStepActions.id });
+
+      const actionRowId = inserted[0]?.id;
+      if (!actionRowId) {
+        throw new Error(`Failed to persist action '${action.actionId}' for step '${stepId}'`);
+      }
+
+      if (action.items.length > 0) {
+        await tx.insert(methodologyWorkflowActionStepActionItems).values(
+          action.items.map((item) => ({
+            actionRowId,
+            itemId: item.itemId,
+            itemKey: item.itemKey,
+            label: item.label ?? null,
+            targetContextFactDefinitionId: item.targetContextFactDefinitionId ?? null,
+            sortOrder: item.sortOrder,
+          })),
+        );
+      }
+    }
+  }
+
+  return normalizedPayload;
+}
+
+async function readActionStepDefinition(
+  db: DB | TransactionClient,
+  params: GetActionStepDefinitionParams,
+): Promise<WorkflowActionStepDefinitionReadModel | null> {
+  const workflow = await findWorkflowRow(db, {
+    versionId: params.versionId,
+    workflowDefinitionId: params.workflowDefinitionId,
+  });
+  if (!workflow) {
+    throw new Error(
+      `Workflow not found for versionId=${params.versionId}, workflowDefinitionId=${params.workflowDefinitionId}`,
+    );
+  }
+
+  const rows = await db
+    .select({
+      id: methodologyWorkflowSteps.id,
+      key: methodologyWorkflowSteps.key,
+      type: methodologyWorkflowSteps.type,
+      displayName: methodologyWorkflowSteps.displayName,
+      configJson: methodologyWorkflowSteps.configJson,
+      guidanceJson: methodologyWorkflowSteps.guidanceJson,
+      executionMode: methodologyWorkflowActionSteps.executionMode,
+    })
+    .from(methodologyWorkflowSteps)
+    .innerJoin(
+      methodologyWorkflowActionSteps,
+      eq(methodologyWorkflowActionSteps.stepId, methodologyWorkflowSteps.id),
+    )
+    .where(
+      and(
+        eq(methodologyWorkflowSteps.id, params.stepId),
+        eq(methodologyWorkflowSteps.workflowId, params.workflowDefinitionId),
+        eq(methodologyWorkflowSteps.type, "action"),
+      ),
+    )
+    .limit(1);
+
+  const step = rows[0];
+  if (!step) {
+    return null;
+  }
+
+  const actionRows = await db
+    .select()
+    .from(methodologyWorkflowActionStepActions)
+    .where(eq(methodologyWorkflowActionStepActions.actionStepId, params.stepId))
+    .orderBy(
+      asc(methodologyWorkflowActionStepActions.sortOrder),
+      asc(methodologyWorkflowActionStepActions.id),
+    );
+  const actionRowIds = actionRows.map((row) => row.id);
+  const itemRows =
+    actionRowIds.length === 0
+      ? []
+      : await db
+          .select()
+          .from(methodologyWorkflowActionStepActionItems)
+          .where(inArray(methodologyWorkflowActionStepActionItems.actionRowId, actionRowIds))
+          .orderBy(
+            asc(methodologyWorkflowActionStepActionItems.actionRowId),
+            asc(methodologyWorkflowActionStepActionItems.sortOrder),
+            asc(methodologyWorkflowActionStepActionItems.id),
+          );
+
+  const itemsByActionRowId = new Map<string, ActionStepActionItemRow[]>();
+  for (const row of itemRows) {
+    const entries = itemsByActionRowId.get(row.actionRowId) ?? [];
+    entries.push(row);
+    itemsByActionRowId.set(row.actionRowId, entries);
+  }
+
+  return {
+    stepId: step.id,
+    payload: buildActionStepPayload(
+      {
+        id: step.id,
+        methodologyVersionId: params.versionId,
+        workflowId: params.workflowDefinitionId,
+        key: step.key,
+        type: step.type,
+        displayName: step.displayName,
+        configJson: step.configJson,
+        guidanceJson: step.guidanceJson,
+        createdAt: new Date(0),
+        updatedAt: new Date(0),
+      },
+      { stepId: step.id, executionMode: step.executionMode },
+      actionRows,
+      itemsByActionRowId,
+    ),
+  };
 }
 
 function buildInvokePayload(
@@ -1920,6 +2434,16 @@ function buildBranchPayload(
   groups: readonly BranchRouteGroupRow[],
   conditions: readonly BranchRouteConditionRow[],
 ): BranchStepPayload {
+  const toBranchConditionOperator = (operator: string) => {
+    if (operator === "exists" || operator === "equals") {
+      return operator;
+    }
+
+    throw new Error(
+      `Unsupported stored branch condition operator '${operator}' for Plan A authoring`,
+    );
+  };
+
   const groupsByRouteDbId = new Map<string, readonly BranchRouteGroupRow[]>();
   for (const group of groups) {
     const entries = groupsByRouteDbId.get(group.routeId) ?? [];
@@ -1959,8 +2483,8 @@ function buildBranchPayload(
           conditionId: condition.conditionId,
           contextFactDefinitionId: condition.contextFactDefinitionId,
           subFieldKey: condition.subFieldKey,
-          operator: condition.operator === "stale" ? "fresh" : condition.operator,
-          isNegated: condition.operator === "stale" ? true : condition.isNegated,
+          operator: toBranchConditionOperator(condition.operator),
+          isNegated: condition.isNegated,
           comparisonJson: condition.comparisonJson,
         })),
       })),
@@ -5047,6 +5571,237 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
         }),
       ),
 
+    createActionStepDefinition: ({ versionId, workflowDefinitionId, afterStepKey, payload }) =>
+      dbEffect("methodology.createActionStepDefinition", () =>
+        db.transaction(async (tx) => {
+          const workflow = await findWorkflowRow(tx, { versionId, workflowDefinitionId });
+          if (!workflow) {
+            throw new Error(
+              `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
+            );
+          }
+
+          const rows = await tx
+            .insert(methodologyWorkflowSteps)
+            .values({
+              methodologyVersionId: versionId,
+              workflowId: workflowDefinitionId,
+              key: payload.key,
+              type: "action",
+              displayName: payload.label ?? null,
+              configJson: { descriptionJson: payload.descriptionJson ?? null },
+              guidanceJson: payload.guidance ?? null,
+            })
+            .returning();
+          const step = rows[0];
+          if (!step) {
+            throw new Error(`Failed to create action step '${payload.key}'`);
+          }
+
+          const normalizedPayload = await syncActionStepDefinition(
+            tx,
+            versionId,
+            workflowDefinitionId,
+            step.id,
+            payload,
+          );
+
+          if (afterStepKey) {
+            const predecessorRows = await tx
+              .select({ id: methodologyWorkflowSteps.id })
+              .from(methodologyWorkflowSteps)
+              .where(
+                and(
+                  eq(methodologyWorkflowSteps.workflowId, workflowDefinitionId),
+                  eq(methodologyWorkflowSteps.key, afterStepKey),
+                ),
+              )
+              .limit(1);
+
+            const predecessorId = predecessorRows[0]?.id;
+            if (predecessorId) {
+              const outgoingEdges = await tx
+                .select({
+                  id: methodologyWorkflowEdges.id,
+                  toStepId: methodologyWorkflowEdges.toStepId,
+                })
+                .from(methodologyWorkflowEdges)
+                .where(
+                  and(
+                    eq(methodologyWorkflowEdges.workflowId, workflowDefinitionId),
+                    eq(methodologyWorkflowEdges.fromStepId, predecessorId),
+                  ),
+                );
+
+              await tx
+                .delete(methodologyWorkflowEdges)
+                .where(
+                  and(
+                    eq(methodologyWorkflowEdges.workflowId, workflowDefinitionId),
+                    eq(methodologyWorkflowEdges.fromStepId, predecessorId),
+                  ),
+                );
+
+              await tx.insert(methodologyWorkflowEdges).values({
+                methodologyVersionId: versionId,
+                workflowId: workflowDefinitionId,
+                fromStepId: predecessorId,
+                toStepId: step.id,
+                edgeKey: null,
+                descriptionJson: null,
+              });
+
+              const successorId = outgoingEdges[0]?.toStepId ?? null;
+              if (successorId) {
+                await tx.insert(methodologyWorkflowEdges).values({
+                  methodologyVersionId: versionId,
+                  workflowId: workflowDefinitionId,
+                  fromStepId: step.id,
+                  toStepId: successorId,
+                  edgeKey: null,
+                  descriptionJson: null,
+                });
+              }
+            }
+          }
+
+          return { stepId: step.id, payload: normalizedPayload };
+        }),
+      ),
+
+    updateActionStepDefinition: ({ versionId, workflowDefinitionId, stepId, payload }) =>
+      dbEffect("methodology.updateActionStepDefinition", () =>
+        db.transaction(async (tx) => {
+          const workflow = await findWorkflowRow(tx, { versionId, workflowDefinitionId });
+          if (!workflow) {
+            throw new Error(
+              `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
+            );
+          }
+
+          const rows = await tx
+            .update(methodologyWorkflowSteps)
+            .set({
+              key: payload.key,
+              type: "action",
+              displayName: payload.label ?? null,
+              configJson: { descriptionJson: payload.descriptionJson ?? null },
+              guidanceJson: payload.guidance ?? null,
+            })
+            .where(
+              and(
+                eq(methodologyWorkflowSteps.id, stepId),
+                eq(methodologyWorkflowSteps.workflowId, workflowDefinitionId),
+              ),
+            )
+            .returning({ id: methodologyWorkflowSteps.id });
+
+          if (rows.length === 0) {
+            throw new Error(`Action step '${stepId}' not found`);
+          }
+
+          const normalizedPayload = await syncActionStepDefinition(
+            tx,
+            versionId,
+            workflowDefinitionId,
+            stepId,
+            payload,
+          );
+
+          return { stepId, payload: normalizedPayload };
+        }),
+      ),
+
+    deleteActionStepDefinition: ({ versionId, workflowDefinitionId, stepId }) =>
+      dbEffect("methodology.deleteActionStepDefinition", () =>
+        db.transaction(async (tx) => {
+          const workflow = await findWorkflowRow(tx, { versionId, workflowDefinitionId });
+          if (!workflow) {
+            throw new Error(
+              `Workflow not found for versionId=${versionId}, workflowDefinitionId=${workflowDefinitionId}`,
+            );
+          }
+
+          const outgoingEdges = await tx
+            .select({
+              id: methodologyWorkflowEdges.id,
+              toStepId: methodologyWorkflowEdges.toStepId,
+            })
+            .from(methodologyWorkflowEdges)
+            .where(
+              and(
+                eq(methodologyWorkflowEdges.workflowId, workflowDefinitionId),
+                eq(methodologyWorkflowEdges.fromStepId, stepId),
+              ),
+            );
+          const incomingEdges = await tx
+            .select({ id: methodologyWorkflowEdges.id })
+            .from(methodologyWorkflowEdges)
+            .where(
+              and(
+                eq(methodologyWorkflowEdges.workflowId, workflowDefinitionId),
+                eq(methodologyWorkflowEdges.toStepId, stepId),
+              ),
+            );
+
+          const successorId =
+            outgoingEdges.length === 1 ? (outgoingEdges[0]?.toStepId ?? null) : null;
+          if (successorId) {
+            for (const edge of incomingEdges) {
+              await tx
+                .update(methodologyWorkflowEdges)
+                .set({ toStepId: successorId })
+                .where(eq(methodologyWorkflowEdges.id, edge.id));
+            }
+          }
+
+          await tx
+            .delete(methodologyWorkflowEdges)
+            .where(
+              and(
+                eq(methodologyWorkflowEdges.workflowId, workflowDefinitionId),
+                or(
+                  eq(methodologyWorkflowEdges.fromStepId, stepId),
+                  eq(methodologyWorkflowEdges.toStepId, stepId),
+                ),
+              ),
+            );
+
+          const workflowMetadata =
+            workflow.metadataJson &&
+            typeof workflow.metadataJson === "object" &&
+            workflow.metadataJson !== null &&
+            !Array.isArray(workflow.metadataJson)
+              ? { ...(workflow.metadataJson as Record<string, unknown>) }
+              : null;
+
+          if (workflowMetadata?.entryStepId === stepId) {
+            delete workflowMetadata.entryStepId;
+            await tx
+              .update(methodologyWorkflows)
+              .set({
+                metadataJson:
+                  workflowMetadata && Object.keys(workflowMetadata).length > 0
+                    ? workflowMetadata
+                    : null,
+              })
+              .where(eq(methodologyWorkflows.id, workflowDefinitionId));
+          }
+
+          await tx
+            .delete(methodologyWorkflowSteps)
+            .where(
+              and(
+                eq(methodologyWorkflowSteps.id, stepId),
+                eq(methodologyWorkflowSteps.workflowId, workflowDefinitionId),
+              ),
+            );
+        }),
+      ),
+
+    getActionStepDefinition: (params) =>
+      dbEffect("methodology.getActionStepDefinition", () => readActionStepDefinition(db, params)),
+
     listAgentStepDefinitions: ({ versionId, workflowDefinitionId }) =>
       dbEffect("methodology.listAgentStepDefinitions", async () => {
         const workflow = await findWorkflowRow(db, { versionId, workflowDefinitionId });
@@ -5692,31 +6447,68 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
         const stepKeyById = new Map(stepRows.map((row) => [row.id, row.key]));
         const formDefinitionByStepId = new Map(formDefinitions.map((row) => [row.stepId, row]));
 
-        const steps: WorkflowStepReadModel[] = stepRows.map((step) => {
-          const stepType = asWorkflowStepType(step.type);
+        const steps: WorkflowStepReadModel[] = await Promise.all(
+          stepRows.map(async (step) => {
+            const stepType = asWorkflowStepType(step.type);
 
-          if (stepType === "form") {
-            const definition = formDefinitionByStepId.get(step.id);
+            if (stepType === "form") {
+              const definition = formDefinitionByStepId.get(step.id);
+              return {
+                stepId: step.id,
+                stepType: "form",
+                payload: definition?.payload ?? buildFormPayload(step, []),
+              };
+            }
+
+            if (stepType === "invoke") {
+              const definition = await readInvokeStepDefinition(db, {
+                versionId,
+                workflowDefinitionId,
+                stepId: step.id,
+              });
+              if (!definition) {
+                throw new Error(`Invoke step definition '${step.id}' could not be resolved`);
+              }
+
+              return {
+                stepId: step.id,
+                stepType: "invoke",
+                payload: definition.payload,
+              };
+            }
+
+            if (stepType === "branch") {
+              const definition = await readBranchStepDefinition(db, {
+                versionId,
+                workflowDefinitionId,
+                stepId: step.id,
+              });
+              if (!definition) {
+                throw new Error(`Branch step definition '${step.id}' could not be resolved`);
+              }
+
+              return {
+                stepId: step.id,
+                stepType: "branch",
+                payload: definition.payload,
+              };
+            }
+
             return {
               stepId: step.id,
-              stepType: "form",
-              payload: definition?.payload ?? buildFormPayload(step, []),
+              stepType,
+              stepKey: step.key,
+              mode: "deferred",
+              defaultMessage: DEFERRED_STEP_MESSAGE,
             };
-          }
+          }),
+        );
 
-          return {
-            stepId: step.id,
-            stepType,
-            stepKey: step.key,
-            mode: "deferred",
-            defaultMessage: DEFERRED_STEP_MESSAGE,
-          };
-        });
-
-        const edges: WorkflowEdgeDto[] = edgeRows.map((edge) => ({
+        const edges: WorkflowEditorDefinitionReadModel["edges"] = edgeRows.map((edge) => ({
           edgeId: edge.id,
           fromStepKey: edge.fromStepId ? (stepKeyById.get(edge.fromStepId) ?? null) : null,
           toStepKey: edge.toStepId ? (stepKeyById.get(edge.toStepId) ?? null) : null,
+          edgeOwner: "normal",
           ...(edge.descriptionJson
             ? { descriptionJson: edge.descriptionJson as { readonly markdown: string } }
             : {}),

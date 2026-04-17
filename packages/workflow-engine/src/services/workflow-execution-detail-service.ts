@@ -13,6 +13,7 @@ import {
   type WorkflowExecutionDetailReadModel,
 } from "../repositories/execution-read-repository";
 import { StepExecutionRepository } from "../repositories/step-execution-repository";
+import { StepProgressionService } from "./step-progression-service";
 
 const toIso = (value: Date | null): string | undefined => (value ? value.toISOString() : undefined);
 
@@ -170,6 +171,7 @@ export const WorkflowExecutionDetailServiceLive = Layer.effect(
   Effect.gen(function* () {
     const readRepo = yield* ExecutionReadRepository;
     const stepRepo = yield* StepExecutionRepository;
+    const progression = yield* StepProgressionService;
 
     const getWorkflowExecutionDetail = (input: GetWorkflowExecutionDetailInput) =>
       Effect.gen(function* () {
@@ -235,6 +237,14 @@ export const WorkflowExecutionDetailServiceLive = Layer.effect(
           });
         const latestCompletedStep =
           currentStepExecution?.status === "completed" ? currentStepExecution : completedSteps[0];
+        const latestCompletedStepNextResolution = latestCompletedStep
+          ? yield* progression.getNextStepDefinition({
+              workflowExecutionId: detail.workflowExecution.id,
+              workflowId: detail.workflowExecution.workflowId,
+              fromStepDefinitionId: latestCompletedStep.stepDefinitionId,
+              fromStepExecutionId: latestCompletedStep.id,
+            })
+          : null;
 
         const stepSurface: GetWorkflowExecutionDetailOutput["stepSurface"] =
           currentStepExecution?.status === "active"
@@ -257,20 +267,11 @@ export const WorkflowExecutionDetailServiceLive = Layer.effect(
                   }
                 : latestCompletedStep
                   ? (() => {
-                      const nextEdge = workflowEdges.find(
-                        (edge) => edge.fromStepId === latestCompletedStep.stepDefinitionId,
-                      );
-                      if (!nextEdge?.toStepId) {
-                        return {
-                          state: "terminal_no_next_step",
-                          terminalStep: toStepExecutionSummary(latestCompletedStep),
-                        } satisfies GetWorkflowExecutionDetailOutput["stepSurface"];
-                      }
-
-                      const nextStepDefinition = stepDefinitions.find(
-                        (step) => step.id === nextEdge.toStepId,
-                      );
-                      if (!nextStepDefinition) {
+                      if (
+                        !latestCompletedStepNextResolution ||
+                        latestCompletedStepNextResolution.state === "no_next_step" ||
+                        latestCompletedStepNextResolution.state === "blocked"
+                      ) {
                         return {
                           state: "terminal_no_next_step",
                           terminalStep: toStepExecutionSummary(latestCompletedStep),
@@ -280,7 +281,9 @@ export const WorkflowExecutionDetailServiceLive = Layer.effect(
                       return {
                         state: "next_pending",
                         afterStep: toStepExecutionSummary(latestCompletedStep),
-                        nextStep: toStepDefinitionSummary(nextStepDefinition),
+                        nextStep: toStepDefinitionSummary(
+                          latestCompletedStepNextResolution.nextStep,
+                        ),
                       } satisfies GetWorkflowExecutionDetailOutput["stepSurface"];
                     })()
                   : {
@@ -361,7 +364,9 @@ export const WorkflowExecutionDetailServiceLive = Layer.effect(
                       ? "Activate the entry step before completing the workflow."
                       : stepSurface.state === "invalid_definition"
                         ? "Workflow definition is invalid."
-                        : "Workflow has no completed terminal step to finalize.",
+                        : latestCompletedStepNextResolution?.state === "blocked"
+                          ? latestCompletedStepNextResolution.reason
+                          : "Workflow has no completed terminal step to finalize.",
           },
           impactDialog: {
             requiredForRetry: true,

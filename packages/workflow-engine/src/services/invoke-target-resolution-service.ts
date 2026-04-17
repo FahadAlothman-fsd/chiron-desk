@@ -1,5 +1,8 @@
 import { Context, Effect, Layer, Option } from "effect";
-import type { InvokeStepPayload } from "@chiron/contracts/methodology/workflow";
+import type {
+  InvokeStepPayload,
+  WorkflowContextFactDto,
+} from "@chiron/contracts/methodology/workflow";
 import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-engine";
 import { ProjectContextRepository } from "@chiron/project-context";
 
@@ -54,12 +57,6 @@ export interface MaterializeInvokeTargetsForActivationResult {
   blockingReason: string | null;
   materializationState: "created" | "already_exists";
 }
-
-const makeResolutionError = (cause: string): RepositoryError =>
-  new RepositoryError({
-    operation: "invoke-target-resolution",
-    cause: new Error(cause),
-  });
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -249,12 +246,8 @@ export const InvokeTargetResolutionServiceLive = Layer.effect(
           (
             contextFact,
           ): contextFact is Extract<
-            (typeof workflowEditor.contextFacts)[number],
-            {
-              kind: "work_unit_draft_spec_fact";
-              contextFactDefinitionId: string;
-              workUnitDefinitionId: string;
-            }
+            WorkflowContextFactDto,
+            { kind: "work_unit_draft_spec_fact" }
           > =>
             contextFact.kind === "work_unit_draft_spec_fact" &&
             contextFact.contextFactDefinitionId === params.contextFactDefinitionId,

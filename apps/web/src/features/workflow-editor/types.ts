@@ -3,6 +3,7 @@ import type {
   AgentStepRuntimePolicy,
 } from "@chiron/contracts/agent-step";
 import type {
+  ActionStepPayload,
   BranchRouteConditionPayload,
   BranchRouteGroupPayload,
   BranchRoutePayload,
@@ -43,6 +44,8 @@ export type WorkflowAgentStepPayload = Omit<AgentStepDesignTimePayload, "guidanc
     agent: { markdown: string };
   };
 };
+
+export type WorkflowActionStepPayload = ActionStepPayload;
 
 export type WorkflowBranchStepPayload = BranchStepPayload;
 
@@ -226,6 +229,11 @@ export type WorkflowEditorStep =
     }
   | {
       stepId: string;
+      stepType: "action";
+      payload: WorkflowActionStepPayload;
+    }
+  | {
+      stepId: string;
       stepType: "invoke";
       payload: WorkflowInvokeStepPayload;
     }
@@ -358,6 +366,12 @@ export type WorkflowAgentStepMutationHandlers = {
   onUpdateAgentStep?: (stepId: string, payload: WorkflowAgentStepPayload) => Promise<void>;
   onDeleteAgentStep?: (stepId: string) => Promise<void>;
   discoverHarnessMetadata?: () => Promise<WorkflowHarnessDiscoveryMetadata>;
+};
+
+export type WorkflowActionStepMutationHandlers = {
+  onCreateActionStep?: (payload: WorkflowActionStepPayload) => Promise<void>;
+  onUpdateActionStep?: (stepId: string, payload: WorkflowActionStepPayload) => Promise<void>;
+  onDeleteActionStep?: (stepId: string) => Promise<void>;
 };
 
 export type WorkflowInvokeStepMutationHandlers = {

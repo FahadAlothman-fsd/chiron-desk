@@ -11,6 +11,8 @@ import { RuntimeGuidanceServiceLive } from "../services/runtime-guidance-service
 import { RuntimeOverviewServiceLive } from "../services/runtime-overview-service";
 import { RuntimeWorkflowIndexServiceLive } from "../services/runtime-workflow-index-service";
 import { RuntimeWorkUnitServiceLive } from "../services/runtime-work-unit-service";
+import { ActionStepDetailServiceLive } from "../services/action-step-detail-service";
+import { ActionStepRuntimeServiceLive } from "../services/action-step-runtime-service";
 import { FormStepExecutionServiceLive } from "../services/form-step-execution-service";
 import { InvokeWorkflowExecutionServiceLive } from "../services/invoke-workflow-execution-service";
 import { InvokeWorkUnitExecutionServiceLive } from "../services/invoke-work-unit-execution-service";
@@ -32,6 +34,7 @@ import { WorkflowContextExternalPrefillServiceLive } from "../services/workflow-
 import { WorkflowExecutionStepCommandServiceLive } from "../services/workflow-execution-step-command-service";
 import { AgentStepContextReadServiceLive } from "../services/runtime/agent-step-context-read-service";
 import { AgentStepContextWriteServiceLive } from "../services/runtime/agent-step-context-write-service";
+import { ActionStepEventStreamServiceLive } from "../services/runtime/action-step-event-stream-service";
 import { AgentStepEventStreamServiceLive } from "../services/runtime/agent-step-event-stream-service";
 import { AgentStepExecutionDetailServiceLive } from "../services/runtime/agent-step-execution-detail-service";
 import { AgentStepMcpServiceLive } from "../services/runtime/agent-step-mcp-service";
@@ -50,6 +53,17 @@ const WorkflowEngineRuntimeBaseLayer = Layer.mergeAll(
 
 const WorkflowEngineRuntimeGuidanceBaseLayer = Layer.mergeAll(WorkflowEngineRuntimeBaseLayer);
 
+const WorkflowEngineRuntimeStepCoreLayer = Layer.mergeAll(
+  StepProgressionServiceLive,
+  StepContextQueryServiceLive,
+  StepContextMutationServiceLive,
+);
+
+const WorkflowEngineRuntimeWorkflowExecutionDependenciesLayer = Layer.mergeAll(
+  WorkflowEngineRuntimeBaseLayer,
+  WorkflowEngineRuntimeStepCoreLayer,
+);
+
 const WorkflowEngineRuntimeExternalPrefillLayer = WorkflowContextExternalPrefillServiceLive.pipe(
   Layer.provide(WorkflowEngineRuntimeBaseLayer),
 );
@@ -64,14 +78,14 @@ const WorkflowEngineRuntimeDependentLayer = Layer.mergeAll(
     Layer.provide(WorkflowEngineRuntimeBaseLayer),
   ),
   TransitionExecutionDetailServiceLive.pipe(Layer.provide(WorkflowEngineRuntimeBaseLayer)),
-  WorkflowExecutionCommandServiceLive.pipe(Layer.provide(WorkflowEngineRuntimeBaseLayer)),
-  WorkflowExecutionDetailServiceLive.pipe(Layer.provide(WorkflowEngineRuntimeBaseLayer)),
-);
-
-const WorkflowEngineRuntimeStepCoreLayer = Layer.mergeAll(
-  StepProgressionServiceLive,
-  StepContextQueryServiceLive,
-  StepContextMutationServiceLive,
+  Layer.provide(
+    WorkflowExecutionCommandServiceLive,
+    WorkflowEngineRuntimeWorkflowExecutionDependenciesLayer,
+  ),
+  Layer.provide(
+    WorkflowExecutionDetailServiceLive,
+    WorkflowEngineRuntimeWorkflowExecutionDependenciesLayer,
+  ),
 );
 
 const WorkflowEngineRuntimeInvokeCompletionLayer = InvokeCompletionServiceLive;
@@ -85,11 +99,17 @@ const WorkflowEngineRuntimeStepLifecycleLayer = Layer.provide(
   WorkflowEngineRuntimeStepCoreLayer,
 );
 
+const WorkflowEngineRuntimeActionStepLayer = Layer.provide(
+  ActionStepRuntimeServiceLive,
+  WorkflowEngineRuntimeStepCoreLayer,
+);
+
 const WorkflowEngineRuntimeStepTransactionLayer = Layer.provide(
   StepExecutionTransactionServiceLive,
   Layer.mergeAll(
     WorkflowEngineRuntimeStepCoreLayer,
     WorkflowEngineRuntimeStepLifecycleLayer,
+    WorkflowEngineRuntimeActionStepLayer,
     WorkflowEngineRuntimeInvokeCompletionLayer,
     WorkflowEngineRuntimeInvokePropagationLayer,
   ),
@@ -117,9 +137,23 @@ const WorkflowEngineRuntimeInvokeStepDetailLayer = Layer.provide(
   WorkflowEngineRuntimeInvokeCompletionLayer,
 );
 
+const WorkflowEngineRuntimeActionStepDetailLayer = Layer.provide(
+  ActionStepDetailServiceLive,
+  Layer.mergeAll(
+    WorkflowEngineRuntimeActionStepLayer,
+    Layer.service(ProjectContextRepository),
+    Layer.service(LifecycleRepository),
+    Layer.service(MethodologyRepository),
+  ),
+);
+
 const WorkflowEngineRuntimeStepDetailLayer = Layer.provide(
   StepExecutionDetailServiceLive,
-  Layer.mergeAll(WorkflowEngineRuntimeStepCoreLayer, WorkflowEngineRuntimeInvokeStepDetailLayer),
+  Layer.mergeAll(
+    WorkflowEngineRuntimeStepCoreLayer,
+    WorkflowEngineRuntimeActionStepDetailLayer,
+    WorkflowEngineRuntimeInvokeStepDetailLayer,
+  ),
 );
 
 const WorkflowEngineRuntimeAgentStepBaseLayer = Layer.mergeAll(
@@ -157,6 +191,11 @@ const WorkflowEngineRuntimeAgentStepEventStreamLayer = Layer.provide(
   WorkflowEngineRuntimeAgentStepBaseLayer,
 );
 
+const WorkflowEngineRuntimeActionStepEventStreamLayer = Layer.provide(
+  ActionStepEventStreamServiceLive,
+  WorkflowEngineRuntimeStepDetailLayer,
+);
+
 const WorkflowEngineRuntimeAgentStepSnapshotLayer = Layer.provide(
   AgentStepSnapshotServiceLive,
   WorkflowEngineRuntimeAgentStepBaseLayer,
@@ -184,10 +223,12 @@ const WorkflowEngineRuntimeAgentStepMcpLayer = Layer.provide(
 export const WorkflowEngineRuntimeStepServicesLive = Layer.mergeAll(
   WorkflowEngineRuntimeStepCoreLayer,
   WorkflowEngineRuntimeStepLifecycleLayer,
+  WorkflowEngineRuntimeActionStepLayer,
   WorkflowEngineRuntimeStepTransactionLayer,
   WorkflowEngineRuntimeStepFormLayer,
   WorkflowEngineRuntimeInvokeCompletionLayer,
   WorkflowEngineRuntimeInvokePropagationLayer,
+  WorkflowEngineRuntimeActionStepDetailLayer,
   WorkflowEngineRuntimeInvokeStepDetailLayer,
   WorkflowEngineRuntimeExternalPrefillLayer,
   InvokeTargetResolutionServiceLive,
@@ -201,6 +242,7 @@ export const WorkflowEngineRuntimeStepServicesLive = Layer.mergeAll(
   WorkflowEngineRuntimeAgentStepDetailLayer,
   WorkflowEngineRuntimeAgentStepSessionLayer,
   WorkflowEngineRuntimeAgentStepEventStreamLayer,
+  WorkflowEngineRuntimeActionStepEventStreamLayer,
   WorkflowEngineRuntimeAgentStepSnapshotLayer,
   WorkflowEngineRuntimeAgentStepContextReadLayer,
   WorkflowEngineRuntimeAgentStepContextWriteLayer,

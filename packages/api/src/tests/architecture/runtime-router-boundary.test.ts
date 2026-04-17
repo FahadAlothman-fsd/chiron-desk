@@ -46,7 +46,7 @@ describe("runtime router boundary governance", () => {
     expect(source).not.toContain("TransitionExecutionRepository");
   });
 
-  it("forbids step-level procedures in runtime router", () => {
+  it("keeps step-level runtime procedures explicit and service-backed", () => {
     const source = readRepoFile("packages/api/src/routers/project-runtime.ts");
 
     const procedureNames = [
@@ -56,10 +56,27 @@ describe("runtime router boundary governance", () => {
       .filter((name): name is string => typeof name === "string");
 
     expect(procedureNames.length).toBeGreaterThan(0);
-    expect(procedureNames.every((name) => !/step/i.test(name))).toBe(true);
+    expect(procedureNames).toEqual(
+      expect.arrayContaining([
+        "getRuntimeStepExecutionDetail",
+        "activateFirstWorkflowStepExecution",
+        "saveFormStepDraft",
+        "submitFormStep",
+        "saveBranchStepSelection",
+        "startActionStepExecution",
+        "runActionStepActions",
+        "retryActionStepActions",
+        "completeActionStepExecution",
+        "startInvokeWorkflowTarget",
+        "startInvokeWorkUnitTarget",
+      ]),
+    );
 
-    expect(source).not.toContain("getRuntimeStepExecutionDetail");
-    expect(source).not.toContain("streamRuntimeStepExecutions");
+    expect(source).toContain("StepExecutionDetailService");
+    expect(source).toContain("WorkflowExecutionStepCommandService");
+    expect(source).toContain("ActionStepRuntimeService");
+    expect(source).toContain("InvokeWorkflowExecutionService");
+    expect(source).toContain("InvokeWorkUnitExecutionService");
     expect(source).not.toContain("retrySameStepExecution");
   });
 });

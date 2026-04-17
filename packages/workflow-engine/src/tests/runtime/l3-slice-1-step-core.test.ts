@@ -1,6 +1,8 @@
 import { Context, Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 
+import { AgentStepExecutionAppliedWriteRepository } from "../../repositories/agent-step-execution-applied-write-repository";
+import { ExecutionReadRepository } from "../../repositories/execution-read-repository";
 import {
   StepExecutionRepository,
   type CompleteRuntimeStepExecutionParams,
@@ -15,6 +17,9 @@ import {
   type UpsertRuntimeFormStepExecutionStateParams,
 } from "../../repositories/step-execution-repository";
 import { WorkflowExecutionRepository } from "../../repositories/workflow-execution-repository";
+import { ActionStepRuntimeService } from "../../services/action-step-runtime-service";
+import { InvokeCompletionService } from "../../services/invoke-completion-service";
+import { InvokePropagationService } from "../../services/invoke-propagation-service";
 import {
   StepExecutionLifecycleService,
   StepExecutionLifecycleServiceLive,
@@ -272,7 +277,73 @@ const buildRuntimeTestLayer = (options?: { entryMode?: "valid" | "missing" | "am
     retryWorkflowExecution: () => Effect.succeed(null),
   } as unknown as Context.Tag.Service<typeof WorkflowExecutionRepository>);
 
-  const base = Layer.mergeAll(stepRepoLayer, workflowRepoLayer);
+  const readRepoLayer = Layer.succeed(ExecutionReadRepository, {
+    getTransitionExecutionDetail: () => Effect.die("unused"),
+    listTransitionExecutionsForWorkUnit: () => Effect.die("unused"),
+    getWorkflowExecutionDetail: (workflowExecutionId: string) =>
+      Effect.succeed({
+        workflowExecution: {
+          id: workflowExecutionId,
+          transitionExecutionId: "tx-1",
+          workflowId: "workflow-1",
+          workflowRole: "primary" as const,
+          status: "active" as const,
+          currentStepExecutionId: steps.at(-1)?.id ?? null,
+          supersededByWorkflowExecutionId: null,
+          startedAt: new Date("2026-04-01T09:59:00.000Z"),
+          completedAt: null,
+          supersededAt: null,
+        },
+        transitionExecution: {
+          id: "tx-1",
+          projectWorkUnitId: "wu-1",
+          transitionId: "transition-1",
+          status: "active" as const,
+          primaryWorkflowExecutionId: workflowExecutionId,
+          supersededByTransitionExecutionId: null,
+          startedAt: new Date("2026-04-01T09:58:00.000Z"),
+          completedAt: null,
+          supersededAt: null,
+        },
+        projectId: "project-1",
+        projectWorkUnitId: "wu-1",
+        workUnitTypeId: "setup",
+        currentStateId: "draft",
+      }),
+    listWorkflowExecutionsForTransition: () => Effect.die("unused"),
+    listActiveWorkflowExecutionsByProject: () => Effect.die("unused"),
+  } as unknown as Context.Tag.Service<typeof ExecutionReadRepository>);
+
+  const appliedWriteRepoLayer = Layer.succeed(AgentStepExecutionAppliedWriteRepository, {
+    createAppliedWrite: () => Effect.die("unused"),
+    listAppliedWritesForStepExecution: () => Effect.succeed([]),
+  } as unknown as Context.Tag.Service<typeof AgentStepExecutionAppliedWriteRepository>);
+
+  const invokeCompletionLayer = Layer.succeed(InvokeCompletionService, {
+    getCompletionEligibility: () => Effect.die("unused"),
+  } as unknown as Context.Tag.Service<typeof InvokeCompletionService>);
+
+  const invokePropagationLayer = Layer.succeed(InvokePropagationService, {
+    propagateInvokeCompletionOutputs: () => Effect.die("unused"),
+  } as unknown as Context.Tag.Service<typeof InvokePropagationService>);
+
+  const actionRuntimeLayer = Layer.succeed(ActionStepRuntimeService, {
+    startExecution: () => Effect.die("unused"),
+    runActions: () => Effect.die("unused"),
+    retryActions: () => Effect.die("unused"),
+    completeStep: () => Effect.die("unused"),
+    getCompletionEligibility: () => Effect.die("unused"),
+  } as unknown as Context.Tag.Service<typeof ActionStepRuntimeService>);
+
+  const base = Layer.mergeAll(
+    stepRepoLayer,
+    workflowRepoLayer,
+    readRepoLayer,
+    appliedWriteRepoLayer,
+    invokeCompletionLayer,
+    invokePropagationLayer,
+    actionRuntimeLayer,
+  );
   const progression = Layer.provide(StepProgressionServiceLive, base);
   const lifecycle = Layer.provide(
     StepExecutionLifecycleServiceLive,

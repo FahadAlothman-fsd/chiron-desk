@@ -9,6 +9,7 @@ import type {
   WorkflowDefinition,
 } from "@chiron/contracts/methodology/version";
 import type {
+  ActionStepPayload,
   BranchStepPayload,
   FormStepPayload,
   InvokeStepPayload,
@@ -62,6 +63,7 @@ export interface CreateDraftParams {
   version: string;
   definitionExtensions: unknown;
   workflows: readonly WorkflowDefinition[];
+  rewriteWorkflowGraph?: boolean;
   transitionWorkflowBindings: MethodologyVersionDefinition["transitionWorkflowBindings"];
   guidance?: LayeredGuidance;
   factDefinitions?: CreateDraftVersionInput["factDefinitions"];
@@ -130,6 +132,11 @@ export interface WorkflowAgentStepDefinitionReadModel {
   readonly payload: AgentStepDesignTimePayload;
 }
 
+export interface WorkflowActionStepDefinitionReadModel {
+  readonly stepId: string;
+  readonly payload: ActionStepPayload;
+}
+
 export interface InvokeStepDefinitionReadModel {
   readonly stepId: string;
   readonly payload: InvokeStepPayload;
@@ -178,6 +185,32 @@ export interface UpdateFormStepDefinitionParams {
   readonly workflowDefinitionId: string;
   readonly stepId: string;
   readonly payload: FormStepPayload;
+}
+
+export interface CreateActionStepDefinitionParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly afterStepKey: string | null;
+  readonly payload: ActionStepPayload;
+}
+
+export interface UpdateActionStepDefinitionParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly stepId: string;
+  readonly payload: ActionStepPayload;
+}
+
+export interface DeleteActionStepDefinitionParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly stepId: string;
+}
+
+export interface GetActionStepDefinitionParams {
+  readonly versionId: string;
+  readonly workflowDefinitionId: string;
+  readonly stepId: string;
 }
 
 export interface DeleteFormStepDefinitionParams {
@@ -553,6 +586,18 @@ export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
     readonly deleteFormStepDefinition: (
       params: DeleteFormStepDefinitionParams,
     ) => Effect.Effect<void, RepositoryError>;
+    readonly createActionStepDefinition: (
+      params: CreateActionStepDefinitionParams,
+    ) => Effect.Effect<WorkflowActionStepDefinitionReadModel, RepositoryError>;
+    readonly updateActionStepDefinition: (
+      params: UpdateActionStepDefinitionParams,
+    ) => Effect.Effect<WorkflowActionStepDefinitionReadModel, RepositoryError>;
+    readonly deleteActionStepDefinition: (
+      params: DeleteActionStepDefinitionParams,
+    ) => Effect.Effect<void, RepositoryError>;
+    readonly getActionStepDefinition: (
+      params: GetActionStepDefinitionParams,
+    ) => Effect.Effect<WorkflowActionStepDefinitionReadModel | null, RepositoryError>;
     readonly listAgentStepDefinitions: (params: {
       readonly versionId: string;
       readonly workflowDefinitionId: string;

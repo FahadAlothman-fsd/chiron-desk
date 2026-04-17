@@ -82,7 +82,7 @@ const createFallbackSeeds = (
   projectWorkUnits: readonly {
     readonly id: string;
     readonly workUnitTypeId: string;
-    readonly currentStateId: string;
+    readonly currentStateId: string | null;
     readonly activeTransitionExecutionId: string | null;
   }[],
 ): readonly RuntimeGuidanceCandidateCardSeed[] =>
@@ -96,8 +96,8 @@ const createFallbackSeeds = (
         workUnitTypeId: workUnit.workUnitTypeId,
         workUnitTypeKey: workUnit.workUnitTypeId,
         workUnitTypeName: workUnit.workUnitTypeId,
-        currentStateKey: workUnit.currentStateId,
-        currentStateLabel: workUnit.currentStateId,
+        currentStateKey: workUnit.currentStateId ?? "unknown-state",
+        currentStateLabel: workUnit.currentStateId ?? "unknown-state",
       },
       summaries: {
         facts: { currentCount: 0, totalCount: 0 },
@@ -109,8 +109,8 @@ const createFallbackSeeds = (
           transitionId: `transition:${workUnit.id}:default`,
           transitionKey: `transition:${workUnit.id}:default`,
           transitionName: "Default transition",
-          toStateKey: workUnit.currentStateId,
-          toStateLabel: workUnit.currentStateId,
+          toStateKey: workUnit.currentStateId ?? "unknown-state",
+          toStateLabel: workUnit.currentStateId ?? "unknown-state",
           source: "open",
           startGate: {
             mode: "all",
@@ -351,8 +351,8 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
                 workUnitTypeId: workUnit.workUnitTypeId,
                 workUnitTypeKey: workUnit.workUnitTypeId,
                 workUnitTypeName: workUnit.workUnitTypeId,
-                currentStateKey: workUnit.currentStateId,
-                currentStateLabel: workUnit.currentStateId,
+                currentStateKey: workUnit.currentStateId ?? "unknown-state",
+                currentStateLabel: workUnit.currentStateId ?? "unknown-state",
                 factSummary: {
                   currentCount: factCounts.currentCount,
                   totalCount: factCounts.totalCount,
@@ -366,8 +366,8 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
                   transitionId: transitionDetail.transitionExecution.transitionId,
                   transitionKey: transitionDetail.transitionExecution.transitionId,
                   transitionName: transitionDetail.transitionExecution.transitionId,
-                  toStateKey: transitionDetail.currentStateId,
-                  toStateLabel: transitionDetail.currentStateId,
+                  toStateKey: transitionDetail.currentStateId ?? "unknown-state",
+                  toStateLabel: transitionDetail.currentStateId ?? "unknown-state",
                   status: "active" as const,
                   readyForCompletion: completionGate.result === "available",
                 },
@@ -390,7 +390,7 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
                     workflowExecutionId: primaryWorkflowExecutionId,
                   },
                 },
-              };
+              } satisfies GetRuntimeGuidanceActiveOutput["activeWorkUnitCards"][number];
             }),
           { concurrency: 4 },
         );
@@ -409,7 +409,16 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
           input.projectId,
         );
 
-        const openCards = options?.candidateSeeds ?? createFallbackSeeds(projectWorkUnits);
+        const openCards =
+          options?.candidateSeeds ??
+          createFallbackSeeds(
+            projectWorkUnits.map((workUnit) => ({
+              id: workUnit.id,
+              workUnitTypeId: workUnit.workUnitTypeId,
+              currentStateId: workUnit.currentStateId ?? "unknown-state",
+              activeTransitionExecutionId: workUnit.activeTransitionExecutionId,
+            })),
+          );
 
         const futureCards = options?.candidateSeeds
           ? []
@@ -540,13 +549,17 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
           (card) =>
             Effect.gen(function* () {
               const events: RuntimeGuidanceStreamEnvelope[] = [];
+              const projectWorkUnitId =
+                "projectWorkUnitId" in card.workUnitContext
+                  ? card.workUnitContext.projectWorkUnitId
+                  : undefined;
 
               for (const transition of card.transitions) {
                 const gateResult: RuntimeGateEvaluationResult = yield* (
-                  card.workUnitContext.projectWorkUnitId
+                  projectWorkUnitId
                     ? runtimeGateService.evaluateStartGate({
                         projectId: input.projectId,
-                        projectWorkUnitId: card.workUnitContext.projectWorkUnitId,
+                        projectWorkUnitId,
                         conditionTree: transition.startGate,
                       })
                     : runtimeGateService.evaluateStartGate({
@@ -784,7 +797,8 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
           const availableWorkflows = toAvailableWorkflows(bindingRows);
 
           const stateById = new Map(lifecycleStates.map((state) => [state.id, state] as const));
-          const currentState = stateById.get(projectWorkUnit.currentStateId) ?? null;
+          const currentStateId = projectWorkUnit.currentStateId ?? undefined;
+          const currentState = currentStateId ? (stateById.get(currentStateId) ?? null) : null;
           const fromState = transition.fromStateId
             ? (stateById.get(transition.fromStateId) ?? null)
             : null;
@@ -831,10 +845,13 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
             workUnitContext: {
               projectWorkUnitId: projectWorkUnit.id,
               workUnitTypeId: workUnitType.id,
-              workUnitTypeKey: workUnitType.key,
-              workUnitTypeName: workUnitType.displayName ?? workUnitType.key,
+              workUnitTypeKey: workUnitType.key ?? workUnitType.id,
+              workUnitTypeName: workUnitType.displayName ?? workUnitType.key ?? workUnitType.id,
               currentStateLabel:
-                currentState?.displayName ?? currentState?.key ?? projectWorkUnit.currentStateId,
+                currentState?.displayName ??
+                currentState?.key ??
+                projectWorkUnit.currentStateId ??
+                "unknown-state",
               source: "open",
             },
             gateSummary: {

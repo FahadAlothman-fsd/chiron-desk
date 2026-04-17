@@ -6,6 +6,7 @@ import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-
 import { ProjectContextRepository } from "@chiron/project-context";
 
 import { AgentStepExecutionAppliedWriteRepository } from "../../repositories/agent-step-execution-applied-write-repository";
+import { BranchStepRuntimeRepository } from "../../repositories/branch-step-runtime-repository";
 import {
   ExecutionReadRepository,
   type WorkflowExecutionDetailReadModel,
@@ -39,6 +40,7 @@ import {
 } from "../../repositories/workflow-execution-repository";
 import { InvokeCompletionServiceLive } from "../../services/invoke-completion-service";
 import { InvokePropagationServiceLive } from "../../services/invoke-propagation-service";
+import { ActionStepRuntimeService } from "../../services/action-step-runtime-service";
 import { StepContextMutationServiceLive } from "../../services/step-context-mutation-service";
 import { StepExecutionLifecycleServiceLive } from "../../services/step-execution-lifecycle-service";
 import {
@@ -193,10 +195,31 @@ function buildCommonAuxiliaryLayers() {
     listAppliedWritesForStepExecution: () => Effect.die("unused"),
   } as unknown as Context.Tag.Service<typeof AgentStepExecutionAppliedWriteRepository>);
 
+  const branchRuntimeRepoLayer = Layer.succeed(BranchStepRuntimeRepository, {
+    createOnActivation: () => Effect.die("unused"),
+    loadWithRoutes: () => Effect.die("unused"),
+    saveSelection: () => Effect.die("unused"),
+  } as unknown as Context.Tag.Service<typeof BranchStepRuntimeRepository>);
+
   const stepProgressionLayer = Layer.succeed(StepProgressionService, {
     resolveEntryStepDefinition: () => Effect.die("unused"),
     getNextStepDefinition: () => Effect.die("unused"),
   } as unknown as Context.Tag.Service<typeof StepProgressionService>);
+
+  const actionRuntimeLayer = Layer.succeed(ActionStepRuntimeService, {
+    startExecution: () => Effect.die("unused"),
+    runActions: () => Effect.die("unused"),
+    retryActions: () => Effect.die("unused"),
+    recreateBoundTargetFromContextValue: () => Effect.die("unused"),
+    getCompletionEligibility: () =>
+      Effect.succeed({
+        mode: "manual" as const,
+        eligible: true,
+        requiresAtLeastOneSucceededAction: true,
+        blockedByRunningActions: true,
+        reasonIfIneligible: undefined,
+      }),
+  } as unknown as Context.Tag.Service<typeof ActionStepRuntimeService>);
 
   const projectContextLayer = Layer.succeed(ProjectContextRepository, {
     findProjectPin: (projectId: string) =>
@@ -217,7 +240,9 @@ function buildCommonAuxiliaryLayers() {
 
   return Layer.mergeAll(
     appliedWriteRepoLayer,
+    branchRuntimeRepoLayer,
     stepProgressionLayer,
+    actionRuntimeLayer,
     projectContextLayer,
     lifecycleLayer,
   );
@@ -977,6 +1002,19 @@ describe("invoke completion runtime flow", () => {
         artifactSnapshotIds: ["artifact-snapshot-2-brief", "artifact-snapshot-2-notes"],
       },
     ]);
+    for (const value of runtime.state.contextFacts
+      .filter((fact) =>
+        ["ctx-story-selected", "ctx-story-all", "ctx-research-all"].includes(
+          fact.contextFactDefinitionId,
+        ),
+      )
+      .map((fact) => fact.valueJson as Record<string, unknown>)) {
+      expect(value).not.toHaveProperty("facts");
+      expect(value).not.toHaveProperty("artifacts");
+      expect(value).not.toHaveProperty("instance");
+      expect(value).not.toHaveProperty("factValues");
+      expect(value).not.toHaveProperty("artifactValues");
+    }
     expect(
       runtime.state.contextFacts
         .filter((fact) => fact.contextFactDefinitionId === "ctx-research-all")

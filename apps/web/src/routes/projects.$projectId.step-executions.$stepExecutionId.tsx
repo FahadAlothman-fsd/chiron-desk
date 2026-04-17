@@ -7,13 +7,14 @@ import type {
 import type { WorkflowContextFactKind } from "@chiron/contracts/methodology/workflow";
 import type {
   GetRuntimeStepExecutionDetailOutput,
+  RuntimeActionAffectedTarget,
   RuntimeInvokeWorkUnitTargetRow,
   RuntimeFormNestedField,
   RuntimeFormResolvedField,
   RuntimeInvokeWorkflowTargetRow,
   RuntimeWorkflowContextFactGroup,
 } from "@chiron/contracts/runtime/executions";
-import type { AgentStepSseEnvelope } from "@chiron/contracts/sse/envelope";
+import type { ActionStepSseEnvelope, AgentStepSseEnvelope } from "@chiron/contracts/sse/envelope";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -33,7 +34,7 @@ import {
   RefreshCcwIcon,
   TriangleAlertIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -160,7 +161,18 @@ const AGENT_STEP_SSE_EVENT_NAMES = [
   "done",
 ] as const;
 
+const ACTION_STEP_SSE_EVENT_NAMES = [
+  "bootstrap",
+  "action-status-changed",
+  "action-item-status-changed",
+  "step-completion-eligibility-changed",
+  "error",
+  "done",
+] as const;
+
 type FormBody = Extract<GetRuntimeStepExecutionDetailOutput["body"], { stepType: "form" }>;
+type ActionBody = Extract<GetRuntimeStepExecutionDetailOutput["body"], { stepType: "action" }>;
+type BranchBody = Extract<GetRuntimeStepExecutionDetailOutput["body"], { stepType: "branch" }>;
 type InvokeBody = Extract<GetRuntimeStepExecutionDetailOutput["body"], { stepType: "invoke" }>;
 type AgentBody = GetAgentStepExecutionDetailOutput["body"];
 type TimelineThinkingItem = Extract<AgentStepTimelineItem, { itemType: "thinking" }>;
@@ -257,6 +269,44 @@ function formatInvokeProgressLabel(completedTargets: number, totalTargets: numbe
 
 function getInitialPrimaryWorkflowSelection(row: RuntimeInvokeWorkUnitTargetRow): string {
   return row.workflowDefinitionId ?? row.availablePrimaryWorkflows[0]?.workflowDefinitionId ?? "";
+}
+
+function formatBranchSuggestionSourceLabel(source: BranchBody["suggestion"]["source"]): string {
+  switch (source) {
+    case "conditional_route":
+      return "Valid route";
+    case "default_target":
+      return "Default target";
+    case "none":
+    default:
+      return "No suggestion";
+  }
+}
+
+function getBranchAvailableTargetStepIds(body: BranchBody): readonly string[] {
+  const validConditionalTargets = [
+    ...new Set(
+      body.conditionalRoutes.filter((route) => route.isValid).map((route) => route.targetStepId),
+    ),
+  ];
+
+  if (validConditionalTargets.length > 0) {
+    return validConditionalTargets;
+  }
+
+  return body.defaultTargetStepId ? [body.defaultTargetStepId] : [];
+}
+
+function formatBranchAvailabilitySummary(body: BranchBody): string {
+  const validRouteCount = body.conditionalRoutes.filter((route) => route.isValid).length;
+
+  if (validRouteCount === 0) {
+    return body.defaultTargetStepId
+      ? "No valid routes matched. A default target is available to save explicitly."
+      : "No valid routes matched and no default target is available.";
+  }
+
+  return `${validRouteCount} valid route${validRouteCount === 1 ? "" : "s"} available.`;
 }
 
 type InvokeWorkUnitBindingPreview = RuntimeInvokeWorkUnitTargetRow["bindingPreview"][number];
@@ -551,6 +601,13 @@ function resolveToolErrorPayload(item: TimelineToolItem): string | undefined {
 
 function buildAgentStepStreamUrl(projectId: string, stepExecutionId: string): string {
   const url = new URL(`${resolveRuntimeBackendUrl()}/sse/agent-step-session-events`);
+  url.searchParams.set("projectId", projectId);
+  url.searchParams.set("stepExecutionId", stepExecutionId);
+  return url.toString();
+}
+
+function buildActionStepStreamUrl(projectId: string, stepExecutionId: string): string {
+  const url = new URL(`${resolveRuntimeBackendUrl()}/sse/action-step-events`);
   url.searchParams.set("projectId", projectId);
   url.searchParams.set("stepExecutionId", stepExecutionId);
   return url.toString();
@@ -1033,6 +1090,11 @@ type StepTypeFrameStyle = CSSProperties & {
 
 function getStepTypeFrameStyle(stepType: string): StepTypeFrameStyle {
   switch (stepType) {
+    case "action":
+      return {
+        "--frame-border": "color-mix(in oklab, rgb(52 211 153) 24%, var(--border))",
+        "--frame-corner": "color-mix(in oklab, rgb(110 231 183) 82%, var(--foreground))",
+      };
     case "form":
       return {
         "--frame-border": "color-mix(in oklab, rgb(56 189 248) 24%, var(--border))",
@@ -1042,6 +1104,16 @@ function getStepTypeFrameStyle(stepType: string): StepTypeFrameStyle {
       return {
         "--frame-border": "color-mix(in oklab, rgb(167 139 250) 24%, var(--border))",
         "--frame-corner": "color-mix(in oklab, rgb(196 181 253) 82%, var(--foreground))",
+      };
+    case "invoke":
+      return {
+        "--frame-border": "color-mix(in oklab, rgb(251 191 36) 24%, var(--border))",
+        "--frame-corner": "color-mix(in oklab, rgb(252 211 77) 82%, var(--foreground))",
+      };
+    case "branch":
+      return {
+        "--frame-border": "color-mix(in oklab, rgb(251 113 133) 24%, var(--border))",
+        "--frame-corner": "color-mix(in oklab, rgb(253 164 175) 82%, var(--foreground))",
       };
     default:
       return {
@@ -1073,6 +1145,98 @@ function getCompletionGateLabel(
   stepType: GetRuntimeStepExecutionDetailOutput["shell"]["stepType"],
 ) {
   return stepType === "agent" ? "Session completion" : "Completion gate";
+}
+
+function formatActionExecutionModeLabel(mode: ActionBody["executionMode"]): string {
+  return mode === "parallel" ? "Parallel" : "Sequential";
+}
+
+function formatActionRenderableStatusLabel(
+  status:
+    | ActionBody["actions"][number]["status"]
+    | ActionBody["actions"][number]["items"][number]["status"],
+): string {
+  switch (status) {
+    case "not_started":
+      return "Not started";
+    case "running":
+      return "Running";
+    case "succeeded":
+      return "Succeeded";
+    case "failed":
+      return "Failed";
+    case "needs_attention":
+      return "Needs attention";
+  }
+}
+
+function getActionRenderableStatusTone(
+  status:
+    | ActionBody["actions"][number]["status"]
+    | ActionBody["actions"][number]["items"][number]["status"],
+) {
+  switch (status) {
+    case "running":
+      return "sky" as const;
+    case "succeeded":
+      return "emerald" as const;
+    case "failed":
+    case "needs_attention":
+      return "rose" as const;
+    case "not_started":
+    default:
+      return "amber" as const;
+  }
+}
+
+function formatActionPolicyLabel(
+  value:
+    | ActionBody["runtimeRowPolicy"]
+    | ActionBody["duplicateRunPolicy"]
+    | ActionBody["duplicateRetryPolicy"],
+): string {
+  switch (value) {
+    case "lazy_on_first_execution":
+      return "Lazy rows";
+    case "idempotent_noop":
+      return "Idempotent no-op";
+  }
+}
+
+function formatActionAffectedTarget(target: RuntimeActionAffectedTarget): string {
+  if (target.label?.trim()) {
+    return target.label;
+  }
+
+  if (target.targetId?.trim()) {
+    return `${target.targetKind.replaceAll("_", " ")} · ${target.targetId}`;
+  }
+
+  return target.targetKind.replaceAll("_", " ");
+}
+
+function getAffectedTargetStateTone(
+  target: RuntimeActionAffectedTarget,
+): "emerald" | "rose" | "slate" {
+  switch (target.targetState) {
+    case "exists":
+      return "emerald";
+    case "missing":
+      return "rose";
+    default:
+      return "slate";
+  }
+}
+
+function getAffectedTargetRowClasses(target: RuntimeActionAffectedTarget): string {
+  switch (target.targetState) {
+    case "exists":
+      return "border-emerald-500/30 bg-emerald-500/10";
+    case "missing":
+      return "border-rose-500/30 bg-rose-500/10";
+    default:
+      return "border-border/70 bg-background/60";
+  }
 }
 
 function ReferenceOptionCombobox(props: {
@@ -2294,6 +2458,843 @@ function ContextFactInstances(props: {
   );
 }
 
+function ActionInteractionSurface(props: {
+  projectId: string;
+  detail: GetRuntimeStepExecutionDetailOutput & { body: ActionBody };
+}) {
+  const { detail, projectId } = props;
+  const { orpc, queryClient } = Route.useRouteContext();
+  const shell = detail.shell;
+  const body = detail.body;
+  const processedEventCountRef = useRef(0);
+  const [liveErrorMessage, setLiveErrorMessage] = useState<string | null>(null);
+
+  const invalidateStepDetail = useCallback(async () => {
+    await queryClient.invalidateQueries({
+      queryKey: runtimeStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+    });
+  }, [projectId, queryClient, shell.stepExecutionId]);
+
+  const streamUrl =
+    shell.status === "active" ? buildActionStepStreamUrl(projectId, shell.stepExecutionId) : null;
+  const stream = useSSE<ActionStepSseEnvelope, ActionStepSseEnvelope>(streamUrl, {
+    eventNames: ACTION_STEP_SSE_EVENT_NAMES,
+  });
+
+  useEffect(() => {
+    if (!shell.stepExecutionId) {
+      return;
+    }
+
+    processedEventCountRef.current = 0;
+    setLiveErrorMessage(null);
+  }, [shell.stepExecutionId]);
+
+  useEffect(() => {
+    const nextEvents = stream.events.slice(processedEventCountRef.current);
+    if (nextEvents.length === 0) {
+      return;
+    }
+
+    processedEventCountRef.current = stream.events.length;
+
+    let shouldInvalidate = false;
+
+    for (const event of nextEvents) {
+      if (event.eventType === "error") {
+        setLiveErrorMessage(event.data.message);
+        shouldInvalidate = true;
+        continue;
+      }
+
+      if (event.eventType === "bootstrap") {
+        setLiveErrorMessage(null);
+      }
+
+      shouldInvalidate = true;
+    }
+
+    if (shouldInvalidate) {
+      void invalidateStepDetail();
+    }
+  }, [invalidateStepDetail, stream.events]);
+
+  const runActionsMutation = useMutation(
+    orpc.project.runActionStepActions.mutationOptions({
+      onSuccess: async () => {
+        setLiveErrorMessage(null);
+        await invalidateStepDetail();
+      },
+    }),
+  );
+
+  const retryActionsMutation = useMutation(
+    orpc.project.retryActionStepActions.mutationOptions({
+      onSuccess: async () => {
+        setLiveErrorMessage(null);
+        await invalidateStepDetail();
+      },
+    }),
+  );
+
+  const completeStepMutation = useMutation(
+    orpc.project.completeStepExecution.mutationOptions({
+      onSuccess: async () => {
+        setLiveErrorMessage(null);
+        await invalidateStepDetail();
+      },
+    }),
+  );
+
+  const isBusy =
+    runActionsMutation.isPending ||
+    retryActionsMutation.isPending ||
+    completeStepMutation.isPending;
+
+  const surfacedError =
+    liveErrorMessage ??
+    (runActionsMutation.error
+      ? toErrorMessage(runActionsMutation.error)
+      : retryActionsMutation.error
+        ? toErrorMessage(retryActionsMutation.error)
+        : completeStepMutation.error
+          ? toErrorMessage(completeStepMutation.error)
+          : null);
+
+  const completionOutcome =
+    shell.status === "completed"
+      ? "Completed"
+      : body.completionSummary.eligible
+        ? "Ready to complete"
+        : (body.completionSummary.reasonIfIneligible ??
+          shell.completionAction.reasonIfDisabled ??
+          "Incomplete");
+
+  const actionProgress = useMemo(
+    () => ({
+      total: body.actions.length,
+      notStarted: body.actions.filter((action) => action.status === "not_started").length,
+      running: body.actions.filter((action) => action.status === "running").length,
+      succeeded: body.actions.filter((action) => action.status === "succeeded").length,
+      needsAttention: body.actions.filter((action) => action.status === "needs_attention").length,
+    }),
+    [body.actions],
+  );
+
+  const itemProgress = useMemo(
+    () => ({
+      total: body.actions.reduce((count, action) => count + action.items.length, 0),
+      succeeded: body.actions.reduce(
+        (count, action) =>
+          count + action.items.filter((item) => item.status === "succeeded").length,
+        0,
+      ),
+      running: body.actions.reduce(
+        (count, action) => count + action.items.filter((item) => item.status === "running").length,
+        0,
+      ),
+      needsAttention: body.actions.reduce(
+        (count, action) =>
+          count +
+          action.items.filter(
+            (item) => item.status === "needs_attention" || item.status === "failed",
+          ).length,
+        0,
+      ),
+    }),
+    [body.actions],
+  );
+
+  return (
+    <div className="space-y-4">
+      <StepExecutionShellCard
+        shell={shell}
+        completionOutcome={completionOutcome}
+        isBusy={isBusy}
+        onComplete={() =>
+          completeStepMutation.mutate({
+            projectId,
+            workflowExecutionId: shell.workflowExecutionId,
+            stepExecutionId: shell.stepExecutionId,
+          })
+        }
+      />
+
+      <Card
+        frame="cut-heavy"
+        tone="runtime"
+        corner="white"
+        style={getStepTypeFrameStyle(shell.stepType)}
+      >
+        <CardHeader>
+          <div className="space-y-1">
+            <DetailEyebrow>Action runtime</DetailEyebrow>
+            <CardTitle>Run propagation rows under the locked Plan A rules</CardTitle>
+            <CardDescription>
+              Action rows stay lazy until first execution, retry remains in-place for
+              needs-attention rows, and completion stays manual until at least one action succeeds
+              with no rows left running.
+            </CardDescription>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className="border border-border/70 bg-background/40 p-3">
+              <DetailLabel>Execution mode</DetailLabel>
+              <DetailPrimary>{formatActionExecutionModeLabel(body.executionMode)}</DetailPrimary>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {body.executionMode === "sequential"
+                  ? "Earlier enabled actions must succeed before later rows can run."
+                  : "Any enabled row can run or retry independently."}
+              </p>
+            </div>
+
+            <div className="border border-border/70 bg-background/40 p-3">
+              <DetailLabel>Runtime rows</DetailLabel>
+              <DetailPrimary>{formatActionPolicyLabel(body.runtimeRowPolicy)}</DetailPrimary>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Rows materialize on first execution instead of during activation.
+              </p>
+            </div>
+
+            <div className="border border-border/70 bg-background/40 p-3">
+              <DetailLabel>Duplicate run / retry</DetailLabel>
+              <DetailPrimary>
+                {formatActionPolicyLabel(body.duplicateRunPolicy)} ·{" "}
+                {formatActionPolicyLabel(body.duplicateRetryPolicy)}
+              </DetailPrimary>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Duplicate run and retry requests do nothing once the server locks a row state.
+              </p>
+            </div>
+
+            <div className="border border-border/70 bg-background/40 p-3">
+              <DetailLabel>Live stream</DetailLabel>
+              <DetailPrimary>
+                {stream.status === "open" ? "Connected" : stream.status}
+              </DetailPrimary>
+              <p className="mt-1 text-xs text-muted-foreground">
+                SSE contract: <code>action_step_execution_events</code>
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+            <article className="space-y-3 border border-border/70 bg-background/40 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <DetailEyebrow>Completion rule</DetailEyebrow>
+                  <CardTitle>Manual completion stays locked to runtime truth</CardTitle>
+                </div>
+                <ExecutionBadge
+                  label={completionOutcome}
+                  tone={body.completionSummary.eligible ? "emerald" : "amber"}
+                />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Requires at least one succeeded action and blocks while any action row is still
+                running.
+              </p>
+              {!body.completionSummary.eligible && body.completionSummary.reasonIfIneligible ? (
+                <p className="text-xs text-muted-foreground">
+                  {body.completionSummary.reasonIfIneligible}
+                </p>
+              ) : null}
+            </article>
+
+            <article className="space-y-3 border border-border/70 bg-background/40 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <DetailEyebrow>Progress</DetailEyebrow>
+                  <CardTitle>Action + item status summary</CardTitle>
+                </div>
+                <ExecutionBadge
+                  label={`${actionProgress.succeeded}/${actionProgress.total} succeeded`}
+                  tone="emerald"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
+                <div className="border border-border/70 bg-background/60 p-2 text-center text-muted-foreground">
+                  rows ready {actionProgress.notStarted}
+                </div>
+                <div className="border border-border/70 bg-background/60 p-2 text-center text-muted-foreground">
+                  rows running {actionProgress.running}
+                </div>
+                <div className="border border-border/70 bg-background/60 p-2 text-center text-muted-foreground">
+                  items running {itemProgress.running}
+                </div>
+                <div className="border border-border/70 bg-background/60 p-2 text-center text-muted-foreground">
+                  attention {Math.max(actionProgress.needsAttention, itemProgress.needsAttention)}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {itemProgress.succeeded} of {itemProgress.total} propagation item
+                {itemProgress.total === 1 ? "" : "s"} succeeded.
+              </p>
+            </article>
+          </div>
+
+          {surfacedError ? (
+            <div className="border border-destructive/60 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {surfacedError}
+            </div>
+          ) : null}
+
+          {body.actions.length === 0 ? (
+            <div className="border border-dashed border-border/70 bg-background/40 px-4 py-6 text-sm text-muted-foreground">
+              No propagation actions were authored for this Action step.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {body.actions.map((action) => (
+                <Card
+                  key={action.actionId}
+                  frame="flat"
+                  tone="runtime"
+                  className="border-border/70 bg-background/40"
+                  data-testid={`action-runtime-row-${action.actionId}`}
+                >
+                  <CardHeader className="border-b border-border/70">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <CardTitle className="text-sm">
+                          {action.label ?? action.actionKey}
+                        </CardTitle>
+                        <CardDescription>
+                          {action.actionKey}
+                          {action.contextFactKey ? ` · ${action.contextFactKey}` : ""}
+                        </CardDescription>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <ExecutionBadge
+                          label={formatActionRenderableStatusLabel(action.status)}
+                          tone={getActionRenderableStatusTone(action.status)}
+                        />
+                        <ExecutionBadge
+                          label={action.enabled ? "Enabled" : "Disabled"}
+                          tone={action.enabled ? "emerald" : "slate"}
+                        />
+                        <ExecutionBadge
+                          label={action.contextFactKind.replaceAll("_", " ")}
+                          tone="slate"
+                        />
+                      </div>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="space-y-4 pt-4 text-xs text-muted-foreground">
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <div>
+                        <DetailLabel>Sort order</DetailLabel>
+                        <DetailPrimary>{action.sortOrder}</DetailPrimary>
+                      </div>
+                      <div>
+                        <DetailLabel>Context fact</DetailLabel>
+                        <DetailPrimary>
+                          {action.contextFactKey ?? action.contextFactDefinitionId}
+                        </DetailPrimary>
+                        <DetailCode>{action.contextFactDefinitionId}</DetailCode>
+                      </div>
+                      <div>
+                        <DetailLabel>Run / Retry</DetailLabel>
+                        <DetailPrimary>
+                          {action.runAction.enabled ? "Run allowed" : "Run locked"} ·{" "}
+                          {action.retryAction.enabled ? "Retry allowed" : "Retry locked"}
+                        </DetailPrimary>
+                      </div>
+                    </div>
+
+                    {action.resultSummaryJson ? (
+                      <div className="space-y-2">
+                        <DetailLabel>Action result summary</DetailLabel>
+                        <pre className="whitespace-pre-wrap break-words border border-border/70 bg-background/50 p-2 text-xs text-foreground">
+                          {formatUnknown(action.resultSummaryJson)}
+                        </pre>
+                      </div>
+                    ) : null}
+
+                    {action.resultJson ? (
+                      <div className="space-y-2">
+                        <DetailLabel>Action result payload</DetailLabel>
+                        <pre className="whitespace-pre-wrap break-words border border-border/70 bg-background/50 p-2 text-xs text-foreground">
+                          {formatUnknown(action.resultJson)}
+                        </pre>
+                      </div>
+                    ) : null}
+
+                    {!action.runAction.enabled && action.runAction.reasonIfDisabled ? (
+                      <p className="text-xs text-muted-foreground">
+                        {action.runAction.reasonIfDisabled}
+                      </p>
+                    ) : null}
+
+                    {!action.retryAction.enabled && action.retryAction.reasonIfDisabled ? (
+                      <p className="text-xs text-muted-foreground">
+                        {action.retryAction.reasonIfDisabled}
+                      </p>
+                    ) : null}
+
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <DetailEyebrow>Propagation items</DetailEyebrow>
+                        <CardDescription>
+                          Stable authored item IDs stay visible at runtime and keep their row state
+                          in place.
+                        </CardDescription>
+                      </div>
+
+                      <div className="space-y-2">
+                        {action.items.map((item) => (
+                          <article
+                            key={item.itemId}
+                            data-testid={`action-runtime-item-${item.itemId}`}
+                            className="space-y-3 border border-border/70 bg-background/50 p-3"
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="space-y-1">
+                                <DetailPrimary>{item.label ?? item.itemKey}</DetailPrimary>
+                                <DetailCode>{item.itemKey}</DetailCode>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <ExecutionBadge
+                                  label={formatActionRenderableStatusLabel(item.status)}
+                                  tone={getActionRenderableStatusTone(item.status)}
+                                />
+                                <ExecutionBadge label={`order ${item.sortOrder}`} tone="slate" />
+                                {item.recoveryAction ? (
+                                  <ExecutionBadge label="Recovery available" tone="amber" />
+                                ) : null}
+                              </div>
+                            </div>
+
+                            {item.resultSummaryJson ? (
+                              <div>
+                                <DetailLabel>Result summary</DetailLabel>
+                                <pre className="mt-1 whitespace-pre-wrap break-words text-xs text-foreground">
+                                  {formatUnknown(item.resultSummaryJson)}
+                                </pre>
+                              </div>
+                            ) : null}
+
+                            <div>
+                              <DetailLabel>Item target context</DetailLabel>
+                              <div className="mt-1 flex flex-wrap items-center gap-2">
+                                <ExecutionBadge
+                                  label={
+                                    item.targetContextFactKey ?? item.targetContextFactDefinitionId
+                                  }
+                                  tone="sky"
+                                />
+                                {item.targetContextFactKey ? (
+                                  <span className="text-xs text-muted-foreground">
+                                    {item.targetContextFactDefinitionId}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+
+                            {item.affectedTargets.length > 0 ? (
+                              <div className="space-y-2">
+                                <DetailLabel>Affected targets</DetailLabel>
+                                <ul className="space-y-2">
+                                  {item.affectedTargets.map((target, index) => (
+                                    <li
+                                      key={`${item.itemId}-${target.targetKind}-${target.targetId ?? index}`}
+                                      className={cn(
+                                        "flex items-center justify-between gap-3 border px-2 py-2",
+                                        getAffectedTargetRowClasses(target),
+                                      )}
+                                    >
+                                      <span className="min-w-0 truncate text-foreground">
+                                        {formatActionAffectedTarget(target)}
+                                      </span>
+                                      <div className="flex items-center gap-2">
+                                        {target.targetState ? (
+                                          <ExecutionBadge
+                                            label={target.targetState}
+                                            tone={getAffectedTargetStateTone(target)}
+                                          />
+                                        ) : null}
+                                        <ExecutionBadge
+                                          label={target.targetKind.replaceAll("_", " ")}
+                                          tone="slate"
+                                        />
+                                      </div>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ) : null}
+
+                            {item.recoveryAction?.reasonIfDisabled ? (
+                              <p className="text-xs text-muted-foreground">
+                                {item.recoveryAction.reasonIfDisabled}
+                              </p>
+                            ) : null}
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+                  </CardContent>
+
+                  <CardFooter className="justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isBusy || !action.runAction.enabled}
+                      onClick={() =>
+                        runActionsMutation.mutate({
+                          projectId,
+                          stepExecutionId: shell.stepExecutionId,
+                          actionIds: [action.runAction.actionId],
+                        })
+                      }
+                    >
+                      Run action
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isBusy || !action.retryAction.enabled}
+                      onClick={() =>
+                        retryActionsMutation.mutate({
+                          projectId,
+                          stepExecutionId: shell.stepExecutionId,
+                          actionIds: [action.retryAction.actionId],
+                        })
+                      }
+                    >
+                      Retry action
+                    </Button>
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function BranchInteractionSurface(props: {
+  projectId: string;
+  detail: GetRuntimeStepExecutionDetailOutput & { body: BranchBody };
+}) {
+  const { detail, projectId } = props;
+  const { orpc, queryClient } = Route.useRouteContext();
+  const shell = detail.shell;
+  const body = detail.body;
+  const availableTargetStepIds = useMemo(() => getBranchAvailableTargetStepIds(body), [body]);
+  const validRoutes = useMemo(
+    () => body.conditionalRoutes.filter((route) => route.isValid),
+    [body.conditionalRoutes],
+  );
+  const [selectedTargetStepId, setSelectedTargetStepId] = useState(
+    body.persistedSelection.selectedTargetStepId ?? "",
+  );
+
+  useEffect(() => {
+    setSelectedTargetStepId(body.persistedSelection.selectedTargetStepId ?? "");
+  }, [body.persistedSelection.selectedTargetStepId]);
+
+  const invalidateStepDetail = async () => {
+    await queryClient.invalidateQueries({
+      queryKey: runtimeStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+    });
+  };
+
+  const saveSelectionMutation = useMutation(
+    orpc.project.saveBranchStepSelection.mutationOptions({
+      onSuccess: invalidateStepDetail,
+    }),
+  );
+
+  const completeStepMutation = useMutation(
+    orpc.project.completeStepExecution.mutationOptions({
+      onSuccess: invalidateStepDetail,
+    }),
+  );
+
+  const isBusy = saveSelectionMutation.isPending || completeStepMutation.isPending;
+  const completionOutcome =
+    shell.status === "completed"
+      ? "Completed"
+      : body.completionSummary.eligible
+        ? "Ready to complete"
+        : (body.completionSummary.reasonIfIneligible ??
+          shell.completionAction.reasonIfDisabled ??
+          "Incomplete");
+  const mutationError = saveSelectionMutation.error ?? completeStepMutation.error;
+  const invalidPersistedSelection =
+    body.persistedSelection.selectedTargetStepId !== null && !body.persistedSelection.isValid;
+  const hasSuggestionOnlyState =
+    body.persistedSelection.selectedTargetStepId === null &&
+    body.suggestion.suggestedTargetStepId !== null;
+  const selectionChanged =
+    selectedTargetStepId !== (body.persistedSelection.selectedTargetStepId ?? "");
+
+  return (
+    <div className="space-y-4">
+      <StepExecutionShellCard
+        shell={shell}
+        completionOutcome={completionOutcome}
+        isBusy={isBusy}
+        onComplete={() =>
+          completeStepMutation.mutate({
+            projectId,
+            workflowExecutionId: shell.workflowExecutionId,
+            stepExecutionId: shell.stepExecutionId,
+          })
+        }
+      />
+
+      <Card
+        frame="cut-heavy"
+        tone="runtime"
+        corner="white"
+        style={getStepTypeFrameStyle(shell.stepType)}
+      >
+        <CardHeader>
+          <div className="space-y-1">
+            <DetailEyebrow>Branch runtime</DetailEyebrow>
+            <CardTitle>Persist a route selection before completion</CardTitle>
+            <CardDescription>
+              Suggestions stay advisory. Only the saved target selection can unlock branch
+              completion.
+            </CardDescription>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="border border-border/70 bg-background/40 p-3">
+              <DetailLabel>Saved selection</DetailLabel>
+              <DetailPrimary>
+                {body.persistedSelection.selectedTargetStepId ?? "No target saved"}
+              </DetailPrimary>
+              {body.persistedSelection.savedAt ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Saved {formatTimestamp(body.persistedSelection.savedAt)}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="border border-border/70 bg-background/40 p-3">
+              <DetailLabel>Suggestion</DetailLabel>
+              <DetailPrimary>
+                {body.suggestion.suggestedTargetStepId ?? "No current suggestion"}
+              </DetailPrimary>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {formatBranchSuggestionSourceLabel(body.suggestion.source)}
+                {body.suggestion.routeId ? ` · ${body.suggestion.routeId}` : ""}
+              </p>
+            </div>
+
+            <div className="border border-border/70 bg-background/40 p-3">
+              <DetailLabel>Route availability</DetailLabel>
+              <DetailPrimary>{formatBranchAvailabilitySummary(body)}</DetailPrimary>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Default target: {body.defaultTargetStepId ?? "None"}
+              </p>
+            </div>
+          </div>
+
+          {invalidPersistedSelection ? (
+            <div className="flex items-start gap-2 border border-destructive/60 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
+              <span>
+                Saved target {body.persistedSelection.selectedTargetStepId} is no longer valid. Save
+                a new target before completing this branch.
+              </span>
+            </div>
+          ) : null}
+
+          {hasSuggestionOnlyState ? (
+            <div className="flex items-start gap-2 border border-sky-300/40 bg-sky-500/10 px-3 py-2 text-sm text-sky-100">
+              <RadioIcon className="mt-0.5 size-4 shrink-0" />
+              <span>
+                Suggested target {body.suggestion.suggestedTargetStepId} is advisory only until you
+                save it.
+              </span>
+            </div>
+          ) : null}
+
+          {!body.completionSummary.eligible && body.completionSummary.reasonIfIneligible ? (
+            <div className="border border-amber-400/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+              {body.completionSummary.reasonIfIneligible}
+            </div>
+          ) : null}
+
+          {mutationError ? (
+            <div className="border border-destructive/60 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {toErrorMessage(mutationError)}
+            </div>
+          ) : null}
+
+          <div className="space-y-3 border border-border/70 bg-background/40 p-3">
+            <div className="space-y-1">
+              <DetailEyebrow>Selection</DetailEyebrow>
+              <CardTitle>Save the target that should govern completion</CardTitle>
+              <CardDescription>
+                The dropdown only offers server-approved targets from the current runtime payload.
+              </CardDescription>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-end">
+              <div className="space-y-2">
+                <DetailLabel>Target step</DetailLabel>
+                <Select
+                  value={selectedTargetStepId}
+                  onValueChange={(value) => setSelectedTargetStepId(value ?? "")}
+                >
+                  <SelectTrigger
+                    id="branch-selected-target"
+                    className="w-full bg-background/80 text-foreground"
+                  >
+                    <SelectValue placeholder="Choose a target step" />
+                  </SelectTrigger>
+                  <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
+                    {availableTargetStepIds.map((targetStepId) => (
+                      <SelectItem key={targetStepId} value={targetStepId}>
+                        {targetStepId}
+                        {targetStepId === body.defaultTargetStepId && validRoutes.length === 0
+                          ? " (default)"
+                          : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {availableTargetStepIds.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    No valid targets are available to save from the current server payload.
+                  </p>
+                ) : null}
+              </div>
+
+              <Button
+                type="button"
+                disabled={!body.saveSelectionAction.enabled || isBusy || !selectionChanged}
+                onClick={() =>
+                  saveSelectionMutation.mutate({
+                    projectId,
+                    stepExecutionId: shell.stepExecutionId,
+                    selectedTargetStepId: selectedTargetStepId || null,
+                  })
+                }
+              >
+                Save selection
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                disabled={
+                  !body.saveSelectionAction.enabled ||
+                  isBusy ||
+                  body.persistedSelection.selectedTargetStepId === null
+                }
+                onClick={() =>
+                  saveSelectionMutation.mutate({
+                    projectId,
+                    stepExecutionId: shell.stepExecutionId,
+                    selectedTargetStepId: null,
+                  })
+                }
+              >
+                Clear saved selection
+              </Button>
+            </div>
+
+            {!body.saveSelectionAction.enabled && body.saveSelectionAction.reasonIfDisabled ? (
+              <p className="text-xs text-muted-foreground">
+                {body.saveSelectionAction.reasonIfDisabled}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <DetailEyebrow>Conditional routes</DetailEyebrow>
+              <CardTitle>Valid route list</CardTitle>
+              <CardDescription>
+                Single, none, and multi-match states all come from the locked server payload.
+              </CardDescription>
+            </div>
+
+            {body.conditionalRoutes.length === 0 ? (
+              <div className="border border-border/70 bg-background/40 p-3 text-sm text-muted-foreground">
+                No conditional routes were authored for this branch.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {body.conditionalRoutes.map((route) => (
+                  <Card
+                    key={route.routeId}
+                    frame="flat"
+                    tone="runtime"
+                    className="border-border/70 bg-background/40"
+                  >
+                    <CardHeader className="border-b border-border/70">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <CardTitle className="text-sm">{route.routeId}</CardTitle>
+                          <CardDescription>Target step {route.targetStepId}</CardDescription>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <ExecutionBadge
+                            label={route.isValid ? "Valid" : "Blocked"}
+                            tone={route.isValid ? "emerald" : "rose"}
+                          />
+                          <ExecutionBadge label={route.conditionMode.toUpperCase()} tone="slate" />
+                          {body.persistedSelection.selectedTargetStepId === route.targetStepId ? (
+                            <ExecutionBadge label="Saved target" tone="sky" />
+                          ) : null}
+                          {body.suggestion.routeId === route.routeId ? (
+                            <ExecutionBadge label="Suggested" tone="amber" />
+                          ) : null}
+                        </div>
+                      </div>
+                    </CardHeader>
+
+                    <CardContent className="space-y-3 pt-4 text-xs text-muted-foreground">
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <div>
+                          <DetailLabel>Sort order</DetailLabel>
+                          <DetailPrimary>{route.sortOrder}</DetailPrimary>
+                        </div>
+                        <div>
+                          <DetailLabel>Target step</DetailLabel>
+                          <DetailPrimary>{route.targetStepId}</DetailPrimary>
+                        </div>
+                        <div>
+                          <DetailLabel>Evaluation</DetailLabel>
+                          <DetailPrimary>{route.isValid ? "Match" : "Blocked"}</DetailPrimary>
+                        </div>
+                      </div>
+
+                      {!route.isValid && route.evaluationTree?.reason ? (
+                        <p className="text-xs text-muted-foreground">
+                          {route.evaluationTree.reason}
+                        </p>
+                      ) : null}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function InvokeInteractionSurface(props: {
   projectId: string;
   detail: GetRuntimeStepExecutionDetailOutput & { body: InvokeBody };
@@ -3013,11 +4014,17 @@ function InvokeInteractionSurface(props: {
                                   workUnitFactDefinitionId: string;
                                   valueJson: unknown;
                                 }> = [];
-                                const runtimeArtifactValues: Array<{
-                                  artifactSlotDefinitionId: string;
-                                  relativePath: string;
-                                  sourceContextFactDefinitionId?: string;
-                                }> = [];
+                                const runtimeArtifactValues: Array<
+                                  | {
+                                      artifactSlotDefinitionId: string;
+                                      relativePath: string;
+                                      sourceContextFactDefinitionId?: string;
+                                    }
+                                  | {
+                                      artifactSlotDefinitionId: string;
+                                      clear: true;
+                                    }
+                                > = [];
 
                                 for (const binding of editableBindings) {
                                   const rawValue =
@@ -3033,7 +4040,7 @@ function InvokeInteractionSurface(props: {
                                       runtimeArtifactValues.push({
                                         artifactSlotDefinitionId: binding.destinationDefinitionId,
                                         clear: true,
-                                      });
+                                      } as (typeof runtimeArtifactValues)[number]);
                                     }
                                     continue;
                                   }
@@ -4643,6 +5650,16 @@ export function RuntimeFormStepDetailRoute() {
           <FormInteractionSurface
             projectId={projectId}
             detail={detail as typeof detail & { body: FormBody }}
+          />
+        ) : detail.body.stepType === "action" ? (
+          <ActionInteractionSurface
+            projectId={projectId}
+            detail={detail as typeof detail & { body: ActionBody }}
+          />
+        ) : detail.body.stepType === "branch" ? (
+          <BranchInteractionSurface
+            projectId={projectId}
+            detail={detail as typeof detail & { body: BranchBody }}
           />
         ) : detail.body.stepType === "invoke" ? (
           <InvokeInteractionSurface

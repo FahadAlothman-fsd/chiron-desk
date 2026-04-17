@@ -22,7 +22,7 @@ const toWorkUnitIdentity = (
   workUnit: {
     readonly id: string;
     readonly workUnitTypeId: string;
-    readonly currentStateId: string;
+    readonly currentStateId: string | null;
   } | null,
   projectWorkUnitId: string,
 ): GetArtifactSlotsOutput["workUnit"] => ({

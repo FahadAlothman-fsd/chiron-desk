@@ -7,7 +7,11 @@ import type {
   CompleteTransitionExecutionInput,
   GetTransitionExecutionDetailInput,
   GetWorkflowExecutionDetailInput,
+  RetryActionStepActionsInput,
+  RunActionStepActionsInput,
+  SaveBranchStepSelectionInput,
   RetrySameWorkflowExecutionInput,
+  StartActionStepExecutionInput,
   StartInvokeWorkUnitTargetInput,
   StartInvokeWorkflowTargetInput,
   SubmitFormStepExecutionInput,
@@ -25,10 +29,12 @@ import type {
 } from "@chiron/contracts/agent-step/runtime";
 
 import {
+  ActionStepEventStreamService,
   AgentStepEventStreamService,
   AgentStepExecutionDetailService,
   AgentStepSessionCommandService,
   AgentStepTimelineService,
+  ActionStepRuntimeService,
   RuntimeArtifactService,
   RuntimeFactService,
   RuntimeGuidanceService,
@@ -267,6 +273,38 @@ const completeAgentStepExecutionInput: z.ZodType<CompleteAgentStepExecutionInput
   stepExecutionId: z.string().min(1),
 });
 
+const startActionStepExecutionInput: z.ZodType<StartActionStepExecutionInput> = z.object({
+  projectId: z.string().min(1),
+  stepExecutionId: z.string().min(1),
+});
+
+const runActionStepActionsInput: z.ZodType<RunActionStepActionsInput> = z
+  .object({
+    projectId: z.string().min(1),
+    stepExecutionId: z.string().min(1),
+    actionIds: z.array(z.string().min(1)).min(1),
+  })
+  .refine((value) => new Set(value.actionIds).size === value.actionIds.length, {
+    message: "Action ids must be unique.",
+    path: ["actionIds"],
+  });
+
+const retryActionStepActionsInput: z.ZodType<RetryActionStepActionsInput> = z
+  .object({
+    projectId: z.string().min(1),
+    stepExecutionId: z.string().min(1),
+    actionIds: z.array(z.string().min(1)).min(1),
+  })
+  .refine((value) => new Set(value.actionIds).size === value.actionIds.length, {
+    message: "Action ids must be unique.",
+    path: ["actionIds"],
+  });
+
+const completeActionStepExecutionInput = z.object({
+  projectId: z.string().min(1),
+  stepExecutionId: z.string().min(1),
+});
+
 const saveFormStepDraftInput = z.object({
   projectId: z.string().min(1),
   workflowExecutionId: z.string().min(1),
@@ -279,6 +317,12 @@ const submitFormStepInput: z.ZodType<SubmitFormStepExecutionInput> = z.object({
   workflowExecutionId: z.string().min(1),
   stepExecutionId: z.string().min(1),
   values: z.record(z.string(), z.unknown()),
+});
+
+const saveBranchStepSelectionInput: z.ZodType<SaveBranchStepSelectionInput> = z.object({
+  projectId: z.string().min(1),
+  stepExecutionId: z.string().min(1),
+  selectedTargetStepId: z.string().min(1).nullable(),
 });
 
 const completeStepExecutionInput = z.object({
@@ -877,6 +921,66 @@ export function createProjectRuntimeRouter(
         ),
       ),
 
+    startActionStepExecution: protectedProcedure
+      .input(startActionStepExecutionInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const actionStepRuntimeService = yield* ActionStepRuntimeService;
+            return yield* actionStepRuntimeService.startExecution(input);
+          }),
+        ),
+      ),
+
+    runActionStepActions: protectedProcedure
+      .input(runActionStepActionsInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const actionStepRuntimeService = yield* ActionStepRuntimeService;
+            return yield* actionStepRuntimeService.runActions(input);
+          }),
+        ),
+      ),
+
+    retryActionStepActions: protectedProcedure
+      .input(retryActionStepActionsInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const actionStepRuntimeService = yield* ActionStepRuntimeService;
+            return yield* actionStepRuntimeService.retryActions(input);
+          }),
+        ),
+      ),
+
+    completeActionStepExecution: protectedProcedure
+      .input(completeActionStepExecutionInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const actionStepRuntimeService = yield* ActionStepRuntimeService;
+            return yield* actionStepRuntimeService.completeStep(input);
+          }),
+        ),
+      ),
+
+    streamActionStepExecutionEvents: publicProcedure
+      .input(getAgentStepExecutionDetailInput)
+      .handler(async ({ input }) =>
+        runStreamEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const actionStepEventStreamService = yield* ActionStepEventStreamService;
+            return actionStepEventStreamService.streamExecutionEvents(input);
+          }),
+        ),
+      ),
+
     streamAgentStepSessionEvents: publicProcedure
       .input(getAgentStepExecutionDetailInput)
       .handler(async ({ input }) =>
@@ -908,6 +1012,18 @@ export function createProjectRuntimeRouter(
         }),
       ),
     ),
+
+    saveBranchStepSelection: protectedProcedure
+      .input(saveBranchStepSelectionInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const workflowExecutionStepCommandService = yield* WorkflowExecutionStepCommandService;
+            return yield* workflowExecutionStepCommandService.saveBranchStepSelection(input);
+          }),
+        ),
+      ),
 
     completeStepExecution: protectedProcedure
       .input(completeStepExecutionInput)

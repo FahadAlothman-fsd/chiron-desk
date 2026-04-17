@@ -9,6 +9,13 @@ import {
   methodologyCanonicalTableSeedRows,
 } from "./seed/methodology/index.ts";
 import {
+  runtimeMethodologyWorkflowActionStepActionItemSeedRows,
+  runtimeMethodologyWorkflowActionStepActionSeedRows,
+  runtimeMethodologyWorkflowActionStepSeedRows,
+  runtimeMethodologyWorkflowBranchRouteConditionSeedRows,
+  runtimeMethodologyWorkflowBranchRouteGroupSeedRows,
+  runtimeMethodologyWorkflowBranchRouteSeedRows,
+  runtimeMethodologyWorkflowBranchStepSeedRows,
   runtimeMethodologyWorkflowAgentStepExplicitReadGrantSeedRows,
   runtimeMethodologyWorkflowAgentStepWriteItemRequirementSeedRows,
   runtimeMethodologyWorkflowAgentStepWriteItemSeedRows,
@@ -117,7 +124,7 @@ const CANONICAL_TABLES = {
   methodology_fact_definitions: schema.methodologyFactDefinitions,
 };
 
-const RUNTIME_FIXTURE_TABLE_INSERTIONS = [
+export const RUNTIME_FIXTURE_TABLE_INSERTIONS = [
   [
     "methodologyWorkflowContextFactDefinitions",
     schema.methodologyWorkflowContextFactDefinitions,
@@ -159,6 +166,41 @@ const RUNTIME_FIXTURE_TABLE_INSERTIONS = [
     runtimeMethodologyWorkflowContextFactDraftSpecFactSeedRows,
   ],
   ["methodology_workflow_steps", schema.methodologyWorkflowSteps, runtimeMethodologyWorkflowStepSeedRows],
+  [
+    "methodologyWorkflowActionSteps",
+    schema.methodologyWorkflowActionSteps,
+    runtimeMethodologyWorkflowActionStepSeedRows,
+  ],
+  [
+    "methodologyWorkflowActionStepActions",
+    schema.methodologyWorkflowActionStepActions,
+    runtimeMethodologyWorkflowActionStepActionSeedRows,
+  ],
+  [
+    "methodologyWorkflowActionStepActionItems",
+    schema.methodologyWorkflowActionStepActionItems,
+    runtimeMethodologyWorkflowActionStepActionItemSeedRows,
+  ],
+  [
+    "methodologyWorkflowBranchSteps",
+    schema.methodologyWorkflowBranchSteps,
+    runtimeMethodologyWorkflowBranchStepSeedRows,
+  ],
+  [
+    "methodologyWorkflowBranchRoutes",
+    schema.methodologyWorkflowBranchRoutes,
+    runtimeMethodologyWorkflowBranchRouteSeedRows,
+  ],
+  [
+    "methodologyWorkflowBranchRouteGroups",
+    schema.methodologyWorkflowBranchRouteGroups,
+    runtimeMethodologyWorkflowBranchRouteGroupSeedRows,
+  ],
+  [
+    "methodologyWorkflowBranchRouteConditions",
+    schema.methodologyWorkflowBranchRouteConditions,
+    runtimeMethodologyWorkflowBranchRouteConditionSeedRows,
+  ],
   ["methodologyWorkflowAgentSteps", schema.methodologyWorkflowAgentSteps, runtimeMethodologyWorkflowAgentStepSeedRows],
   [
     "methodologyWorkflowAgentStepExplicitReadGrants",
@@ -245,6 +287,21 @@ const seedRuntimeWorkflowFixtures = (plan) =>
 
     const workflowIds = workflowMetadataPatches.map((patch) => patch.workflowId);
     const stepIds = runtimeWorkflowSteps.map((row) => row.id);
+    const actionStepIds = runtimeMethodologyWorkflowActionStepSeedRows
+      .filter((row) => stepIds.includes(row.stepId))
+      .map((row) => row.stepId);
+    const actionRowIds = runtimeMethodologyWorkflowActionStepActionSeedRows
+      .filter((row) => actionStepIds.includes(row.actionStepId))
+      .map((row) => row.id);
+    const branchStepIds = runtimeMethodologyWorkflowBranchStepSeedRows
+      .filter((row) => stepIds.includes(row.stepId))
+      .map((row) => row.stepId);
+    const branchRouteIds = runtimeMethodologyWorkflowBranchRouteSeedRows
+      .filter((row) => branchStepIds.includes(row.branchStepId))
+      .map((row) => row.id);
+    const branchRouteGroupIds = runtimeMethodologyWorkflowBranchRouteGroupSeedRows
+      .filter((row) => branchRouteIds.includes(row.routeId))
+      .map((row) => row.id);
     const invokeStepIds = runtimeMethodologyWorkflowInvokeStepSeedRows
       .filter((row) => stepIds.includes(row.stepId))
       .map((row) => row.stepId);
@@ -268,6 +325,60 @@ const seedRuntimeWorkflowFixtures = (plan) =>
         db
           .delete(schema.methodologyWorkflowInvokeSteps)
           .where(inArray(schema.methodologyWorkflowInvokeSteps.stepId, invokeStepIds)),
+      ).pipe(Effect.asVoid);
+    }
+
+    if (actionRowIds.length > 0) {
+      yield* tryDb("clear_fixture_action_step_action_items", () =>
+        db
+          .delete(schema.methodologyWorkflowActionStepActionItems)
+          .where(inArray(schema.methodologyWorkflowActionStepActionItems.actionRowId, actionRowIds)),
+      ).pipe(Effect.asVoid);
+
+      yield* tryDb("clear_fixture_action_step_actions", () =>
+        db
+          .delete(schema.methodologyWorkflowActionStepActions)
+          .where(inArray(schema.methodologyWorkflowActionStepActions.id, actionRowIds)),
+      ).pipe(Effect.asVoid);
+    }
+
+    if (actionStepIds.length > 0) {
+      yield* tryDb("clear_fixture_action_steps", () =>
+        db
+          .delete(schema.methodologyWorkflowActionSteps)
+          .where(inArray(schema.methodologyWorkflowActionSteps.stepId, actionStepIds)),
+      ).pipe(Effect.asVoid);
+    }
+
+    if (branchRouteGroupIds.length > 0) {
+      yield* tryDb("clear_fixture_branch_route_conditions", () =>
+        db
+          .delete(schema.methodologyWorkflowBranchRouteConditions)
+          .where(
+            inArray(schema.methodologyWorkflowBranchRouteConditions.groupId, branchRouteGroupIds),
+          ),
+      ).pipe(Effect.asVoid);
+    }
+
+    if (branchRouteIds.length > 0) {
+      yield* tryDb("clear_fixture_branch_route_groups", () =>
+        db
+          .delete(schema.methodologyWorkflowBranchRouteGroups)
+          .where(inArray(schema.methodologyWorkflowBranchRouteGroups.routeId, branchRouteIds)),
+      ).pipe(Effect.asVoid);
+
+      yield* tryDb("clear_fixture_branch_routes", () =>
+        db
+          .delete(schema.methodologyWorkflowBranchRoutes)
+          .where(inArray(schema.methodologyWorkflowBranchRoutes.id, branchRouteIds)),
+      ).pipe(Effect.asVoid);
+    }
+
+    if (branchStepIds.length > 0) {
+      yield* tryDb("clear_fixture_branch_steps", () =>
+        db
+          .delete(schema.methodologyWorkflowBranchSteps)
+          .where(inArray(schema.methodologyWorkflowBranchSteps.stepId, branchStepIds)),
       ).pipe(Effect.asVoid);
     }
 
@@ -369,6 +480,26 @@ const seedRuntimeWorkflowFixtures = (plan) =>
 
         if (typeof row?.stepId === "string") {
           return stepIds.includes(row.stepId);
+        }
+
+        if (typeof row?.actionStepId === "string") {
+          return actionStepIds.includes(row.actionStepId);
+        }
+
+        if (typeof row?.actionRowId === "string") {
+          return actionRowIds.includes(row.actionRowId);
+        }
+
+        if (typeof row?.branchStepId === "string") {
+          return branchStepIds.includes(row.branchStepId);
+        }
+
+        if (typeof row?.routeId === "string") {
+          return branchRouteIds.includes(row.routeId);
+        }
+
+        if (typeof row?.groupId === "string") {
+          return branchRouteGroupIds.includes(row.groupId);
         }
 
         if (typeof row?.invokeStepId === "string") {
@@ -482,53 +613,55 @@ const seedUsers = (plan) =>
     );
   });
 
-const options = parseArgs(process.argv.slice(2));
+if (import.meta.main) {
+  const options = parseArgs(process.argv.slice(2));
 
-const program = Effect.gen(function* () {
-  const plan = BASELINE_MANUAL_SEED_PLAN;
+  const program = Effect.gen(function* () {
+    const plan = BASELINE_MANUAL_SEED_PLAN;
 
-  if (options.reset) {
-    yield* Effect.tryPromise({
-      try: () => drizzleReset(db, schema),
-      catch: (cause) => manualSeedDbError("reset_database", cause),
-    });
-    yield* Console.log("Database reset complete.");
-  }
-
-  yield* upsertMethodologyDefinitions(plan);
-  yield* upsertMethodologyVersions(plan);
-  yield* seedCanonicalMethodologyTables(plan);
-  yield* seedRuntimeWorkflowFixtures(plan);
-  yield* seedUsers(plan);
-
-  yield* Console.log("Manual baseline seed applied successfully.");
-  if (plan.users.length > 0) {
-    yield* Console.log(
-      `Seed login: ${plan.users[0].email} / ${plan.users[0].password} (deterministic with --reset).`,
-    );
-  }
-}).pipe(
-  Effect.as(0),
-  Effect.catchAll((error) => {
-    const errorType = classifySeedError(error);
-
-    if (errorType === "missing_tables") {
-      return Console.error(
-        "Seed skipped: database schema is missing. Run `bun run db:push` first.",
-      ).pipe(Effect.as(1));
+    if (options.reset) {
+      yield* Effect.tryPromise({
+        try: () => drizzleReset(db, schema),
+        catch: (cause) => manualSeedDbError("reset_database", cause),
+      });
+      yield* Console.log("Database reset complete.");
     }
 
-    if (shouldSkipSeedError(error, options.reset)) {
-      return Console.warn("Seed data already exists. Continuing without changes.").pipe(
-        Effect.as(0),
+    yield* upsertMethodologyDefinitions(plan);
+    yield* upsertMethodologyVersions(plan);
+    yield* seedCanonicalMethodologyTables(plan);
+    yield* seedRuntimeWorkflowFixtures(plan);
+    yield* seedUsers(plan);
+
+    yield* Console.log("Manual baseline seed applied successfully.");
+    if (plan.users.length > 0) {
+      yield* Console.log(
+        `Seed login: ${plan.users[0].email} / ${plan.users[0].password} (deterministic with --reset).`,
       );
     }
+  }).pipe(
+    Effect.as(0),
+    Effect.catchAll((error) => {
+      const errorType = classifySeedError(error);
 
-    return Console.error(`Manual seed failed with an unexpected error: ${String(error)}`).pipe(
-      Effect.as(1),
-    );
-  }),
-);
+      if (errorType === "missing_tables") {
+        return Console.error(
+          "Seed skipped: database schema is missing. Run `bun run db:push` first.",
+        ).pipe(Effect.as(1));
+      }
 
-const exitCode = await Effect.runPromise(program);
-process.exit(exitCode);
+      if (shouldSkipSeedError(error, options.reset)) {
+        return Console.warn("Seed data already exists. Continuing without changes.").pipe(
+          Effect.as(0),
+        );
+      }
+
+      return Console.error(`Manual seed failed with an unexpected error: ${String(error)}`).pipe(
+        Effect.as(1),
+      );
+    }),
+  );
+
+  const exitCode = await Effect.runPromise(program);
+  process.exit(exitCode);
+}

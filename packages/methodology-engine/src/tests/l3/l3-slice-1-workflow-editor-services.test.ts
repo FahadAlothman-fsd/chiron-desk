@@ -21,6 +21,7 @@ import {
   WorkflowAuthoringTransactionService,
   WorkflowAuthoringTransactionServiceLive,
 } from "../../services/workflow-authoring-transaction-service";
+import { AgentStepDefinitionService } from "../../services/agent-step-definition-service";
 import { RepositoryError } from "../../errors";
 
 const versionRow = {
@@ -210,16 +211,28 @@ function makeLayer() {
   const workflowTopologyLayer = Layer.provide(WorkflowTopologyMutationServiceLive, dependencies);
   const formStepLayer = Layer.provide(FormStepDefinitionServiceLive, dependencies);
   const contextFactLayer = Layer.provide(WorkflowContextFactDefinitionServiceLive, dependencies);
+  const agentStepLayer = Layer.succeed(AgentStepDefinitionService, {
+    createAgentStep: () => Effect.die("unused"),
+    updateAgentStep: () => Effect.die("unused"),
+    deleteAgentStep: () => Effect.die("unused"),
+  } as unknown as Context.Tag.Service<typeof AgentStepDefinitionService>);
 
   return Layer.mergeAll(
     Layer.provide(WorkflowEditorDefinitionServiceLive, dependencies),
     workflowServiceLayer,
     workflowTopologyLayer,
     formStepLayer,
+    agentStepLayer,
     contextFactLayer,
     Layer.provide(
       WorkflowAuthoringTransactionServiceLive,
-      Layer.mergeAll(workflowServiceLayer, workflowTopologyLayer, formStepLayer, contextFactLayer),
+      Layer.mergeAll(
+        workflowServiceLayer,
+        workflowTopologyLayer,
+        formStepLayer,
+        agentStepLayer,
+        contextFactLayer,
+      ),
     ),
   );
 }

@@ -30,12 +30,26 @@ export type MethodologyWorkflowAgentStepWriteItemSeedRow =
   typeof schema.methodologyWorkflowAgentStepWriteItems.$inferInsert;
 export type MethodologyWorkflowAgentStepWriteItemRequirementSeedRow =
   typeof schema.methodologyWorkflowAgentStepWriteItemRequirements.$inferInsert;
+export type MethodologyWorkflowActionStepSeedRow =
+  typeof schema.methodologyWorkflowActionSteps.$inferInsert;
+export type MethodologyWorkflowActionStepActionSeedRow =
+  typeof schema.methodologyWorkflowActionStepActions.$inferInsert;
+export type MethodologyWorkflowActionStepActionItemSeedRow =
+  typeof schema.methodologyWorkflowActionStepActionItems.$inferInsert;
 export type MethodologyWorkflowInvokeStepSeedRow =
   typeof schema.methodologyWorkflowInvokeSteps.$inferInsert;
 export type MethodologyWorkflowInvokeBindingSeedRow =
   typeof schema.methodologyWorkflowInvokeBindings.$inferInsert;
 export type MethodologyWorkflowInvokeTransitionSeedRow =
   typeof schema.methodologyWorkflowInvokeTransitions.$inferInsert;
+export type MethodologyWorkflowBranchStepSeedRow =
+  typeof schema.methodologyWorkflowBranchSteps.$inferInsert;
+export type MethodologyWorkflowBranchRouteSeedRow =
+  typeof schema.methodologyWorkflowBranchRoutes.$inferInsert;
+export type MethodologyWorkflowBranchRouteGroupSeedRow =
+  typeof schema.methodologyWorkflowBranchRouteGroups.$inferInsert;
+export type MethodologyWorkflowBranchRouteConditionSeedRow =
+  typeof schema.methodologyWorkflowBranchRouteConditions.$inferInsert;
 
 export type SetupInvokePhase1FixtureSeedRows = {
   readonly methodologyVersionId: string;
@@ -59,9 +73,16 @@ export type SetupInvokePhase1FixtureSeedRows = {
   readonly methodologyWorkflowAgentStepExplicitReadGrants: readonly MethodologyWorkflowAgentStepExplicitReadGrantSeedRow[];
   readonly methodologyWorkflowAgentStepWriteItems: readonly MethodologyWorkflowAgentStepWriteItemSeedRow[];
   readonly methodologyWorkflowAgentStepWriteItemRequirements: readonly MethodologyWorkflowAgentStepWriteItemRequirementSeedRow[];
+  readonly methodologyWorkflowActionSteps: readonly MethodologyWorkflowActionStepSeedRow[];
+  readonly methodologyWorkflowActionStepActions: readonly MethodologyWorkflowActionStepActionSeedRow[];
+  readonly methodologyWorkflowActionStepActionItems: readonly MethodologyWorkflowActionStepActionItemSeedRow[];
   readonly methodologyWorkflowInvokeSteps: readonly MethodologyWorkflowInvokeStepSeedRow[];
   readonly methodologyWorkflowInvokeBindings: readonly MethodologyWorkflowInvokeBindingSeedRow[];
   readonly methodologyWorkflowInvokeTransitions: readonly MethodologyWorkflowInvokeTransitionSeedRow[];
+  readonly methodologyWorkflowBranchSteps: readonly MethodologyWorkflowBranchStepSeedRow[];
+  readonly methodologyWorkflowBranchRoutes: readonly MethodologyWorkflowBranchRouteSeedRow[];
+  readonly methodologyWorkflowBranchRouteGroups: readonly MethodologyWorkflowBranchRouteGroupSeedRow[];
+  readonly methodologyWorkflowBranchRouteConditions: readonly MethodologyWorkflowBranchRouteConditionSeedRow[];
 };
 
 function guidanceJson(human: string, agent = human) {
@@ -116,6 +137,8 @@ function buildSetupInvokePhase1FixtureSeedRows(
     setup: {
       collect: `seed:l3-setup-invoke:setup:${methodologyVersionId}:step:collect-setup-baseline`,
       synthesize: `seed:l3-setup-invoke:setup:${methodologyVersionId}:step:synthesize-setup-for-invoke`,
+      propagate: `seed:l3-setup-invoke:setup:${methodologyVersionId}:step:propagate-setup-context`,
+      route: `seed:l3-setup-invoke:setup:${methodologyVersionId}:step:route-setup-followups`,
       invokeBrainstorming: `seed:l3-setup-invoke:setup:${methodologyVersionId}:step:invoke-brainstorming-fixed`,
       invokeResearch: `seed:l3-setup-invoke:setup:${methodologyVersionId}:step:invoke-research-from-draft-spec`,
     },
@@ -143,6 +166,8 @@ function buildSetupInvokePhase1FixtureSeedRows(
       documentOutputLanguage: `seed:l3-setup-invoke:setup:${methodologyVersionId}:ctx:cf-method-document-output-language`,
       requiresBrainstorming: `seed:l3-setup-invoke:setup:${methodologyVersionId}:ctx:cf-setup-requires-brainstorming`,
       requiresResearch: `seed:l3-setup-invoke:setup:${methodologyVersionId}:ctx:cf-setup-requires-research`,
+      branchNote: `seed:l3-setup-invoke:setup:${methodologyVersionId}:ctx:cf-setup-branch-note`,
+      followupWorkflows: `seed:l3-setup-invoke:setup:${methodologyVersionId}:ctx:cf-setup-followup-workflows`,
       projectOverviewArtifact: `seed:l3-setup-invoke:setup:${methodologyVersionId}:ctx:cf-project-overview-artifact`,
       brainstormingDraftSpec: `seed:l3-setup-invoke:setup:${methodologyVersionId}:ctx:cf-setup-brainstorming-draft-spec`,
       researchDraftSpec: `seed:l3-setup-invoke:setup:${methodologyVersionId}:ctx:cf-setup-research-draft-spec`,
@@ -171,6 +196,47 @@ function buildSetupInvokePhase1FixtureSeedRows(
     requiresResearch: `seed:l3-setup-invoke:setup:${methodologyVersionId}:write-item:requires-research`,
     brainstormingDraftSpec: `seed:l3-setup-invoke:setup:${methodologyVersionId}:write-item:brainstorming-draft-spec`,
     researchDraftSpec: `seed:l3-setup-invoke:setup:${methodologyVersionId}:write-item:research-draft-spec`,
+    branchNote: `seed:l3-setup-invoke:setup:${methodologyVersionId}:write-item:branch-note`,
+    followupWorkflows: `seed:l3-setup-invoke:setup:${methodologyVersionId}:write-item:followup-workflows`,
+  } as const;
+
+  const actionId = {
+    setup: {
+      decisionFacts: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action:decision-facts`,
+      environmentBindings: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action:environment-bindings`,
+      projectOverviewArtifact: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action:project-overview-artifact`,
+    },
+  } as const;
+
+  const actionRowId = {
+    setup: {
+      decisionFacts: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-row:decision-facts`,
+      environmentBindings: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-row:environment-bindings`,
+      projectOverviewArtifact: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-row:project-overview-artifact`,
+    },
+  } as const;
+
+  const branchRouteId = {
+    setup: {
+      brainstormingThenResearch: "branch_to_brainstorming_then_research",
+      researchOnly: "branch_to_research_only",
+    },
+  } as const;
+
+  const branchRouteRowId = {
+    setup: {
+      brainstormingThenResearch: `seed:l3-setup-invoke:setup:${methodologyVersionId}:branch-route:brainstorming-then-research`,
+      researchOnly: `seed:l3-setup-invoke:setup:${methodologyVersionId}:branch-route:research-only`,
+    },
+  } as const;
+
+  const branchGroupId = {
+    setup: {
+      brainstormingDecisions: `seed:l3-setup-invoke:setup:${methodologyVersionId}:branch-group:brainstorming-decisions`,
+      brainstormingSignals: `seed:l3-setup-invoke:setup:${methodologyVersionId}:branch-group:brainstorming-signals`,
+      researchOnlyDecisions: `seed:l3-setup-invoke:setup:${methodologyVersionId}:branch-group:research-only-decisions`,
+      researchOnlyNote: `seed:l3-setup-invoke:setup:${methodologyVersionId}:branch-group:research-only-note`,
+    },
   } as const;
 
   return {
@@ -311,6 +377,36 @@ function buildSetupInvokePhase1FixtureSeedRows(
         cardinality: "one",
         guidanceJson: guidanceJson(
           "Have the setup agent record whether research follow-up should be created.",
+        ),
+      },
+      {
+        id: contextFactId.setup.branchNote,
+        workflowId: workflowId.setup,
+        factKey: "cf_setup_branch_note",
+        factKind: "definition_backed_external_fact",
+        label: "Setup Branch Note",
+        descriptionJson: {
+          markdown:
+            "Lightweight routing note authored by the setup synthesis agent for the seeded branch step.",
+        },
+        cardinality: "one",
+        guidanceJson: guidanceJson(
+          "Write a short branch note describing whether the setup flow should go to brainstorming first or straight to research.",
+        ),
+      },
+      {
+        id: contextFactId.setup.followupWorkflows,
+        workflowId: workflowId.setup,
+        factKey: "cf_setup_followup_workflows",
+        factKind: "workflow_reference_fact",
+        label: "Setup Follow-up Workflows",
+        descriptionJson: {
+          markdown:
+            "Workflow references surfaced by the setup synthesis agent so follow-up routing stays explicit.",
+        },
+        cardinality: "many",
+        guidanceJson: guidanceJson(
+          "Write the follow-up workflow references that the seeded branch step should treat as eligible next moves.",
         ),
       },
       {
@@ -486,6 +582,12 @@ function buildSetupInvokePhase1FixtureSeedRows(
         bindingKey: "requires_research",
       },
       {
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:binding:cf-setup-branch-note`,
+        contextFactDefinitionId: contextFactId.setup.branchNote,
+        provider: "definition_backed_external_fact",
+        bindingKey: "branch_note",
+      },
+      {
         id: `seed:l3-setup-invoke:brainstorming:${methodologyVersionId}:binding:cf-brainstorming-desired-outcome`,
         contextFactDefinitionId: contextFactId.brainstormingPrimary.desiredOutcome,
         provider: "definition_backed_external_fact",
@@ -505,6 +607,16 @@ function buildSetupInvokePhase1FixtureSeedRows(
       },
     ],
     methodologyWorkflowContextFactWorkflowReferences: [
+      {
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:workflow-ref:brainstorming-primary`,
+        contextFactDefinitionId: contextFactId.setup.followupWorkflows,
+        workflowDefinitionId: workflowId.brainstormingPrimary,
+      },
+      {
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:workflow-ref:research-primary`,
+        contextFactDefinitionId: contextFactId.setup.followupWorkflows,
+        workflowDefinitionId: workflowId.researchPrimary,
+      },
       {
         id: `seed:l3-setup-invoke:brainstorming:${methodologyVersionId}:workflow-ref:brainstorming-support`,
         contextFactDefinitionId: contextFactId.brainstormingPrimary.supportWorkflows,
@@ -613,6 +725,30 @@ function buildSetupInvokePhase1FixtureSeedRows(
         ),
       },
       {
+        id: stepId.setup.propagate,
+        methodologyVersionId,
+        workflowId: workflowId.setup,
+        key: "propagate_setup_context",
+        type: "action",
+        displayName: "Propagate Setup Context",
+        configJson: null,
+        guidanceJson: guidanceJson(
+          "Propagate the locked setup decision, environment, and artifact context before follow-up routing.",
+        ),
+      },
+      {
+        id: stepId.setup.route,
+        methodologyVersionId,
+        workflowId: workflowId.setup,
+        key: "route_setup_followups",
+        type: "branch",
+        displayName: "Route Setup Follow-ups",
+        configJson: null,
+        guidanceJson: guidanceJson(
+          "Route to brainstorming-first or research-only follow-up workflows using the seeded setup signals.",
+        ),
+      },
+      {
         id: stepId.setup.invokeBrainstorming,
         methodologyVersionId,
         workflowId: workflowId.setup,
@@ -700,26 +836,25 @@ function buildSetupInvokePhase1FixtureSeedRows(
         },
       },
       {
-        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:edge:synthesize-to-invoke-brainstorming`,
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:edge:synthesize-to-propagate`,
         methodologyVersionId,
         workflowId: workflowId.setup,
         fromStepId: stepId.setup.synthesize,
-        toStepId: stepId.setup.invokeBrainstorming,
-        edgeKey: "synthesize_setup_for_invoke_to_invoke_brainstorming_fixed",
+        toStepId: stepId.setup.propagate,
+        edgeKey: "synthesize_setup_for_invoke_to_propagate_setup_context",
         descriptionJson: {
-          markdown: "Proceed from synthesis to the fixed-set brainstorming invoke.",
+          markdown: "Proceed from synthesis to the locked setup-context propagation step.",
         },
       },
       {
-        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:edge:invoke-brainstorming-to-invoke-research`,
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:edge:propagate-to-route`,
         methodologyVersionId,
         workflowId: workflowId.setup,
-        fromStepId: stepId.setup.invokeBrainstorming,
-        toStepId: stepId.setup.invokeResearch,
-        edgeKey: "invoke_brainstorming_fixed_to_invoke_research_from_draft_spec",
+        fromStepId: stepId.setup.propagate,
+        toStepId: stepId.setup.route,
+        edgeKey: "propagate_setup_context_to_route_setup_followups",
         descriptionJson: {
-          markdown:
-            "Proceed from the fixed-set brainstorming invoke to the draft-spec-backed research invoke.",
+          markdown: "Proceed from propagation to the seeded follow-up branch step.",
         },
       },
       {
@@ -879,14 +1014,16 @@ function buildSetupInvokePhase1FixtureSeedRows(
       {
         stepId: stepId.setup.synthesize,
         objective:
-          "Write the minimum setup-owned outputs needed by the phase-1 invoke runtime seed: a project overview artifact reference, both setup follow-up booleans, at least one brainstorming draft spec, and at least one research draft spec.",
+          "Write the minimum setup-owned outputs needed by the phase-1 invoke runtime seed: a project overview artifact reference, both setup follow-up booleans, a branch note, follow-up workflow references, at least one brainstorming draft spec, and at least one research draft spec.",
         instructionsMarkdown:
-          "Create a lightweight PROJECT_OVERVIEW artifact reference in `cf_project_overview_artifact`. Write `cf_setup_requires_brainstorming` and `cf_setup_requires_research`. Author at least one brainstorming draft-spec item in `cf_setup_brainstorming_draft_spec` with prefilled `desired_outcome` and `selected_direction`. Author at least one research draft-spec item in `cf_setup_research_draft_spec` with a prefilled `research_topic`. Keep the flow lightweight and do not assume propagation, branch logic, or transition gates.",
+          "Create a lightweight PROJECT_OVERVIEW artifact reference in `cf_project_overview_artifact`. Write `cf_setup_requires_brainstorming`, `cf_setup_requires_research`, `cf_setup_branch_note`, and the explicit workflow references in `cf_setup_followup_workflows`. Author at least one brainstorming draft-spec item in `cf_setup_brainstorming_draft_spec` with prefilled `desired_outcome` and `selected_direction`. Author at least one research draft-spec item in `cf_setup_research_draft_spec` with a prefilled `research_topic`. Keep the flow lightweight and do not assume richer Plan-B-only payloads.",
         harness: "opencode",
         agentKey: "Atlas (Plan Executor)",
         modelJson: { provider: "opencode", model: "kimi-2.5" },
         completionRequirementsJson: [
           { contextFactDefinitionId: contextFactId.setup.projectOverviewArtifact },
+          { contextFactDefinitionId: contextFactId.setup.branchNote },
+          { contextFactDefinitionId: contextFactId.setup.followupWorkflows },
           { contextFactDefinitionId: contextFactId.setup.brainstormingDraftSpec },
           { contextFactDefinitionId: contextFactId.setup.researchDraftSpec },
         ],
@@ -956,6 +1093,24 @@ function buildSetupInvokePhase1FixtureSeedRows(
         sortOrder: 300,
       },
       {
+        id: writeItemId.branchNote,
+        agentStepId: stepId.setup.synthesize,
+        writeItemId: "cf_setup_branch_note",
+        contextFactDefinitionId: contextFactId.setup.branchNote,
+        contextFactKind: "definition_backed_external_fact",
+        label: "Setup Branch Note",
+        sortOrder: 350,
+      },
+      {
+        id: writeItemId.followupWorkflows,
+        agentStepId: stepId.setup.synthesize,
+        writeItemId: "cf_setup_followup_workflows",
+        contextFactDefinitionId: contextFactId.setup.followupWorkflows,
+        contextFactKind: "workflow_reference_fact",
+        label: "Setup Follow-up Workflows",
+        sortOrder: 375,
+      },
+      {
         id: writeItemId.brainstormingDraftSpec,
         agentStepId: stepId.setup.synthesize,
         writeItemId: "cf_setup_brainstorming_draft_spec",
@@ -988,12 +1143,274 @@ function buildSetupInvokePhase1FixtureSeedRows(
         contextFactDefinitionId: contextFactId.setup.projectKind,
       },
       {
+        writeItemRowId: writeItemId.branchNote,
+        contextFactDefinitionId: contextFactId.setup.projectKind,
+      },
+      {
+        writeItemRowId: writeItemId.followupWorkflows,
+        contextFactDefinitionId: contextFactId.setup.projectKind,
+      },
+      {
         writeItemRowId: writeItemId.brainstormingDraftSpec,
         contextFactDefinitionId: contextFactId.setup.projectKind,
       },
       {
         writeItemRowId: writeItemId.researchDraftSpec,
         contextFactDefinitionId: contextFactId.setup.projectKind,
+      },
+    ],
+    methodologyWorkflowActionSteps: [
+      {
+        stepId: stepId.setup.propagate,
+        executionMode: "sequential",
+      },
+    ],
+    methodologyWorkflowActionStepActions: [
+      {
+        id: actionRowId.setup.decisionFacts,
+        actionStepId: stepId.setup.propagate,
+        actionId: actionId.setup.decisionFacts,
+        actionKey: "propagate_setup_decision_facts",
+        label: "Propagate Setup Decision Facts",
+        enabled: true,
+        sortOrder: 10,
+        actionKind: "propagation",
+        contextFactDefinitionId: contextFactId.setup.requiresBrainstorming,
+        contextFactKind: "definition_backed_external_fact",
+      },
+      {
+        id: actionRowId.setup.environmentBindings,
+        actionStepId: stepId.setup.propagate,
+        actionId: actionId.setup.environmentBindings,
+        actionKey: "propagate_setup_environment_bindings",
+        label: "Propagate Setup Environment Bindings",
+        enabled: true,
+        sortOrder: 20,
+        actionKind: "propagation",
+        contextFactDefinitionId: contextFactId.setup.projectKnowledgeDirectory,
+        contextFactKind: "bound_external_fact",
+      },
+      {
+        id: actionRowId.setup.projectOverviewArtifact,
+        actionStepId: stepId.setup.propagate,
+        actionId: actionId.setup.projectOverviewArtifact,
+        actionKey: "propagate_project_overview_artifact_reference",
+        label: "Propagate Project Overview Artifact Reference",
+        enabled: true,
+        sortOrder: 30,
+        actionKind: "propagation",
+        contextFactDefinitionId: contextFactId.setup.projectOverviewArtifact,
+        contextFactKind: "artifact_reference_fact",
+      },
+    ],
+    methodologyWorkflowActionStepActionItems: [
+      {
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item:requires-brainstorming`,
+        actionRowId: actionRowId.setup.decisionFacts,
+        itemId: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item-id:requires-brainstorming`,
+        itemKey: "setup_decision.requires_brainstorming",
+        label: "Requires Brainstorming",
+        sortOrder: 10,
+      },
+      {
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item:requires-research`,
+        actionRowId: actionRowId.setup.decisionFacts,
+        itemId: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item-id:requires-research`,
+        itemKey: "setup_decision.requires_research",
+        label: "Requires Research",
+        sortOrder: 20,
+        targetContextFactDefinitionId: contextFactId.setup.requiresResearch,
+      },
+      {
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item:branch-note`,
+        actionRowId: actionRowId.setup.decisionFacts,
+        itemId: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item-id:branch-note`,
+        itemKey: "setup_decision.branch_note",
+        label: "Setup Branch Note",
+        sortOrder: 30,
+        targetContextFactDefinitionId: contextFactId.setup.branchNote,
+      },
+      {
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item:project-knowledge-directory`,
+        actionRowId: actionRowId.setup.environmentBindings,
+        itemId: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item-id:project-knowledge-directory`,
+        itemKey: "setup_environment.project_knowledge_directory",
+        label: "Project Knowledge Directory",
+        sortOrder: 10,
+      },
+      {
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item:planning-artifacts-directory`,
+        actionRowId: actionRowId.setup.environmentBindings,
+        itemId: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item-id:planning-artifacts-directory`,
+        itemKey: "setup_environment.planning_artifacts_directory",
+        label: "Planning Artifacts Directory",
+        sortOrder: 20,
+      },
+      {
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item:communication-language`,
+        actionRowId: actionRowId.setup.environmentBindings,
+        itemId: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item-id:communication-language`,
+        itemKey: "setup_environment.communication_language",
+        label: "Communication Language",
+        sortOrder: 30,
+      },
+      {
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item:document-output-language`,
+        actionRowId: actionRowId.setup.environmentBindings,
+        itemId: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item-id:document-output-language`,
+        itemKey: "setup_environment.document_output_language",
+        label: "Document Output Language",
+        sortOrder: 40,
+      },
+      {
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item:followup-workflows`,
+        actionRowId: actionRowId.setup.environmentBindings,
+        itemId: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item-id:followup-workflows`,
+        itemKey: "setup_environment.followup_workflows",
+        label: "Setup Follow-up Workflows",
+        sortOrder: 50,
+      },
+      {
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item:project-overview-artifact`,
+        actionRowId: actionRowId.setup.projectOverviewArtifact,
+        itemId: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item-id:project-overview-artifact`,
+        itemKey: "setup_artifact.project_overview",
+        label: "Project Overview Artifact",
+        sortOrder: 10,
+      },
+    ],
+    methodologyWorkflowBranchSteps: [
+      {
+        stepId: stepId.setup.route,
+        defaultTargetStepId: null,
+        configJson: null,
+      },
+    ],
+    methodologyWorkflowBranchRoutes: [
+      {
+        id: branchRouteRowId.setup.brainstormingThenResearch,
+        branchStepId: stepId.setup.route,
+        routeId: branchRouteId.setup.brainstormingThenResearch,
+        targetStepId: stepId.setup.invokeBrainstorming,
+        conditionMode: "all",
+        sortOrder: 10,
+      },
+      {
+        id: branchRouteRowId.setup.researchOnly,
+        branchStepId: stepId.setup.route,
+        routeId: branchRouteId.setup.researchOnly,
+        targetStepId: stepId.setup.invokeResearch,
+        conditionMode: "any",
+        sortOrder: 20,
+      },
+    ],
+    methodologyWorkflowBranchRouteGroups: [
+      {
+        id: branchGroupId.setup.brainstormingDecisions,
+        routeId: branchRouteRowId.setup.brainstormingThenResearch,
+        groupId: "brainstorming_then_research_decisions",
+        mode: "all",
+        sortOrder: 10,
+      },
+      {
+        id: branchGroupId.setup.brainstormingSignals,
+        routeId: branchRouteRowId.setup.brainstormingThenResearch,
+        groupId: "brainstorming_then_research_signals",
+        mode: "any",
+        sortOrder: 20,
+      },
+      {
+        id: branchGroupId.setup.researchOnlyDecisions,
+        routeId: branchRouteRowId.setup.researchOnly,
+        groupId: "research_only_decisions",
+        mode: "all",
+        sortOrder: 10,
+      },
+      {
+        id: branchGroupId.setup.researchOnlyNote,
+        routeId: branchRouteRowId.setup.researchOnly,
+        groupId: "research_only_note",
+        mode: "all",
+        sortOrder: 20,
+      },
+    ],
+    methodologyWorkflowBranchRouteConditions: [
+      {
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:branch-condition:brainstorming-required`,
+        groupId: branchGroupId.setup.brainstormingDecisions,
+        conditionId: "brainstorming_required",
+        contextFactDefinitionId: contextFactId.setup.requiresBrainstorming,
+        subFieldKey: null,
+        operator: "equals",
+        isNegated: false,
+        comparisonJson: { value: true },
+        sortOrder: 10,
+      },
+      {
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:branch-condition:research-required`,
+        groupId: branchGroupId.setup.brainstormingDecisions,
+        conditionId: "research_required",
+        contextFactDefinitionId: contextFactId.setup.requiresResearch,
+        subFieldKey: null,
+        operator: "equals",
+        isNegated: false,
+        comparisonJson: { value: true },
+        sortOrder: 20,
+      },
+      {
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:branch-condition:followup-workflows-exist`,
+        groupId: branchGroupId.setup.brainstormingSignals,
+        conditionId: "followup_workflows_exist",
+        contextFactDefinitionId: contextFactId.setup.followupWorkflows,
+        subFieldKey: null,
+        operator: "exists",
+        isNegated: false,
+        comparisonJson: null,
+        sortOrder: 10,
+      },
+      {
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:branch-condition:branch-note-brainstorming`,
+        groupId: branchGroupId.setup.brainstormingSignals,
+        conditionId: "branch_note_brainstorming_then_research",
+        contextFactDefinitionId: contextFactId.setup.branchNote,
+        subFieldKey: "value",
+        operator: "equals",
+        isNegated: false,
+        comparisonJson: { value: "brainstorm_then_research" },
+        sortOrder: 20,
+      },
+      {
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:branch-condition:research-required-only`,
+        groupId: branchGroupId.setup.researchOnlyDecisions,
+        conditionId: "research_required_only",
+        contextFactDefinitionId: contextFactId.setup.requiresResearch,
+        subFieldKey: null,
+        operator: "equals",
+        isNegated: false,
+        comparisonJson: { value: true },
+        sortOrder: 10,
+      },
+      {
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:branch-condition:brainstorming-not-required`,
+        groupId: branchGroupId.setup.researchOnlyDecisions,
+        conditionId: "brainstorming_not_required",
+        contextFactDefinitionId: contextFactId.setup.requiresBrainstorming,
+        subFieldKey: null,
+        operator: "equals",
+        isNegated: true,
+        comparisonJson: { value: true },
+        sortOrder: 20,
+      },
+      {
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:branch-condition:branch-note-research`,
+        groupId: branchGroupId.setup.researchOnlyNote,
+        conditionId: "branch_note_research_only",
+        contextFactDefinitionId: contextFactId.setup.branchNote,
+        subFieldKey: "value",
+        operator: "equals",
+        isNegated: false,
+        comparisonJson: { value: "research_only" },
+        sortOrder: 10,
       },
     ],
     methodologyWorkflowInvokeSteps: [

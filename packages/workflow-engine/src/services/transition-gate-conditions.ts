@@ -28,12 +28,24 @@ const toRuntimeCondition = (value: unknown): RuntimeCondition | null => {
 
     const factDefinitionId =
       typeof config.factDefinitionId === "string" ? config.factDefinitionId : undefined;
+    const operator = config.operator === "equals" ? "equals" : "exists";
+    const subFieldKey =
+      typeof config.subFieldKey === "string" && config.subFieldKey.length > 0
+        ? config.subFieldKey
+        : undefined;
+    const isNegated = config.isNegated === true ? true : undefined;
+    const comparisonJson = Object.prototype.hasOwnProperty.call(config, "comparisonJson")
+      ? config.comparisonJson
+      : undefined;
 
     return {
       kind: "fact",
       factKey,
-      operator: "exists",
+      operator,
       ...(factDefinitionId ? { factDefinitionId } : {}),
+      ...(subFieldKey ? { subFieldKey } : {}),
+      ...(isNegated ? { isNegated } : {}),
+      ...(typeof comparisonJson !== "undefined" ? { comparisonJson } : {}),
     };
   }
 
@@ -45,12 +57,24 @@ const toRuntimeCondition = (value: unknown): RuntimeCondition | null => {
 
     const factDefinitionId =
       typeof config.factDefinitionId === "string" ? config.factDefinitionId : undefined;
+    const operator = config.operator === "equals" ? "equals" : "exists";
+    const subFieldKey =
+      typeof config.subFieldKey === "string" && config.subFieldKey.length > 0
+        ? config.subFieldKey
+        : undefined;
+    const isNegated = config.isNegated === true ? true : undefined;
+    const comparisonJson = Object.prototype.hasOwnProperty.call(config, "comparisonJson")
+      ? config.comparisonJson
+      : undefined;
 
     return {
       kind: "work_unit_fact",
       factKey,
-      operator: "exists",
+      operator,
       ...(factDefinitionId ? { factDefinitionId } : {}),
+      ...(subFieldKey ? { subFieldKey } : {}),
+      ...(isNegated ? { isNegated } : {}),
+      ...(typeof comparisonJson !== "undefined" ? { comparisonJson } : {}),
     };
   }
 

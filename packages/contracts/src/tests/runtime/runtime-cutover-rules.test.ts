@@ -33,12 +33,12 @@ describe("runtime cutover and legacy compatibility rules", () => {
     ).toThrow();
   });
 
-  it("explicitly excludes step_executions and any L3 step contracts", () => {
+  it("keeps legacy exclusion markers while exporting the live step-execution contracts", () => {
     const decodeExcludedEntity = Schema.decodeUnknownSync(RuntimeExcludedL3Entity);
     expect(decodeExcludedEntity("step_executions")).toBe("step_executions");
 
     const runtimeExportKeys = Object.keys(Runtime);
-    expect(runtimeExportKeys.some((key) => /StepExecution/.test(key))).toBe(false);
+    expect(runtimeExportKeys.some((key) => /StepExecution/.test(key))).toBe(true);
     expect(runtimeExportKeys.some((key) => /L3Event/.test(key))).toBe(false);
   });
 });

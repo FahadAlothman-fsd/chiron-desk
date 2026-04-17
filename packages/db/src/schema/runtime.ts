@@ -2,7 +2,12 @@ import { sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 
-import { AGENT_STEP_RUNTIME_STATES, WORKFLOW_CONTEXT_FACT_KINDS } from "@chiron/contracts";
+import {
+  AGENT_STEP_RUNTIME_STATES,
+  ACTION_STEP_RUNTIME_ITEM_STATUSES,
+  ACTION_STEP_RUNTIME_ROW_STATUSES,
+  WORKFLOW_CONTEXT_FACT_KINDS,
+} from "@chiron/contracts";
 
 import {
   methodologyArtifactSlotDefinitions,
@@ -571,6 +576,157 @@ export const agentStepExecutionAppliedWrites = sqliteTable(
     ),
     index("agent_step_execution_applied_writes_fact_idx").on(table.contextFactDefinitionId),
     index("agent_step_execution_applied_writes_write_item_idx").on(table.writeItemId),
+  ],
+);
+
+export const actionStepExecutions = sqliteTable(
+  "action_step_executions",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    stepExecutionId: text("step_execution_id")
+      .notNull()
+      .references(() => stepExecutions.id, { onDelete: "cascade" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(timestampDefault),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(timestampDefault)
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [uniqueIndex("action_step_executions_step_idx").on(table.stepExecutionId)],
+);
+
+export const actionStepExecutionActions = sqliteTable(
+  "action_step_execution_actions",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    actionStepExecutionId: text("action_step_execution_id")
+      .notNull()
+      .references(() => actionStepExecutions.id, { onDelete: "cascade" }),
+    actionDefinitionId: text("action_definition_id").notNull(),
+    actionKind: text("action_kind", { enum: ["propagation"] }).notNull(),
+    status: text("status", { enum: ACTION_STEP_RUNTIME_ROW_STATUSES }).notNull(),
+    resultSummaryJson: text("result_summary_json", { mode: "json" }),
+    resultJson: text("result_json", { mode: "json" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(timestampDefault),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(timestampDefault)
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("action_step_execution_actions_root_action_idx").on(
+      table.actionStepExecutionId,
+      table.actionDefinitionId,
+    ),
+    index("action_step_execution_actions_root_idx").on(
+      table.actionStepExecutionId,
+      table.createdAt,
+      table.id,
+    ),
+    index("action_step_execution_actions_action_definition_idx").on(table.actionDefinitionId),
+    index("action_step_execution_actions_status_idx").on(table.status),
+  ],
+);
+
+export const actionStepExecutionActionItems = sqliteTable(
+  "action_step_execution_action_items",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    actionExecutionId: text("action_execution_id")
+      .notNull()
+      .references(() => actionStepExecutionActions.id, { onDelete: "cascade" }),
+    itemDefinitionId: text("item_definition_id").notNull(),
+    status: text("status", { enum: ACTION_STEP_RUNTIME_ITEM_STATUSES }).notNull(),
+    resultSummaryJson: text("result_summary_json", { mode: "json" }),
+    resultJson: text("result_json", { mode: "json" }),
+    affectedTargetsJson: text("affected_targets_json", { mode: "json" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(timestampDefault),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(timestampDefault)
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("action_step_execution_action_items_action_item_idx").on(
+      table.actionExecutionId,
+      table.itemDefinitionId,
+    ),
+    index("action_step_execution_action_items_action_idx").on(
+      table.actionExecutionId,
+      table.createdAt,
+      table.id,
+    ),
+    index("action_step_execution_action_items_item_definition_idx").on(table.itemDefinitionId),
+    index("action_step_execution_action_items_status_idx").on(table.status),
+  ],
+);
+
+export const branchStepExecutions = sqliteTable(
+  "branch_step_executions",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    stepExecutionId: text("step_execution_id")
+      .notNull()
+      .references(() => stepExecutions.id, { onDelete: "cascade" }),
+    selectedTargetStepId: text("selected_target_step_id").references(
+      () => methodologyWorkflowSteps.id,
+      { onDelete: "restrict" },
+    ),
+    savedAt: integer("saved_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(timestampDefault),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(timestampDefault)
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("branch_step_executions_step_idx").on(table.stepExecutionId),
+    index("branch_step_executions_selected_target_idx").on(table.selectedTargetStepId),
+  ],
+);
+
+export const branchStepExecutionRoutes = sqliteTable(
+  "branch_step_execution_routes",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    branchStepExecutionId: text("branch_step_execution_id")
+      .notNull()
+      .references(() => branchStepExecutions.id, { onDelete: "cascade" }),
+    routeId: text("route_id").notNull(),
+    targetStepId: text("target_step_id")
+      .notNull()
+      .references(() => methodologyWorkflowSteps.id, { onDelete: "restrict" }),
+    sortOrder: integer("sort_order").notNull(),
+    conditionMode: text("condition_mode", { enum: ["all", "any"] }).notNull(),
+    isValid: integer("is_valid", { mode: "boolean" }).notNull(),
+    evaluationTreeJson: text("evaluation_tree_json", { mode: "json" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(timestampDefault),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(timestampDefault)
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("branch_step_execution_routes_root_route_idx").on(
+      table.branchStepExecutionId,
+      table.routeId,
+    ),
+    index("branch_step_execution_routes_root_order_idx").on(
+      table.branchStepExecutionId,
+      table.sortOrder,
+      table.id,
+    ),
+    index("branch_step_execution_routes_target_idx").on(table.targetStepId),
   ],
 );
 

@@ -1,8 +1,10 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "@/components/ui/sonner";
+import { BRANCH_STEP_CONDITION_OPERATORS } from "@chiron/contracts/methodology/workflow";
 
 import type {
+  WorkflowActionStepPayload,
   WorkflowBranchStepPayload,
   WorkflowAgentStepPayload,
   WorkflowContextFactDefinitionItem,
@@ -37,6 +39,7 @@ type RawEditorDefinition = {
   contextFacts?: unknown;
   formDefinitions?: unknown;
   agentStepDefinitions?: unknown;
+  actionStepDefinitions?: unknown;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -298,6 +301,8 @@ const BUILT_IN_CONDITION_OPERATORS: readonly WorkflowConditionOperator[] = [
     validateComparison: (comparison) => hasStringComparisonValue(comparison),
   },
 ];
+
+const PLAN_A_BRANCH_CONDITION_OPERATOR_KEYS = new Set<string>(BRANCH_STEP_CONDITION_OPERATORS);
 
 function normalizeContextFactKind(
   value: unknown,
@@ -836,13 +841,93 @@ function toWorkflowBranchPayload(rawPayload: unknown): WorkflowBranchStepPayload
   };
 }
 
+function toWorkflowActionPayload(rawPayload: unknown): WorkflowActionStepPayload | null {
+  const payload = asRecord(rawPayload);
+  if (!payload || typeof payload.key !== "string") {
+    return null;
+  }
+
+  const guidance = readGuidance(payload.guidanceJson ?? payload.guidance);
+
+  return {
+    key: payload.key,
+    ...(typeof payload.label === "string" ? { label: payload.label } : {}),
+    ...(readMarkdown(payload.descriptionJson)
+      ? { descriptionJson: { markdown: readMarkdown(payload.descriptionJson) } }
+      : {}),
+    guidance: {
+      human: { markdown: guidance.humanMarkdown },
+      agent: { markdown: guidance.agentMarkdown },
+    },
+    executionMode: payload.executionMode === "parallel" ? "parallel" : "sequential",
+    actions: Array.isArray(payload.actions)
+      ? payload.actions.flatMap((rawAction, index) => {
+          const action = asRecord(rawAction);
+          if (
+            !action ||
+            typeof action.actionId !== "string" ||
+            typeof action.actionKey !== "string" ||
+            typeof action.contextFactDefinitionId !== "string" ||
+            (action.contextFactKind !== "definition_backed_external_fact" &&
+              action.contextFactKind !== "bound_external_fact" &&
+              action.contextFactKind !== "artifact_reference_fact")
+          ) {
+            return [];
+          }
+
+          return [
+            {
+              actionId: action.actionId,
+              actionKey: action.actionKey,
+              ...(typeof action.label === "string" ? { label: action.label } : {}),
+              enabled: action.enabled !== false,
+              sortOrder:
+                typeof action.sortOrder === "number" && Number.isFinite(action.sortOrder)
+                  ? action.sortOrder
+                  : (index + 1) * 100,
+              actionKind: "propagation" as const,
+              contextFactDefinitionId: action.contextFactDefinitionId,
+              contextFactKind: action.contextFactKind,
+              items: Array.isArray(action.items)
+                ? action.items.flatMap((rawItem, itemIndex) => {
+                    const item = asRecord(rawItem);
+                    if (
+                      !item ||
+                      typeof item.itemId !== "string" ||
+                      typeof item.itemKey !== "string"
+                    ) {
+                      return [];
+                    }
+
+                    return [
+                      {
+                        itemId: item.itemId,
+                        itemKey: item.itemKey,
+                        ...(typeof item.label === "string" ? { label: item.label } : {}),
+                        sortOrder:
+                          typeof item.sortOrder === "number" && Number.isFinite(item.sortOrder)
+                            ? item.sortOrder
+                            : (itemIndex + 1) * 100,
+                      },
+                    ];
+                  })
+                : [],
+            },
+          ];
+        })
+      : [],
+  };
+}
+
 function toWorkflowSteps(
   rawSteps: unknown,
   rawFormDefinitions: unknown,
   rawAgentStepDefinitions: unknown,
+  rawActionStepDefinitions: unknown,
 ): WorkflowEditorStep[] {
   const definitionsByStepId = new Map<string, WorkflowFormStepPayload>();
   const agentDefinitionsByStepId = new Map<string, WorkflowAgentStepPayload>();
+  const actionDefinitionsByStepId = new Map<string, WorkflowActionStepPayload>();
 
   if (Array.isArray(rawFormDefinitions)) {
     rawFormDefinitions.forEach((entry) => {
@@ -868,6 +953,27 @@ function toWorkflowSteps(
       const payload = toWorkflowAgentPayload(definition.payload);
       if (payload) {
         agentDefinitionsByStepId.set(definition.step.stepId, payload);
+      }
+    });
+  }
+
+  if (Array.isArray(rawActionStepDefinitions)) {
+    rawActionStepDefinitions.forEach((entry) => {
+      const definition = asRecord(entry);
+      const nestedStep = asRecord(definition?.step);
+      const stepId =
+        typeof definition?.stepId === "string"
+          ? definition.stepId
+          : typeof nestedStep?.stepId === "string"
+            ? nestedStep.stepId
+            : null;
+      if (!stepId) {
+        return;
+      }
+
+      const payload = toWorkflowActionPayload(definition?.payload);
+      if (payload) {
+        actionDefinitionsByStepId.set(stepId, payload);
       }
     });
   }
@@ -933,6 +1039,42 @@ function toWorkflowSteps(
               stepId,
               stepType: "agent",
               payload,
+            };
+          }
+
+          if (step.stepType === "action" || step.type === "action") {
+            const payload =
+              toWorkflowActionPayload(step.payload) ?? actionDefinitionsByStepId.get(stepId);
+            if (payload) {
+              return {
+                stepId,
+                stepType: "action",
+                payload,
+              };
+            }
+
+            return {
+              stepId,
+              stepType: "action",
+              payload: {
+                key:
+                  typeof step.stepKey === "string" && step.stepKey.trim().length > 0
+                    ? step.stepKey
+                    : `action-${index + 1}`,
+                label:
+                  typeof step.stepLabel === "string" && step.stepLabel.trim().length > 0
+                    ? step.stepLabel
+                    : "Action Step",
+                ...(typeof step.defaultMessage === "string"
+                  ? { descriptionJson: { markdown: step.defaultMessage } }
+                  : {}),
+                executionMode: "sequential",
+                actions: [],
+                guidance: {
+                  human: { markdown: "" },
+                  agent: { markdown: "" },
+                },
+              },
             };
           }
 
@@ -1305,6 +1447,32 @@ function toAgentStepMutationPayload(payload: WorkflowAgentStepPayload) {
     completionRequirements: payload.completionRequirements,
     runtimePolicy: payload.runtimePolicy,
     guidance: payload.guidance,
+  };
+}
+
+function toActionStepMutationPayload(payload: WorkflowActionStepPayload) {
+  const descriptionMarkdown = readMarkdown(payload.descriptionJson);
+
+  return {
+    key: payload.key,
+    ...(typeof payload.label === "string" && payload.label.trim().length > 0
+      ? { label: payload.label }
+      : {}),
+    ...(descriptionMarkdown ? { descriptionJson: { markdown: descriptionMarkdown } } : {}),
+    executionMode: payload.executionMode,
+    guidance: payload.guidance,
+    actions: payload.actions.map((action) => ({
+      ...action,
+      ...(typeof action.label === "string" && action.label.trim().length > 0
+        ? { label: action.label }
+        : {}),
+      items: action.items.map((item) => ({
+        ...item,
+        ...(typeof item.label === "string" && item.label.trim().length > 0
+          ? { label: item.label }
+          : {}),
+      })),
+    })),
   };
 }
 
@@ -2283,6 +2451,17 @@ export function MethodologyWorkflowEditorRoute() {
         };
       }) => unknown;
     };
+    getActionStepDefinition?: {
+      queryOptions: (args: {
+        input: {
+          methodologyId: string;
+          versionId: string;
+          workUnitTypeKey: string;
+          workflowDefinitionId: string;
+          stepId: string;
+        };
+      }) => unknown;
+    };
     discoverAgentStepHarnessMetadata?: {
       queryOptions: (args: { input: Record<string, never> }) => unknown;
     };
@@ -2296,6 +2475,9 @@ export function MethodologyWorkflowEditorRoute() {
     createBranchStep?: { mutationOptions: () => unknown };
     updateBranchStep?: { mutationOptions: () => unknown };
     deleteBranchStep?: { mutationOptions: () => unknown };
+    createActionStep?: { mutationOptions: () => unknown };
+    updateActionStep?: { mutationOptions: () => unknown };
+    deleteActionStep?: { mutationOptions: () => unknown };
     createAgentStep?: { mutationOptions: () => unknown };
     updateAgentStep?: { mutationOptions: () => unknown };
     deleteAgentStep?: { mutationOptions: () => unknown };
@@ -2424,6 +2606,11 @@ export function MethodologyWorkflowEditorRoute() {
       mutationFn: async () => null,
     }) as { mutationFn: (input: unknown) => Promise<unknown> },
   );
+  const createActionStepMutation = useMutation(
+    (workflowProcedures.createActionStep?.mutationOptions?.() ?? {
+      mutationFn: async () => null,
+    }) as { mutationFn: (input: unknown) => Promise<unknown> },
+  );
   const updateFormStepMutation = useMutation(
     (workflowProcedures.updateFormStep?.mutationOptions?.() ?? {
       mutationFn: async () => null,
@@ -2444,6 +2631,11 @@ export function MethodologyWorkflowEditorRoute() {
       mutationFn: async () => null,
     }) as { mutationFn: (input: unknown) => Promise<unknown> },
   );
+  const updateActionStepMutation = useMutation(
+    (workflowProcedures.updateActionStep?.mutationOptions?.() ?? {
+      mutationFn: async () => null,
+    }) as { mutationFn: (input: unknown) => Promise<unknown> },
+  );
   const deleteFormStepMutation = useMutation(
     (workflowProcedures.deleteFormStep?.mutationOptions?.() ?? {
       mutationFn: async () => null,
@@ -2461,6 +2653,11 @@ export function MethodologyWorkflowEditorRoute() {
   );
   const deleteBranchStepMutation = useMutation(
     (workflowProcedures.deleteBranchStep?.mutationOptions?.() ?? {
+      mutationFn: async () => null,
+    }) as { mutationFn: (input: unknown) => Promise<unknown> },
+  );
+  const deleteActionStepMutation = useMutation(
+    (workflowProcedures.deleteActionStep?.mutationOptions?.() ?? {
       mutationFn: async () => null,
     }) as { mutationFn: (input: unknown) => Promise<unknown> },
   );
@@ -2499,6 +2696,48 @@ export function MethodologyWorkflowEditorRoute() {
     (editorDefinitionQuery.data as RawEditorDefinition | null | undefined) ?? null;
   const workflow = editorDefinition ? asRecord(editorDefinition.workflow) : null;
 
+  const actionStepDefinitionQueries = useQueries({
+    queries: Array.isArray(editorDefinition?.steps)
+      ? editorDefinition.steps
+          .map((entry) => asRecord(entry))
+          .filter(
+            (step): step is Record<string, unknown> =>
+              step !== null && (step.stepType === "action" || step.type === "action"),
+          )
+          .map((step) => {
+            const stepId = typeof step.stepId === "string" ? step.stepId : "";
+            const fallback = {
+              queryKey: [
+                "workflow-editor-action-step-definition",
+                methodologyId,
+                versionId,
+                workUnitKey,
+                workflowDefinitionId,
+                stepId,
+              ],
+              queryFn: async () => null,
+            };
+            const queryOptions =
+              (stepId.length > 0
+                ? workflowProcedures.getActionStepDefinition?.queryOptions?.({
+                    input: {
+                      methodologyId,
+                      versionId,
+                      workUnitTypeKey: workUnitKey,
+                      workflowDefinitionId,
+                      stepId,
+                    },
+                  })
+                : undefined) ?? fallback;
+
+            return {
+              ...(queryOptions as { queryKey: unknown[]; queryFn: () => Promise<unknown> }),
+              enabled: stepId.length > 0,
+            };
+          })
+      : [],
+  });
+
   if (editorDefinitionQuery.isLoading) {
     return (
       <section className="chiron-frame-flat chiron-tone-canvas grid gap-2 p-4">
@@ -2531,8 +2770,11 @@ export function MethodologyWorkflowEditorRoute() {
     editorDefinition?.steps,
     editorDefinition?.formDefinitions,
     editorDefinition?.agentStepDefinitions,
+    actionStepDefinitionQueries.map((query) => query.data).filter((entry) => entry != null),
   );
-  const conditionOperators = BUILT_IN_CONDITION_OPERATORS;
+  const conditionOperators = BUILT_IN_CONDITION_OPERATORS.filter((operator) =>
+    PLAN_A_BRANCH_CONDITION_OPERATOR_KEYS.has(operator.key),
+  );
 
   return (
     <WorkflowEditorShell
@@ -2775,6 +3017,17 @@ export function MethodologyWorkflowEditorRoute() {
 
         await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
       }}
+      onCreateActionStep={async (payload) => {
+        await createActionStepMutation.mutateAsync({
+          versionId,
+          workUnitTypeKey: workUnitKey,
+          workflowDefinitionId: resolvedWorkflowDefinitionId,
+          afterStepKey: null,
+          payload: toActionStepMutationPayload(payload),
+        });
+
+        await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
+      }}
       onUpdateFormStep={async (stepId, payload) => {
         await updateFormStepMutation.mutateAsync({
           versionId,
@@ -2793,6 +3046,17 @@ export function MethodologyWorkflowEditorRoute() {
           workflowDefinitionId: resolvedWorkflowDefinitionId,
           stepId,
           payload: toAgentStepMutationPayload(payload),
+        });
+
+        await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
+      }}
+      onUpdateActionStep={async (stepId, payload) => {
+        await updateActionStepMutation.mutateAsync({
+          versionId,
+          workUnitTypeKey: workUnitKey,
+          workflowDefinitionId: resolvedWorkflowDefinitionId,
+          stepId,
+          payload: toActionStepMutationPayload(payload),
         });
 
         await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
@@ -2851,6 +3115,16 @@ export function MethodologyWorkflowEditorRoute() {
       }}
       onDeleteBranchStep={async (stepId) => {
         await deleteBranchStepMutation.mutateAsync({
+          versionId,
+          workUnitTypeKey: workUnitKey,
+          workflowDefinitionId: resolvedWorkflowDefinitionId,
+          stepId,
+        });
+
+        await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
+      }}
+      onDeleteActionStep={async (stepId) => {
+        await deleteActionStepMutation.mutateAsync({
           versionId,
           workUnitTypeKey: workUnitKey,
           workflowDefinitionId: resolvedWorkflowDefinitionId,

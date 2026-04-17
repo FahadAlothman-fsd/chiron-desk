@@ -88,7 +88,7 @@ describe("methodology seed integrity", () => {
       work_unit_lifecycle_states: 6,
       work_unit_lifecycle_transitions: 6,
       transition_condition_sets: 12,
-      work_unit_fact_definitions: 48,
+      work_unit_fact_definitions: 50,
       methodology_artifact_slot_definitions: 6,
       methodology_artifact_slot_templates: 10,
       methodology_link_type_definitions: 6,
@@ -105,6 +105,7 @@ describe("methodology seed integrity", () => {
         "scan_level",
         "requires_brainstorming",
         "requires_research",
+        "branch_note",
         "requires_product_brief",
         "deep_dive_target",
       ],
@@ -120,6 +121,7 @@ describe("methodology seed integrity", () => {
         "scan_level",
         "requires_brainstorming",
         "requires_research",
+        "branch_note",
         "requires_product_brief",
         "deep_dive_target",
         "repository_type",
@@ -309,7 +311,63 @@ describe("methodology seed integrity", () => {
       expect(completionConditionSet.transitionId).toBe(
         `seed:transition:setup:activation-to-done:${completionConditionSet.methodologyVersionId}`,
       );
-      expect(completionConditionSet.groupsJson).toEqual([]);
+      expect(completionConditionSet.groupsJson).toEqual([
+        {
+          mode: "all",
+          conditions: [
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "initiative_name",
+                factDefinitionId: `seed:work-unit-fact:setup:initiative-name:${completionConditionSet.methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "project_kind",
+                factDefinitionId: `seed:work-unit-fact:setup:project-kind:${completionConditionSet.methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+          ],
+        },
+        {
+          mode: "any",
+          conditions: [
+            {
+              kind: "artifact",
+              required: true,
+              config: {
+                slotKey: "PROJECT_OVERVIEW",
+                slotDefinitionId: `seed:artifact-slot:setup:project-overview:${completionConditionSet.methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "requires_brainstorming",
+                factDefinitionId: `seed:work-unit-fact:setup:requires-brainstorming:${completionConditionSet.methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "requires_research",
+                factDefinitionId: `seed:work-unit-fact:setup:requires-research:${completionConditionSet.methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+          ],
+        },
+      ]);
     }
 
     const brainstormingTransitionConditionSets = transitionConditionSets.filter((conditionSet) =>
@@ -328,7 +386,22 @@ describe("methodology seed integrity", () => {
       expect(conditionSet.transitionId).toBe(
         `seed:transition:brainstorming:activation-to-done:${conditionSet.methodologyVersionId}`,
       );
-      expect(conditionSet.groupsJson).toEqual([]);
+      expect(conditionSet.groupsJson).toEqual([
+        {
+          mode: "all",
+          conditions: [
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "setup_work_unit",
+                factDefinitionId: `seed:work-unit-fact:brainstorming:setup-work-unit:${conditionSet.methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+          ],
+        },
+      ]);
     }
 
     const brainstormingCompletionConditionSets = brainstormingTransitionConditionSets.filter(
@@ -342,7 +415,54 @@ describe("methodology seed integrity", () => {
       expect(conditionSet.transitionId).toBe(
         `seed:transition:brainstorming:activation-to-done:${conditionSet.methodologyVersionId}`,
       );
-      expect(conditionSet.groupsJson).toEqual([]);
+      expect(conditionSet.groupsJson).toEqual([
+        {
+          mode: "all",
+          conditions: [
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "desired_outcome",
+                factDefinitionId: `seed:work-unit-fact:brainstorming:desired-outcome:${conditionSet.methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "selected_direction",
+                factDefinitionId: `seed:work-unit-fact:brainstorming:selected-direction:${conditionSet.methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+          ],
+        },
+        {
+          mode: "any",
+          conditions: [
+            {
+              kind: "artifact",
+              required: true,
+              config: {
+                slotKey: "brainstorming_session",
+                slotDefinitionId: `seed:artifact-slot:brainstorming:brainstorming-session:${conditionSet.methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "objectives",
+                factDefinitionId: `seed:work-unit-fact:brainstorming:objectives:${conditionSet.methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+          ],
+        },
+      ]);
     }
 
     const researchTransitionConditionSets = transitionConditionSets.filter((conditionSet) =>
@@ -361,7 +481,31 @@ describe("methodology seed integrity", () => {
       expect(conditionSet.transitionId).toBe(
         `seed:transition:research:activation-to-done:${conditionSet.methodologyVersionId}`,
       );
-      expect(conditionSet.groupsJson).toEqual([]);
+      expect(conditionSet.groupsJson).toEqual([
+        {
+          mode: "all",
+          conditions: [
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "setup_work_unit",
+                factDefinitionId: `seed:work-unit-fact:research:setup-work-unit:${conditionSet.methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "research_topic",
+                factDefinitionId: `seed:work-unit-fact:research:research-topic:${conditionSet.methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+          ],
+        },
+      ]);
     }
 
     const researchCompletionConditionSets = researchTransitionConditionSets.filter(
@@ -375,7 +519,45 @@ describe("methodology seed integrity", () => {
       expect(conditionSet.transitionId).toBe(
         `seed:transition:research:activation-to-done:${conditionSet.methodologyVersionId}`,
       );
-      expect(conditionSet.groupsJson).toEqual([]);
+      expect(conditionSet.groupsJson).toEqual([
+        {
+          mode: "all",
+          conditions: [
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "research_topic",
+                factDefinitionId: `seed:work-unit-fact:research:research-topic:${conditionSet.methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+          ],
+        },
+        {
+          mode: "any",
+          conditions: [
+            {
+              kind: "work_unit_fact",
+              required: true,
+              config: {
+                factKey: "research_synthesis",
+                factDefinitionId: `seed:work-unit-fact:research:research-synthesis:${conditionSet.methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+            {
+              kind: "artifact",
+              required: true,
+              config: {
+                slotKey: "research_report",
+                slotDefinitionId: `seed:artifact-slot:research:research-report:${conditionSet.methodologyVersionId}`,
+                operator: "exists",
+              },
+            },
+          ],
+        },
+      ]);
     }
 
     const transitionWorkflowBindings =
@@ -820,35 +1002,37 @@ describe("methodology seed integrity", () => {
         },
         subSchema: {
           type: "object",
-          fields: expect.arrayContaining([
-            expect.objectContaining({ key: "part_id", type: "string", cardinality: "one" }),
-            expect.objectContaining({
-              key: "root_path",
-              type: "string",
-              cardinality: "one",
-              validation: {
-                kind: "path",
-                path: {
-                  pathKind: "directory",
-                  normalization: {
-                    mode: "posix",
-                    trimWhitespace: true,
-                  },
-                  safety: {
-                    disallowAbsolute: true,
-                    preventTraversal: true,
-                  },
-                },
-              },
-            }),
-            expect.objectContaining({
-              key: "project_type_id",
-              type: "string",
-              cardinality: "one",
-            }),
-          ]),
         },
       });
+      expect(projectPartsFact.validationJson?.subSchema?.fields).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ key: "part_id", type: "string", cardinality: "one" }),
+          expect.objectContaining({
+            key: "root_path",
+            type: "string",
+            cardinality: "one",
+            validation: {
+              kind: "path",
+              path: {
+                pathKind: "directory",
+                normalization: {
+                  mode: "posix",
+                  trimWhitespace: true,
+                },
+                safety: {
+                  disallowAbsolute: true,
+                  preventTraversal: true,
+                },
+              },
+            },
+          }),
+          expect.objectContaining({
+            key: "project_type_id",
+            type: "string",
+            cardinality: "one",
+          }),
+        ]),
+      );
     }
 
     const technologyStackByPartFactRows = factDefinitions.filter(
@@ -876,16 +1060,18 @@ describe("methodology seed integrity", () => {
         },
         subSchema: {
           type: "object",
-          fields: expect.arrayContaining([
-            expect.objectContaining({ key: "part_id", type: "string", cardinality: "one" }),
-            expect.objectContaining({ key: "framework", type: "string", cardinality: "one" }),
-            expect.objectContaining({ key: "language", type: "string", cardinality: "one" }),
-            expect.objectContaining({ key: "version", type: "string", cardinality: "one" }),
-            expect.objectContaining({ key: "database", type: "string", cardinality: "one" }),
-            expect.objectContaining({ key: "dependencies", type: "string", cardinality: "one" }),
-          ]),
         },
       });
+      expect(technologyStackByPartFact.validationJson?.subSchema?.fields).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ key: "part_id", type: "string", cardinality: "one" }),
+          expect.objectContaining({ key: "framework", type: "string", cardinality: "one" }),
+          expect.objectContaining({ key: "language", type: "string", cardinality: "one" }),
+          expect.objectContaining({ key: "version", type: "string", cardinality: "one" }),
+          expect.objectContaining({ key: "database", type: "string", cardinality: "one" }),
+          expect.objectContaining({ key: "dependencies", type: "string", cardinality: "one" }),
+        ]),
+      );
     }
 
     const existingDocumentationInventoryFactRows = factDefinitions.filter(
@@ -928,31 +1114,33 @@ describe("methodology seed integrity", () => {
         },
         subSchema: {
           type: "object",
-          fields: expect.arrayContaining([
-            expect.objectContaining({
-              key: "path",
-              type: "string",
-              cardinality: "one",
-              validation: {
-                kind: "path",
-                path: {
-                  pathKind: "file",
-                  normalization: {
-                    mode: "posix",
-                    trimWhitespace: true,
-                  },
-                  safety: {
-                    disallowAbsolute: true,
-                    preventTraversal: true,
-                  },
-                },
-              },
-            }),
-            expect.objectContaining({ key: "doc_type", type: "string", cardinality: "one" }),
-            expect.objectContaining({ key: "related_part_id", type: "string", cardinality: "one" }),
-          ]),
         },
       });
+      expect(documentationInventoryFact.validationJson?.subSchema?.fields).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: "path",
+            type: "string",
+            cardinality: "one",
+            validation: {
+              kind: "path",
+              path: {
+                pathKind: "file",
+                normalization: {
+                  mode: "posix",
+                  trimWhitespace: true,
+                },
+                safety: {
+                  disallowAbsolute: true,
+                  preventTraversal: true,
+                },
+              },
+            },
+          }),
+          expect.objectContaining({ key: "doc_type", type: "string", cardinality: "one" }),
+          expect.objectContaining({ key: "related_part_id", type: "string", cardinality: "one" }),
+        ]),
+      );
     }
 
     const integrationPointsFactRows = factDefinitions.filter(
@@ -978,18 +1166,20 @@ describe("methodology seed integrity", () => {
         },
         subSchema: {
           type: "object",
-          fields: expect.arrayContaining([
-            expect.objectContaining({ key: "from_part_id", type: "string", cardinality: "one" }),
-            expect.objectContaining({ key: "to_part_id", type: "string", cardinality: "one" }),
-            expect.objectContaining({
-              key: "integration_type",
-              type: "string",
-              cardinality: "one",
-            }),
-            expect.objectContaining({ key: "details", type: "string", cardinality: "one" }),
-          ]),
         },
       });
+      expect(integrationPointsFact.validationJson?.subSchema?.fields).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ key: "from_part_id", type: "string", cardinality: "one" }),
+          expect.objectContaining({ key: "to_part_id", type: "string", cardinality: "one" }),
+          expect.objectContaining({
+            key: "integration_type",
+            type: "string",
+            cardinality: "one",
+          }),
+          expect.objectContaining({ key: "details", type: "string", cardinality: "one" }),
+        ]),
+      );
     }
 
     const draftFactRows = factDefinitions
@@ -1039,7 +1229,7 @@ describe("methodology seed integrity", () => {
     expect(draftWorkUnitRows).toEqual(activeWorkUnitRows);
 
     const workUnitFactDefinitions = methodologyCanonicalTableSeedRows.work_unit_fact_definitions;
-    expect(workUnitFactDefinitions).toHaveLength(48);
+    expect(workUnitFactDefinitions).toHaveLength(50);
     expect(new Set(workUnitFactDefinitions.map((fact) => fact.key))).toEqual(
       new Set([
         "initiative_name",
@@ -1050,6 +1240,7 @@ describe("methodology seed integrity", () => {
         "scan_level",
         "requires_brainstorming",
         "requires_research",
+        "branch_note",
         "deep_dive_target",
         "setup_work_unit",
         "objectives",
@@ -1070,7 +1261,7 @@ describe("methodology seed integrity", () => {
     const setupWorkUnitFactDefinitions = workUnitFactDefinitions.filter((fact) =>
       fact.workUnitTypeId.includes(":wut:setup:"),
     );
-    expect(setupWorkUnitFactDefinitions).toHaveLength(18);
+    expect(setupWorkUnitFactDefinitions).toHaveLength(20);
     for (const factDefinition of setupWorkUnitFactDefinitions) {
       expect(factDefinition.workUnitTypeId).toBe(
         `seed:wut:setup:${factDefinition.methodologyVersionId}`,
@@ -1402,6 +1593,18 @@ describe("methodology seed integrity", () => {
       expect(requiresResearchFact.validationJson).toEqual({ kind: "none" });
     }
 
+    const branchNoteFactRows = workUnitFactDefinitions.filter((fact) => fact.key === "branch_note");
+    expect(branchNoteFactRows).toHaveLength(2);
+    for (const branchNoteFact of branchNoteFactRows) {
+      expect(branchNoteFact.factType).toBe("string");
+      expect(branchNoteFact.cardinality).toBe("one");
+      expect(branchNoteFact.defaultValueJson).toBeNull();
+      expect(branchNoteFact.validationJson).toEqual({
+        kind: "allowed-values",
+        values: ["brainstorm_then_research", "research_only"],
+      });
+    }
+
     const deepDiveTargetFactRows = workUnitFactDefinitions.filter(
       (fact) => fact.key === "deep_dive_target",
     );
@@ -1435,15 +1638,17 @@ describe("methodology seed integrity", () => {
     );
     expect(setupArtifactSlotDefinitions).toHaveLength(2);
     for (const slot of setupArtifactSlotDefinitions) {
-      expect(slot.id).toBe(`seed:artifact-slot:setup:setup-readme:${slot.methodologyVersionId}`);
-      expect(slot.key).toBe("setup_readme");
+      expect(slot.id).toBe(
+        `seed:artifact-slot:setup:project-overview:${slot.methodologyVersionId}`,
+      );
+      expect(slot.key).toBe("PROJECT_OVERVIEW");
       expect(slot.workUnitTypeId).toBe(`seed:wut:setup:${slot.methodologyVersionId}`);
       expect(slot.cardinality).toBe("single");
       expect(slot.descriptionJson).toBeTruthy();
       expect(slot.guidanceJson).toBeTruthy();
       expect(slot.rulesJson).toEqual({
-        pathStrategy: "project-root",
-        suggestedPath: "README.md",
+        pathStrategy: "project-knowledge",
+        suggestedPath: "project-overview.md",
         templateEngine: "handlebars",
         maxFiles: 1,
       });
@@ -1500,7 +1705,7 @@ describe("methodology seed integrity", () => {
         `seed:artifact-template:setup:default:${template.methodologyVersionId}`,
       );
       expect(template.slotDefinitionId).toBe(
-        `seed:artifact-slot:setup:setup-readme:${template.methodologyVersionId}`,
+        `seed:artifact-slot:setup:project-overview:${template.methodologyVersionId}`,
       );
       expect(template.key).toBe("default");
       expect(template.descriptionJson).toBeTruthy();

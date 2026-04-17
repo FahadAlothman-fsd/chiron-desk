@@ -36,6 +36,14 @@ const restrictToCardinality = <T>(
   cardinality: WorkflowContextFactDto["cardinality"],
 ): readonly T[] => (cardinality === "one" ? values.slice(0, 1) : values);
 
+const sortByResolutionOrder = <T extends { resolutionOrder: number | null }>(
+  values: readonly T[],
+): T[] =>
+  [...values].sort(
+    (left: T, right: T) =>
+      toResolutionOrder(left.resolutionOrder) - toResolutionOrder(right.resolutionOrder),
+  );
+
 const buildWorkflowReferenceValues = (params: {
   contextFact: Extract<WorkflowContextFactDto, { kind: "workflow_reference_fact" }>;
   invokeTargets: ReadonlyArray<{
@@ -51,20 +59,14 @@ const buildWorkflowReferenceValues = (params: {
   );
 
   return restrictToCardinality(
-    filteredTargets
-      .toSorted(
-        (left, right) =>
-          toResolutionOrder(left.resolutionOrder) - toResolutionOrder(right.resolutionOrder),
-      )
-      .map((target, instanceOrder) => ({
-        contextFactDefinitionId:
-          params.contextFact.contextFactDefinitionId ?? params.contextFact.key,
-        instanceOrder,
-        valueJson: {
-          workflowDefinitionId: target.workflowDefinitionId,
-          workflowExecutionId: target.workflowExecutionId,
-        },
-      })),
+    sortByResolutionOrder(filteredTargets).map((target, instanceOrder) => ({
+      contextFactDefinitionId: params.contextFact.contextFactDefinitionId ?? params.contextFact.key,
+      instanceOrder,
+      valueJson: {
+        workflowDefinitionId: target.workflowDefinitionId,
+        workflowExecutionId: target.workflowExecutionId,
+      },
+    })),
     params.contextFact.cardinality,
   );
 };
@@ -90,37 +92,29 @@ const buildWorkUnitDraftSpecValues = (params: {
   );
 
   return restrictToCardinality(
-    filteredTargets
-      .toSorted(
-        (left, right) =>
-          toResolutionOrder(left.resolutionOrder) - toResolutionOrder(right.resolutionOrder),
-      )
-      .map((target, instanceOrder) => ({
-        contextFactDefinitionId:
-          params.contextFact.contextFactDefinitionId ?? params.contextFact.key,
-        instanceOrder,
-        valueJson: {
-          projectWorkUnitId: target.projectWorkUnitId,
-          workUnitFactInstanceIds: target.workUnitFactInstanceIds
-            .filter((fact) =>
-              params.contextFact.selectedWorkUnitFactDefinitionIds.length > 0
-                ? params.contextFact.selectedWorkUnitFactDefinitionIds.includes(
-                    fact.factDefinitionId,
-                  )
-                : true,
-            )
-            .map((fact) => fact.workUnitFactInstanceId),
-          artifactSnapshotIds: target.artifactSnapshotIds
-            .filter((artifact) =>
-              params.contextFact.selectedArtifactSlotDefinitionIds.length > 0
-                ? params.contextFact.selectedArtifactSlotDefinitionIds.includes(
-                    artifact.artifactSlotDefinitionId,
-                  )
-                : true,
-            )
-            .map((artifact) => artifact.artifactSnapshotId),
-        },
-      })),
+    sortByResolutionOrder(filteredTargets).map((target, instanceOrder) => ({
+      contextFactDefinitionId: params.contextFact.contextFactDefinitionId ?? params.contextFact.key,
+      instanceOrder,
+      valueJson: {
+        projectWorkUnitId: target.projectWorkUnitId,
+        workUnitFactInstanceIds: target.workUnitFactInstanceIds
+          .filter((fact) =>
+            params.contextFact.selectedWorkUnitFactDefinitionIds.length > 0
+              ? params.contextFact.selectedWorkUnitFactDefinitionIds.includes(fact.factDefinitionId)
+              : true,
+          )
+          .map((fact) => fact.workUnitFactInstanceId),
+        artifactSnapshotIds: target.artifactSnapshotIds
+          .filter((artifact) =>
+            params.contextFact.selectedArtifactSlotDefinitionIds.length > 0
+              ? params.contextFact.selectedArtifactSlotDefinitionIds.includes(
+                  artifact.artifactSlotDefinitionId,
+                )
+              : true,
+          )
+          .map((artifact) => artifact.artifactSnapshotId),
+      },
+    })),
     params.contextFact.cardinality,
   );
 };

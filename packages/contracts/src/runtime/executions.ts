@@ -2,6 +2,7 @@ import * as Schema from "effect/Schema";
 
 import { FactCardinality, FactType, PathValidationConfig } from "../methodology/fact.js";
 import {
+  ActionStepExecutionMode,
   DeferredWorkflowStepType,
   FormFieldUiMultiplicityMode,
   FormStepPayload,
@@ -343,6 +344,187 @@ export const RuntimeStepExecutionDetailShell = Schema.Struct({
 });
 export type RuntimeStepExecutionDetailShell = typeof RuntimeStepExecutionDetailShell.Type;
 
+export const ACTION_STEP_RUNTIME_ROW_STATUSES = [
+  "running",
+  "succeeded",
+  "needs_attention",
+] as const;
+export const ActionStepRuntimeRowStatus = Schema.Literal(...ACTION_STEP_RUNTIME_ROW_STATUSES);
+export type ActionStepRuntimeRowStatus = typeof ActionStepRuntimeRowStatus.Type;
+
+export const ACTION_STEP_RUNTIME_ITEM_STATUSES = [
+  "running",
+  "succeeded",
+  "failed",
+  "needs_attention",
+] as const;
+export const ActionStepRuntimeItemStatus = Schema.Literal(...ACTION_STEP_RUNTIME_ITEM_STATUSES);
+export type ActionStepRuntimeItemStatus = typeof ActionStepRuntimeItemStatus.Type;
+
+export const ActionStepRenderableActionStatus = Schema.Literal(
+  "not_started",
+  ...ACTION_STEP_RUNTIME_ROW_STATUSES,
+);
+export type ActionStepRenderableActionStatus = typeof ActionStepRenderableActionStatus.Type;
+
+export const ActionStepRenderableItemStatus = Schema.Literal(
+  "not_started",
+  ...ACTION_STEP_RUNTIME_ITEM_STATUSES,
+);
+export type ActionStepRenderableItemStatus = typeof ActionStepRenderableItemStatus.Type;
+
+// Plan A boundary: runtime rows stay lazy and manual completion stays generic. No auto-complete,
+// no extra action kinds, no richer invoke draft-spec payload assumptions, and no raw-write
+// hardening contracts are introduced here; those expansions are deferred to Plan B.
+export const ACTION_STEP_RUNTIME_RULES = [
+  "lazy_runtime_rows",
+  "manual_completion_only",
+  "idempotent_duplicate_run_retry",
+  "propagation_kind_only",
+] as const;
+
+export const RuntimeActionAffectedTarget = Schema.Struct({
+  targetKind: Schema.Literal("external_fact", "artifact"),
+  targetState: Schema.optional(Schema.Literal("exists", "missing")),
+  targetId: Schema.optional(Schema.NonEmptyString),
+  label: Schema.optional(Schema.String),
+});
+export type RuntimeActionAffectedTarget = typeof RuntimeActionAffectedTarget.Type;
+
+export const RuntimeActionPropagationItemDetail = Schema.Struct({
+  itemId: Schema.NonEmptyString,
+  itemKey: Schema.NonEmptyString,
+  label: Schema.optional(Schema.String),
+  sortOrder: Schema.Number,
+  targetContextFactDefinitionId: Schema.NonEmptyString,
+  targetContextFactKey: Schema.optional(Schema.String),
+  status: ActionStepRenderableItemStatus,
+  resultSummaryJson: Schema.optional(Schema.Unknown),
+  resultJson: Schema.optional(Schema.Unknown),
+  affectedTargets: Schema.Array(RuntimeActionAffectedTarget),
+  recoveryAction: Schema.optional(
+    Schema.Struct({
+      kind: Schema.Literal("recreate_bound_target_from_context_value"),
+      enabled: Schema.Boolean,
+      reasonIfDisabled: Schema.optional(Schema.String),
+    }),
+  ),
+});
+export type RuntimeActionPropagationItemDetail = typeof RuntimeActionPropagationItemDetail.Type;
+
+export const RuntimeActionExecutionRow = Schema.Struct({
+  actionId: Schema.NonEmptyString,
+  actionKey: Schema.NonEmptyString,
+  label: Schema.optional(Schema.String),
+  enabled: Schema.Boolean,
+  sortOrder: Schema.Number,
+  actionKind: Schema.Literal("propagation"),
+  contextFactDefinitionId: Schema.NonEmptyString,
+  contextFactKey: Schema.optional(Schema.String),
+  contextFactKind: Schema.Literal(
+    "definition_backed_external_fact",
+    "bound_external_fact",
+    "artifact_reference_fact",
+  ),
+  status: ActionStepRenderableActionStatus,
+  resultSummaryJson: Schema.optional(Schema.Unknown),
+  resultJson: Schema.optional(Schema.Unknown),
+  items: Schema.Array(RuntimeActionPropagationItemDetail),
+  runAction: Schema.Struct({
+    kind: Schema.Literal("run_action_step_actions"),
+    enabled: Schema.Boolean,
+    reasonIfDisabled: Schema.optional(Schema.String),
+    actionId: Schema.NonEmptyString,
+  }),
+  retryAction: Schema.Struct({
+    kind: Schema.Literal("retry_action_step_actions"),
+    enabled: Schema.Boolean,
+    reasonIfDisabled: Schema.optional(Schema.String),
+    actionId: Schema.NonEmptyString,
+  }),
+});
+export type RuntimeActionExecutionRow = typeof RuntimeActionExecutionRow.Type;
+
+export const RuntimeActionCompletionSummary = Schema.Struct({
+  mode: Schema.Literal("manual"),
+  eligible: Schema.Boolean,
+  requiresAtLeastOneSucceededAction: Schema.Literal(true),
+  blockedByRunningActions: Schema.Literal(true),
+  reasonIfIneligible: Schema.optional(Schema.String),
+});
+export type RuntimeActionCompletionSummary = typeof RuntimeActionCompletionSummary.Type;
+
+export const RuntimeActionStepExecutionDetailBody = Schema.Struct({
+  stepType: Schema.Literal("action"),
+  executionMode: ActionStepExecutionMode,
+  runtimeRowPolicy: Schema.Literal("lazy_on_first_execution"),
+  duplicateRunPolicy: Schema.Literal("idempotent_noop"),
+  duplicateRetryPolicy: Schema.Literal("idempotent_noop"),
+  completionSummary: RuntimeActionCompletionSummary,
+  actions: Schema.Array(RuntimeActionExecutionRow),
+});
+export type RuntimeActionStepExecutionDetailBody = typeof RuntimeActionStepExecutionDetailBody.Type;
+
+export const BRANCH_RUNTIME_RESOLUTION_RULES = [
+  "evaluate_all_conditionals_first",
+  "ui_suggestion_prefers_first_valid_conditional_by_sort_order_else_default",
+  "persisted_selected_target_governs_completion",
+  "completion_blocked_without_valid_persisted_selection",
+  "user_may_choose_any_valid_route",
+  "no_valid_route_and_no_default_blocks_branch",
+] as const;
+
+export const RuntimeBranchConditionalRouteDetail = Schema.Struct({
+  routeId: Schema.NonEmptyString,
+  targetStepId: Schema.NonEmptyString,
+  sortOrder: Schema.Number,
+  isValid: Schema.Boolean,
+  conditionMode: Schema.Literal("all", "any"),
+  evaluationTree: Schema.optional(RuntimeConditionEvaluationTree),
+});
+export type RuntimeBranchConditionalRouteDetail = typeof RuntimeBranchConditionalRouteDetail.Type;
+
+export const RuntimeBranchPersistedSelection = Schema.Struct({
+  selectedTargetStepId: Schema.NullOr(Schema.NonEmptyString),
+  isValid: Schema.Boolean,
+  savedAt: Schema.optional(Schema.String),
+  blockingReason: Schema.optional(Schema.String),
+});
+export type RuntimeBranchPersistedSelection = typeof RuntimeBranchPersistedSelection.Type;
+
+export const RuntimeBranchSuggestion = Schema.Struct({
+  suggestedTargetStepId: Schema.NullOr(Schema.NonEmptyString),
+  source: Schema.Literal("conditional_route", "default_target", "none"),
+  routeId: Schema.optional(Schema.NonEmptyString),
+});
+export type RuntimeBranchSuggestion = typeof RuntimeBranchSuggestion.Type;
+
+export const RuntimeBranchCompletionSummary = Schema.Struct({
+  mode: Schema.Literal("explicit_saved_selection"),
+  eligible: Schema.Boolean,
+  reasonIfIneligible: Schema.optional(Schema.String),
+});
+export type RuntimeBranchCompletionSummary = typeof RuntimeBranchCompletionSummary.Type;
+
+// Plan A branch resolution is intentionally narrow: UI suggestions are advisory only and saved
+// `selectedTargetStepId` is the sole completion authority. Branch streaming, append-only selection
+// history, and broader evaluator/value-model convergence remain deferred to Plan B.
+export const RuntimeBranchStepExecutionDetailBody = Schema.Struct({
+  stepType: Schema.Literal("branch"),
+  resolutionContract: Schema.Literal("explicit_save_selection_v1"),
+  persistedSelection: RuntimeBranchPersistedSelection,
+  suggestion: RuntimeBranchSuggestion,
+  conditionalRoutes: Schema.Array(RuntimeBranchConditionalRouteDetail),
+  defaultTargetStepId: Schema.NullOr(Schema.NonEmptyString),
+  saveSelectionAction: Schema.Struct({
+    kind: Schema.Literal("save_branch_step_selection"),
+    enabled: Schema.Boolean,
+    reasonIfDisabled: Schema.optional(Schema.String),
+  }),
+  completionSummary: RuntimeBranchCompletionSummary,
+});
+export type RuntimeBranchStepExecutionDetailBody = typeof RuntimeBranchStepExecutionDetailBody.Type;
+
 export const RuntimeFormFieldWidgetControl = Schema.Literal(
   "text",
   "select",
@@ -622,6 +804,8 @@ export const GetRuntimeStepExecutionDetailOutput = Schema.Struct({
   shell: RuntimeStepExecutionDetailShell,
   body: Schema.Union(
     RuntimeFormStepExecutionDetailBody,
+    RuntimeActionStepExecutionDetailBody,
+    RuntimeBranchStepExecutionDetailBody,
     RuntimeInvokeStepExecutionDetailBody,
     RuntimeDeferredStepExecutionDetailBody,
   ),
@@ -682,6 +866,95 @@ export const StartInvokeWorkUnitTargetOutput = Schema.Struct({
   result: StartInvokeWorkUnitTargetResult,
 });
 export type StartInvokeWorkUnitTargetOutput = typeof StartInvokeWorkUnitTargetOutput.Type;
+
+export const StartActionStepExecutionInput = Schema.Struct({
+  projectId: Schema.NonEmptyString,
+  stepExecutionId: Schema.NonEmptyString,
+});
+export type StartActionStepExecutionInput = typeof StartActionStepExecutionInput.Type;
+
+export const StartActionStepExecutionResult = Schema.Literal(
+  "started",
+  "already_running",
+  "already_started",
+);
+export type StartActionStepExecutionResult = typeof StartActionStepExecutionResult.Type;
+
+export const StartActionStepExecutionOutput = Schema.Struct({
+  stepExecutionId: Schema.NonEmptyString,
+  result: StartActionStepExecutionResult,
+});
+export type StartActionStepExecutionOutput = typeof StartActionStepExecutionOutput.Type;
+
+const UniqueActionDefinitionIds = Schema.Array(Schema.NonEmptyString).pipe(
+  Schema.filter(
+    (actionIds) => actionIds.length > 0 && new Set(actionIds).size === actionIds.length,
+  ),
+);
+
+export const RunActionStepActionsInput = Schema.Struct({
+  projectId: Schema.NonEmptyString,
+  stepExecutionId: Schema.NonEmptyString,
+  actionIds: UniqueActionDefinitionIds,
+});
+export type RunActionStepActionsInput = typeof RunActionStepActionsInput.Type;
+
+export const RunActionStepActionResult = Schema.Literal(
+  "started",
+  "already_running",
+  "already_succeeded",
+);
+export type RunActionStepActionResult = typeof RunActionStepActionResult.Type;
+
+export const RunActionStepActionsOutput = Schema.Struct({
+  stepExecutionId: Schema.NonEmptyString,
+  actionResults: Schema.Array(
+    Schema.Struct({
+      actionId: Schema.NonEmptyString,
+      result: RunActionStepActionResult,
+    }),
+  ),
+});
+export type RunActionStepActionsOutput = typeof RunActionStepActionsOutput.Type;
+
+export const RetryActionStepActionsInput = Schema.Struct({
+  projectId: Schema.NonEmptyString,
+  stepExecutionId: Schema.NonEmptyString,
+  actionIds: UniqueActionDefinitionIds,
+});
+export type RetryActionStepActionsInput = typeof RetryActionStepActionsInput.Type;
+
+export const RetryActionStepActionResult = Schema.Literal(
+  "started",
+  "already_running",
+  "not_retryable",
+);
+export type RetryActionStepActionResult = typeof RetryActionStepActionResult.Type;
+
+export const RetryActionStepActionsOutput = Schema.Struct({
+  stepExecutionId: Schema.NonEmptyString,
+  actionResults: Schema.Array(
+    Schema.Struct({
+      actionId: Schema.NonEmptyString,
+      result: RetryActionStepActionResult,
+    }),
+  ),
+});
+export type RetryActionStepActionsOutput = typeof RetryActionStepActionsOutput.Type;
+
+export const SaveBranchStepSelectionInput = Schema.Struct({
+  projectId: Schema.NonEmptyString,
+  stepExecutionId: Schema.NonEmptyString,
+  selectedTargetStepId: Schema.NullOr(Schema.NonEmptyString),
+});
+export type SaveBranchStepSelectionInput = typeof SaveBranchStepSelectionInput.Type;
+
+export const SaveBranchStepSelectionOutput = Schema.Struct({
+  stepExecutionId: Schema.NonEmptyString,
+  selectedTargetStepId: Schema.NullOr(Schema.NonEmptyString),
+  result: Schema.Literal("saved"),
+});
+export type SaveBranchStepSelectionOutput = typeof SaveBranchStepSelectionOutput.Type;
 
 export const StartTransitionExecutionInput = Schema.Struct({
   projectId: Schema.String,

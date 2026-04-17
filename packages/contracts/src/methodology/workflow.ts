@@ -199,8 +199,116 @@ export const InvokeStepPayload = Schema.Union(
 );
 export type InvokeStepPayload = typeof InvokeStepPayload.Type;
 
+export const ACTION_STEP_EDITOR_TABS = ["overview", "actions", "execution", "guidance"] as const;
+export const ActionStepEditorTab = Schema.Literal(...ACTION_STEP_EDITOR_TABS);
+export type ActionStepEditorTab = typeof ActionStepEditorTab.Type;
+
+export const ACTION_STEP_EXECUTION_MODES = ["sequential", "parallel"] as const;
+export const ActionStepExecutionMode = Schema.Literal(...ACTION_STEP_EXECUTION_MODES);
+export type ActionStepExecutionMode = typeof ActionStepExecutionMode.Type;
+
+export const ACTION_STEP_ALLOWED_CONTEXT_FACT_KINDS = [
+  "definition_backed_external_fact",
+  "bound_external_fact",
+  "artifact_reference_fact",
+] as const;
+export const ActionStepAllowedContextFactKind = Schema.Literal(
+  ...ACTION_STEP_ALLOWED_CONTEXT_FACT_KINDS,
+);
+export type ActionStepAllowedContextFactKind = typeof ActionStepAllowedContextFactKind.Type;
+
+// Plan A boundary: Action authoring is whole-step only. Future per-action CRUD, richer target
+// payloads, and non-propagation action kinds are explicitly deferred to Plan B.
+export const ACTION_STEP_WHOLE_STEP_AUTHORING_RULES = [
+  "whole_step_only",
+  "propagation_only",
+  "shared_execution_mode",
+  "stable_nested_ids",
+] as const;
+
+export const L3_PLAN_A_PLAN_B_DEFERRALS = [
+  "canonical_value_json_decode_normalize_validate_pipeline",
+  "runtime_enforcement_of_methodology_fact_validation_rules",
+  "richer_nested_work_unit_draft_spec_fact_payload",
+  "shared_typed_fact_instance_model",
+  "raw_write_hardening_for_schema_unknown_boundaries",
+  "agent_step_and_mcp_invalid_write_audit",
+  "broad_operator_system_convergence",
+] as const;
+
+export const ActionStepPropagationItemPayload = Schema.Struct({
+  itemId: Schema.NonEmptyString,
+  itemKey: Schema.NonEmptyString,
+  label: Schema.optional(Schema.String),
+  sortOrder: Schema.Number,
+  targetContextFactDefinitionId: Schema.optional(Schema.NonEmptyString),
+});
+export type ActionStepPropagationItemPayload = typeof ActionStepPropagationItemPayload.Type;
+
+export const ActionStepActionPayload = Schema.Struct({
+  actionId: Schema.NonEmptyString,
+  actionKey: Schema.NonEmptyString,
+  label: Schema.optional(Schema.String),
+  enabled: Schema.optionalWith(Schema.Boolean, { default: () => true }),
+  sortOrder: Schema.Number,
+  actionKind: Schema.Literal("propagation"),
+  contextFactDefinitionId: Schema.NonEmptyString,
+  contextFactKind: ActionStepAllowedContextFactKind,
+  items: Schema.Array(ActionStepPropagationItemPayload),
+}).pipe(
+  Schema.filter((action) => {
+    if (action.items.length < 1) {
+      return false;
+    }
+
+    const itemIds = action.items.map((item) => item.itemId);
+    const itemKeys = action.items.map((item) => item.itemKey);
+    const itemSortOrders = action.items.map((item) => item.sortOrder);
+
+    return (
+      new Set(itemIds).size === itemIds.length &&
+      new Set(itemKeys).size === itemKeys.length &&
+      new Set(itemSortOrders).size === itemSortOrders.length
+    );
+  }),
+);
+export type ActionStepActionPayload = typeof ActionStepActionPayload.Type;
+
+export const ActionStepPayload = Schema.Struct({
+  executionMode: ActionStepExecutionMode,
+  actions: Schema.Array(ActionStepActionPayload),
+})
+  .pipe(Schema.extend(WorkflowStepPayloadMetadata))
+  .pipe(Schema.filter((payload) => payload.actions.some((action) => action.enabled !== false)))
+  .pipe(
+    Schema.filter((payload) => {
+      if (payload.actions.length < 1) {
+        return false;
+      }
+
+      const actionIds = payload.actions.map((action) => action.actionId);
+      const actionKeys = payload.actions.map((action) => action.actionKey);
+      const actionSortOrders = payload.actions.map((action) => action.sortOrder);
+      const contextFactDefinitionIds = payload.actions.map(
+        (action) => action.contextFactDefinitionId,
+      );
+
+      return (
+        new Set(actionIds).size === actionIds.length &&
+        new Set(actionKeys).size === actionKeys.length &&
+        new Set(actionSortOrders).size === actionSortOrders.length &&
+        new Set(contextFactDefinitionIds).size === contextFactDefinitionIds.length
+      );
+    }),
+  );
+export type ActionStepPayload = typeof ActionStepPayload.Type;
+
 export const BranchConditionMode = Schema.Literal("all", "any");
 export type BranchConditionMode = typeof BranchConditionMode.Type;
+
+export const BRANCH_STEP_CONDITION_OPERATORS = ["exists", "equals"] as const;
+export const BranchStepConditionOperator = Schema.Literal(...BRANCH_STEP_CONDITION_OPERATORS);
+export type BranchStepConditionOperator = typeof BranchStepConditionOperator.Type;
 
 export const BranchRouteConditionPayload = Schema.Struct({
   conditionId: Schema.NonEmptyString,
@@ -208,7 +316,7 @@ export const BranchRouteConditionPayload = Schema.Struct({
   subFieldKey: Schema.optionalWith(Schema.NullOr(Schema.NonEmptyString), {
     default: () => null,
   }),
-  operator: Schema.NonEmptyString,
+  operator: BranchStepConditionOperator,
   isNegated: Schema.optionalWith(Schema.Boolean, { default: () => false }),
   comparisonJson: Schema.Unknown,
 });
@@ -247,11 +355,48 @@ export const BranchStepPayload = Schema.Struct({
   .pipe(Schema.extend(WorkflowStepPayloadMetadata))
   .pipe(
     Schema.filter((payload) => {
+      const routeIds = payload.routes.map((route) => route.routeId);
       const targetStepIds = payload.routes.map((route) => route.targetStepId);
-      return new Set(targetStepIds).size === targetStepIds.length;
+      return (
+        new Set(routeIds).size === routeIds.length &&
+        new Set(targetStepIds).size === targetStepIds.length
+      );
     }),
   );
 export type BranchStepPayload = typeof BranchStepPayload.Type;
+
+export const CreateActionStepInput = Schema.Struct({
+  workflowDefinitionId: Schema.NonEmptyString,
+  afterStepKey: Schema.optionalWith(Schema.NullOr(Schema.NonEmptyString), { default: () => null }),
+  payload: ActionStepPayload,
+});
+export type CreateActionStepInput = typeof CreateActionStepInput.Type;
+
+export const UpdateActionStepInput = Schema.Struct({
+  workflowDefinitionId: Schema.NonEmptyString,
+  stepId: Schema.NonEmptyString,
+  payload: ActionStepPayload,
+});
+export type UpdateActionStepInput = typeof UpdateActionStepInput.Type;
+
+export const DeleteActionStepInput = Schema.Struct({
+  workflowDefinitionId: Schema.NonEmptyString,
+  stepId: Schema.NonEmptyString,
+});
+export type DeleteActionStepInput = typeof DeleteActionStepInput.Type;
+
+export const GetActionStepDefinitionInput = Schema.Struct({
+  workflowDefinitionId: Schema.NonEmptyString,
+  stepId: Schema.NonEmptyString,
+});
+export type GetActionStepDefinitionInput = typeof GetActionStepDefinitionInput.Type;
+
+export const GetActionStepDefinitionOutput = Schema.Struct({
+  stepId: Schema.NonEmptyString,
+  stepType: Schema.Literal("action"),
+  payload: ActionStepPayload,
+});
+export type GetActionStepDefinitionOutput = typeof GetActionStepDefinitionOutput.Type;
 
 export const CreateFormStepInput = Schema.Struct({
   workflowDefinitionId: Schema.NonEmptyString,

@@ -34,9 +34,9 @@ const hasRelativePath = (
 
 const isFilePathPlainContextFact = (contextFact: {
   kind: string;
-  valueType?: string;
+  valueType?: string | undefined;
   cardinality: string;
-  validationJson?: unknown;
+  validationJson?: unknown | undefined;
 }): boolean =>
   contextFact.kind === "plain_value_fact" &&
   contextFact.valueType === "string" &&

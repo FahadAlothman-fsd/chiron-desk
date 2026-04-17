@@ -20,9 +20,12 @@ import {
   WorkflowMetadataDialog,
 } from "./dialogs";
 import { AgentStepDialog } from "./agent-step-dialog";
+import { ActionStepDialog } from "./action-step-dialog";
 import { StepListInspector } from "./step-list-inspector";
 import { StepTypesGrid } from "./step-types-grid";
 import type {
+  WorkflowActionStepMutationHandlers,
+  WorkflowActionStepPayload,
   WorkflowBranchStepMutationHandlers,
   WorkflowBranchStepPayload,
   WorkflowConditionOperator,
@@ -85,6 +88,7 @@ type WorkflowEditorShellProps = {
   onDeleteEdge?: (edgeId: string) => Promise<void>;
 } & WorkflowFormStepMutationHandlers &
   WorkflowAgentStepMutationHandlers &
+  WorkflowActionStepMutationHandlers &
   WorkflowBranchStepMutationHandlers &
   WorkflowInvokeStepMutationHandlers &
   WorkflowContextFactMutationHandlers;
@@ -172,6 +176,21 @@ function updateBranchStepContextFactReferences(
   };
 }
 
+function updateActionStepContextFactReferences(
+  payload: WorkflowActionStepPayload,
+  previousContextFactDefinitionId: string,
+  nextContextFactDefinitionId: string,
+): WorkflowActionStepPayload {
+  return {
+    ...payload,
+    actions: payload.actions.map((action) =>
+      action.contextFactDefinitionId === previousContextFactDefinitionId
+        ? { ...action, contextFactDefinitionId: nextContextFactDefinitionId }
+        : action,
+    ),
+  };
+}
+
 function buildBranchProjectedEdges(params: {
   stepId: string;
   stepKey: string;
@@ -248,6 +267,10 @@ function stepReferencesContextFact(
         step.payload.completionRequirements.some(
           (requirement) => requirement.contextFactDefinitionId === contextFactDefinitionId,
         )
+      );
+    case "action":
+      return step.payload.actions.some(
+        (action) => action.contextFactDefinitionId === contextFactDefinitionId,
       );
     case "invoke":
       return (
@@ -485,6 +508,9 @@ export function WorkflowEditorShell({
   onCreateAgentStep,
   onUpdateAgentStep,
   onDeleteAgentStep,
+  onCreateActionStep,
+  onUpdateActionStep,
+  onDeleteActionStep,
   onCreateInvokeStep,
   onUpdateInvokeStep,
   onDeleteInvokeStep,
@@ -511,6 +537,8 @@ export function WorkflowEditorShell({
   const [formDialogMode, setFormDialogMode] = useState<"create" | "edit">("create");
   const [isAgentDialogOpen, setAgentDialogOpen] = useState(false);
   const [agentDialogMode, setAgentDialogMode] = useState<"create" | "edit">("create");
+  const [isActionDialogOpen, setActionDialogOpen] = useState(false);
+  const [actionDialogMode, setActionDialogMode] = useState<"create" | "edit">("create");
   const [isInvokeDialogOpen, setInvokeDialogOpen] = useState(false);
   const [invokeDialogMode, setInvokeDialogMode] = useState<"create" | "edit">("create");
   const [isBranchDialogOpen, setBranchDialogOpen] = useState(false);
@@ -621,6 +649,12 @@ export function WorkflowEditorShell({
     setAgentDialogOpen(true);
   };
 
+  const openCreateActionDialog = () => {
+    setStatusMessage(null);
+    setActionDialogMode("create");
+    setActionDialogOpen(true);
+  };
+
   const openCreateInvokeDialog = () => {
     setStatusMessage(null);
     setInvokeDialogMode("create");
@@ -651,6 +685,15 @@ export function WorkflowEditorShell({
     setAgentDialogOpen(true);
   };
 
+  const openEditActionDialog = () => {
+    if (!selectedStep) {
+      return;
+    }
+    setStatusMessage(null);
+    setActionDialogMode("edit");
+    setActionDialogOpen(true);
+  };
+
   const openEditInvokeDialog = () => {
     if (!selectedStep) {
       return;
@@ -676,6 +719,11 @@ export function WorkflowEditorShell({
 
     if (selectedStep.stepType === "agent") {
       openEditAgentDialog();
+      return;
+    }
+
+    if (selectedStep.stepType === "action") {
+      openEditActionDialog();
       return;
     }
 
@@ -775,6 +823,7 @@ export function WorkflowEditorShell({
           <StepTypesGrid
             onCreateFormStep={openCreateFormDialog}
             onCreateAgentStep={openCreateAgentDialog}
+            onCreateActionStep={openCreateActionDialog}
             onCreateInvokeStep={openCreateInvokeDialog}
             onCreateBranchStep={openCreateBranchDialog}
           />
@@ -1046,6 +1095,67 @@ export function WorkflowEditorShell({
         }
       />
 
+      <ActionStepDialog
+        open={isActionDialogOpen}
+        mode={actionDialogMode}
+        step={
+          actionDialogMode === "edit" && selectedStep?.stepType === "action"
+            ? selectedStep
+            : undefined
+        }
+        contextFactDefinitions={localContextFacts}
+        onOpenChange={setActionDialogOpen}
+        onSave={async (payload) => {
+          setStatusMessage(null);
+          if (actionDialogMode === "edit" && selectedStep?.stepType === "action") {
+            const previousStepKey = selectedStep.payload.key;
+            setSteps((previous) =>
+              previous.map((entry) =>
+                entry.stepId === selectedStep.stepId
+                  ? {
+                      ...entry,
+                      payload,
+                    }
+                  : entry,
+              ),
+            );
+            if (previousStepKey !== payload.key) {
+              setEdges((previous) => updateEdgeStepKeys(previous, previousStepKey, payload.key));
+            }
+            await onUpdateActionStep?.(selectedStep.stepId, payload);
+          } else {
+            const nextStep: WorkflowEditorStep = {
+              stepId: createLocalId("step"),
+              stepType: "action",
+              payload,
+            };
+            setSteps((previous) => [...previous, nextStep]);
+            setSelection({ kind: "step", stepId: nextStep.stepId });
+            await onCreateActionStep?.(payload);
+          }
+          setActionDialogOpen(false);
+        }}
+        onDelete={
+          actionDialogMode === "edit" && selectedStep?.stepType === "action"
+            ? async () => {
+                setSteps((previous) =>
+                  previous.filter((entry) => entry.stepId !== selectedStep.stepId),
+                );
+                setEdges((previous) =>
+                  previous.filter(
+                    (edge) =>
+                      edge.fromStepKey !== selectedStep.payload.key &&
+                      edge.toStepKey !== selectedStep.payload.key,
+                  ),
+                );
+                setSelection(null);
+                setActionDialogOpen(false);
+                await onDeleteActionStep?.(selectedStep.stepId);
+              }
+            : undefined
+        }
+      />
+
       <InvokeStepDialog
         open={isInvokeDialogOpen}
         mode={invokeDialogMode}
@@ -1274,6 +1384,17 @@ export function WorkflowEditorShell({
                               : requirement,
                         ),
                       },
+                    };
+                  }
+
+                  if (step.stepType === "action") {
+                    return {
+                      ...step,
+                      payload: updateActionStepContextFactReferences(
+                        step.payload,
+                        previousBindingId,
+                        nextFact.contextFactDefinitionId,
+                      ),
                     };
                   }
 

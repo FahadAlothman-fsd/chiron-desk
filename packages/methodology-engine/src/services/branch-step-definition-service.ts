@@ -130,39 +130,6 @@ const parseBranchProjectedEdgeMetadata = (value: unknown): BranchProjectedEdgeMe
   };
 };
 
-const getPlainStringValidationKind = (
-  fact: WorkflowContextFactDto,
-): "none" | "path" | "allowed-values" => {
-  if (fact.kind !== "plain_value_fact" || fact.valueType !== "string") {
-    return "none";
-  }
-
-  if (!isRecord(fact.validationJson)) {
-    return "none";
-  }
-
-  const kind = fact.validationJson.kind;
-  return kind === "path" || kind === "allowed-values" ? kind : "none";
-};
-
-const getExternalStringValidationKind = (
-  fact: WorkflowContextFactDto,
-): "none" | "path" | "allowed-values" => {
-  if (
-    (fact.kind !== "definition_backed_external_fact" && fact.kind !== "bound_external_fact") ||
-    fact.valueType !== "string"
-  ) {
-    return "none";
-  }
-
-  if (!isRecord(fact.validationJson)) {
-    return "none";
-  }
-
-  const kind = fact.validationJson.kind;
-  return kind === "path" || kind === "allowed-values" ? kind : "none";
-};
-
 const getJsonSubFieldMetadata = (
   fact: WorkflowContextFactDto,
   subFieldKey: string,
@@ -384,24 +351,15 @@ const validateConditionReferences = (
             }
 
             if (operand.operandType === "string") {
-              const subField = getJsonSubFieldMetadata(fact, subFieldKey);
-              if (subField?.validationKind === "path") {
-                return new Set(["exists", "exists_in_repo"]);
-              }
-
-              if (subField?.validationKind === "allowed-values") {
-                return new Set(["exists", "equals"]);
-              }
-
-              return new Set(["equals", "contains", "starts_with", "ends_with"]);
+              return new Set(["exists", "equals"]);
             }
 
             if (operand.operandType === "number") {
-              return new Set(["equals", "gt", "gte", "lt", "lte", "between"]);
+              return new Set(["exists", "equals"]);
             }
 
             if (operand.operandType === "boolean") {
-              return new Set(["equals"]);
+              return new Set(["exists", "equals"]);
             }
 
             return new Set<string>();
@@ -420,24 +378,15 @@ const validateConditionReferences = (
               (typeof fact.workUnitDefinitionId === "string" &&
                 fact.workUnitDefinitionId.length > 0)
             ) {
-              return new Set(["exists", "current_state"]);
+              return new Set(["exists", "equals"]);
             }
 
             if (fact.valueType === "string") {
-              const validationKind = getExternalStringValidationKind(fact);
-              if (validationKind === "path") {
-                return new Set(["exists", "exists_in_repo"]);
-              }
-
-              if (validationKind === "allowed-values") {
-                return new Set(["exists", "equals"]);
-              }
-
-              return new Set(["exists", "equals", "contains", "starts_with", "ends_with"]);
+              return new Set(["exists", "equals"]);
             }
 
             if (fact.valueType === "number") {
-              return new Set(["exists", "equals", "gt", "gte", "lt", "lte", "between"]);
+              return new Set(["exists", "equals"]);
             }
 
             if (fact.valueType === "boolean") {
@@ -450,20 +399,11 @@ const validateConditionReferences = (
           }
 
           if (fact.valueType === "string") {
-            const validationKind = getPlainStringValidationKind(fact);
-            if (validationKind === "path") {
-              return new Set(["exists", "exists_in_repo"]);
-            }
-
-            if (validationKind === "allowed-values") {
-              return new Set(["exists", "equals"]);
-            }
-
-            return new Set(["exists", "equals", "contains", "starts_with", "ends_with"]);
+            return new Set(["exists", "equals"]);
           }
 
           if (fact.valueType === "number") {
-            return new Set(["exists", "equals", "gt", "gte", "lt", "lte", "between"]);
+            return new Set(["exists", "equals"]);
           }
 
           if (fact.valueType === "boolean") {
@@ -480,8 +420,8 @@ const validateConditionReferences = (
         if (!allowedOperators.has(condition.operator)) {
           return yield* new ValidationDecodeError({
             message:
-              `Branch condition operator '${condition.operator}' is not allowed for plain value ` +
-              `fact '${fact.key}' under the selected scope`,
+              `Branch condition operator '${condition.operator}' is outside the Plan A ` +
+              `authoring subset for fact '${fact.key}'`,
           });
         }
       });

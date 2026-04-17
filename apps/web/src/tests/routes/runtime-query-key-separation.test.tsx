@@ -26,7 +26,7 @@ describe("runtime query-key separation", () => {
 
     expect(overviewRoute).toContain('["runtime-overview", projectId]');
     expect(guidanceRoute).toContain('["runtime-guidance-active", projectId]');
-    expect(workUnitsRoute).toContain('["runtime-work-units", projectId, hasActiveTransition]');
+    expect(workUnitsRoute).toContain('["runtime-work-units", projectId]');
     expect(activeWorkflowsRoute).toContain('["runtime-active-workflows", projectId]');
     expect(transitionDetailRoute).toContain(
       '["runtime-transition-execution-detail", projectId, transitionExecutionId]',
@@ -52,7 +52,7 @@ describe("runtime query-key separation", () => {
 
     expect(overviewRoute).not.toContain('["overview", projectId]');
     expect(guidanceRoute).not.toContain('["guidance-active", projectId]');
-    expect(workUnitsRoute).not.toContain('["work-units", projectId, hasActiveTransition]');
+    expect(workUnitsRoute).not.toContain('["work-units", projectId]');
     expect(activeWorkflowsRoute).not.toContain('["active-workflows", projectId]');
     expect(transitionDetailRoute).not.toContain(
       '["transition-execution-detail", projectId, transitionExecutionId]',

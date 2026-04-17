@@ -207,7 +207,9 @@ describe("slice-1 contract locks", () => {
         kind: "work_unit_draft_spec_fact",
         key: "storyDraft",
         cardinality: "many",
-        includedFactDefinitionIds: ["fact-title", "fact-acceptance-criteria"],
+        workUnitDefinitionId: "WU.STORY",
+        selectedWorkUnitFactDefinitionIds: ["fact-title", "fact-acceptance-criteria"],
+        selectedArtifactSlotDefinitionIds: ["ART.PRD"],
       },
     ] as const;
 
@@ -261,7 +263,7 @@ describe("slice-1 contract locks", () => {
     expect(() => decodeDescription({})).toThrow();
   });
 
-  it("locks deferred/default read models for non-form steps", () => {
+  it("locks read models so invoke/branch carry payloads while deferred steps stay explicit", () => {
     const decodeStepReadModel = Schema.decodeUnknownSync(WorkflowStepReadModel);
 
     expect(
@@ -272,5 +274,39 @@ describe("slice-1 contract locks", () => {
         defaultMessage: "Deferred until runtime adapter lands",
       }),
     ).toMatchObject({ stepType: "agent", mode: "deferred" });
+
+    expect(
+      decodeStepReadModel({
+        stepId: "step-action",
+        stepType: "action",
+        mode: "deferred",
+        defaultMessage: "Deferred until action editor hydrates whole-step payloads",
+      }),
+    ).toMatchObject({ stepType: "action", mode: "deferred" });
+
+    expect(
+      decodeStepReadModel({
+        stepId: "step-invoke",
+        stepType: "invoke",
+        payload: {
+          key: "invoke-story",
+          targetKind: "workflow",
+          sourceMode: "fixed_set",
+          workflowDefinitionIds: ["wf-story"],
+        },
+      }),
+    ).toMatchObject({ stepType: "invoke", payload: { key: "invoke-story" } });
+
+    expect(
+      decodeStepReadModel({
+        stepId: "step-branch",
+        stepType: "branch",
+        payload: {
+          key: "route-next",
+          routes: [],
+          defaultTargetStepId: null,
+        },
+      }),
+    ).toMatchObject({ stepType: "branch", payload: { key: "route-next" } });
   });
 });

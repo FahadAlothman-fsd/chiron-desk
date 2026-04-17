@@ -10,6 +10,7 @@ import { RepositoryError } from "../errors";
 import { ExecutionReadRepository } from "../repositories/execution-read-repository";
 import { StepExecutionRepository } from "../repositories/step-execution-repository";
 import { WorkflowExecutionRepository } from "../repositories/workflow-execution-repository";
+import { StepProgressionService } from "./step-progression-service";
 
 const makeCommandError = (operation: string, cause: string): RepositoryError =>
   new RepositoryError({ operation, cause: new Error(cause) });
@@ -34,6 +35,7 @@ export const WorkflowExecutionCommandServiceLive = Layer.effect(
     const readRepo = yield* ExecutionReadRepository;
     const stepRepo = yield* StepExecutionRepository;
     const workflowRepo = yield* WorkflowExecutionRepository;
+    const progression = yield* StepProgressionService;
 
     const assertWorkflowTerminalCompletion = (params: {
       workflowExecutionId: string;
@@ -55,9 +57,6 @@ export const WorkflowExecutionCommandServiceLive = Layer.effect(
           );
         }
 
-        const stepDefinitions = yield* stepRepo.listWorkflowStepDefinitions(params.workflowId);
-        const workflowEdges = yield* stepRepo.listWorkflowEdges(params.workflowId);
-
         const completedSteps = stepExecutions
           .filter((stepExecution) => stepExecution.status === "completed")
           .slice()
@@ -75,15 +74,21 @@ export const WorkflowExecutionCommandServiceLive = Layer.effect(
           );
         }
 
-        const nextEdge = workflowEdges.find(
-          (edge) => edge.fromStepId === latestCompletedStep.stepDefinitionId,
-        );
-        if (!nextEdge?.toStepId) {
-          return latestCompletedStep;
+        const nextStep = yield* progression.getNextStepDefinition({
+          workflowExecutionId: params.workflowExecutionId,
+          workflowId: params.workflowId,
+          fromStepDefinitionId: latestCompletedStep.stepDefinitionId,
+          fromStepExecutionId: latestCompletedStep.id,
+        });
+
+        if (nextStep.state === "blocked") {
+          return yield* makeCommandError(
+            "workflow-execution-command.completeWorkflowExecution",
+            nextStep.reason,
+          );
         }
 
-        const nextStepDefinition = stepDefinitions.find((step) => step.id === nextEdge.toStepId);
-        if (!nextStepDefinition) {
+        if (nextStep.state === "no_next_step") {
           return latestCompletedStep;
         }
 

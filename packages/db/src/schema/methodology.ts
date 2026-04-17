@@ -592,6 +592,99 @@ export const methodologyWorkflowAgentStepWriteItemRequirements = sqliteTable(
   ],
 );
 
+export const methodologyWorkflowActionSteps = sqliteTable(
+  "methodology_workflow_action_steps",
+  {
+    stepId: text("step_id")
+      .primaryKey()
+      .references(() => methodologyWorkflowSteps.id, { onDelete: "cascade" }),
+    executionMode: text("execution_mode").notNull(),
+  },
+  (table) => [
+    check(
+      "methodology_workflow_action_steps_execution_mode_check",
+      sql`${table.executionMode} in ('sequential', 'parallel')`,
+    ),
+  ],
+);
+
+export const methodologyWorkflowActionStepActions = sqliteTable(
+  "methodology_workflow_action_step_actions",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    actionStepId: text("action_step_id")
+      .notNull()
+      .references(() => methodologyWorkflowActionSteps.stepId, { onDelete: "cascade" }),
+    actionId: text("action_id").notNull(),
+    actionKey: text("action_key").notNull(),
+    label: text("label"),
+    enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+    sortOrder: integer("sort_order").notNull(),
+    actionKind: text("action_kind").notNull(),
+    contextFactDefinitionId: text("context_fact_definition_id")
+      .notNull()
+      .references(() => methodologyWorkflowContextFactDefinitions.id, { onDelete: "cascade" }),
+    contextFactKind: text("context_fact_kind").notNull(),
+  },
+  (table) => [
+    uniqueIndex("methodology_workflow_action_step_actions_step_action_id_idx").on(
+      table.actionStepId,
+      table.actionId,
+    ),
+    index("methodology_workflow_action_step_actions_step_order_idx").on(
+      table.actionStepId,
+      table.sortOrder,
+    ),
+    index("methodology_workflow_action_step_actions_step_fact_idx").on(
+      table.actionStepId,
+      table.contextFactDefinitionId,
+    ),
+    check(
+      "methodology_workflow_action_step_actions_kind_check",
+      sql`${table.actionKind} = 'propagation'`,
+    ),
+    check(
+      "methodology_workflow_action_step_actions_fact_kind_check",
+      sql`${table.contextFactKind} in ('definition_backed_external_fact', 'bound_external_fact', 'artifact_reference_fact')`,
+    ),
+  ],
+);
+
+export const methodologyWorkflowActionStepActionItems = sqliteTable(
+  "methodology_workflow_action_step_action_items",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    actionRowId: text("action_row_id")
+      .notNull()
+      .references(() => methodologyWorkflowActionStepActions.id, { onDelete: "cascade" }),
+    itemId: text("item_id").notNull(),
+    itemKey: text("item_key").notNull(),
+    label: text("label"),
+    targetContextFactDefinitionId: text("target_context_fact_definition_id").references(
+      () => methodologyWorkflowContextFactDefinitions.id,
+      { onDelete: "cascade" },
+    ),
+    sortOrder: integer("sort_order").notNull(),
+  },
+  (table) => [
+    uniqueIndex("methodology_workflow_action_step_action_items_action_item_id_idx").on(
+      table.actionRowId,
+      table.itemId,
+    ),
+    index("methodology_workflow_action_step_action_items_action_order_idx").on(
+      table.actionRowId,
+      table.sortOrder,
+    ),
+    index("methodology_workflow_action_step_action_items_target_fact_idx").on(
+      table.targetContextFactDefinitionId,
+    ),
+  ],
+);
+
 export const methodologyWorkflowInvokeSteps = sqliteTable(
   "methodology_workflow_invoke_steps",
   {

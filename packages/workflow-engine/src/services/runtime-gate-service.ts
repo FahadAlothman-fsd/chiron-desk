@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from "node:util";
+
 import type {
   RuntimeCondition,
   RuntimeConditionEvaluation,
@@ -10,7 +12,9 @@ import { Context, Data, Effect, Layer } from "effect";
 import type { RepositoryError } from "../errors";
 import { ArtifactRepository } from "../repositories/artifact-repository";
 import { ProjectFactRepository } from "../repositories/project-fact-repository";
+import type { ProjectFactInstanceRow } from "../repositories/project-fact-repository";
 import { WorkUnitFactRepository } from "../repositories/work-unit-fact-repository";
+import type { WorkUnitFactInstanceRow } from "../repositories/work-unit-fact-repository";
 
 export interface RuntimeGateEvaluationInput {
   readonly projectId: string;
@@ -47,6 +51,8 @@ interface ConditionEvaluationTreeResult {
   readonly conditions: readonly RuntimeConditionEvaluation[];
   readonly groups: readonly RuntimeConditionEvaluationTree[];
 }
+
+type RuntimeFactRow = ProjectFactInstanceRow | WorkUnitFactInstanceRow;
 
 export class RuntimeGateService extends Context.Tag("RuntimeGateService")<
   RuntimeGateService,
@@ -204,6 +210,170 @@ const normalizeSlotDefinitionId = (condition: {
   readonly slotKey: string;
 }): string => condition.slotDefinitionId ?? condition.slotKey;
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+type DraftSpecFactEntry = {
+  factDefinitionId: string;
+  value?: unknown;
+  valueJson?: unknown;
+};
+
+type DraftSpecArtifactEntry = {
+  artifactSlotDefinitionId: string;
+  relativePath?: string;
+  artifactSnapshotId?: string;
+};
+
+type DraftSpecRuntimeValue = {
+  instance?: Record<string, unknown>;
+  facts: readonly DraftSpecFactEntry[];
+  artifacts: readonly DraftSpecArtifactEntry[];
+};
+
+const toComparableValue = (comparisonJson: unknown): unknown =>
+  isRecord(comparisonJson) && "value" in comparisonJson ? comparisonJson.value : comparisonJson;
+
+const pickJsonSubFieldValues = (value: unknown, subFieldKey: string): readonly unknown[] => {
+  if (!isRecord(value) || !(subFieldKey in value)) {
+    return [];
+  }
+
+  const subValue = value[subFieldKey];
+  return typeof subValue === "undefined" ? [] : [subValue];
+};
+
+const normalizeDraftSpecValue = (value: unknown): DraftSpecRuntimeValue | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const facts = Array.isArray(value.facts)
+    ? value.facts.flatMap((entry) => {
+        if (!isRecord(entry) || typeof entry.factDefinitionId !== "string") {
+          return [];
+        }
+
+        return [
+          {
+            factDefinitionId: entry.factDefinitionId,
+            ...("value" in entry ? { value: entry.value } : {}),
+            ...("valueJson" in entry ? { valueJson: entry.valueJson } : {}),
+          } satisfies DraftSpecFactEntry,
+        ];
+      })
+    : Array.isArray(value.workUnitFactInstanceIds)
+      ? value.workUnitFactInstanceIds.flatMap((entry) =>
+          typeof entry === "string" ? [{ factDefinitionId: entry }] : [],
+        )
+      : [];
+
+  const artifacts = Array.isArray(value.artifacts)
+    ? value.artifacts.flatMap((entry) => {
+        if (!isRecord(entry) || typeof entry.artifactSlotDefinitionId !== "string") {
+          return [];
+        }
+
+        return [
+          {
+            artifactSlotDefinitionId: entry.artifactSlotDefinitionId,
+            ...(typeof entry.relativePath === "string" ? { relativePath: entry.relativePath } : {}),
+            ...(typeof entry.artifactSnapshotId === "string"
+              ? { artifactSnapshotId: entry.artifactSnapshotId }
+              : {}),
+          } satisfies DraftSpecArtifactEntry,
+        ];
+      })
+    : Array.isArray(value.artifactSnapshotIds)
+      ? value.artifactSnapshotIds.flatMap((entry) =>
+          typeof entry === "string" ? [{ artifactSlotDefinitionId: entry }] : [],
+        )
+      : [];
+
+  return {
+    ...(isRecord(value.instance) ? { instance: value.instance } : {}),
+    facts,
+    artifacts,
+  };
+};
+
+const extractFactValues = (
+  rows: readonly RuntimeFactRow[],
+  subFieldKey: string | null | undefined,
+): readonly unknown[] => {
+  if (!subFieldKey) {
+    return rows.flatMap((row) =>
+      typeof row.valueJson === "undefined" || row.valueJson === null ? [] : [row.valueJson],
+    );
+  }
+
+  return rows.flatMap((row) => {
+    const normalized = normalizeDraftSpecValue(row.valueJson);
+    if (normalized) {
+      if (subFieldKey.startsWith("fact:")) {
+        const factDefinitionId = subFieldKey.slice("fact:".length);
+        return normalized.facts.flatMap((fact) => {
+          if (fact.factDefinitionId !== factDefinitionId) {
+            return [];
+          }
+
+          if ("value" in fact && typeof fact.value !== "undefined") {
+            return [fact.value];
+          }
+
+          if ("valueJson" in fact && typeof fact.valueJson !== "undefined") {
+            return [fact.valueJson];
+          }
+
+          return [fact];
+        });
+      }
+
+      if (subFieldKey.startsWith("artifact:")) {
+        const artifactSlotDefinitionId = subFieldKey.slice("artifact:".length);
+        return normalized.artifacts.filter(
+          (artifact) => artifact.artifactSlotDefinitionId === artifactSlotDefinitionId,
+        );
+      }
+
+      if (subFieldKey.startsWith("instance:")) {
+        return pickJsonSubFieldValues(
+          normalized.instance ?? {},
+          subFieldKey.slice("instance:".length),
+        );
+      }
+    }
+
+    return pickJsonSubFieldValues(row.valueJson, subFieldKey);
+  });
+};
+
+const evaluateFactValues = (params: {
+  rows: readonly RuntimeFactRow[];
+  condition: Extract<RuntimeCondition, { kind: "fact" | "work_unit_fact" }>;
+}): boolean => {
+  const extractedValues = extractFactValues(params.rows, params.condition.subFieldKey ?? null);
+
+  const baseMet = (() => {
+    switch (params.condition.operator) {
+      case "exists":
+        return extractedValues.some((value) => {
+          if (value === null || typeof value === "undefined") {
+            return false;
+          }
+
+          return !Array.isArray(value) || value.length > 0;
+        });
+      case "equals": {
+        const expected = toComparableValue(params.condition.comparisonJson);
+        return extractedValues.some((value) => isDeepStrictEqual(value, expected));
+      }
+    }
+  })();
+
+  return params.condition.isNegated ? !baseMet : baseMet;
+};
+
 export const RuntimeGateServiceLive = Layer.effect(
   RuntimeGateService,
   Effect.gen(function* () {
@@ -224,12 +394,19 @@ export const RuntimeGateServiceLive = Layer.effect(
               factDefinitionId,
             });
 
-            return rows.length > 0
-              ? ({ met: true } as const)
-              : ({
-                  met: false,
-                  reason: `Project fact '${condition.factKey}' is missing`,
-                } as const);
+            const met = evaluateFactValues({ rows, condition });
+
+            if (met) {
+              return { met: true } as const;
+            }
+
+            return {
+              met: false,
+              reason:
+                condition.operator === "exists" && rows.length === 0
+                  ? `Project fact '${condition.factKey}' is missing`
+                  : `Project fact '${condition.factKey}' did not satisfy ${condition.operator}`,
+            } as const;
           }
           case "work_unit_fact": {
             if (!context.projectWorkUnitId) {
@@ -245,12 +422,19 @@ export const RuntimeGateServiceLive = Layer.effect(
               factDefinitionId,
             });
 
-            return rows.length > 0
-              ? ({ met: true } as const)
-              : ({
-                  met: false,
-                  reason: `Work-unit fact '${condition.factKey}' is missing`,
-                } as const);
+            const met = evaluateFactValues({ rows, condition });
+
+            if (met) {
+              return { met: true } as const;
+            }
+
+            return {
+              met: false,
+              reason:
+                condition.operator === "exists" && rows.length === 0
+                  ? `Work-unit fact '${condition.factKey}' is missing`
+                  : `Work-unit fact '${condition.factKey}' did not satisfy ${condition.operator}`,
+            } as const;
           }
           case "artifact": {
             if (!context.projectWorkUnitId) {

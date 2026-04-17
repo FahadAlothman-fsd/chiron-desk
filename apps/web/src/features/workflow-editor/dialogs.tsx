@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { BRANCH_STEP_CONDITION_OPERATORS } from "@chiron/contracts/methodology/workflow";
 import { useEffect, useMemo, useState } from "react";
 import { CheckIcon, ChevronsUpDownIcon, PlusIcon, XIcon } from "lucide-react";
 
@@ -5937,7 +5938,11 @@ function getCompatibleConditionOperators(
     return [];
   }
 
-  const base = conditionOperators.filter((operator) => operator.supportsOperand(operand));
+  const planABranchConditionOperators = new Set<string>(BRANCH_STEP_CONDITION_OPERATORS);
+  const base = conditionOperators.filter(
+    (operator) =>
+      planABranchConditionOperators.has(operator.key) && operator.supportsOperand(operand),
+  );
   if (!fact) {
     return base;
   }

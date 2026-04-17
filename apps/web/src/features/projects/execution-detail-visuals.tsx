@@ -33,12 +33,17 @@ export function getExecutionStatusTone(status: string): AccentTone {
 
 export function getStepTypeTone(stepType: string): AccentTone {
   switch (stepType) {
+    case "action":
+      return "emerald";
     case "form":
       return "sky";
     case "agent":
       return "violet";
+    case "invoke":
     case "transition":
       return "amber";
+    case "branch":
+      return "rose";
     default:
       return "slate";
   }

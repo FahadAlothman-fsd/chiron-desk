@@ -28,6 +28,8 @@ import type {
   WorkflowExecutionRow,
 } from "../../repositories/workflow-execution-repository";
 import { FormStepExecutionServiceLive } from "../../services/form-step-execution-service";
+import { ActionStepDetailService } from "../../services/action-step-detail-service";
+import { ActionStepRuntimeService } from "../../services/action-step-runtime-service";
 import { InvokeCompletionService } from "../../services/invoke-completion-service";
 import { InvokePropagationService } from "../../services/invoke-propagation-service";
 import { InvokeStepDetailService } from "../../services/invoke-step-detail-service";
@@ -731,9 +733,27 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
     materializeTargetsForActivation: () =>
       Effect.die("invoke target materialization should not run in form-runtime tests"),
   } as unknown as Context.Tag.Service<typeof InvokeTargetResolutionService>);
+  const actionRuntime = Layer.succeed(ActionStepRuntimeService, {
+    startExecution: () => Effect.die("unused"),
+    runActions: () => Effect.die("unused"),
+    retryActions: () => Effect.die("unused"),
+    completeStep: () => Effect.die("unused"),
+    getCompletionEligibility: () => Effect.die("unused"),
+  } as unknown as Context.Tag.Service<typeof ActionStepRuntimeService>);
+  const actionDetail = Layer.succeed(ActionStepDetailService, {
+    buildActionStepExecutionDetailBody: () =>
+      Effect.die("action detail should not be built in form-runtime tests"),
+  } as unknown as Context.Tag.Service<typeof ActionStepDetailService>);
   const transaction = Layer.provide(
     StepExecutionTransactionServiceLive,
-    Layer.mergeAll(base, lifecycle, contextMutation, invokeCompletion, invokePropagation),
+    Layer.mergeAll(
+      base,
+      lifecycle,
+      contextMutation,
+      actionRuntime,
+      invokeCompletion,
+      invokePropagation,
+    ),
   );
   const formExecution = Layer.provide(
     FormStepExecutionServiceLive,
@@ -753,7 +773,7 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
   );
   const stepDetail = Layer.provide(
     StepExecutionDetailServiceLive,
-    Layer.mergeAll(base, contextQuery, invokeStepDetail),
+    Layer.mergeAll(base, contextQuery, actionDetail, invokeStepDetail),
   );
   const workflowCommand = Layer.provide(WorkflowExecutionCommandServiceLive, base);
 
@@ -765,6 +785,8 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
       lifecycle,
       contextMutation,
       contextQuery,
+      actionRuntime,
+      actionDetail,
       invokeCompletion,
       invokePropagation,
       invokeStepDetail,

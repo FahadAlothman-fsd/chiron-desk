@@ -1,11 +1,16 @@
 import { Context, Effect, Layer } from "effect";
+import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-engine";
+import { ProjectContextRepository } from "@chiron/project-context";
 
 import { RepositoryError } from "../errors";
+import { BranchStepRuntimeRepository } from "../repositories/branch-step-runtime-repository";
+import { ExecutionReadRepository } from "../repositories/execution-read-repository";
 import {
   StepExecutionRepository,
   type RuntimeStepExecutionRow,
 } from "../repositories/step-execution-repository";
 import { WorkflowExecutionRepository } from "../repositories/workflow-execution-repository";
+import { evaluateRoutes } from "./branch-route-evaluator";
 import { StepProgressionService } from "./step-progression-service";
 
 const makeLifecycleError = (cause: string): RepositoryError =>
@@ -42,7 +47,81 @@ export const StepExecutionLifecycleServiceLive = Layer.effect(
   Effect.gen(function* () {
     const workflowRepo = yield* WorkflowExecutionRepository;
     const stepRepo = yield* StepExecutionRepository;
+    const branchRuntimeRepo = yield* BranchStepRuntimeRepository;
+    const executionReadRepo = yield* ExecutionReadRepository;
+    const projectContextRepo = yield* ProjectContextRepository;
+    const lifecycleRepo = yield* LifecycleRepository;
+    const methodologyRepo = yield* MethodologyRepository;
     const progression = yield* StepProgressionService;
+
+    const createBranchActivationState = (params: {
+      workflowExecutionId: string;
+      workflowId: string;
+      stepExecutionId: string;
+      stepDefinitionId: string;
+    }) =>
+      Effect.gen(function* () {
+        const workflowDetail = yield* executionReadRepo.getWorkflowExecutionDetail(
+          params.workflowExecutionId,
+        );
+        if (!workflowDetail) {
+          return yield* makeLifecycleError("workflow execution detail not found");
+        }
+
+        const projectPin = yield* projectContextRepo.findProjectPin(workflowDetail.projectId);
+        if (!projectPin) {
+          return yield* makeLifecycleError("project methodology pin missing");
+        }
+
+        const workUnitTypes = yield* lifecycleRepo.findWorkUnitTypes(
+          projectPin.methodologyVersionId,
+        );
+        const workUnitType = workUnitTypes.find(
+          (entry) => entry.id === workflowDetail.workUnitTypeId,
+        );
+        if (!workUnitType) {
+          return yield* makeLifecycleError("workflow work-unit type not found");
+        }
+
+        const [branchDefinition, workflowEditor, contextFacts] = yield* Effect.all([
+          methodologyRepo.getBranchStepDefinition({
+            versionId: projectPin.methodologyVersionId,
+            workflowDefinitionId: params.workflowId,
+            stepId: params.stepDefinitionId,
+          }),
+          methodologyRepo.getWorkflowEditorDefinition({
+            versionId: projectPin.methodologyVersionId,
+            workUnitTypeKey: workUnitType.key,
+            workflowDefinitionId: params.workflowId,
+          }),
+          stepRepo.listWorkflowExecutionContextFacts(params.workflowExecutionId),
+        ]);
+
+        if (!branchDefinition) {
+          return yield* makeLifecycleError("branch step definition not found");
+        }
+
+        const evaluations = evaluateRoutes({
+          routes: branchDefinition.payload.routes.map((route, index) => ({
+            ...route,
+            sortOrder: index,
+          })),
+          contextFacts,
+          contextFactDefinitions: workflowEditor.contextFacts,
+        });
+
+        yield* branchRuntimeRepo.createOnActivation({
+          stepExecutionId: params.stepExecutionId,
+          routes: evaluations.map((route) => ({
+            routeId: route.routeId,
+            targetStepId: route.targetStepId,
+            sortOrder: route.sortOrder,
+            conditionMode: route.conditionMode,
+            isValid: route.isValid,
+            evaluationTreeJson: route.evaluationTree,
+          })),
+        });
+      });
 
     const activateStepExecution = ({
       workflowExecutionId,
@@ -110,6 +189,13 @@ export const StepExecutionLifecycleServiceLive = Layer.effect(
         if (stepType === "form") {
           yield* stepRepo.createFormStepExecutionState({
             stepExecutionId: createdStepExecution.id,
+          });
+        } else if (stepType === "branch") {
+          yield* createBranchActivationState({
+            workflowExecutionId,
+            workflowId: workflowExecution.workflowId,
+            stepExecutionId: createdStepExecution.id,
+            stepDefinitionId,
           });
         }
 
