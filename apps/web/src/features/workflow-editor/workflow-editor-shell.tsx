@@ -183,11 +183,17 @@ function updateActionStepContextFactReferences(
 ): WorkflowActionStepPayload {
   return {
     ...payload,
-    actions: payload.actions.map((action) =>
-      action.contextFactDefinitionId === previousContextFactDefinitionId
-        ? { ...action, contextFactDefinitionId: nextContextFactDefinitionId }
-        : action,
-    ),
+    actions: payload.actions.map((action) => ({
+      ...action,
+      ...(action.contextFactDefinitionId === previousContextFactDefinitionId
+        ? { contextFactDefinitionId: nextContextFactDefinitionId }
+        : {}),
+      items: action.items.map((item) =>
+        item.targetContextFactDefinitionId === previousContextFactDefinitionId
+          ? { ...item, targetContextFactDefinitionId: nextContextFactDefinitionId }
+          : item,
+      ),
+    })),
   };
 }
 
@@ -270,7 +276,11 @@ function stepReferencesContextFact(
       );
     case "action":
       return step.payload.actions.some(
-        (action) => action.contextFactDefinitionId === contextFactDefinitionId,
+        (action) =>
+          action.contextFactDefinitionId === contextFactDefinitionId ||
+          action.items.some(
+            (item) => item.targetContextFactDefinitionId === contextFactDefinitionId,
+          ),
       );
     case "invoke":
       return (

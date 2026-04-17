@@ -904,6 +904,12 @@ function toWorkflowActionPayload(rawPayload: unknown): WorkflowActionStepPayload
                         itemId: item.itemId,
                         itemKey: item.itemKey,
                         ...(typeof item.label === "string" ? { label: item.label } : {}),
+                        ...(typeof item.targetContextFactDefinitionId === "string" &&
+                        item.targetContextFactDefinitionId.trim().length > 0
+                          ? {
+                              targetContextFactDefinitionId: item.targetContextFactDefinitionId,
+                            }
+                          : {}),
                         sortOrder:
                           typeof item.sortOrder === "number" && Number.isFinite(item.sortOrder)
                             ? item.sortOrder
