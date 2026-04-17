@@ -177,6 +177,7 @@ export const DEFAULT_AGENT_STEP_RUNTIME_POLICY: AgentStepRuntimePolicy = {
   sessionStart: "explicit",
   continuationMode: "bootstrap_only",
   liveStreamCount: 1,
+  bootstrapPromptNoReply: true,
   nativeMessageLog: false,
   persistedWritePolicy: "applied_only",
 };

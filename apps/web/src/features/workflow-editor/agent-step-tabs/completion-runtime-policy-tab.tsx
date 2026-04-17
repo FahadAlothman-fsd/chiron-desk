@@ -6,12 +6,14 @@ type CompletionRuntimePolicyTabProps = {
   values: WorkflowAgentStepPayload;
   contextFactsById: ReadonlyMap<string, WorkflowContextFactDefinitionItem>;
   onToggleCompletionRequirement: (contextFactDefinitionId: string, checked: boolean) => void;
+  onSetBootstrapPromptNoReply: (value: boolean) => void;
 };
 
 export function CompletionRuntimePolicyTab({
   values,
   contextFactsById,
   onToggleCompletionRequirement,
+  onSetBootstrapPromptNoReply,
 }: CompletionRuntimePolicyTabProps) {
   const completionRequirements = new Set(
     values.completionRequirements.map((requirement) => requirement.contextFactDefinitionId),
@@ -24,8 +26,9 @@ export function CompletionRuntimePolicyTab({
           Completion Requirements
         </p>
         <FieldDescription>
-          Completion facts must also be produced by this agent step. Runtime policy is locked for v1
-          and shown for reference.
+          Completion facts must also be produced by this agent step. Runtime policy stays mostly
+          locked for v1, except for whether the bootstrap prompt should begin generation
+          immediately.
         </FieldDescription>
       </div>
 
@@ -89,6 +92,26 @@ export function CompletionRuntimePolicyTab({
             {values.runtimePolicy.liveStreamCount}
           </span>
         </div>
+        <label className="chiron-frame-flat grid gap-2 p-3 text-xs">
+          <span className="uppercase tracking-[0.14em] text-muted-foreground">
+            Bootstrap reply behavior
+          </span>
+          <span className="font-medium uppercase tracking-[0.12em] text-foreground">
+            Start generation from injected objective + instructions
+          </span>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={!values.runtimePolicy.bootstrapPromptNoReply}
+              onChange={(event) => onSetBootstrapPromptNoReply(!event.target.checked)}
+              className="size-4"
+            />
+            <span className="text-muted-foreground">
+              When enabled, the bootstrap prompt does not set <code>noReply</code> and the agent may
+              begin generating immediately.
+            </span>
+          </div>
+        </label>
         <div className="chiron-frame-flat grid gap-1 p-3 text-xs">
           <span className="uppercase tracking-[0.14em] text-muted-foreground">
             Persisted writes

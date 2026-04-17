@@ -300,7 +300,7 @@ export function AgentStepDialog({
 
           return (
             <>
-              <DialogContent className="w-[min(78rem,calc(100vw-2rem))] max-w-none p-0 sm:max-w-none">
+              <DialogContent className="flex w-[min(78rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] max-w-none flex-col overflow-hidden p-0 sm:max-w-none">
                 <DialogHeader className="border-b border-border/80 px-5 py-4">
                   <DialogTitle className="font-geist-pixel-square text-base uppercase tracking-[0.12em]">
                     {mode === "create"
@@ -313,7 +313,7 @@ export function AgentStepDialog({
                   </DialogDescription>
                 </DialogHeader>
 
-                <div className="grid min-h-[42rem] gap-0 lg:grid-cols-[18rem_minmax(0,1fr)]">
+                <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[18rem_minmax(0,1fr)]">
                   <aside className="border-r border-border/80 bg-card/60 p-3">
                     <nav className="grid gap-2">
                       {TAB_ORDER.map((tab) => {
@@ -344,7 +344,7 @@ export function AgentStepDialog({
                     </nav>
                   </aside>
 
-                  <section className="overflow-y-auto p-5">
+                  <section className="min-h-0 overflow-y-auto p-5">
                     {statusMessage ? (
                       <p className="mb-4 border border-destructive/45 bg-destructive/10 px-3 py-2 text-xs text-destructive">
                         {statusMessage}
@@ -520,6 +520,12 @@ export function AgentStepDialog({
                               );
                           form.setFieldValue("completionRequirements", next);
                         }}
+                        onSetBootstrapPromptNoReply={(bootstrapPromptNoReply) =>
+                          form.setFieldValue("runtimePolicy", {
+                            ...state.values.runtimePolicy,
+                            bootstrapPromptNoReply,
+                          })
+                        }
                       />
                     ) : null}
 

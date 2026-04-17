@@ -571,6 +571,8 @@ function toWorkflowAgentPayload(rawPayload: unknown): WorkflowAgentStepPayload |
           ? "bootstrap_only"
           : "bootstrap_only",
       liveStreamCount: asRecord(payload.runtimePolicy)?.liveStreamCount === 1 ? 1 : 1,
+      bootstrapPromptNoReply:
+        asRecord(payload.runtimePolicy)?.bootstrapPromptNoReply === false ? false : true,
       nativeMessageLog: false,
       persistedWritePolicy: "applied_only",
     },
@@ -1030,6 +1032,7 @@ function toWorkflowSteps(
                     sessionStart: "explicit",
                     continuationMode: "bootstrap_only",
                     liveStreamCount: 1,
+                    bootstrapPromptNoReply: true,
                     nativeMessageLog: false,
                     persistedWritePolicy: "applied_only",
                   },

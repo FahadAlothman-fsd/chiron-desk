@@ -239,8 +239,12 @@ describe("workflow editor agent step dialog", () => {
     expect(readScopeBodyRows).toHaveLength(2);
 
     fireEvent.click(screen.getByRole("button", { name: /completion & runtime policy/i }));
-    const completionCheckbox = screen.getByRole("checkbox");
+    const completionCheckbox = screen.getAllByRole("checkbox")[0]!;
     fireEvent.click(completionCheckbox);
+    const bootstrapReplyCheckbox = screen.getByRole("checkbox", {
+      name: /start generation from injected objective \+ instructions/i,
+    });
+    fireEvent.click(bootstrapReplyCheckbox);
 
     fireEvent.click(screen.getByRole("button", { name: /guidance/i }));
     fireEvent.change(screen.getByLabelText("Human guidance"), {
@@ -277,6 +281,9 @@ describe("workflow editor agent step dialog", () => {
           human: { markdown: "Review the generated PRD." },
           agent: { markdown: "Stay within the scoped facts." },
         },
+        runtimePolicy: expect.objectContaining({
+          bootstrapPromptNoReply: false,
+        }),
       }),
     );
   });
