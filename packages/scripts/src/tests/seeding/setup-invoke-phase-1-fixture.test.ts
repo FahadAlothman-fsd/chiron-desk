@@ -208,6 +208,7 @@ describe("setup invoke phase-1 fixture", () => {
         harness: "opencode",
         agentKey: "Atlas (Plan Executor)",
         modelJson: { provider: "opencode", model: "kimi-2.5" },
+        bootstrapPromptNoReply: false,
         completionRequirementsJson: [
           {
             contextFactDefinitionId:
