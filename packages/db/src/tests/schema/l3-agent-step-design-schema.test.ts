@@ -29,6 +29,7 @@ describe("l3 agent-step design schema", () => {
     expect(methodologySchema.methodologyWorkflowAgentSteps.sessionStart).toBeDefined();
     expect(methodologySchema.methodologyWorkflowAgentSteps.continuationMode).toBeDefined();
     expect(methodologySchema.methodologyWorkflowAgentSteps.liveStreamCount).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowAgentSteps.bootstrapPromptNoReply).toBeDefined();
     expect(methodologySchema.methodologyWorkflowAgentSteps.nativeMessageLog).toBeDefined();
     expect(methodologySchema.methodologyWorkflowAgentSteps.persistedWritePolicy).toBeDefined();
 

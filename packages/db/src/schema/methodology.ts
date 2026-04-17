@@ -509,6 +509,9 @@ export const methodologyWorkflowAgentSteps = sqliteTable(
     sessionStart: text("session_start").notNull().default("explicit"),
     continuationMode: text("continuation_mode").notNull().default("bootstrap_only"),
     liveStreamCount: integer("live_stream_count").notNull().default(1),
+    bootstrapPromptNoReply: integer("bootstrap_prompt_no_reply", { mode: "boolean" })
+      .notNull()
+      .default(true),
     nativeMessageLog: integer("native_message_log", { mode: "boolean" }).notNull().default(false),
     persistedWritePolicy: text("persisted_write_policy").notNull().default("applied_only"),
   },

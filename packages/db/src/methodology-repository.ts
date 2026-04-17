@@ -563,6 +563,7 @@ function normalizeAgentStepPayload(
     sessionStart: payload.runtimePolicy?.sessionStart ?? "explicit",
     continuationMode: payload.runtimePolicy?.continuationMode ?? "bootstrap_only",
     liveStreamCount: payload.runtimePolicy?.liveStreamCount ?? 1,
+    bootstrapPromptNoReply: payload.runtimePolicy?.bootstrapPromptNoReply ?? true,
     nativeMessageLog: payload.runtimePolicy?.nativeMessageLog ?? false,
     persistedWritePolicy: payload.runtimePolicy?.persistedWritePolicy ?? "applied_only",
   };
@@ -636,6 +637,7 @@ async function syncAgentStepDefinition(
       sessionStart: normalized.payload.runtimePolicy.sessionStart,
       continuationMode: normalized.payload.runtimePolicy.continuationMode,
       liveStreamCount: normalized.payload.runtimePolicy.liveStreamCount,
+      bootstrapPromptNoReply: normalized.payload.runtimePolicy.bootstrapPromptNoReply,
       nativeMessageLog: normalized.payload.runtimePolicy.nativeMessageLog,
       persistedWritePolicy: normalized.payload.runtimePolicy.persistedWritePolicy,
     })
@@ -651,6 +653,7 @@ async function syncAgentStepDefinition(
         sessionStart: normalized.payload.runtimePolicy.sessionStart,
         continuationMode: normalized.payload.runtimePolicy.continuationMode,
         liveStreamCount: normalized.payload.runtimePolicy.liveStreamCount,
+        bootstrapPromptNoReply: normalized.payload.runtimePolicy.bootstrapPromptNoReply,
         nativeMessageLog: normalized.payload.runtimePolicy.nativeMessageLog,
         persistedWritePolicy: normalized.payload.runtimePolicy.persistedWritePolicy,
       },
@@ -1336,6 +1339,7 @@ async function readWorkflowAgentDefinitions(
       sessionStart: methodologyWorkflowAgentSteps.sessionStart,
       continuationMode: methodologyWorkflowAgentSteps.continuationMode,
       liveStreamCount: methodologyWorkflowAgentSteps.liveStreamCount,
+      bootstrapPromptNoReply: methodologyWorkflowAgentSteps.bootstrapPromptNoReply,
       nativeMessageLog: methodologyWorkflowAgentSteps.nativeMessageLog,
       persistedWritePolicy: methodologyWorkflowAgentSteps.persistedWritePolicy,
     })
@@ -1475,6 +1479,8 @@ async function readWorkflowAgentDefinitions(
             step.continuationMode as AgentStepDesignTimePayload["runtimePolicy"]["continuationMode"],
           liveStreamCount:
             step.liveStreamCount as AgentStepDesignTimePayload["runtimePolicy"]["liveStreamCount"],
+          bootstrapPromptNoReply:
+            step.bootstrapPromptNoReply as AgentStepDesignTimePayload["runtimePolicy"]["bootstrapPromptNoReply"],
           nativeMessageLog:
             step.nativeMessageLog as AgentStepDesignTimePayload["runtimePolicy"]["nativeMessageLog"],
           persistedWritePolicy:
