@@ -1400,7 +1400,7 @@ export function makeOpencodeHarnessService(
                     text: createdRecord.bootstrapContent,
                     ...(promptSelections.agent ? { agent: promptSelections.agent } : {}),
                     ...(promptModel ? { model: promptModel } : {}),
-                    noReply: true,
+                    noReply: config.noReply ?? true,
                   }),
                 ),
               catch: (error) =>

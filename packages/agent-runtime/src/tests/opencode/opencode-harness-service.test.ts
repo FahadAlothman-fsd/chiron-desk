@@ -674,4 +674,82 @@ describe("OpencodeHarnessService runtime", () => {
       data: { finalState: "disconnected_or_error" },
     });
   });
+
+  it("allows bootstrap prompt generation when noReply is false", async () => {
+    const managedClient = {
+      app: {
+        agents: vi.fn(async () => []),
+      },
+      config: {
+        providers: vi.fn(async () => ({ providers: [], default: {} })),
+      },
+      session: {
+        create: vi.fn(async () => ({
+          id: "session-autoreply",
+          time: { created: 1_744_193_200_000 },
+        })),
+        prompt: vi.fn(async () => ({
+          info: { id: "assistant-msg-1", role: "assistant" },
+          parts: [{ type: "text", text: "Bootstrap reply" }],
+        })),
+        messages: vi.fn(async () => [
+          {
+            info: {
+              id: "bootstrap-user-msg",
+              role: "user",
+              time: { created: 1_744_193_200_000 },
+            },
+            parts: [{ type: "text", text: "Bootstrap\n\nInstructions" }],
+          },
+          {
+            info: {
+              id: "bootstrap-assistant-msg",
+              role: "assistant",
+              time: { created: 1_744_193_201_000 },
+            },
+            parts: [{ type: "text", text: "Bootstrap reply" }],
+          },
+        ]),
+      },
+      event: {
+        subscribe: vi.fn(async () => ({ [Symbol.asyncIterator]: async function* () {} })),
+      },
+    };
+
+    const service = makeOpencodeHarnessService(
+      vi.fn(async () => ({
+        client: managedClient,
+        server: {
+          url: "http://127.0.0.1:4010",
+          close: vi.fn(),
+        },
+      })) as never,
+      vi.fn(() => managedClient) as never,
+    );
+
+    const started = await Effect.runPromise(
+      service.startSession({
+        stepExecutionId: "step-exec-autoreply",
+        projectRootPath: "/tmp/chiron",
+        objective: "Bootstrap",
+        instructionsMarkdown: "Instructions",
+        noReply: false,
+      }),
+    );
+
+    expect(managedClient.session.prompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.not.objectContaining({ noReply: true }),
+      }),
+    );
+    expect(started.timeline).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          itemType: "message",
+          role: "assistant",
+          content: "Bootstrap reply",
+        }),
+      ]),
+    );
+  });
 });

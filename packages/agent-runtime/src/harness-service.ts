@@ -70,6 +70,7 @@ export const HarnessSessionConfig = Schema.Struct({
   model: Schema.optional(ModelReference),
   objective: Schema.NonEmptyString,
   instructionsMarkdown: Schema.NonEmptyString,
+  noReply: Schema.optionalWith(Schema.Boolean, { default: () => true }),
 });
 export type HarnessSessionConfig = typeof HarnessSessionConfig.Type;
 

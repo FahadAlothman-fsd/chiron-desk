@@ -249,12 +249,26 @@ export function makeFakeHarnessService(options: FakeHarnessOptions = {}) {
           content: [config.objective, config.instructionsMarkdown].join("\n\n"),
         };
 
+        const bootstrapReplyItem: HarnessTimelinePage["items"][number] | null =
+          (config.noReply ?? true)
+            ? null
+            : {
+                itemType: "message",
+                timelineItemId: idFactory("timeline"),
+                createdAt: now(),
+                role: "assistant",
+                content: responseResolver({
+                  turn: 1,
+                  message: bootstrapItem.content,
+                }),
+              };
+
         const record: FakeHarnessSessionRecord = {
           session,
-          timeline: [bootstrapItem],
+          timeline: bootstrapReplyItem ? [bootstrapItem, bootstrapReplyItem] : [bootstrapItem],
           eventLog: [],
           subscribers: new Set(),
-          turnCount: 0,
+          turnCount: bootstrapReplyItem ? 1 : 0,
         };
 
         const bootstrapEvent: AgentStepSseEnvelope = {
