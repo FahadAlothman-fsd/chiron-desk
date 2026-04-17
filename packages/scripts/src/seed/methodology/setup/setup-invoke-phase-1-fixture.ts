@@ -1211,6 +1211,7 @@ function buildSetupInvokePhase1FixtureSeedRows(
         itemKey: "setup_decision.requires_brainstorming",
         label: "Requires Brainstorming",
         sortOrder: 10,
+        targetContextFactDefinitionId: contextFactId.setup.requiresBrainstorming,
       },
       {
         id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item:requires-research`,
@@ -1237,6 +1238,7 @@ function buildSetupInvokePhase1FixtureSeedRows(
         itemKey: "setup_environment.project_knowledge_directory",
         label: "Project Knowledge Directory",
         sortOrder: 10,
+        targetContextFactDefinitionId: contextFactId.setup.projectKnowledgeDirectory,
       },
       {
         id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item:planning-artifacts-directory`,
@@ -1245,6 +1247,7 @@ function buildSetupInvokePhase1FixtureSeedRows(
         itemKey: "setup_environment.planning_artifacts_directory",
         label: "Planning Artifacts Directory",
         sortOrder: 20,
+        targetContextFactDefinitionId: contextFactId.setup.planningArtifactsDirectory,
       },
       {
         id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item:communication-language`,
@@ -1253,6 +1256,7 @@ function buildSetupInvokePhase1FixtureSeedRows(
         itemKey: "setup_environment.communication_language",
         label: "Communication Language",
         sortOrder: 30,
+        targetContextFactDefinitionId: contextFactId.setup.communicationLanguage,
       },
       {
         id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item:document-output-language`,
@@ -1261,14 +1265,7 @@ function buildSetupInvokePhase1FixtureSeedRows(
         itemKey: "setup_environment.document_output_language",
         label: "Document Output Language",
         sortOrder: 40,
-      },
-      {
-        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item:followup-workflows`,
-        actionRowId: actionRowId.setup.environmentBindings,
-        itemId: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item-id:followup-workflows`,
-        itemKey: "setup_environment.followup_workflows",
-        label: "Setup Follow-up Workflows",
-        sortOrder: 50,
+        targetContextFactDefinitionId: contextFactId.setup.documentOutputLanguage,
       },
       {
         id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:action-item:project-overview-artifact`,
@@ -1277,6 +1274,7 @@ function buildSetupInvokePhase1FixtureSeedRows(
         itemKey: "setup_artifact.project_overview",
         label: "Project Overview Artifact",
         sortOrder: 10,
+        targetContextFactDefinitionId: contextFactId.setup.projectOverviewArtifact,
       },
     ],
     methodologyWorkflowBranchSteps: [

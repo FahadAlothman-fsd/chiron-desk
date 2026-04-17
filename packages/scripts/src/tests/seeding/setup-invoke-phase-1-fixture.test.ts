@@ -283,6 +283,8 @@ describe("setup invoke phase-1 fixture", () => {
         expect.objectContaining({
           itemKey: "setup_decision.requires_brainstorming",
           actionRowId: "seed:l3-setup-invoke:setup:mver_bmad_v1_active:action-row:decision-facts",
+          targetContextFactDefinitionId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-requires-brainstorming",
         }),
         expect.objectContaining({
           itemKey: "setup_decision.requires_research",
@@ -295,6 +297,31 @@ describe("setup invoke phase-1 fixture", () => {
           actionRowId: "seed:l3-setup-invoke:setup:mver_bmad_v1_active:action-row:decision-facts",
           targetContextFactDefinitionId:
             "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-branch-note",
+        }),
+        expect.objectContaining({
+          itemKey: "setup_environment.project_knowledge_directory",
+          targetContextFactDefinitionId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-method-project-knowledge-directory",
+        }),
+        expect.objectContaining({
+          itemKey: "setup_environment.planning_artifacts_directory",
+          targetContextFactDefinitionId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-method-planning-artifacts-directory",
+        }),
+        expect.objectContaining({
+          itemKey: "setup_environment.communication_language",
+          targetContextFactDefinitionId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-method-communication-language",
+        }),
+        expect.objectContaining({
+          itemKey: "setup_environment.document_output_language",
+          targetContextFactDefinitionId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-method-document-output-language",
+        }),
+        expect.objectContaining({
+          itemKey: "setup_artifact.project_overview",
+          targetContextFactDefinitionId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-project-overview-artifact",
         }),
       ]),
     );
