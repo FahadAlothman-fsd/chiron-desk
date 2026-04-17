@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 process.env.VITE_SERVER_URL ??= "http://localhost:3000";
 (import.meta as any).env = {
-  ...((import.meta as any).env ?? {}),
+  ...(import.meta as any).env,
   VITE_SERVER_URL: "http://localhost:3000",
 };
 
@@ -247,6 +247,12 @@ function buildDetail(): any {
                   label: "summary",
                 },
               ],
+              skipAction: {
+                kind: "skip_action_step_action_items" as const,
+                enabled: true,
+                actionId: "action-1",
+                itemId: "item-1",
+              },
             },
           ],
           runAction: {
@@ -258,6 +264,11 @@ function buildDetail(): any {
             kind: "retry_action_step_actions" as const,
             enabled: false,
             reasonIfDisabled: "Only needs-attention actions are retryable.",
+            actionId: "action-1",
+          },
+          skipAction: {
+            kind: "skip_action_step_actions" as const,
+            enabled: true,
             actionId: "action-1",
           },
         },
@@ -288,6 +299,14 @@ function buildDetail(): any {
                   label: "environment",
                 },
               ],
+              skipAction: {
+                kind: "skip_action_step_action_items" as const,
+                enabled: false,
+                reasonIfDisabled:
+                  "Run the action or skip the whole action before skipping individual items.",
+                actionId: "action-2",
+                itemId: "item-2",
+              },
             },
           ],
           runAction: {
@@ -301,6 +320,11 @@ function buildDetail(): any {
             kind: "retry_action_step_actions" as const,
             enabled: false,
             reasonIfDisabled: "Only needs-attention actions are retryable.",
+            actionId: "action-2",
+          },
+          skipAction: {
+            kind: "skip_action_step_actions" as const,
+            enabled: true,
             actionId: "action-2",
           },
         },
@@ -337,6 +361,12 @@ function buildDetail(): any {
                 kind: "recreate_bound_target_from_context_value" as const,
                 enabled: true,
               },
+              skipAction: {
+                kind: "skip_action_step_action_items" as const,
+                enabled: true,
+                actionId: "action-3",
+                itemId: "item-3",
+              },
             },
           ],
           runAction: {
@@ -346,6 +376,11 @@ function buildDetail(): any {
           },
           retryAction: {
             kind: "retry_action_step_actions" as const,
+            enabled: true,
+            actionId: "action-3",
+          },
+          skipAction: {
+            kind: "skip_action_step_actions" as const,
             enabled: true,
             actionId: "action-3",
           },
@@ -361,6 +396,8 @@ async function renderHarness(initialDetail = buildDetail()) {
   let currentDetail: any = initialDetail;
   const runCalls: Array<Record<string, unknown>> = [];
   const retryCalls: Array<Record<string, unknown>> = [];
+  const skipActionCalls: Array<Record<string, unknown>> = [];
+  const skipItemCalls: Array<Record<string, unknown>> = [];
   const completeCalls: Array<Record<string, unknown>> = [];
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
@@ -544,6 +581,102 @@ async function renderHarness(initialDetail = buildDetail()) {
     }),
   );
 
+  const skipActionStepActionsMutationOptionsMock = vi.fn(
+    (options?: { onSuccess?: () => Promise<void> | void }) => ({
+      mutationFn: async (input: Record<string, any>) => {
+        skipActionCalls.push(input);
+        const targetActionId = input.actionIds?.[0];
+        currentDetail = {
+          ...currentDetail,
+          body: {
+            ...currentDetail.body,
+            actions: currentDetail.body.actions.map((action: any) =>
+              action.actionId === targetActionId
+                ? {
+                    ...action,
+                    status: "skipped",
+                    resultSummaryJson: { status: "skipped", reason: "Skipped by operator." },
+                    items: action.items.map((item: any) => ({
+                      ...item,
+                      status: "skipped",
+                      resultSummaryJson: { status: "skipped" },
+                    })),
+                    skipAction: {
+                      kind: "skip_action_step_actions",
+                      enabled: false,
+                      reasonIfDisabled: "Action was already skipped.",
+                      actionId: action.actionId,
+                    },
+                  }
+                : action,
+            ),
+          },
+        } as any;
+        queryClient.setQueryData(
+          runtimeStepExecutionDetailQueryKey("project-1", "step-action-1"),
+          currentDetail,
+        );
+        await options?.onSuccess?.();
+        return {
+          stepExecutionId: "step-action-1",
+          actionResults: [{ actionId: targetActionId, result: "skipped" as const }],
+        };
+      },
+    }),
+  );
+
+  const skipActionStepActionItemsMutationOptionsMock = vi.fn(
+    (options?: { onSuccess?: () => Promise<void> | void }) => ({
+      mutationFn: async (input: Record<string, any>) => {
+        skipItemCalls.push(input);
+        const targetItemId = input.itemIds?.[0];
+        currentDetail = {
+          ...currentDetail,
+          body: {
+            ...currentDetail.body,
+            actions: currentDetail.body.actions.map((action: any) => {
+              if (action.actionId !== input.actionId) {
+                return action;
+              }
+
+              return {
+                ...action,
+                status: "succeeded",
+                resultSummaryJson: { status: "succeeded", reason: "Skipped item repaired row." },
+                items: action.items.map((item: any) =>
+                  item.itemId === targetItemId
+                    ? {
+                        ...item,
+                        status: "skipped",
+                        resultSummaryJson: { status: "skipped" },
+                        skipAction: {
+                          kind: "skip_action_step_action_items",
+                          enabled: false,
+                          reasonIfDisabled: "Item was already skipped.",
+                          actionId: input.actionId,
+                          itemId: item.itemId,
+                        },
+                      }
+                    : item,
+                ),
+              };
+            }),
+          },
+        } as any;
+        queryClient.setQueryData(
+          runtimeStepExecutionDetailQueryKey("project-1", "step-action-1"),
+          currentDetail,
+        );
+        await options?.onSuccess?.();
+        return {
+          stepExecutionId: "step-action-1",
+          actionId: input.actionId,
+          itemResults: [{ itemId: targetItemId, result: "skipped" as const }],
+        };
+      },
+    }),
+  );
+
   useParamsMock.mockReturnValue({ projectId: "project-1", stepExecutionId: "step-action-1" });
   useSSEMock.mockReturnValue({ events: [], status: "open" });
   useRouteContextMock.mockReturnValue({
@@ -562,7 +695,13 @@ async function renderHarness(initialDetail = buildDetail()) {
         retryActionStepActions: {
           mutationOptions: retryActionStepActionsMutationOptionsMock,
         },
-        completeStepExecution: {
+        skipActionStepActions: {
+          mutationOptions: skipActionStepActionsMutationOptionsMock,
+        },
+        skipActionStepActionItems: {
+          mutationOptions: skipActionStepActionItemsMutationOptionsMock,
+        },
+        completeActionStepExecution: {
           mutationOptions: completeStepExecutionMutationOptionsMock,
         },
       },
@@ -581,7 +720,7 @@ async function renderHarness(initialDetail = buildDetail()) {
     ).toBeTruthy(),
   );
 
-  return { runCalls, retryCalls, completeCalls };
+  return { runCalls, retryCalls, skipActionCalls, skipItemCalls, completeCalls };
 }
 
 describe("action step execution route", () => {
@@ -611,6 +750,10 @@ describe("action step execution route", () => {
       "disabled",
       true,
     );
+    expect(within(secondRow).getByRole("button", { name: /skip action/i })).toHaveProperty(
+      "disabled",
+      false,
+    );
 
     const thirdRow = screen.getByTestId("action-runtime-row-action-3");
     expect(within(thirdRow).getAllByText(/Needs attention/i).length).toBeGreaterThan(0);
@@ -619,6 +762,10 @@ describe("action step execution route", () => {
       false,
     );
     expect(within(thirdRow).getByText(/Recovery available/i)).toBeTruthy();
+    expect(within(thirdRow).getByRole("button", { name: /skip item/i })).toHaveProperty(
+      "disabled",
+      false,
+    );
     expect(screen.getAllByText(/Item target context/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/^summary$/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/^environment$/i).length).toBeGreaterThan(0);
@@ -687,12 +834,45 @@ describe("action step execution route", () => {
       expect(completeCalls).toEqual([
         {
           projectId: "project-1",
-          workflowExecutionId: "workflow-1",
           stepExecutionId: "step-action-1",
         },
       ]),
     );
 
     expect((await screen.findAllByText(/Completed/i)).length).toBeGreaterThan(0);
+  });
+
+  it("supports skipping whole actions and individual items at runtime", async () => {
+    const user = userEvent.setup();
+    const { skipActionCalls, skipItemCalls } = await renderHarness();
+
+    const secondRow = await screen.findByTestId("action-runtime-row-action-2");
+    await user.click(within(secondRow).getByRole("button", { name: /skip action/i }));
+
+    await waitFor(() =>
+      expect(skipActionCalls).toEqual([
+        {
+          projectId: "project-1",
+          stepExecutionId: "step-action-1",
+          actionIds: ["action-2"],
+        },
+      ]),
+    );
+
+    const thirdItem = await screen.findByTestId("action-runtime-item-item-3");
+    await user.click(within(thirdItem).getByRole("button", { name: /skip item/i }));
+
+    await waitFor(() =>
+      expect(skipItemCalls).toEqual([
+        {
+          projectId: "project-1",
+          stepExecutionId: "step-action-1",
+          actionId: "action-3",
+          itemIds: ["item-3"],
+        },
+      ]),
+    );
+
+    expect(await screen.findAllByText(/Skipped/i)).not.toHaveLength(0);
   });
 });

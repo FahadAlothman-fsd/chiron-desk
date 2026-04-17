@@ -158,6 +158,8 @@ describe("l3 slice-1 deferred surfaces architecture", () => {
         "startActionStepExecution",
         "runActionStepActions",
         "retryActionStepActions",
+        "skipActionStepActions",
+        "skipActionStepActionItems",
         "completeActionStepExecution",
         "streamActionStepExecutionEvents",
         "streamAgentStepSessionEvents",

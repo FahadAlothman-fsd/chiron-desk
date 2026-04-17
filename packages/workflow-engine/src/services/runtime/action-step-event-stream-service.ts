@@ -12,13 +12,19 @@ type ActionStepStreamSnapshot = {
   readonly actions: ReadonlyArray<{
     readonly actionId: string;
     readonly sortOrder: number;
-    readonly status: "not_started" | "running" | "succeeded" | "needs_attention";
+    readonly status: "not_started" | "running" | "succeeded" | "needs_attention" | "skipped";
     readonly resultSummaryJson?: unknown;
     readonly resultJson?: unknown;
     readonly items: ReadonlyArray<{
       readonly itemId: string;
       readonly sortOrder: number;
-      readonly status: "not_started" | "running" | "succeeded" | "failed" | "needs_attention";
+      readonly status:
+        | "not_started"
+        | "running"
+        | "succeeded"
+        | "failed"
+        | "needs_attention"
+        | "skipped";
       readonly resultSummaryJson?: unknown;
       readonly resultJson?: unknown;
       readonly affectedTargets: readonly unknown[];

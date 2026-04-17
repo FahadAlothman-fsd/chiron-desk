@@ -1064,6 +1064,176 @@ describe("ActionStep runtime services", () => {
     });
   });
 
+  it("skips a whole action and marks all item rows with skip result metadata", async () => {
+    const ctx = makeTestContext({ executionMode: "parallel" });
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* ActionStepRuntimeService;
+        return yield* service.skipActions({
+          projectId: "project-1",
+          stepExecutionId: ctx.stepExecution.id,
+          actionIds: ["action-1"],
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    expect(result.actionResults).toEqual([{ actionId: "action-1", result: "skipped" }]);
+    expect(ctx.actionRows.find((row) => row.actionDefinitionId === "action-1")).toMatchObject({
+      status: "succeeded",
+      resultJson: expect.objectContaining({ code: "propagation_action_skipped" }),
+    });
+    expect(ctx.itemRows.find((row) => row.itemDefinitionId === "action-1-item-1")).toMatchObject({
+      status: "succeeded",
+      resultJson: expect.objectContaining({ code: "propagation_item_skipped" }),
+    });
+  });
+
+  it("allows skipping a needs-attention item and settles action status to succeeded", async () => {
+    const ctx = makeTestContext({
+      executionMode: "parallel",
+      actions: [
+        makeAction("action-artifact", {
+          key: "artifact-multi",
+          sortOrder: 10,
+          contextFactDefinitionId: "ctx-artifact-1",
+          contextFactKind: "artifact_reference_fact",
+          items: [
+            {
+              itemId: "item-good",
+              itemKey: "item.good",
+              sortOrder: 10,
+            },
+            {
+              itemId: "item-invalid",
+              itemKey: "item.invalid",
+              sortOrder: 20,
+              targetContextFactDefinitionId: "ctx-artifact-2",
+            },
+          ],
+        }),
+      ],
+      contextFacts: [
+        {
+          id: "ctx-artifact-valid",
+          workflowExecutionId: "workflow-exec-1",
+          contextFactDefinitionId: "ctx-artifact-1",
+          instanceOrder: 0,
+          valueJson: { relativePath: "docs/valid.md" },
+          sourceStepExecutionId: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: "ctx-artifact-invalid",
+          workflowExecutionId: "workflow-exec-1",
+          contextFactDefinitionId: "ctx-artifact-2",
+          instanceOrder: 0,
+          valueJson: { invalid: true },
+          sourceStepExecutionId: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+    });
+
+    ctx.workflowContextFacts.push({
+      kind: "artifact_reference_fact",
+      contextFactDefinitionId: "ctx-artifact-2",
+      key: "artifactSecondary",
+      label: "Artifact Secondary",
+      cardinality: "one",
+      artifactSlotDefinitionId: "slot-1",
+    });
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* ActionStepRuntimeService;
+        return yield* service.runActions({
+          projectId: "project-1",
+          stepExecutionId: ctx.stepExecution.id,
+          actionIds: ["action-artifact"],
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    expect(ctx.actionRows[0]).toMatchObject({
+      actionDefinitionId: "action-artifact",
+      status: "needs_attention",
+    });
+
+    const skipped = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* ActionStepRuntimeService;
+        return yield* service.skipActionItems({
+          projectId: "project-1",
+          stepExecutionId: ctx.stepExecution.id,
+          actionId: "action-artifact",
+          itemIds: ["item-invalid"],
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    expect(skipped.itemResults).toEqual([{ itemId: "item-invalid", result: "skipped" }]);
+    expect(ctx.itemRows.find((row) => row.itemDefinitionId === "item-invalid")).toMatchObject({
+      status: "succeeded",
+      resultJson: expect.objectContaining({ code: "propagation_item_skipped" }),
+    });
+    expect(
+      ctx.actionRows.find((row) => row.actionDefinitionId === "action-artifact"),
+    ).toMatchObject({
+      status: "succeeded",
+      resultJson: expect.objectContaining({ code: "propagation_action_applied_with_skips" }),
+    });
+  });
+
+  it("rejects action and item skip mutations when the step is not active", async () => {
+    const ctx = makeTestContext({ executionMode: "parallel" });
+    ctx.stepExecution.status = "completed";
+
+    const skipActionAttempt = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* ActionStepRuntimeService;
+        return yield* Effect.either(
+          service.skipActions({
+            projectId: "project-1",
+            stepExecutionId: ctx.stepExecution.id,
+            actionIds: ["action-1"],
+          }),
+        );
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    const skipItemAttempt = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* ActionStepRuntimeService;
+        return yield* Effect.either(
+          service.skipActionItems({
+            projectId: "project-1",
+            stepExecutionId: ctx.stepExecution.id,
+            actionId: "action-1",
+            itemIds: ["action-1-item-1"],
+          }),
+        );
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    expect(skipActionAttempt).toMatchObject({
+      _tag: "Left",
+      left: {
+        _tag: "RepositoryError",
+        operation: "action-step-runtime.skip",
+      },
+    });
+    expect(skipItemAttempt).toMatchObject({
+      _tag: "Left",
+      left: {
+        _tag: "RepositoryError",
+        operation: "action-step-runtime.skip-item",
+      },
+    });
+  });
+
   it("retries needs-attention actions in place and allows completion after one success", async () => {
     const ctx = makeTestContext({
       executionMode: "parallel",

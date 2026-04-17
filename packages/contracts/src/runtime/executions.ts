@@ -363,12 +363,14 @@ export type ActionStepRuntimeItemStatus = typeof ActionStepRuntimeItemStatus.Typ
 
 export const ActionStepRenderableActionStatus = Schema.Literal(
   "not_started",
+  "skipped",
   ...ACTION_STEP_RUNTIME_ROW_STATUSES,
 );
 export type ActionStepRenderableActionStatus = typeof ActionStepRenderableActionStatus.Type;
 
 export const ActionStepRenderableItemStatus = Schema.Literal(
   "not_started",
+  "skipped",
   ...ACTION_STEP_RUNTIME_ITEM_STATUSES,
 );
 export type ActionStepRenderableItemStatus = typeof ActionStepRenderableItemStatus.Type;
@@ -409,6 +411,13 @@ export const RuntimeActionPropagationItemDetail = Schema.Struct({
       reasonIfDisabled: Schema.optional(Schema.String),
     }),
   ),
+  skipAction: Schema.Struct({
+    kind: Schema.Literal("skip_action_step_action_items"),
+    enabled: Schema.Boolean,
+    reasonIfDisabled: Schema.optional(Schema.String),
+    actionId: Schema.NonEmptyString,
+    itemId: Schema.NonEmptyString,
+  }),
 });
 export type RuntimeActionPropagationItemDetail = typeof RuntimeActionPropagationItemDetail.Type;
 
@@ -438,6 +447,12 @@ export const RuntimeActionExecutionRow = Schema.Struct({
   }),
   retryAction: Schema.Struct({
     kind: Schema.Literal("retry_action_step_actions"),
+    enabled: Schema.Boolean,
+    reasonIfDisabled: Schema.optional(Schema.String),
+    actionId: Schema.NonEmptyString,
+  }),
+  skipAction: Schema.Struct({
+    kind: Schema.Literal("skip_action_step_actions"),
     enabled: Schema.Boolean,
     reasonIfDisabled: Schema.optional(Schema.String),
     actionId: Schema.NonEmptyString,
@@ -941,6 +956,62 @@ export const RetryActionStepActionsOutput = Schema.Struct({
   ),
 });
 export type RetryActionStepActionsOutput = typeof RetryActionStepActionsOutput.Type;
+
+export const SkipActionStepActionsInput = Schema.Struct({
+  projectId: Schema.NonEmptyString,
+  stepExecutionId: Schema.NonEmptyString,
+  actionIds: UniqueActionDefinitionIds,
+});
+export type SkipActionStepActionsInput = typeof SkipActionStepActionsInput.Type;
+
+export const SkipActionStepActionResult = Schema.Literal(
+  "skipped",
+  "already_running",
+  "already_succeeded",
+);
+export type SkipActionStepActionResult = typeof SkipActionStepActionResult.Type;
+
+export const SkipActionStepActionsOutput = Schema.Struct({
+  stepExecutionId: Schema.NonEmptyString,
+  actionResults: Schema.Array(
+    Schema.Struct({
+      actionId: Schema.NonEmptyString,
+      result: SkipActionStepActionResult,
+    }),
+  ),
+});
+export type SkipActionStepActionsOutput = typeof SkipActionStepActionsOutput.Type;
+
+const UniqueActionItemDefinitionIds = Schema.Array(Schema.NonEmptyString).pipe(
+  Schema.filter((itemIds) => itemIds.length > 0 && new Set(itemIds).size === itemIds.length),
+);
+
+export const SkipActionStepActionItemsInput = Schema.Struct({
+  projectId: Schema.NonEmptyString,
+  stepExecutionId: Schema.NonEmptyString,
+  actionId: Schema.NonEmptyString,
+  itemIds: UniqueActionItemDefinitionIds,
+});
+export type SkipActionStepActionItemsInput = typeof SkipActionStepActionItemsInput.Type;
+
+export const SkipActionStepActionItemResult = Schema.Literal(
+  "skipped",
+  "already_running",
+  "already_succeeded",
+);
+export type SkipActionStepActionItemResult = typeof SkipActionStepActionItemResult.Type;
+
+export const SkipActionStepActionItemsOutput = Schema.Struct({
+  stepExecutionId: Schema.NonEmptyString,
+  actionId: Schema.NonEmptyString,
+  itemResults: Schema.Array(
+    Schema.Struct({
+      itemId: Schema.NonEmptyString,
+      result: SkipActionStepActionItemResult,
+    }),
+  ),
+});
+export type SkipActionStepActionItemsOutput = typeof SkipActionStepActionItemsOutput.Type;
 
 export const SaveBranchStepSelectionInput = Schema.Struct({
   projectId: Schema.NonEmptyString,

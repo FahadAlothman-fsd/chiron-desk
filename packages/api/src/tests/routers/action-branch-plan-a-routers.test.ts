@@ -268,6 +268,8 @@ describe("action runtime router", () => {
       start: 0,
       run: 0,
       retry: 0,
+      skipAction: 0,
+      skipItem: 0,
       complete: 0,
       stream: 0,
     };
@@ -289,6 +291,21 @@ describe("action runtime router", () => {
         return Effect.succeed({
           stepExecutionId,
           actionResults: actionIds.map((actionId) => ({ actionId, result: "started" as const })),
+        });
+      },
+      skipActions: ({ stepExecutionId, actionIds }) => {
+        calls.skipAction += 1;
+        return Effect.succeed({
+          stepExecutionId,
+          actionResults: actionIds.map((actionId) => ({ actionId, result: "skipped" as const })),
+        });
+      },
+      skipActionItems: ({ stepExecutionId, actionId, itemIds }) => {
+        calls.skipItem += 1;
+        return Effect.succeed({
+          stepExecutionId,
+          actionId,
+          itemResults: itemIds.map((itemId) => ({ itemId, result: "skipped" as const })),
         });
       },
       completeStep: ({ stepExecutionId }) => {
@@ -374,6 +391,21 @@ describe("action runtime router", () => {
       { projectId: "project-1", stepExecutionId: "step-exec-1", actionIds: ["action-1"] },
       AUTHENTICATED_CTX,
     );
+    const skippedAction = await call(
+      router.skipActionStepActions,
+      { projectId: "project-1", stepExecutionId: "step-exec-1", actionIds: ["action-1"] },
+      AUTHENTICATED_CTX,
+    );
+    const skippedItem = await call(
+      router.skipActionStepActionItems,
+      {
+        projectId: "project-1",
+        stepExecutionId: "step-exec-1",
+        actionId: "action-1",
+        itemIds: ["item-1"],
+      },
+      AUTHENTICATED_CTX,
+    );
     const completed = await call(
       router.completeActionStepExecution,
       { projectId: "project-1", stepExecutionId: "step-exec-1" },
@@ -390,10 +422,20 @@ describe("action runtime router", () => {
       events.push(event);
     }
 
-    expect(calls).toEqual({ start: 1, run: 1, retry: 1, complete: 1, stream: 1 });
+    expect(calls).toEqual({
+      start: 1,
+      run: 1,
+      retry: 1,
+      skipAction: 1,
+      skipItem: 1,
+      complete: 1,
+      stream: 1,
+    });
     expect(started).toEqual({ stepExecutionId: "step-exec-1", result: "started" });
     expect(ran.actionResults).toEqual([{ actionId: "action-1", result: "started" }]);
     expect(retried.actionResults).toEqual([{ actionId: "action-1", result: "started" }]);
+    expect(skippedAction.actionResults).toEqual([{ actionId: "action-1", result: "skipped" }]);
+    expect(skippedItem.itemResults).toEqual([{ itemId: "item-1", result: "skipped" }]);
     expect(completed).toEqual({ stepExecutionId: "step-exec-1", status: "completed" });
     expect(events.map((event) => event.eventType)).toEqual([
       "bootstrap",
@@ -407,6 +449,8 @@ describe("action runtime router", () => {
       startExecution: () => Effect.die("unused"),
       runActions: () => Effect.die("unused"),
       retryActions: () => Effect.die("unused"),
+      skipActions: () => Effect.die("unused"),
+      skipActionItems: () => Effect.die("unused"),
       completeStep: () => Effect.die("unused"),
       getCompletionEligibility: () => Effect.die("unused"),
     } as unknown as ActionStepRuntimeService["Type"];
@@ -435,6 +479,27 @@ describe("action runtime router", () => {
       call(
         router.retryActionStepActions,
         { projectId: "project-1", stepExecutionId: "step-exec-1", actionIds: ["action-1"] },
+        { context: { session: null } },
+      ),
+    ).rejects.toThrow();
+
+    await expect(
+      call(
+        router.skipActionStepActions,
+        { projectId: "project-1", stepExecutionId: "step-exec-1", actionIds: ["action-1"] },
+        { context: { session: null } },
+      ),
+    ).rejects.toThrow();
+
+    await expect(
+      call(
+        router.skipActionStepActionItems,
+        {
+          projectId: "project-1",
+          stepExecutionId: "step-exec-1",
+          actionId: "action-1",
+          itemIds: ["item-1"],
+        },
         { context: { session: null } },
       ),
     ).rejects.toThrow();

@@ -1,4 +1,6 @@
 import type {
+  SkipActionStepActionItemsOutput,
+  SkipActionStepActionsOutput,
   RetryActionStepActionsOutput,
   RunActionStepActionsOutput,
   RuntimeActionAffectedTarget,
@@ -86,6 +88,9 @@ type ExecuteActionAttemptResult = {
   readonly itemOutcomes: readonly ExecutedItemOutcome[];
 };
 
+const SKIPPED_ACTION_CODE = "propagation_action_skipped";
+const SKIPPED_ITEM_CODE = "propagation_item_skipped";
+
 const buildCompletionSummary = (params: {
   readonly actionDefinitions: readonly ActionDefinition[];
   readonly actionRows: readonly ActionRow[];
@@ -132,6 +137,17 @@ export class ActionStepRuntimeService extends Context.Tag(
       stepExecutionId: string;
       actionIds: readonly string[];
     }) => Effect.Effect<RetryActionStepActionsOutput, RepositoryError>;
+    readonly skipActions: (input: {
+      projectId: string;
+      stepExecutionId: string;
+      actionIds: readonly string[];
+    }) => Effect.Effect<SkipActionStepActionsOutput, RepositoryError>;
+    readonly skipActionItems: (input: {
+      projectId: string;
+      stepExecutionId: string;
+      actionId: string;
+      itemIds: readonly string[];
+    }) => Effect.Effect<SkipActionStepActionItemsOutput, RepositoryError>;
     readonly completeStep: (input: {
       projectId: string;
       stepExecutionId: string;
@@ -277,6 +293,46 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
         return [...known].sort((left, right) => left.sortOrder - right.sortOrder);
       });
 
+    const assertKnownSelectedItems = (params: {
+      readonly selectedItemIds: readonly string[];
+      readonly itemDefinitions: readonly ActionItemDefinition[];
+    }): Effect.Effect<readonly ActionItemDefinition[], RepositoryError> =>
+      Effect.gen(function* () {
+        const selectedSet = new Set(params.selectedItemIds);
+        const known = params.itemDefinitions.filter((item) => selectedSet.has(item.itemId));
+
+        if (known.length !== selectedSet.size) {
+          const knownIds = new Set(known.map((item) => item.itemId));
+          const unknown = [...selectedSet].filter((itemId) => !knownIds.has(itemId));
+          return yield* makeActionRuntimeError(
+            "action-step-runtime.selection",
+            `unknown action item ids: ${unknown.join(", ")}`,
+          );
+        }
+
+        return [...known].sort((left, right) => left.sortOrder - right.sortOrder);
+      });
+
+    const buildSkippedItemResultSummary = () => ({
+      status: "skipped",
+      reason: "Skipped at runtime by operator request.",
+    });
+
+    const buildSkippedItemResult = (params: {
+      readonly contextFactDefinitionId: string;
+      readonly contextFactKind: ActionDefinition["contextFactKind"];
+      readonly affectedTargets: readonly RuntimeActionAffectedTarget[];
+    }) => ({
+      code: SKIPPED_ITEM_CODE,
+      contextFactDefinitionId: params.contextFactDefinitionId,
+      contextFactKind: params.contextFactKind,
+      reason: "Skipped at runtime by operator request.",
+      affectedTargets: params.affectedTargets,
+    });
+
+    const isSkippedResult = (value: unknown, expectedCode: string): boolean =>
+      isRecord(value) && value.code === expectedCode;
+
     const assertSequentialSelection = (params: {
       readonly selectedActions: readonly ActionDefinition[];
       readonly allActions: readonly ActionDefinition[];
@@ -324,6 +380,17 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
           return yield* makeActionRuntimeError(
             "action-step-runtime.target-context",
             `workflow context fact '${contextFactDefinitionId}' could not be resolved`,
+          );
+        }
+
+        if (
+          contextFact.kind !== "definition_backed_external_fact" &&
+          contextFact.kind !== "bound_external_fact" &&
+          contextFact.kind !== "artifact_reference_fact"
+        ) {
+          return yield* makeActionRuntimeError(
+            "action-step-runtime.target-context",
+            `workflow context fact '${contextFactDefinitionId}' has unsupported kind '${contextFact.kind}'`,
           );
         }
 
@@ -695,6 +762,196 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
         } satisfies ExecuteActionAttemptResult;
       });
 
+    const buildActionStatusFromPersistedItems = (params: {
+      readonly action: ActionDefinition;
+      readonly persistedItems: readonly ActionItemRow[];
+    }): ActionRow["status"] => {
+      const itemsById = new Map(params.persistedItems.map((item) => [item.itemDefinitionId, item]));
+      const statuses = params.action.items.map(
+        (item) => itemsById.get(item.itemId)?.status ?? "failed",
+      );
+      return deriveActionStatus(statuses);
+    };
+
+    const applySkippedItems = (params: {
+      readonly context: LoadedActionRuntimeContext;
+      readonly action: ActionDefinition;
+      readonly actionRow: ActionRow;
+      readonly selectedItems: readonly ActionItemDefinition[];
+    }) =>
+      Effect.gen(function* () {
+        const allContextRows = yield* stepRepo.listWorkflowExecutionContextFacts(
+          params.context.stepExecution.workflowExecutionId,
+        );
+
+        const itemResults = yield* Effect.forEach(params.selectedItems, (item) =>
+          Effect.gen(function* () {
+            const existingItem = yield* runtimeRepo.getActionExecutionItemByDefinitionId({
+              actionExecutionId: params.actionRow.id,
+              itemDefinitionId: item.itemId,
+            });
+
+            if (existingItem?.status === "running") {
+              return {
+                itemId: item.itemId,
+                result: "already_running" as const,
+              };
+            }
+
+            if (
+              existingItem?.status === "succeeded" &&
+              !isSkippedResult(existingItem.resultJson, SKIPPED_ITEM_CODE)
+            ) {
+              return {
+                itemId: item.itemId,
+                result: "already_succeeded" as const,
+              };
+            }
+
+            const effectiveTarget = yield* resolveEffectiveTargetContext({
+              context: params.context,
+              action: params.action,
+              item,
+            });
+            const usableRows = allContextRows
+              .filter(
+                (row) => row.contextFactDefinitionId === effectiveTarget.contextFactDefinitionId,
+              )
+              .sort((left, right) => left.instanceOrder - right.instanceOrder)
+              .map((row) => ({
+                contextFactDefinitionId: row.contextFactDefinitionId,
+                instanceOrder: row.instanceOrder,
+                valueJson: row.valueJson,
+              }));
+            const affectedTargets = resolveAffectedTargets({
+              target: effectiveTarget,
+              rows: usableRows,
+            });
+            const resultSummaryJson = buildSkippedItemResultSummary();
+            const resultJson = buildSkippedItemResult({
+              contextFactDefinitionId: effectiveTarget.contextFactDefinitionId,
+              contextFactKind: effectiveTarget.contextFactKind,
+              affectedTargets,
+            });
+
+            if (existingItem) {
+              yield* runtimeRepo.updateActionExecutionItem({
+                actionExecutionId: params.actionRow.id,
+                itemDefinitionId: item.itemId,
+                status: "succeeded",
+                resultSummaryJson,
+                resultJson,
+                affectedTargetsJson: affectedTargets,
+              });
+            } else {
+              yield* runtimeRepo.createActionExecutionItem({
+                actionExecutionId: params.actionRow.id,
+                itemDefinitionId: item.itemId,
+                status: "succeeded",
+                resultSummaryJson,
+                resultJson,
+                affectedTargetsJson: affectedTargets,
+              });
+            }
+
+            return {
+              itemId: item.itemId,
+              result: "skipped" as const,
+            };
+          }),
+        );
+
+        const persistedItems = yield* runtimeRepo.listActionExecutionItems(params.actionRow.id);
+        const nextActionStatus = buildActionStatusFromPersistedItems({
+          action: params.action,
+          persistedItems,
+        });
+        const skippedItemCount = persistedItems.filter((item) =>
+          isSkippedResult(item.resultJson, SKIPPED_ITEM_CODE),
+        ).length;
+        const allItemsSkipped =
+          persistedItems.length === params.action.items.length &&
+          persistedItems.every((item) => isSkippedResult(item.resultJson, SKIPPED_ITEM_CODE));
+        const succeededItemCount = persistedItems.filter(
+          (item) => item.status === "succeeded",
+        ).length;
+        const attentionItemCount = persistedItems.filter(
+          (item) => item.status === "failed" || item.status === "needs_attention",
+        ).length;
+
+        yield* runtimeRepo.updateActionExecution({
+          actionExecutionId: params.actionRow.id,
+          status: nextActionStatus,
+          resultSummaryJson: {
+            status: nextActionStatus,
+            itemCount: params.action.items.length,
+            succeededItemCount,
+            skippedItemCount,
+            attentionItemCount,
+          },
+          resultJson: {
+            code: allItemsSkipped ? SKIPPED_ACTION_CODE : "propagation_action_applied_with_skips",
+            reason: allItemsSkipped
+              ? "Action was skipped at runtime by operator request."
+              : "One or more propagation items were skipped by operator request.",
+            itemResults: persistedItems.map((item) => ({
+              itemDefinitionId: item.itemDefinitionId,
+              status: item.status,
+              skipped: isSkippedResult(item.resultJson, SKIPPED_ITEM_CODE),
+            })),
+          },
+        });
+
+        return itemResults;
+      });
+
+    const skipWholeAction = (params: {
+      readonly context: LoadedActionRuntimeContext;
+      readonly action: ActionDefinition;
+      readonly existingActionRow: ActionRow | null;
+    }) =>
+      Effect.gen(function* () {
+        if (params.existingActionRow?.status === "running") {
+          return {
+            actionId: params.action.actionId,
+            result: "already_running" as const,
+          };
+        }
+
+        if (
+          params.existingActionRow?.status === "succeeded" &&
+          !isSkippedResult(params.existingActionRow.resultJson, SKIPPED_ACTION_CODE)
+        ) {
+          return {
+            actionId: params.action.actionId,
+            result: "already_succeeded" as const,
+          };
+        }
+
+        const actionRow = params.existingActionRow
+          ? params.existingActionRow
+          : yield* runtimeRepo.createActionExecution({
+              stepExecutionId: params.context.stepExecution.id,
+              actionDefinitionId: params.action.actionId,
+              actionKind: params.action.actionKind,
+              status: "succeeded",
+            });
+
+        yield* applySkippedItems({
+          context: params.context,
+          action: params.action,
+          actionRow,
+          selectedItems: [...params.action.items].sort(
+            (left, right) => left.sortOrder - right.sortOrder,
+          ),
+        });
+
+        return {
+          actionId: params.action.actionId,
+          result: "skipped" as const,
+        };
+      });
+
     const runSelectedActionsInternal = (params: {
       readonly context: LoadedActionRuntimeContext;
       readonly selectedActions: readonly ActionDefinition[];
@@ -910,6 +1167,135 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
         } satisfies RetryActionStepActionsOutput;
       });
 
+    const skipActions = (input: {
+      projectId: string;
+      stepExecutionId: string;
+      actionIds: readonly string[];
+    }) =>
+      Effect.gen(function* () {
+        const context = yield* loadContext(input);
+        if (context.stepExecution.status !== "active") {
+          return yield* makeActionRuntimeError(
+            "action-step-runtime.skip",
+            "Only active Action steps can skip actions.",
+          );
+        }
+        const selectedActions = yield* assertKnownSelectedActions({
+          selectedActionIds: input.actionIds,
+          actionDefinitions: context.actionStep.payload.actions,
+        });
+
+        yield* runtimeRepo.createActionStepExecution({
+          stepExecutionId: context.stepExecution.id,
+        });
+
+        const startingRowsById = yield* listRuntimeRowsByActionId(context.stepExecution.id);
+        const results = yield* Effect.forEach(selectedActions, (action) =>
+          skipWholeAction({
+            context,
+            action,
+            existingActionRow: startingRowsById.get(action.actionId) ?? null,
+          }),
+        );
+
+        return {
+          stepExecutionId: context.stepExecution.id,
+          actionResults: results,
+        } satisfies SkipActionStepActionsOutput;
+      });
+
+    const skipActionItems = (input: {
+      projectId: string;
+      stepExecutionId: string;
+      actionId: string;
+      itemIds: readonly string[];
+    }) =>
+      Effect.gen(function* () {
+        const context = yield* loadContext(input);
+        if (context.stepExecution.status !== "active") {
+          return yield* makeActionRuntimeError(
+            "action-step-runtime.skip-item",
+            "Only active Action steps can skip items.",
+          );
+        }
+        const action = context.actionStep.payload.actions.find(
+          (candidate) => candidate.actionId === input.actionId,
+        );
+        if (!action) {
+          return yield* makeActionRuntimeError(
+            "action-step-runtime.selection",
+            `unknown action id: ${input.actionId}`,
+          );
+        }
+        if (!action.enabled) {
+          return yield* makeActionRuntimeError(
+            "action-step-runtime.selection",
+            `disabled action cannot be skipped: ${input.actionId}`,
+          );
+        }
+
+        const selectedItems = yield* assertKnownSelectedItems({
+          selectedItemIds: input.itemIds,
+          itemDefinitions: action.items,
+        });
+
+        yield* runtimeRepo.createActionStepExecution({
+          stepExecutionId: context.stepExecution.id,
+        });
+        const existingActionRow = yield* runtimeRepo.getActionExecutionByDefinitionId({
+          stepExecutionId: context.stepExecution.id,
+          actionDefinitionId: action.actionId,
+        });
+
+        if (!existingActionRow) {
+          if (selectedItems.length !== action.items.length) {
+            return yield* makeActionRuntimeError(
+              "action-step-runtime.skip-item",
+              "Cannot skip a subset of items before the action has started. Run the action first or skip the whole action.",
+            );
+          }
+
+          const actionResult = yield* skipWholeAction({
+            context,
+            action,
+            existingActionRow: null,
+          });
+
+          return {
+            stepExecutionId: context.stepExecution.id,
+            actionId: action.actionId,
+            itemResults: selectedItems.map((item) => ({
+              itemId: item.itemId,
+              result: actionResult.result === "already_running" ? "already_running" : "skipped",
+            })),
+          } satisfies SkipActionStepActionItemsOutput;
+        }
+
+        if (existingActionRow.status === "running") {
+          return {
+            stepExecutionId: context.stepExecution.id,
+            actionId: action.actionId,
+            itemResults: selectedItems.map((item) => ({
+              itemId: item.itemId,
+              result: "already_running" as const,
+            })),
+          } satisfies SkipActionStepActionItemsOutput;
+        }
+
+        const itemResults = yield* applySkippedItems({
+          context,
+          action,
+          actionRow: existingActionRow,
+          selectedItems,
+        });
+
+        return {
+          stepExecutionId: context.stepExecution.id,
+          actionId: action.actionId,
+          itemResults,
+        } satisfies SkipActionStepActionItemsOutput;
+      });
+
     const completeStep = (input: { projectId: string; stepExecutionId: string }) =>
       Effect.gen(function* () {
         const context = yield* loadContext(input);
@@ -941,6 +1327,8 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
       startExecution,
       runActions,
       retryActions,
+      skipActions,
+      skipActionItems,
       completeStep,
       getCompletionEligibility,
     });

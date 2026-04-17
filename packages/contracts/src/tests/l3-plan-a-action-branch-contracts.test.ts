@@ -26,6 +26,10 @@ import {
   RetryActionStepActionsOutput,
   RunActionStepActionsInput,
   RunActionStepActionsOutput,
+  SkipActionStepActionItemsInput,
+  SkipActionStepActionItemsOutput,
+  SkipActionStepActionsInput,
+  SkipActionStepActionsOutput,
   SaveBranchStepSelectionInput,
   SaveBranchStepSelectionOutput,
   StartActionStepExecutionInput,
@@ -415,6 +419,12 @@ describe("l3 plan a action/branch contracts", () => {
                 targetContextFactDefinitionId: "fact-repo",
                 status: "not_started",
                 affectedTargets: [],
+                skipAction: {
+                  kind: "skip_action_step_action_items",
+                  enabled: true,
+                  actionId: "action-1",
+                  itemId: "item-1",
+                },
               },
             ],
             runAction: {
@@ -428,6 +438,11 @@ describe("l3 plan a action/branch contracts", () => {
               reasonIfDisabled: "Nothing needs retry yet.",
               actionId: "action-1",
             },
+            skipAction: {
+              kind: "skip_action_step_actions",
+              enabled: true,
+              actionId: "action-1",
+            },
           },
         ],
       },
@@ -437,6 +452,10 @@ describe("l3 plan a action/branch contracts", () => {
     if (detail.body.stepType === "action" && "actions" in detail.body) {
       expect(detail.body.actions[0]?.status).toBe("not_started");
       expect(detail.body.actions[0]?.items[0]?.status).toBe("not_started");
+      expect(detail.body.actions[0]?.skipAction.kind).toBe("skip_action_step_actions");
+      expect(detail.body.actions[0]?.items[0]?.skipAction.kind).toBe(
+        "skip_action_step_action_items",
+      );
     }
 
     expect(
@@ -504,6 +523,45 @@ describe("l3 plan a action/branch contracts", () => {
     ).toEqual({
       stepExecutionId: "step-exec-1",
       actionResults: [{ actionId: "action-1", result: "not_retryable" }],
+    });
+
+    expect(
+      Schema.decodeUnknownSync(SkipActionStepActionsInput)({
+        projectId: "project-1",
+        stepExecutionId: "step-exec-1",
+        actionIds: ["action-1"],
+      }).actionIds,
+    ).toEqual(["action-1"]);
+
+    expect(
+      Schema.decodeUnknownSync(SkipActionStepActionsOutput)({
+        stepExecutionId: "step-exec-1",
+        actionResults: [{ actionId: "action-1", result: "skipped" }],
+      }),
+    ).toEqual({
+      stepExecutionId: "step-exec-1",
+      actionResults: [{ actionId: "action-1", result: "skipped" }],
+    });
+
+    expect(
+      Schema.decodeUnknownSync(SkipActionStepActionItemsInput)({
+        projectId: "project-1",
+        stepExecutionId: "step-exec-1",
+        actionId: "action-1",
+        itemIds: ["item-1"],
+      }).itemIds,
+    ).toEqual(["item-1"]);
+
+    expect(
+      Schema.decodeUnknownSync(SkipActionStepActionItemsOutput)({
+        stepExecutionId: "step-exec-1",
+        actionId: "action-1",
+        itemResults: [{ itemId: "item-1", result: "skipped" }],
+      }),
+    ).toEqual({
+      stepExecutionId: "step-exec-1",
+      actionId: "action-1",
+      itemResults: [{ itemId: "item-1", result: "skipped" }],
     });
   });
 

@@ -66,6 +66,8 @@ describe("runtime router boundary governance", () => {
         "startActionStepExecution",
         "runActionStepActions",
         "retryActionStepActions",
+        "skipActionStepActions",
+        "skipActionStepActionItems",
         "completeActionStepExecution",
         "startInvokeWorkflowTarget",
         "startInvokeWorkUnitTarget",

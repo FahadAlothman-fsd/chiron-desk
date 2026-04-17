@@ -6,6 +6,8 @@ import type {
   CompleteWorkflowExecutionInput,
   CompleteTransitionExecutionInput,
   GetTransitionExecutionDetailInput,
+  SkipActionStepActionItemsInput,
+  SkipActionStepActionsInput,
   GetWorkflowExecutionDetailInput,
   RetryActionStepActionsInput,
   RunActionStepActionsInput,
@@ -298,6 +300,29 @@ const retryActionStepActionsInput: z.ZodType<RetryActionStepActionsInput> = z
   .refine((value) => new Set(value.actionIds).size === value.actionIds.length, {
     message: "Action ids must be unique.",
     path: ["actionIds"],
+  });
+
+const skipActionStepActionsInput: z.ZodType<SkipActionStepActionsInput> = z
+  .object({
+    projectId: z.string().min(1),
+    stepExecutionId: z.string().min(1),
+    actionIds: z.array(z.string().min(1)).min(1),
+  })
+  .refine((value) => new Set(value.actionIds).size === value.actionIds.length, {
+    message: "Action ids must be unique.",
+    path: ["actionIds"],
+  });
+
+const skipActionStepActionItemsInput: z.ZodType<SkipActionStepActionItemsInput> = z
+  .object({
+    projectId: z.string().min(1),
+    stepExecutionId: z.string().min(1),
+    actionId: z.string().min(1),
+    itemIds: z.array(z.string().min(1)).min(1),
+  })
+  .refine((value) => new Set(value.itemIds).size === value.itemIds.length, {
+    message: "Item ids must be unique.",
+    path: ["itemIds"],
   });
 
 const completeActionStepExecutionInput = z.object({
@@ -953,6 +978,30 @@ export function createProjectRuntimeRouter(
           Effect.gen(function* () {
             const actionStepRuntimeService = yield* ActionStepRuntimeService;
             return yield* actionStepRuntimeService.retryActions(input);
+          }),
+        ),
+      ),
+
+    skipActionStepActions: protectedProcedure
+      .input(skipActionStepActionsInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const actionStepRuntimeService = yield* ActionStepRuntimeService;
+            return yield* actionStepRuntimeService.skipActions(input);
+          }),
+        ),
+      ),
+
+    skipActionStepActionItems: protectedProcedure
+      .input(skipActionStepActionItemsInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const actionStepRuntimeService = yield* ActionStepRuntimeService;
+            return yield* actionStepRuntimeService.skipActionItems(input);
           }),
         ),
       ),

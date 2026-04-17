@@ -1159,6 +1159,8 @@ function formatActionRenderableStatusLabel(
   switch (status) {
     case "not_started":
       return "Not started";
+    case "skipped":
+      return "Skipped";
     case "running":
       return "Running";
     case "succeeded":
@@ -1178,6 +1180,8 @@ function getActionRenderableStatusTone(
   switch (status) {
     case "running":
       return "sky" as const;
+    case "skipped":
+      return "slate" as const;
     case "succeeded":
       return "emerald" as const;
     case "failed":
@@ -2537,8 +2541,26 @@ function ActionInteractionSurface(props: {
     }),
   );
 
+  const skipActionsMutation = useMutation(
+    orpc.project.skipActionStepActions.mutationOptions({
+      onSuccess: async () => {
+        setLiveErrorMessage(null);
+        await invalidateStepDetail();
+      },
+    }),
+  );
+
+  const skipActionItemsMutation = useMutation(
+    orpc.project.skipActionStepActionItems.mutationOptions({
+      onSuccess: async () => {
+        setLiveErrorMessage(null);
+        await invalidateStepDetail();
+      },
+    }),
+  );
+
   const completeStepMutation = useMutation(
-    orpc.project.completeStepExecution.mutationOptions({
+    orpc.project.completeActionStepExecution.mutationOptions({
       onSuccess: async () => {
         setLiveErrorMessage(null);
         await invalidateStepDetail();
@@ -2549,6 +2571,8 @@ function ActionInteractionSurface(props: {
   const isBusy =
     runActionsMutation.isPending ||
     retryActionsMutation.isPending ||
+    skipActionsMutation.isPending ||
+    skipActionItemsMutation.isPending ||
     completeStepMutation.isPending;
 
   const surfacedError =
@@ -2557,9 +2581,13 @@ function ActionInteractionSurface(props: {
       ? toErrorMessage(runActionsMutation.error)
       : retryActionsMutation.error
         ? toErrorMessage(retryActionsMutation.error)
-        : completeStepMutation.error
-          ? toErrorMessage(completeStepMutation.error)
-          : null);
+        : skipActionsMutation.error
+          ? toErrorMessage(skipActionsMutation.error)
+          : skipActionItemsMutation.error
+            ? toErrorMessage(skipActionItemsMutation.error)
+            : completeStepMutation.error
+              ? toErrorMessage(completeStepMutation.error)
+              : null);
 
   const completionOutcome =
     shell.status === "completed"
@@ -2574,6 +2602,7 @@ function ActionInteractionSurface(props: {
     () => ({
       total: body.actions.length,
       notStarted: body.actions.filter((action) => action.status === "not_started").length,
+      skipped: body.actions.filter((action) => action.status === "skipped").length,
       running: body.actions.filter((action) => action.status === "running").length,
       succeeded: body.actions.filter((action) => action.status === "succeeded").length,
       needsAttention: body.actions.filter((action) => action.status === "needs_attention").length,
@@ -2587,6 +2616,10 @@ function ActionInteractionSurface(props: {
       succeeded: body.actions.reduce(
         (count, action) =>
           count + action.items.filter((item) => item.status === "succeeded").length,
+        0,
+      ),
+      skipped: body.actions.reduce(
+        (count, action) => count + action.items.filter((item) => item.status === "skipped").length,
         0,
       ),
       running: body.actions.reduce(
@@ -2614,7 +2647,6 @@ function ActionInteractionSurface(props: {
         onComplete={() =>
           completeStepMutation.mutate({
             projectId,
-            workflowExecutionId: shell.workflowExecutionId,
             stepExecutionId: shell.stepExecutionId,
           })
         }
@@ -2710,16 +2742,19 @@ function ActionInteractionSurface(props: {
                   <CardTitle>Action + item status summary</CardTitle>
                 </div>
                 <ExecutionBadge
-                  label={`${actionProgress.succeeded}/${actionProgress.total} succeeded`}
+                  label={`${actionProgress.succeeded + actionProgress.skipped}/${actionProgress.total} completed`}
                   tone="emerald"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-5">
                 <div className="border border-border/70 bg-background/60 p-2 text-center text-muted-foreground">
                   rows ready {actionProgress.notStarted}
                 </div>
                 <div className="border border-border/70 bg-background/60 p-2 text-center text-muted-foreground">
                   rows running {actionProgress.running}
+                </div>
+                <div className="border border-border/70 bg-background/60 p-2 text-center text-muted-foreground">
+                  rows skipped {actionProgress.skipped}
                 </div>
                 <div className="border border-border/70 bg-background/60 p-2 text-center text-muted-foreground">
                   items running {itemProgress.running}
@@ -2729,7 +2764,8 @@ function ActionInteractionSurface(props: {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                {itemProgress.succeeded} of {itemProgress.total} propagation item
+                {itemProgress.succeeded + itemProgress.skipped} of {itemProgress.total} propagation
+                item
                 {itemProgress.total === 1 ? "" : "s"} succeeded.
               </p>
             </article>
@@ -2798,10 +2834,11 @@ function ActionInteractionSurface(props: {
                         <DetailCode>{action.contextFactDefinitionId}</DetailCode>
                       </div>
                       <div>
-                        <DetailLabel>Run / Retry</DetailLabel>
+                        <DetailLabel>Run / Retry / Skip</DetailLabel>
                         <DetailPrimary>
                           {action.runAction.enabled ? "Run allowed" : "Run locked"} ·{" "}
-                          {action.retryAction.enabled ? "Retry allowed" : "Retry locked"}
+                          {action.retryAction.enabled ? "Retry allowed" : "Retry locked"} ·{" "}
+                          {action.skipAction.enabled ? "Skip allowed" : "Skip locked"}
                         </DetailPrimary>
                       </div>
                     </div>
@@ -2833,6 +2870,12 @@ function ActionInteractionSurface(props: {
                     {!action.retryAction.enabled && action.retryAction.reasonIfDisabled ? (
                       <p className="text-xs text-muted-foreground">
                         {action.retryAction.reasonIfDisabled}
+                      </p>
+                    ) : null}
+
+                    {!action.skipAction.enabled && action.skipAction.reasonIfDisabled ? (
+                      <p className="text-xs text-muted-foreground">
+                        {action.skipAction.reasonIfDisabled}
                       </p>
                     ) : null}
 
@@ -2933,6 +2976,31 @@ function ActionInteractionSurface(props: {
                                 {item.recoveryAction.reasonIfDisabled}
                               </p>
                             ) : null}
+
+                            {!item.skipAction.enabled && item.skipAction.reasonIfDisabled ? (
+                              <p className="text-xs text-muted-foreground">
+                                {item.skipAction.reasonIfDisabled}
+                              </p>
+                            ) : null}
+
+                            <div className="flex justify-end">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={isBusy || !item.skipAction.enabled}
+                                onClick={() =>
+                                  skipActionItemsMutation.mutate({
+                                    projectId,
+                                    stepExecutionId: shell.stepExecutionId,
+                                    actionId: item.skipAction.actionId,
+                                    itemIds: [item.skipAction.itemId],
+                                  })
+                                }
+                              >
+                                Skip item
+                              </Button>
+                            </div>
                           </article>
                         ))}
                       </div>
@@ -2969,6 +3037,21 @@ function ActionInteractionSurface(props: {
                       }
                     >
                       Retry action
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isBusy || !action.skipAction.enabled}
+                      onClick={() =>
+                        skipActionsMutation.mutate({
+                          projectId,
+                          stepExecutionId: shell.stepExecutionId,
+                          actionIds: [action.skipAction.actionId],
+                        })
+                      }
+                    >
+                      Skip action
                     </Button>
                   </CardFooter>
                 </Card>

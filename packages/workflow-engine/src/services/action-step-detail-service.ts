@@ -135,7 +135,15 @@ export const ActionStepDetailServiceLive = Layer.effect(
                 .sort((left, right) => left.sortOrder - right.sortOrder)
                 .map((item) => {
                   const itemRow = itemRowsById.get(item.itemId);
-                  const previewTarget = previewTargetsByItemId.get(item.itemId);
+                  const previewTarget =
+                    previewTargetsByItemId.get(item.itemId) ??
+                    buildPreviewTargetMeta({ item, action, contextRows, contextFactsById });
+                  const itemSkipBlockedReason = getItemSkipBlockedReason({
+                    stepExecution,
+                    action,
+                    ...(actionRow ? { actionRow } : {}),
+                    ...(itemRow ? { itemRow } : {}),
+                  });
                   const recoveryRequired =
                     itemRow &&
                     isRecord(itemRow.resultJson) &&
@@ -150,7 +158,7 @@ export const ActionStepDetailServiceLive = Layer.effect(
                     ...(previewTarget.contextFactKey
                       ? { targetContextFactKey: previewTarget.contextFactKey }
                       : {}),
-                    status: itemRow?.status ?? "not_started",
+                    status: mapItemStatus(itemRow),
                     ...(itemRow?.resultSummaryJson
                       ? { resultSummaryJson: itemRow.resultSummaryJson }
                       : {}),
@@ -164,8 +172,21 @@ export const ActionStepDetailServiceLive = Layer.effect(
                           },
                         }
                       : {}),
+                    skipAction: {
+                      kind: "skip_action_step_action_items" as const,
+                      enabled: !itemSkipBlockedReason,
+                      ...(itemSkipBlockedReason ? { reasonIfDisabled: itemSkipBlockedReason } : {}),
+                      actionId: action.actionId,
+                      itemId: item.itemId,
+                    },
                   } satisfies ItemBody;
                 });
+
+              const actionSkipBlockedReason = getSkipBlockedReason({
+                stepExecution,
+                action,
+                ...(actionRow ? { actionRow } : {}),
+              });
 
               return {
                 actionId: action.actionId,
@@ -177,7 +198,7 @@ export const ActionStepDetailServiceLive = Layer.effect(
                 contextFactDefinitionId: action.contextFactDefinitionId,
                 ...(contextFact ? { contextFactKey: contextFact.key } : {}),
                 contextFactKind: action.contextFactKind,
-                status: actionRow?.status ?? "not_started",
+                status: mapActionStatus(actionRow),
                 ...(actionRow?.resultSummaryJson
                   ? { resultSummaryJson: actionRow.resultSummaryJson }
                   : {}),
@@ -204,6 +225,16 @@ export const ActionStepDetailServiceLive = Layer.effect(
                         : {}) as {}),
                   actionId: action.actionId,
                 },
+                skipAction: {
+                  kind: "skip_action_step_actions" as const,
+                  enabled: !actionSkipBlockedReason,
+                  ...(actionSkipBlockedReason
+                    ? {
+                        reasonIfDisabled: actionSkipBlockedReason,
+                      }
+                    : {}),
+                  actionId: action.actionId,
+                },
               } satisfies ActionBody;
             }),
         );
@@ -223,8 +254,9 @@ export const ActionStepDetailServiceLive = Layer.effect(
   }),
 );
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 function getRunBlockedReason(params: {
   readonly stepExecution: RuntimeStepExecutionRow;
@@ -269,7 +301,105 @@ function getRunBlockedReason(params: {
     : undefined;
 }
 
-function isExternalEnvelope(value: unknown): value is { factInstanceId?: unknown } {
+function hasResultCode(value: unknown, code: string): boolean {
+  return isRecord(value) && value.code === code;
+}
+
+function mapActionStatus(
+  actionRow?: { status: "running" | "succeeded" | "needs_attention"; resultJson: unknown } | null,
+): "not_started" | "running" | "succeeded" | "needs_attention" | "skipped" {
+  if (!actionRow) {
+    return "not_started";
+  }
+
+  if (
+    actionRow.status === "succeeded" &&
+    hasResultCode(actionRow.resultJson, "propagation_action_skipped")
+  ) {
+    return "skipped";
+  }
+
+  return actionRow.status;
+}
+
+function mapItemStatus(
+  itemRow?: {
+    status: "running" | "succeeded" | "failed" | "needs_attention";
+    resultJson: unknown;
+  } | null,
+): "not_started" | "running" | "succeeded" | "failed" | "needs_attention" | "skipped" {
+  if (!itemRow) {
+    return "not_started";
+  }
+
+  if (
+    itemRow.status === "succeeded" &&
+    hasResultCode(itemRow.resultJson, "propagation_item_skipped")
+  ) {
+    return "skipped";
+  }
+
+  return itemRow.status;
+}
+
+function getSkipBlockedReason(params: {
+  readonly stepExecution: RuntimeStepExecutionRow;
+  readonly action: { enabled: boolean };
+  readonly actionRow?: { status: string; resultJson: unknown } | undefined;
+}): string | undefined {
+  if (params.stepExecution.status !== "active") {
+    return "Only active Action steps can skip actions.";
+  }
+  if (!params.action.enabled) {
+    return "Disabled actions cannot be skipped.";
+  }
+
+  if (params.actionRow?.status === "running") {
+    return "Action is already running.";
+  }
+
+  if (params.actionRow?.status === "succeeded") {
+    return hasResultCode(params.actionRow.resultJson, "propagation_action_skipped")
+      ? "Action was already skipped."
+      : "Action has already succeeded.";
+  }
+
+  return undefined;
+}
+
+function getItemSkipBlockedReason(params: {
+  readonly stepExecution: RuntimeStepExecutionRow;
+  readonly action: { enabled: boolean; items: readonly { itemId: string }[] };
+  readonly actionRow?: { status: string } | undefined;
+  readonly itemRow?: { status: string; resultJson: unknown } | undefined;
+}): string | undefined {
+  if (params.stepExecution.status !== "active") {
+    return "Only active Action steps can skip items.";
+  }
+  if (!params.action.enabled) {
+    return "Disabled actions cannot skip items.";
+  }
+  if (params.actionRow?.status === "running") {
+    return "Action is already running.";
+  }
+  if (!params.actionRow && params.action.items.length > 1) {
+    return "Run the action or skip the whole action before skipping individual items.";
+  }
+  if (params.itemRow?.status === "running") {
+    return "Item is already running.";
+  }
+  if (params.itemRow?.status === "succeeded") {
+    return hasResultCode(params.itemRow.resultJson, "propagation_item_skipped")
+      ? "Item was already skipped."
+      : "Item has already succeeded.";
+  }
+
+  return undefined;
+}
+
+function isExternalEnvelope(
+  value: unknown,
+): value is { factInstanceId?: unknown; value?: unknown } {
   return isRecord(value);
 }
 
@@ -290,11 +420,14 @@ function hasPreviewDefinitionBackedValue(value: unknown): boolean {
 }
 
 function resolveEffectiveTargetContextFact(params: {
-  readonly item: { targetContextFactDefinitionId?: string };
+  readonly item: { targetContextFactDefinitionId?: string | undefined };
   readonly action: {
     contextFactDefinitionId: string;
   };
-  readonly contextFactsById: ReadonlyMap<string, { key: string; label?: string; kind: string }>;
+  readonly contextFactsById: ReadonlyMap<
+    string,
+    { key: string; label?: string | undefined; kind: string }
+  >;
 }) {
   const contextFactDefinitionId =
     params.item.targetContextFactDefinitionId ?? params.action.contextFactDefinitionId;
@@ -305,13 +438,16 @@ function resolveEffectiveTargetContextFact(params: {
 }
 
 function buildPreviewTargetMeta(params: {
-  readonly item: { targetContextFactDefinitionId?: string };
+  readonly item: { targetContextFactDefinitionId?: string | undefined };
   readonly action: {
     contextFactDefinitionId: string;
     contextFactKind: RuntimeActionStepExecutionDetailBody["actions"][number]["contextFactKind"];
   };
   readonly contextRows: readonly RuntimeWorkflowExecutionContextFactRow[];
-  readonly contextFactsById: ReadonlyMap<string, { key: string; label?: string; kind: string }>;
+  readonly contextFactsById: ReadonlyMap<
+    string,
+    { key: string; label?: string | undefined; kind: string }
+  >;
 }) {
   const { contextFactDefinitionId, contextFact } = resolveEffectiveTargetContextFact(params);
   const label = contextFact?.label ?? contextFact?.key;
