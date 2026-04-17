@@ -34,7 +34,8 @@ if (typeof globalThis.HTMLElement !== "undefined") {
   });
 }
 
-const { cleanup, fireEvent, render, screen, waitFor } = await import("@testing-library/react");
+const { cleanup, fireEvent, render, screen, waitFor, within } =
+  await import("@testing-library/react");
 
 const {
   useParamsMock,
@@ -229,8 +230,16 @@ vi.mock("../../components/ui/command", () => ({
       {children}
     </section>
   ),
-  CommandItem: ({ children, onSelect }: { children: ReactNode; onSelect?: () => void }) => (
-    <button type="button" onClick={onSelect}>
+  CommandItem: ({
+    children,
+    onSelect,
+    disabled,
+  }: {
+    children: ReactNode;
+    onSelect?: () => void;
+    disabled?: boolean;
+  }) => (
+    <button type="button" disabled={disabled} onClick={() => !disabled && onSelect?.()}>
       {children}
     </button>
   ),
@@ -414,6 +423,7 @@ function createRouteContext(editorDefinition = createEditorDefinition()) {
                   itemKey: "summary-value",
                   label: "Summary Value",
                   sortOrder: 100,
+                  targetContextFactDefinitionId: "ctx-bound",
                 },
               ],
             },
@@ -566,8 +576,16 @@ describe("action step editor route", () => {
     expect(await screen.findByDisplayValue("propagate-setup-context")).toBeTruthy();
     expect(screen.getByDisplayValue("Propagate Setup Context")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /^Actions$/i }));
+    expect(screen.getByText("Propagate Summary")).toBeTruthy();
+    const actionCard = screen.getByText("Propagate Summary").closest("section");
+    expect(actionCard).toBeTruthy();
+    fireEvent.click(
+      within(actionCard as HTMLElement).getByRole("button", { name: /edit action/i }),
+    );
+    expect(await screen.findByRole("heading", { name: /edit action/i })).toBeTruthy();
     expect(screen.getByDisplayValue("propagate-summary")).toBeTruthy();
     expect(screen.getByDisplayValue("Summary Value")).toBeTruthy();
+    expect(screen.getByText(/context fact to propagate/i)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /^Guidance$/i }));
     expect(screen.getByDisplayValue("Review the outgoing propagation targets.")).toBeTruthy();
   });
@@ -595,14 +613,25 @@ describe("action step editor route", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: /^Actions$/i }));
+    fireEvent.change(screen.getByRole("combobox", { name: /new-action-type/i }), {
+      target: { value: "propagation" },
+    });
     fireEvent.click(screen.getByRole("button", { name: /Add action/i }));
 
-    fireEvent.change(screen.getByLabelText("Action label 1"), {
+    expect(await screen.findByRole("heading", { name: /add action/i })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Action key"), {
+      target: { value: "propagate-bound-setup-summary" },
+    });
+    fireEvent.change(screen.getByLabelText("Action name"), {
       target: { value: "Setup Summary Value" },
     });
-    fireEvent.change(screen.getByLabelText("Item label 1-1"), {
+    fireEvent.change(screen.getByLabelText("Item key 1"), {
+      target: { value: "bound-setup-summary-item" },
+    });
+    fireEvent.change(screen.getByLabelText("Item label 1"), {
       target: { value: "Setup Summary Item" },
     });
+    fireEvent.click(screen.getAllByRole("button", { name: /^Add action$/i }).at(-1)!);
 
     fireEvent.click(screen.getByRole("button", { name: /^Execution$/i }));
     fireEvent.click(screen.getByRole("button", { name: /Parallel/i }));
@@ -636,7 +665,7 @@ describe("action step editor route", () => {
           actions: [
             expect.objectContaining({
               actionId: expect.any(String),
-              actionKey: "propagate-bound_setup_summary",
+              actionKey: "propagate-bound-setup-summary",
               label: "Setup Summary Value",
               contextFactDefinitionId: "ctx-bound",
               contextFactKind: "bound_external_fact",
@@ -644,9 +673,10 @@ describe("action step editor route", () => {
               items: [
                 expect.objectContaining({
                   itemId: expect.any(String),
-                  itemKey: "bound_setup_summary-value",
+                  itemKey: "bound-setup-summary-item",
                   label: "Setup Summary Item",
                   sortOrder: 100,
+                  targetContextFactDefinitionId: "ctx-bound",
                 }),
               ],
             }),
@@ -670,14 +700,101 @@ describe("action step editor route", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: /^Actions$/i }));
+    fireEvent.change(screen.getByRole("combobox", { name: /new-action-type/i }), {
+      target: { value: "propagation" },
+    });
     fireEvent.click(screen.getByRole("button", { name: /Add action/i }));
+    expect(await screen.findByRole("heading", { name: /add action/i })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Item key 1"), {
+      target: { value: "disabled-item" },
+    });
     const enabledCheckbox = screen.getByRole("checkbox", { name: "Action enabled" });
     fireEvent.click(enabledCheckbox);
     expect((enabledCheckbox as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(screen.getAllByRole("button", { name: /^Add action$/i }).at(-1)!);
 
     fireEvent.click(screen.getByRole("button", { name: /save action step/i }));
 
-    expect(await screen.findByText("Enable at least one propagation action.")).toBeTruthy();
+    expect(await screen.findByText("Enable at least one action.")).toBeTruthy();
     expect(createActionStepMutationSpy).not.toHaveBeenCalled();
+  });
+
+  it("disables context facts already selected by sibling items within the same propagation action only", async () => {
+    const { MethodologyWorkflowEditorRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId");
+
+    renderRoute(<MethodologyWorkflowEditorRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Action step type 08/i }));
+    expect(await screen.findByText("Create Action Step")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Step key"), {
+      target: { value: "propagate-duplicates-guard" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Actions$/i }));
+    fireEvent.change(screen.getByRole("combobox", { name: /new-action-type/i }), {
+      target: { value: "propagation" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Add action/i }));
+    expect(await screen.findByRole("heading", { name: /add action/i })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /Add propagation item/i }));
+
+    const firstItemCard = screen
+      .getByLabelText("Item key 1")
+      .closest("article") as HTMLElement | null;
+    const secondItemCard = screen
+      .getByLabelText("Item key 2")
+      .closest("article") as HTMLElement | null;
+    expect(firstItemCard).toBeTruthy();
+    expect(secondItemCard).toBeTruthy();
+
+    fireEvent.click(within(secondItemCard).getByRole("button", { name: /Setup Artifact/i }));
+
+    const disabledSiblingOption = within(secondItemCard).getByRole("button", {
+      name: /Bound Setup Summary/i,
+    });
+    expect(disabledSiblingOption.hasAttribute("disabled")).toBe(true);
+
+    expect(
+      within(firstItemCard)
+        .getByRole("button", { name: /Bound Setup Summary/i })
+        .hasAttribute("disabled"),
+    ).toBe(false);
+  });
+
+  it("allows mixed allowed context-fact kinds inside one propagation action", async () => {
+    const { MethodologyWorkflowEditorRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId");
+
+    renderRoute(<MethodologyWorkflowEditorRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Action step type 08/i }));
+    expect(await screen.findByText("Create Action Step")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Step key"), {
+      target: { value: "propagate-mixed-kinds" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Actions$/i }));
+    fireEvent.change(screen.getByRole("combobox", { name: /new-action-type/i }), {
+      target: { value: "propagation" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Add action/i }));
+    expect(await screen.findByRole("heading", { name: /add action/i })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /Add propagation item/i }));
+
+    const secondItemCard = screen
+      .getByLabelText("Item key 2")
+      .closest("article") as HTMLElement | null;
+    expect(secondItemCard).toBeTruthy();
+
+    fireEvent.click(within(secondItemCard).getByRole("button", { name: /Setup Artifact/i }));
+    expect(screen.queryByText(/same context fact kind/i)).toBeNull();
+
+    fireEvent.click(screen.getAllByRole("button", { name: /^Add action$/i }).at(-1)!);
+    expect(screen.queryByText(/same context fact kind/i)).toBeNull();
   });
 });
