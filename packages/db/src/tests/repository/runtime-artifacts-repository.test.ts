@@ -107,7 +107,9 @@ const SCHEMA_SQL = [
     file_path TEXT NOT NULL,
     member_status TEXT NOT NULL,
     git_commit_hash TEXT,
-    git_blob_hash TEXT
+    git_blob_hash TEXT,
+    git_commit_title TEXT,
+    git_commit_body TEXT
   )`,
 ];
 

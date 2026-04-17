@@ -21,6 +21,8 @@ export interface ArtifactSnapshotFileRow {
   memberStatus: ArtifactMemberStatus;
   gitCommitHash: string | null;
   gitBlobHash: string | null;
+  gitCommitTitle: string | null;
+  gitCommitBody: string | null;
 }
 
 export interface ArtifactCurrentState {
@@ -62,6 +64,8 @@ export class ArtifactRepository extends Context.Tag(
         memberStatus: ArtifactMemberStatus;
         gitCommitHash?: string | null;
         gitBlobHash?: string | null;
+        gitCommitTitle?: string | null;
+        gitCommitBody?: string | null;
       }>;
     }) => Effect.Effect<readonly ArtifactSnapshotFileRow[], RepositoryError>;
     readonly getCurrentSnapshotBySlot: (params: {

@@ -161,6 +161,8 @@ const artifactLayer = Layer.succeed(ArtifactRepository, {
                 memberStatus: "present" as const,
                 gitCommitHash: "abc",
                 gitBlobHash: "def",
+                gitCommitTitle: null,
+                gitCommitBody: null,
               },
             ]
           : [],
@@ -188,6 +190,8 @@ const artifactLayer = Layer.succeed(ArtifactRepository, {
                   memberStatus: "present" as const,
                   gitCommitHash: "abc",
                   gitBlobHash: "def",
+                  gitCommitTitle: null,
+                  gitCommitBody: null,
                 },
               ],
               effectiveMembers: [
@@ -198,6 +202,44 @@ const artifactLayer = Layer.succeed(ArtifactRepository, {
                   memberStatus: "present" as const,
                   gitCommitHash: "abc",
                   gitBlobHash: "def",
+                  gitCommitTitle: null,
+                  gitCommitBody: null,
+                },
+              ],
+            },
+            {
+              snapshot: {
+                id: "snapshot-0",
+                projectWorkUnitId: "wu-1",
+                slotDefinitionId,
+                recordedByTransitionExecutionId: null,
+                recordedByWorkflowExecutionId: null,
+                recordedByUserId: "user-1",
+                supersededByProjectArtifactSnapshotId: "snapshot-1",
+                createdAt: new Date("2026-03-28T09:00:00.000Z"),
+              },
+              deltaMembers: [
+                {
+                  id: "file-0",
+                  artifactSnapshotId: "snapshot-0",
+                  filePath: "docs/old.md",
+                  memberStatus: "present" as const,
+                  gitCommitHash: "old",
+                  gitBlobHash: "old",
+                  gitCommitTitle: null,
+                  gitCommitBody: null,
+                },
+              ],
+              effectiveMembers: [
+                {
+                  id: "file-0",
+                  artifactSnapshotId: "snapshot-0",
+                  filePath: "docs/old.md",
+                  memberStatus: "present" as const,
+                  gitCommitHash: "old",
+                  gitBlobHash: "old",
+                  gitCommitTitle: null,
+                  gitCommitBody: null,
                 },
               ],
             },
@@ -272,7 +314,10 @@ describe("RuntimeFactService + RuntimeArtifactService", () => {
 
     const result = await Effect.runPromise(program);
     expect(result.detail.currentEffectiveSnapshot.exists).toBe(true);
+    expect(result.detail.lineage[0]?.supersedesProjectArtifactSnapshotId).toBe("snapshot-0");
     expect(result.snapshot.snapshot.projectArtifactSnapshotId).toBe("snapshot-1");
+    expect(result.snapshot.snapshot.supersedesProjectArtifactSnapshotId).toBe("snapshot-0");
     expect(result.freshness.result).toBe("changed");
+    expect(result.freshness.projectArtifactSnapshotId).toBe("snapshot-1");
   });
 });

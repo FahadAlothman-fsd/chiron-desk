@@ -110,6 +110,8 @@ export const RuntimeArtifactServiceLive = Layer.effect(
                     filePath: member.filePath,
                     ...(member.gitBlobHash ? { gitBlobHash: member.gitBlobHash } : {}),
                     ...(member.gitCommitHash ? { gitCommitHash: member.gitCommitHash } : {}),
+                    ...(member.gitCommitTitle ? { gitCommitTitle: member.gitCommitTitle } : {}),
+                    ...(member.gitCommitBody ? { gitCommitBody: member.gitCommitBody } : {}),
                   })),
                 },
                 ...(latestHead
@@ -150,6 +152,15 @@ export const RuntimeArtifactServiceLive = Layer.effect(
             slotDefinitionId: input.slotDefinitionId,
           }),
         ]);
+
+        const supersededBySnapshotId = new Map(
+          lineage
+            .filter((entry) => entry.snapshot.supersededByProjectArtifactSnapshotId)
+            .map((entry) => [
+              entry.snapshot.supersededByProjectArtifactSnapshotId as string,
+              entry.snapshot.id,
+            ]),
+        );
 
         return {
           workUnit: toWorkUnitIdentity(workUnit, input.projectWorkUnitId),
@@ -194,14 +205,17 @@ export const RuntimeArtifactServiceLive = Layer.effect(
               filePath: member.filePath,
               ...(member.gitBlobHash ? { gitBlobHash: member.gitBlobHash } : {}),
               ...(member.gitCommitHash ? { gitCommitHash: member.gitCommitHash } : {}),
+              ...(member.gitCommitTitle ? { gitCommitTitle: member.gitCommitTitle } : {}),
+              ...(member.gitCommitBody ? { gitCommitBody: member.gitCommitBody } : {}),
             })),
           },
           lineage: lineage.map((entry) => ({
             projectArtifactSnapshotId: entry.snapshot.id,
-            ...(entry.snapshot.supersededByProjectArtifactSnapshotId
+            ...(supersededBySnapshotId.get(entry.snapshot.id)
               ? {
-                  supersedesProjectArtifactSnapshotId:
-                    entry.snapshot.supersededByProjectArtifactSnapshotId,
+                  supersedesProjectArtifactSnapshotId: supersededBySnapshotId.get(
+                    entry.snapshot.id,
+                  ) as string,
                 }
               : {}),
             createdAt: entry.snapshot.createdAt.toISOString(),
@@ -242,6 +256,15 @@ export const RuntimeArtifactServiceLive = Layer.effect(
           }),
         ]);
 
+        const supersededBySnapshotId = new Map(
+          lineage
+            .filter((entry) => entry.snapshot.supersededByProjectArtifactSnapshotId)
+            .map((entry) => [
+              entry.snapshot.supersededByProjectArtifactSnapshotId as string,
+              entry.snapshot.id,
+            ]),
+        );
+
         const selected = lineage.find(
           (entry) => entry.snapshot.id === input.projectArtifactSnapshotId,
         ) ?? {
@@ -277,10 +300,11 @@ export const RuntimeArtifactServiceLive = Layer.effect(
           },
           snapshot: {
             projectArtifactSnapshotId: selected.snapshot.id,
-            ...(selected.snapshot.supersededByProjectArtifactSnapshotId
+            ...(supersededBySnapshotId.get(selected.snapshot.id)
               ? {
-                  supersedesProjectArtifactSnapshotId:
-                    selected.snapshot.supersededByProjectArtifactSnapshotId,
+                  supersedesProjectArtifactSnapshotId: supersededBySnapshotId.get(
+                    selected.snapshot.id,
+                  ) as string,
                 }
               : {}),
             createdAt: selected.snapshot.createdAt.toISOString(),
@@ -301,6 +325,8 @@ export const RuntimeArtifactServiceLive = Layer.effect(
               memberStatus: member.memberStatus,
               ...(member.gitBlobHash ? { gitBlobHash: member.gitBlobHash } : {}),
               ...(member.gitCommitHash ? { gitCommitHash: member.gitCommitHash } : {}),
+              ...(member.gitCommitTitle ? { gitCommitTitle: member.gitCommitTitle } : {}),
+              ...(member.gitCommitBody ? { gitCommitBody: member.gitCommitBody } : {}),
             })),
             effectiveMemberCounts: {
               currentCount: selected.effectiveMembers.length,
@@ -312,23 +338,30 @@ export const RuntimeArtifactServiceLive = Layer.effect(
     const checkArtifactSlotCurrentState = (
       input: CheckArtifactSlotCurrentStateInput,
     ): Effect.Effect<CheckArtifactSlotCurrentStateOutput, RepositoryError> =>
-      artifactRepository
-        .checkFreshness({
-          projectId: input.projectId,
-          projectWorkUnitId: input.projectWorkUnitId,
-          slotDefinitionId: input.slotDefinitionId,
-        })
-        .pipe(
-          Effect.map((freshness) => ({
-            result:
-              freshness.freshness === "unavailable"
-                ? ("unavailable" as const)
-                : freshness.freshness === "stale"
-                  ? ("changed" as const)
-                  : ("unchanged" as const),
-            currentEffectiveSnapshotExists: freshness.exists,
-          })),
-        );
+      Effect.gen(function* () {
+        const [freshness, currentState] = yield* Effect.all([
+          artifactRepository.checkFreshness({
+            projectId: input.projectId,
+            projectWorkUnitId: input.projectWorkUnitId,
+            slotDefinitionId: input.slotDefinitionId,
+          }),
+          artifactRepository.getCurrentSnapshotBySlot({
+            projectWorkUnitId: input.projectWorkUnitId,
+            slotDefinitionId: input.slotDefinitionId,
+          }),
+        ]);
+
+        return {
+          result:
+            freshness.freshness === "unavailable"
+              ? ("unavailable" as const)
+              : freshness.freshness === "stale"
+                ? ("changed" as const)
+                : ("unchanged" as const),
+          ...(currentState.snapshot ? { projectArtifactSnapshotId: currentState.snapshot.id } : {}),
+          currentEffectiveSnapshotExists: freshness.exists,
+        } satisfies CheckArtifactSlotCurrentStateOutput;
+      });
 
     return RuntimeArtifactService.of({
       getArtifactSlots,

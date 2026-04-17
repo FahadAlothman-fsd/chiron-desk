@@ -676,6 +676,7 @@ describe("OpencodeHarnessService runtime", () => {
   });
 
   it("allows bootstrap prompt generation when noReply is false", async () => {
+    const eventFeed = makeEventFeed();
     const managedClient = {
       app: {
         agents: vi.fn(async () => []),
@@ -712,7 +713,7 @@ describe("OpencodeHarnessService runtime", () => {
         ]),
       },
       event: {
-        subscribe: vi.fn(async () => ({ [Symbol.asyncIterator]: async function* () {} })),
+        subscribe: vi.fn(async () => eventFeed.iterable),
       },
     };
 
@@ -742,7 +743,29 @@ describe("OpencodeHarnessService runtime", () => {
         body: expect.not.objectContaining({ noReply: true }),
       }),
     );
-    expect(started.timeline).toEqual(
+
+    const streamEvents = Array.from(
+      await Effect.runPromise(
+        Stream.runCollect(service.streamSessionEvents("session-autoreply").pipe(Stream.take(6))),
+      ),
+    );
+
+    expect(streamEvents.map((event) => event.eventType)).toEqual([
+      "bootstrap",
+      "session_state",
+      "timeline",
+      "timeline",
+      "session_state",
+      "done",
+    ]);
+    expect(streamEvents[1]).toMatchObject({
+      eventType: "session_state",
+      data: { state: "active_streaming" },
+    });
+    const timelineItems = streamEvents
+      .filter((event) => event.eventType === "timeline")
+      .map((event) => event.data.item);
+    expect(timelineItems).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           itemType: "message",
@@ -751,5 +774,104 @@ describe("OpencodeHarnessService runtime", () => {
         }),
       ]),
     );
+    expect(streamEvents[5]).toMatchObject({
+      eventType: "done",
+      data: { finalState: "active_idle" },
+    });
+
+    expect(["active_streaming", "active_idle"]).toContain(started.session.state);
+  });
+
+  it("rejects sendMessage while bootstrap noReply=false turn is still streaming", async () => {
+    const eventFeed = makeEventFeed();
+    let releaseBootstrap: (() => void) | undefined;
+    let promptCallCount = 0;
+    const bootstrapInFlight = new Promise<void>((resolve) => {
+      releaseBootstrap = resolve;
+    });
+
+    const managedClient = {
+      app: {
+        agents: vi.fn(async () => []),
+      },
+      config: {
+        providers: vi.fn(async () => ({ providers: [], default: {} })),
+      },
+      session: {
+        create: vi.fn(async () => ({
+          id: "session-bootstrap-streaming",
+          time: { created: 1_744_193_200_000 },
+        })),
+        prompt: vi.fn(async () => {
+          promptCallCount += 1;
+          if (promptCallCount === 1) {
+            await bootstrapInFlight;
+            return {
+              info: { id: "assistant-msg-1", role: "assistant" },
+              parts: [{ type: "text", text: "Bootstrap reply" }],
+            };
+          }
+
+          return { ok: true };
+        }),
+        messages: vi.fn(async () => [
+          {
+            info: {
+              id: "bootstrap-user-msg",
+              role: "user",
+              time: { created: 1_744_193_200_000 },
+            },
+            parts: [{ type: "text", text: "Bootstrap\n\nInstructions" }],
+          },
+        ]),
+      },
+      event: {
+        subscribe: vi.fn(async () => eventFeed.iterable),
+      },
+    };
+
+    const service = makeOpencodeHarnessService(
+      vi.fn(async () => ({
+        client: managedClient,
+        server: {
+          url: "http://127.0.0.1:4010",
+          close: vi.fn(),
+        },
+      })) as never,
+      vi.fn(() => managedClient) as never,
+    );
+
+    const started = await Effect.runPromise(
+      service.startSession({
+        stepExecutionId: "step-exec-bootstrap-streaming",
+        projectRootPath: "/tmp/chiron",
+        objective: "Bootstrap",
+        instructionsMarkdown: "Instructions",
+        noReply: false,
+      }),
+    );
+
+    await Effect.runPromise(
+      Stream.runCollect(
+        service.streamSessionEvents(started.session.sessionId).pipe(
+          Stream.filter((event) => event.eventType === "session_state"),
+          Stream.take(1),
+        ),
+      ),
+    );
+
+    const sendAttempt = await Effect.runPromise(
+      Effect.either(service.sendMessage(started.session.sessionId, "follow up")),
+    );
+
+    expect(sendAttempt).toMatchObject({
+      _tag: "Left",
+      left: {
+        _tag: "OpenCodeExecutionError",
+        operation: "send_message",
+      },
+    });
+
+    releaseBootstrap?.();
   });
 });

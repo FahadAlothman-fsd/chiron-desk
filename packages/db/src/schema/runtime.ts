@@ -270,6 +270,8 @@ export const artifactSnapshotFiles = sqliteTable(
     memberStatus: text("member_status", { enum: ["present", "removed"] }).notNull(),
     gitCommitHash: text("git_commit_hash"),
     gitBlobHash: text("git_blob_hash"),
+    gitCommitTitle: text("git_commit_title"),
+    gitCommitBody: text("git_commit_body"),
   },
   (table) => [
     index("artifact_snapshot_files_snapshot_idx").on(table.artifactSnapshotId),

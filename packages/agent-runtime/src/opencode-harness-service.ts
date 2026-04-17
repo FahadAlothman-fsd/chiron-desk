@@ -74,6 +74,8 @@ type SessionRecord = {
   readonly timelineIds: Set<string>;
   readonly eventLog: AgentStepSseEnvelope[];
   readonly subscribers: Set<Queue.Queue<AgentStepSseEnvelope>>;
+  eventPumpActive: boolean;
+  eventPumpAbortController?: AbortController;
 };
 
 type OpencodeClientFactoryServiceShape = {
@@ -1260,8 +1262,118 @@ export function makeOpencodeHarnessService(
         },
       ],
       subscribers: new Set(),
+      eventPumpActive: false,
     };
   };
+
+  const ensureSessionEventPump = (record: SessionRecord) =>
+    Effect.gen(function* () {
+      if (record.eventPumpActive) {
+        return;
+      }
+
+      record.eventPumpActive = true;
+      const controller = new AbortController();
+      record.eventPumpAbortController = controller;
+
+      const runtime = yield* Effect.runtime<never>();
+      const runPromise = Runtime.runPromise(runtime);
+
+      yield* Effect.forkDaemon(
+        Effect.gen(function* () {
+          const source = yield* Effect.tryPromise({
+            try: () => record.client.subscribeEvents({ signal: controller.signal }),
+            catch: (error) =>
+              opencodeError("stream_events", "Failed to subscribe to OpenCode events.", error),
+          });
+
+          yield* Effect.tryPromise({
+            try: async () => {
+              for await (const rawEvent of asAsyncIterable(source)) {
+                if (extractSessionId(rawEvent) !== record.session.sessionId) {
+                  continue;
+                }
+
+                const rawType = extractEventType(rawEvent);
+                if (!rawType) {
+                  continue;
+                }
+
+                if (
+                  rawType === "message.updated" ||
+                  rawType === "message.part.updated" ||
+                  rawType === "message.part.removed" ||
+                  rawType === "message.removed" ||
+                  rawType === "command.executed"
+                ) {
+                  const appended = await runPromise(
+                    synchronizeTimeline(record, "stream_events").pipe(
+                      Effect.orElseSucceed(() => []),
+                    ),
+                  );
+                  await runPromise(pushTimelineEvents(record, appended));
+                  continue;
+                }
+
+                if (rawType === "session.status") {
+                  const status = readString(
+                    extractEventProperties(rawEvent).status &&
+                      asRecord(extractEventProperties(rawEvent).status)?.type,
+                  );
+                  if (status === "busy") {
+                    await runPromise(setSessionState(record, "active_streaming"));
+                  } else if (status === "idle") {
+                    await runPromise(setSessionState(record, "active_idle"));
+                  }
+                  continue;
+                }
+
+                if (rawType === "session.idle") {
+                  const appended = await runPromise(
+                    synchronizeTimeline(record, "stream_events").pipe(
+                      Effect.orElseSucceed(() => []),
+                    ),
+                  );
+                  await runPromise(pushTimelineEvents(record, appended));
+                  await runPromise(setSessionState(record, "active_idle"));
+                  await runPromise(emitDone(record, "active_idle"));
+                  continue;
+                }
+
+                if (rawType === "session.error") {
+                  const properties = extractEventProperties(rawEvent);
+                  const errorRecord = asRecord(properties.error) ?? {};
+                  const message = readString(
+                    asRecord(errorRecord.data)?.message,
+                    readString(errorRecord.name, "OpenCode session reported an error."),
+                  );
+                  await runPromise(setSessionState(record, "disconnected_or_error"));
+                  await runPromise(emitError(record, "stream_events", message, errorRecord));
+                  await runPromise(emitDone(record, "disconnected_or_error"));
+                }
+              }
+            },
+            catch: (error) =>
+              opencodeError("stream_events", "Failed while consuming OpenCode events.", error),
+          });
+        }).pipe(
+          Effect.catchAll((error) =>
+            setSessionState(record, "disconnected_or_error").pipe(
+              Effect.zipRight(emitError(record, "stream_events", error.message, error)),
+              Effect.zipRight(emitDone(record, "disconnected_or_error")),
+            ),
+          ),
+          Effect.ensuring(
+            Effect.sync(() => {
+              record.eventPumpActive = false;
+              if (record.eventPumpAbortController === controller) {
+                record.eventPumpAbortController = undefined;
+              }
+            }),
+          ),
+        ),
+      );
+    });
 
   const cleanupFailedStart = (record: SessionRecord | undefined) =>
     Effect.gen(function* () {
@@ -1269,6 +1381,7 @@ export function makeOpencodeHarnessService(
         return;
       }
 
+      record.eventPumpAbortController?.abort();
       sessionsById.delete(record.session.sessionId);
       sessionIdByStepExecutionId.delete(record.session.stepExecutionId);
       yield* serverManager.stopServer(record.server);
@@ -1391,38 +1504,77 @@ export function makeOpencodeHarnessService(
             );
           record = createdRecord;
 
-          if (!resumedRecord) {
-            yield* Effect.tryPromise({
-              try: () =>
-                createdRecord.client.prompt(
-                  buildPromptInput({
-                    sessionId: createdRecord.session.sessionId,
-                    text: createdRecord.bootstrapContent,
-                    ...(promptSelections.agent ? { agent: promptSelections.agent } : {}),
-                    ...(promptModel ? { model: promptModel } : {}),
-                    noReply: config.noReply ?? true,
-                  }),
-                ),
-              catch: (error) =>
-                opencodeError(
-                  "start_session",
-                  "Failed to bootstrap OpenCode session context.",
-                  error,
-                ),
-            });
-
-            const bootstrapTimelineItems = yield* synchronizeTimeline(
-              createdRecord,
-              "start_session",
-            );
-            yield* pushTimelineEvents(createdRecord, bootstrapTimelineItems);
-          }
-
           sessionsById.set(createdRecord.session.sessionId, createdRecord);
           sessionIdByStepExecutionId.set(
             createdRecord.session.stepExecutionId,
             createdRecord.session.sessionId,
           );
+
+          yield* ensureSessionEventPump(createdRecord);
+
+          if (!resumedRecord) {
+            const shouldSuppressBootstrapReply = config.noReply ?? true;
+            const runBootstrapPrompt = Effect.gen(function* () {
+              if (!shouldSuppressBootstrapReply) {
+                yield* setSessionState(createdRecord, "active_streaming");
+              }
+
+              yield* Effect.tryPromise({
+                try: () =>
+                  createdRecord.client.prompt(
+                    buildPromptInput({
+                      sessionId: createdRecord.session.sessionId,
+                      text: createdRecord.bootstrapContent,
+                      ...(promptSelections.agent ? { agent: promptSelections.agent } : {}),
+                      ...(promptModel ? { model: promptModel } : {}),
+                      noReply: shouldSuppressBootstrapReply,
+                    }),
+                  ),
+                catch: (error) =>
+                  opencodeError(
+                    "start_session",
+                    "Failed to bootstrap OpenCode session context.",
+                    error,
+                  ),
+              });
+
+              const bootstrapTimelineItems = yield* synchronizeTimeline(
+                createdRecord,
+                "start_session",
+              );
+              yield* pushTimelineEvents(createdRecord, bootstrapTimelineItems);
+
+              if (!shouldSuppressBootstrapReply) {
+                yield* setSessionState(createdRecord, "active_idle");
+                yield* emitDone(createdRecord, "active_idle");
+              }
+            }).pipe(
+              Effect.catchAll((error: OpenCodeExecutionError) =>
+                setSessionState(createdRecord, "disconnected_or_error").pipe(
+                  Effect.zipRight(emitError(createdRecord, "start_session", error.message, error)),
+                  Effect.zipRight(emitDone(createdRecord, "disconnected_or_error")),
+                  Effect.zipRight(Effect.fail(error)),
+                ),
+              ),
+            );
+
+            if (shouldSuppressBootstrapReply) {
+              yield* runBootstrapPrompt;
+            } else {
+              const returnSession = { ...createdRecord.session };
+              const returnTimeline = [...createdRecord.timeline];
+              const returnCursor = createCursor(returnTimeline);
+              yield* Effect.forkDaemon(runBootstrapPrompt.pipe(Effect.orDie));
+
+              return {
+                session: returnSession,
+                serverInstanceId: createdRecord.server.serverInstanceId,
+                serverBaseUrl: createdRecord.server.baseUrl,
+                timeline: returnTimeline,
+                cursor: returnCursor,
+              } satisfies HarnessSessionStarted;
+            }
+          }
 
           return {
             session: createdRecord.session,
@@ -1538,6 +1690,20 @@ export function makeOpencodeHarnessService(
           );
         }
 
+        if (record.session.state === "disconnected_or_error") {
+          return yield* opencodeError(
+            "send_message",
+            `Harness session '${sessionId}' is disconnected and cannot receive messages.`,
+          );
+        }
+
+        if (record.session.state !== "active_idle") {
+          return yield* opencodeError(
+            "send_message",
+            `Harness session '${sessionId}' is currently ${record.session.state}; wait until it is active_idle before sending a new message.`,
+          );
+        }
+
         return yield* Effect.gen(function* () {
           yield* setSessionState(record, "active_streaming");
           const promptSelections = yield* resolvePromptSelections(
@@ -1628,105 +1794,16 @@ export function makeOpencodeHarnessService(
             ),
           );
 
+          yield* ensureSessionEventPump(record);
+
           const subscriber = yield* Queue.unbounded<AgentStepSseEnvelope>();
           yield* Queue.offerAll(subscriber, record.eventLog);
           record.subscribers.add(subscriber);
-
-          const controller = new AbortController();
-          const runtime = yield* Effect.runtime<never>();
-          const runPromise = Runtime.runPromise(runtime);
-
-          yield* Effect.forkDaemon(
-            Effect.gen(function* () {
-              const source = yield* Effect.tryPromise({
-                try: () => record.client.subscribeEvents({ signal: controller.signal }),
-                catch: (error) =>
-                  opencodeError("stream_events", "Failed to subscribe to OpenCode events.", error),
-              });
-              yield* Effect.tryPromise({
-                try: async () => {
-                  for await (const rawEvent of asAsyncIterable(source)) {
-                    if (extractSessionId(rawEvent) !== record.session.sessionId) {
-                      continue;
-                    }
-
-                    const rawType = extractEventType(rawEvent);
-                    if (!rawType) {
-                      continue;
-                    }
-
-                    if (
-                      rawType === "message.updated" ||
-                      rawType === "message.part.updated" ||
-                      rawType === "message.part.removed" ||
-                      rawType === "message.removed" ||
-                      rawType === "command.executed"
-                    ) {
-                      const appended = await runPromise(
-                        synchronizeTimeline(record, "stream_events").pipe(
-                          Effect.orElseSucceed(() => []),
-                        ),
-                      );
-                      await runPromise(pushTimelineEvents(record, appended));
-                      continue;
-                    }
-
-                    if (rawType === "session.status") {
-                      const status = readString(
-                        extractEventProperties(rawEvent).status &&
-                          asRecord(extractEventProperties(rawEvent).status)?.type,
-                      );
-                      if (status === "busy") {
-                        await runPromise(setSessionState(record, "active_streaming"));
-                      } else if (status === "idle") {
-                        await runPromise(setSessionState(record, "active_idle"));
-                      }
-                      continue;
-                    }
-
-                    if (rawType === "session.idle") {
-                      const appended = await runPromise(
-                        synchronizeTimeline(record, "stream_events").pipe(
-                          Effect.orElseSucceed(() => []),
-                        ),
-                      );
-                      await runPromise(pushTimelineEvents(record, appended));
-                      await runPromise(setSessionState(record, "active_idle"));
-                      await runPromise(emitDone(record, "active_idle"));
-                      continue;
-                    }
-
-                    if (rawType === "session.error") {
-                      const properties = extractEventProperties(rawEvent);
-                      const errorRecord = asRecord(properties.error) ?? {};
-                      const message = readString(
-                        asRecord(errorRecord.data)?.message,
-                        readString(errorRecord.name, "OpenCode session reported an error."),
-                      );
-                      await runPromise(setSessionState(record, "disconnected_or_error"));
-                      await runPromise(emitError(record, "stream_events", message, errorRecord));
-                      await runPromise(emitDone(record, "disconnected_or_error"));
-                    }
-                  }
-                },
-                catch: (error) =>
-                  opencodeError("stream_events", "Failed while consuming OpenCode events.", error),
-              });
-            }).pipe(
-              Effect.catchAll((error) =>
-                setSessionState(record, "disconnected_or_error").pipe(
-                  Effect.zipRight(emitError(record, "stream_events", error.message, error)),
-                  Effect.zipRight(emitDone(record, "disconnected_or_error")),
-                ),
-              ),
-            ),
-          );
 
           return Stream.fromQueue(subscriber).pipe(
             Stream.ensuring(
               Effect.sync(() => {
                 record.subscribers.delete(subscriber);
-                controller.abort();
               }),
             ),
           );

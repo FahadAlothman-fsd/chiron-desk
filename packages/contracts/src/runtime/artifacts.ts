@@ -37,6 +37,8 @@ export const ArtifactMember = Schema.Struct({
   filePath: Schema.String,
   gitBlobHash: Schema.optional(Schema.String),
   gitCommitHash: Schema.optional(Schema.String),
+  gitCommitTitle: Schema.optional(Schema.String),
+  gitCommitBody: Schema.optional(Schema.String),
 });
 export type ArtifactMember = typeof ArtifactMember.Type;
 

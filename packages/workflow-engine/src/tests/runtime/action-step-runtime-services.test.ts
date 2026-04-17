@@ -14,6 +14,7 @@ import {
   type ActionStepExecutionActionRow,
   type ActionStepExecutionRow,
 } from "../../repositories/action-step-runtime-repository";
+import { ArtifactRepository } from "../../repositories/artifact-repository";
 import {
   ExecutionReadRepository,
   type WorkflowExecutionDetailReadModel,
@@ -245,6 +246,26 @@ function makeTestContext(options?: {
     authoredByUserId: null;
     createdAt: Date;
   }> = [];
+  const artifactSnapshotRows: Array<{
+    id: string;
+    projectWorkUnitId: string;
+    slotDefinitionId: string;
+    recordedByTransitionExecutionId: string | null;
+    recordedByWorkflowExecutionId: string | null;
+    recordedByUserId: string | null;
+    supersededByProjectArtifactSnapshotId: string | null;
+    createdAt: Date;
+  }> = [];
+  const artifactSnapshotFileRows: Array<{
+    id: string;
+    artifactSnapshotId: string;
+    filePath: string;
+    memberStatus: "present" | "removed";
+    gitCommitHash: string | null;
+    gitBlobHash: string | null;
+    gitCommitTitle: string | null;
+    gitCommitBody: string | null;
+  }> = [];
 
   let idCounter = 0;
   const nextId = (prefix: string) => `${prefix}-${++idCounter}`;
@@ -425,6 +446,22 @@ function makeTestContext(options?: {
           updatedAt: now,
         },
       ]),
+    findArtifactSlotsByWorkUnitType: () =>
+      Effect.succeed([
+        {
+          id: "slot-1",
+          methodologyVersionId: "version-1",
+          workUnitTypeId: "wu-parent",
+          key: "PROJECT_OVERVIEW",
+          displayName: "Project Overview",
+          descriptionJson: null,
+          guidanceJson: null,
+          cardinality: "fileset" as const,
+          rulesJson: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ]),
   } as unknown as Context.Tag.Service<typeof MethodologyRepository>);
 
   const projectFactRepoLayer = Layer.succeed(ProjectFactRepository, {
@@ -503,6 +540,140 @@ function makeTestContext(options?: {
     listFactsByWorkUnit: () => Effect.succeed(workUnitFactRows),
     supersedeFactInstance: () => Effect.die("unused"),
   } as unknown as Context.Tag.Service<typeof WorkUnitFactRepository>);
+
+  const artifactRepoLayer = Layer.succeed(ArtifactRepository, {
+    createSnapshot: ({
+      projectWorkUnitId,
+      slotDefinitionId,
+      recordedByTransitionExecutionId,
+      recordedByWorkflowExecutionId,
+      recordedByUserId,
+      supersededByProjectArtifactSnapshotId,
+    }: {
+      projectWorkUnitId: string;
+      slotDefinitionId: string;
+      recordedByTransitionExecutionId?: string | null;
+      recordedByWorkflowExecutionId?: string | null;
+      recordedByUserId?: string | null;
+      supersededByProjectArtifactSnapshotId?: string | null;
+    }) =>
+      Effect.sync(() => {
+        const created = {
+          id: nextId("artifact-snapshot"),
+          projectWorkUnitId,
+          slotDefinitionId,
+          recordedByTransitionExecutionId: recordedByTransitionExecutionId ?? null,
+          recordedByWorkflowExecutionId: recordedByWorkflowExecutionId ?? null,
+          recordedByUserId: recordedByUserId ?? null,
+          supersededByProjectArtifactSnapshotId: null,
+          createdAt: new Date(now.getTime() + idCounter * 1_000),
+        };
+        artifactSnapshotRows.push(created);
+
+        if (supersededByProjectArtifactSnapshotId) {
+          const superseded = artifactSnapshotRows.find(
+            (row) => row.id === supersededByProjectArtifactSnapshotId,
+          );
+          if (superseded) {
+            superseded.supersededByProjectArtifactSnapshotId = created.id;
+          }
+        }
+
+        return created;
+      }),
+    addSnapshotFiles: ({
+      artifactSnapshotId,
+      files,
+    }: {
+      artifactSnapshotId: string;
+      files: ReadonlyArray<{
+        filePath: string;
+        memberStatus: "present" | "removed";
+        gitCommitHash?: string | null;
+        gitBlobHash?: string | null;
+        gitCommitTitle?: string | null;
+        gitCommitBody?: string | null;
+      }>;
+    }) =>
+      Effect.sync(() => {
+        const inserted = files.map((file) => ({
+          id: nextId("artifact-file"),
+          artifactSnapshotId,
+          filePath: file.filePath,
+          memberStatus: file.memberStatus,
+          gitCommitHash: file.gitCommitHash ?? null,
+          gitBlobHash: file.gitBlobHash ?? null,
+          gitCommitTitle: file.gitCommitTitle ?? null,
+          gitCommitBody: file.gitCommitBody ?? null,
+        }));
+        artifactSnapshotFileRows.push(...inserted);
+        return inserted;
+      }),
+    getCurrentSnapshotBySlot: ({
+      projectWorkUnitId,
+      slotDefinitionId,
+    }: {
+      projectWorkUnitId: string;
+      slotDefinitionId: string;
+    }) =>
+      Effect.sync(() => {
+        const snapshots = artifactSnapshotRows.filter(
+          (row) =>
+            row.projectWorkUnitId === projectWorkUnitId &&
+            row.slotDefinitionId === slotDefinitionId,
+        );
+        const head = snapshots
+          .filter((row) => row.supersededByProjectArtifactSnapshotId === null)
+          .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0];
+
+        if (!head) {
+          return { exists: false, snapshot: null, members: [] };
+        }
+
+        const parentByChild = new Map<string, (typeof snapshots)[number]>();
+        for (const snapshot of snapshots) {
+          if (snapshot.supersededByProjectArtifactSnapshotId) {
+            parentByChild.set(snapshot.supersededByProjectArtifactSnapshotId, snapshot);
+          }
+        }
+
+        const lineage: (typeof snapshots)[number][] = [head];
+        let cursor = head;
+        while (true) {
+          const parent = parentByChild.get(cursor.id);
+          if (!parent) {
+            break;
+          }
+          lineage.push(parent);
+          cursor = parent;
+        }
+
+        const effectiveByPath = new Map<string, (typeof artifactSnapshotFileRows)[number]>();
+        for (const snapshot of [...lineage].reverse()) {
+          const deltaRows = artifactSnapshotFileRows.filter(
+            (row) => row.artifactSnapshotId === snapshot.id,
+          );
+          for (const deltaRow of deltaRows) {
+            if (deltaRow.memberStatus === "removed") {
+              effectiveByPath.delete(deltaRow.filePath);
+            } else {
+              effectiveByPath.set(deltaRow.filePath, deltaRow);
+            }
+          }
+        }
+
+        const members = [...effectiveByPath.values()].sort((a, b) =>
+          a.filePath.localeCompare(b.filePath),
+        );
+        return {
+          exists: members.length > 0,
+          snapshot: head,
+          members,
+        };
+      }),
+    listLineageHistory: () => Effect.die("unused"),
+    checkFreshness: () => Effect.die("unused"),
+  } as unknown as Context.Tag.Service<typeof ArtifactRepository>);
 
   const runtimeRepoLayer = Layer.succeed(ActionStepRuntimeRepository, {
     createActionStepExecution: ({ stepExecutionId }: { stepExecutionId: string }) =>
@@ -717,6 +888,7 @@ function makeTestContext(options?: {
     runtimeRepoLayer,
     projectFactRepoLayer,
     workUnitFactRepoLayer,
+    artifactRepoLayer,
   );
 
   const runtimeLayer = Layer.provide(ActionStepRuntimeServiceLive, baseLayer);
@@ -735,6 +907,8 @@ function makeTestContext(options?: {
     itemRows,
     projectFactRows,
     workUnitFactRows,
+    artifactSnapshotRows,
+    artifactSnapshotFileRows,
     runtimeLayer,
     detailLayer,
   };
@@ -790,7 +964,13 @@ describe("ActionStep runtime services", () => {
           workflowExecutionId: "workflow-exec-1",
           contextFactDefinitionId: "ctx-artifact-1",
           instanceOrder: 0,
-          valueJson: { relativePath: "docs/final.md" },
+          valueJson: {
+            relativePath: "docs/final.md",
+            gitCommitHash: "commit-1",
+            gitBlobHash: "blob-1",
+            gitCommitSubject: "seed artifact",
+            gitCommitBody: "body-1",
+          },
           sourceStepExecutionId: null,
           createdAt: now,
           updatedAt: now,
@@ -829,6 +1009,329 @@ describe("ActionStep runtime services", () => {
       factInstanceId: ctx.projectFactRows[0]?.id,
       value: { title: "needs bind" },
     });
+    expect(ctx.artifactSnapshotRows).toHaveLength(1);
+    expect(ctx.artifactSnapshotRows[0]).toMatchObject({
+      projectWorkUnitId: "work-unit-1",
+      slotDefinitionId: "slot-1",
+      recordedByTransitionExecutionId: "transition-exec-1",
+      recordedByWorkflowExecutionId: "workflow-exec-1",
+      supersededByProjectArtifactSnapshotId: null,
+    });
+    expect(ctx.artifactSnapshotFileRows).toEqual([
+      expect.objectContaining({
+        artifactSnapshotId: ctx.artifactSnapshotRows[0]?.id,
+        filePath: "docs/final.md",
+        memberStatus: "present",
+        gitCommitHash: "commit-1",
+        gitBlobHash: "blob-1",
+        gitCommitTitle: "seed artifact",
+        gitCommitBody: "body-1",
+      }),
+    ]);
+  });
+
+  it("resolves artifact slot references provided as slot key before snapshot insert", async () => {
+    const ctx = makeTestContext({ executionMode: "sequential" });
+    const artifactFact = ctx.workflowContextFacts.find(
+      (fact) =>
+        fact.kind === "artifact_reference_fact" &&
+        fact.contextFactDefinitionId === "ctx-artifact-1",
+    );
+    if (!artifactFact) {
+      throw new Error("Expected artifact context fact in test fixture");
+    }
+    artifactFact.artifactSlotDefinitionId = "PROJECT_OVERVIEW";
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* ActionStepRuntimeService;
+        return yield* service.startExecution({
+          projectId: "project-1",
+          stepExecutionId: ctx.stepExecution.id,
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    expect(ctx.artifactSnapshotRows).toHaveLength(1);
+    expect(ctx.artifactSnapshotRows[0]?.slotDefinitionId).toBe("slot-1");
+  });
+
+  it("fails before snapshot insert when artifact slot reference cannot be resolved", async () => {
+    const ctx = makeTestContext({ executionMode: "sequential" });
+    const artifactFact = ctx.workflowContextFacts.find(
+      (fact) =>
+        fact.kind === "artifact_reference_fact" &&
+        fact.contextFactDefinitionId === "ctx-artifact-1",
+    );
+    if (!artifactFact) {
+      throw new Error("Expected artifact context fact in test fixture");
+    }
+    artifactFact.artifactSlotDefinitionId = "UNKNOWN_SLOT";
+
+    const result = await Effect.runPromise(
+      Effect.either(
+        Effect.gen(function* () {
+          const service = yield* ActionStepRuntimeService;
+          return yield* service.startExecution({
+            projectId: "project-1",
+            stepExecutionId: ctx.stepExecution.id,
+          });
+        }).pipe(Effect.provide(ctx.runtimeLayer)),
+      ),
+    );
+
+    expect(result._tag).toBe("Left");
+    expect(ctx.artifactSnapshotRows).toHaveLength(0);
+  });
+
+  it("creates artifact snapshot deltas when propagation changes slot members", async () => {
+    const ctx = makeTestContext({
+      executionMode: "sequential",
+      actions: [
+        makeAction("action-artifact-a", {
+          key: "artifact-a",
+          sortOrder: 10,
+          contextFactDefinitionId: "ctx-artifact-1",
+          contextFactKind: "artifact_reference_fact",
+        }),
+        makeAction("action-artifact-b", {
+          key: "artifact-b",
+          sortOrder: 20,
+          contextFactDefinitionId: "ctx-artifact-2",
+          contextFactKind: "artifact_reference_fact",
+        }),
+      ],
+      contextFacts: [
+        {
+          id: "ctx-artifact-a",
+          workflowExecutionId: "workflow-exec-1",
+          contextFactDefinitionId: "ctx-artifact-1",
+          instanceOrder: 0,
+          valueJson: { relativePath: "docs/a.md" },
+          sourceStepExecutionId: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: "ctx-artifact-b",
+          workflowExecutionId: "workflow-exec-1",
+          contextFactDefinitionId: "ctx-artifact-2",
+          instanceOrder: 0,
+          valueJson: { relativePath: "docs/b.md" },
+          sourceStepExecutionId: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+    });
+
+    ctx.workflowContextFacts.push({
+      kind: "artifact_reference_fact",
+      contextFactDefinitionId: "ctx-artifact-2",
+      key: "artifactSecondary",
+      label: "Artifact Secondary",
+      cardinality: "one",
+      artifactSlotDefinitionId: "slot-1",
+    });
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* ActionStepRuntimeService;
+        return yield* service.startExecution({
+          projectId: "project-1",
+          stepExecutionId: ctx.stepExecution.id,
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    expect(ctx.artifactSnapshotRows).toHaveLength(2);
+
+    const [first, second] = ctx.artifactSnapshotRows;
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
+    expect(first?.supersededByProjectArtifactSnapshotId).toBe(second?.id ?? null);
+
+    const firstDelta = ctx.artifactSnapshotFileRows.filter(
+      (row) => row.artifactSnapshotId === first?.id,
+    );
+    const secondDelta = ctx.artifactSnapshotFileRows.filter(
+      (row) => row.artifactSnapshotId === second?.id,
+    );
+
+    expect(firstDelta).toEqual([
+      expect.objectContaining({ filePath: "docs/a.md", memberStatus: "present" }),
+    ]);
+    expect(secondDelta).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ filePath: "docs/a.md", memberStatus: "removed" }),
+        expect.objectContaining({ filePath: "docs/b.md", memberStatus: "present" }),
+      ]),
+    );
+  });
+
+  it("creates metadata-only delta snapshots when file path stays the same", async () => {
+    const ctx = makeTestContext({
+      executionMode: "sequential",
+      actions: [
+        makeAction("action-artifact-v1", {
+          key: "artifact-v1",
+          sortOrder: 10,
+          contextFactDefinitionId: "ctx-artifact-1",
+          contextFactKind: "artifact_reference_fact",
+        }),
+        makeAction("action-artifact-v2", {
+          key: "artifact-v2",
+          sortOrder: 20,
+          contextFactDefinitionId: "ctx-artifact-2",
+          contextFactKind: "artifact_reference_fact",
+        }),
+      ],
+      contextFacts: [
+        {
+          id: "ctx-artifact-v1",
+          workflowExecutionId: "workflow-exec-1",
+          contextFactDefinitionId: "ctx-artifact-1",
+          instanceOrder: 0,
+          valueJson: {
+            relativePath: "docs/shared.md",
+            gitCommitHash: "commit-v1",
+            gitBlobHash: "blob-v1",
+            gitCommitTitle: "title-v1",
+            gitCommitBody: "body-v1",
+          },
+          sourceStepExecutionId: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: "ctx-artifact-v2",
+          workflowExecutionId: "workflow-exec-1",
+          contextFactDefinitionId: "ctx-artifact-2",
+          instanceOrder: 0,
+          valueJson: {
+            relativePath: "docs/shared.md",
+            gitCommitHash: "commit-v2",
+            gitBlobHash: "blob-v2",
+            gitCommitTitle: "title-v2",
+            gitCommitBody: "body-v2",
+          },
+          sourceStepExecutionId: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+    });
+
+    ctx.workflowContextFacts.push({
+      kind: "artifact_reference_fact",
+      contextFactDefinitionId: "ctx-artifact-2",
+      key: "artifactSecondary",
+      label: "Artifact Secondary",
+      cardinality: "one",
+      artifactSlotDefinitionId: "slot-1",
+    });
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* ActionStepRuntimeService;
+        return yield* service.startExecution({
+          projectId: "project-1",
+          stepExecutionId: ctx.stepExecution.id,
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    expect(ctx.artifactSnapshotRows).toHaveLength(2);
+
+    const [first, second] = ctx.artifactSnapshotRows;
+    const secondDelta = ctx.artifactSnapshotFileRows.filter(
+      (row) => row.artifactSnapshotId === second?.id,
+    );
+
+    expect(first?.supersededByProjectArtifactSnapshotId).toBe(second?.id ?? null);
+    expect(secondDelta).toEqual([
+      expect.objectContaining({
+        filePath: "docs/shared.md",
+        memberStatus: "present",
+        gitCommitHash: "commit-v2",
+        gitBlobHash: "blob-v2",
+        gitCommitTitle: "title-v2",
+        gitCommitBody: "body-v2",
+      }),
+    ]);
+  });
+
+  it("aggregates same-slot multi-item artifact propagation into one snapshot", async () => {
+    const ctx = makeTestContext({
+      executionMode: "parallel",
+      actions: [
+        makeAction("action-artifact-multi", {
+          key: "artifact-multi-slot",
+          sortOrder: 10,
+          contextFactDefinitionId: "ctx-artifact-1",
+          contextFactKind: "artifact_reference_fact",
+          items: [
+            { itemId: "item-a", itemKey: "item.a", sortOrder: 10 },
+            {
+              itemId: "item-b",
+              itemKey: "item.b",
+              sortOrder: 20,
+              targetContextFactDefinitionId: "ctx-artifact-2",
+            },
+          ],
+        }),
+      ],
+      contextFacts: [
+        {
+          id: "ctx-artifact-a",
+          workflowExecutionId: "workflow-exec-1",
+          contextFactDefinitionId: "ctx-artifact-1",
+          instanceOrder: 0,
+          valueJson: { relativePath: "docs/a.md" },
+          sourceStepExecutionId: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: "ctx-artifact-b",
+          workflowExecutionId: "workflow-exec-1",
+          contextFactDefinitionId: "ctx-artifact-2",
+          instanceOrder: 0,
+          valueJson: { relativePath: "docs/b.md" },
+          sourceStepExecutionId: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+    });
+
+    ctx.workflowContextFacts.push({
+      kind: "artifact_reference_fact",
+      contextFactDefinitionId: "ctx-artifact-2",
+      key: "artifactSecondary",
+      label: "Artifact Secondary",
+      cardinality: "one",
+      artifactSlotDefinitionId: "slot-1",
+    });
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* ActionStepRuntimeService;
+        return yield* service.runActions({
+          projectId: "project-1",
+          stepExecutionId: ctx.stepExecution.id,
+          actionIds: ["action-artifact-multi"],
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    expect(ctx.artifactSnapshotRows).toHaveLength(1);
+    expect(ctx.artifactSnapshotFileRows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ filePath: "docs/a.md", memberStatus: "present" }),
+        expect.objectContaining({ filePath: "docs/b.md", memberStatus: "present" }),
+      ]),
+    );
   });
 
   it("runs only selected actions in parallel and leaves unselected actions lazy", async () => {

@@ -51,6 +51,8 @@ function toFileRow(row: typeof artifactSnapshotFiles.$inferSelect): ArtifactSnap
     memberStatus: row.memberStatus,
     gitCommitHash: row.gitCommitHash,
     gitBlobHash: row.gitBlobHash,
+    gitCommitTitle: row.gitCommitTitle,
+    gitCommitBody: row.gitCommitBody,
   };
 }
 
@@ -289,6 +291,8 @@ export function createArtifactRepoLayer(db: DB): Layer.Layer<ArtifactRepository>
               memberStatus: file.memberStatus,
               gitCommitHash: file.gitCommitHash ?? null,
               gitBlobHash: file.gitBlobHash ?? null,
+              gitCommitTitle: file.gitCommitTitle ?? null,
+              gitCommitBody: file.gitCommitBody ?? null,
             })),
           )
           .returning();

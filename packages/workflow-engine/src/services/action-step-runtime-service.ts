@@ -33,6 +33,7 @@ import {
 } from "../repositories/step-execution-repository";
 import { ProjectFactRepository } from "../repositories/project-fact-repository";
 import { WorkUnitFactRepository } from "../repositories/work-unit-fact-repository";
+import { ArtifactRepository } from "../repositories/artifact-repository";
 
 const makeActionRuntimeError = (operation: string, cause: string): RepositoryError =>
   new RepositoryError({
@@ -50,12 +51,42 @@ const isExternalEnvelope = (
 const isArtifactReferenceValue = (value: unknown): value is { relativePath: string } =>
   isRecord(value) && typeof value.relativePath === "string" && value.relativePath.trim().length > 0;
 
+const resolveArtifactGitMetadata = (value: unknown) => {
+  if (!isRecord(value)) {
+    return {
+      gitCommitHash: null,
+      gitBlobHash: null,
+      gitCommitTitle: null,
+      gitCommitBody: null,
+    };
+  }
+
+  const commitTitle =
+    typeof value.gitCommitTitle === "string"
+      ? value.gitCommitTitle
+      : typeof value.gitCommitSubject === "string"
+        ? value.gitCommitSubject
+        : null;
+
+  return {
+    gitCommitHash: typeof value.gitCommitHash === "string" ? value.gitCommitHash : null,
+    gitBlobHash: typeof value.gitBlobHash === "string" ? value.gitBlobHash : null,
+    gitCommitTitle: commitTitle,
+    gitCommitBody: typeof value.gitCommitBody === "string" ? value.gitCommitBody : null,
+  };
+};
+
 type LoadedActionRuntimeContext = {
   readonly projectId: string;
   readonly methodologyVersionId: string;
+  readonly workUnitTypeKey: string;
   readonly stepExecution: RuntimeStepExecutionRow;
   readonly workflowDetail: WorkflowExecutionDetailReadModel;
   readonly actionStep: WorkflowActionStepDefinitionReadModel;
+  readonly artifactSlotDefinitions: readonly {
+    id: string;
+    key: string;
+  }[];
   readonly workflowContextFacts: readonly (WorkflowContextFactDto & {
     readonly contextFactDefinitionId: string;
   })[];
@@ -69,6 +100,8 @@ type ActionItemRow = ActionStepExecutionActionItemRow;
 type ExecutedItemOutcome = {
   readonly itemDefinitionId: string;
   readonly targetContextFactDefinitionId: string;
+  readonly contextFactKind: ActionDefinition["contextFactKind"];
+  readonly artifactSlotDefinitionId?: string;
   readonly status: ActionItemRow["status"];
   readonly resultSummaryJson: unknown;
   readonly resultJson: unknown;
@@ -80,6 +113,7 @@ type EffectiveTargetContext = {
   readonly contextFactKind: ActionDefinition["contextFactKind"];
   readonly contextFactKey: string;
   readonly contextFactLabel?: string;
+  readonly artifactSlotDefinitionId?: string;
 };
 
 type ExecuteActionAttemptResult = {
@@ -170,6 +204,7 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
     const runtimeRepo = yield* ActionStepRuntimeRepository;
     const projectFactRepo = yield* ProjectFactRepository;
     const workUnitFactRepo = yield* WorkUnitFactRepository;
+    const artifactRepo = yield* ArtifactRepository;
 
     const loadContext = (input: {
       projectId: string;
@@ -221,7 +256,7 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
           );
         }
 
-        const [actionStep, workflowEditor] = yield* Effect.all([
+        const [actionStep, workflowEditor, artifactSlotDefinitions] = yield* Effect.all([
           methodologyRepo.getActionStepDefinition({
             versionId: projectPin.methodologyVersionId,
             workflowDefinitionId: workflowDetail.workflowExecution.workflowId,
@@ -231,6 +266,10 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
             versionId: projectPin.methodologyVersionId,
             workUnitTypeKey: workUnitType.key,
             workflowDefinitionId: workflowDetail.workflowExecution.workflowId,
+          }),
+          methodologyRepo.findArtifactSlotsByWorkUnitType({
+            versionId: projectPin.methodologyVersionId,
+            workUnitTypeKey: workUnitType.key,
           }),
         ]);
         if (!actionStep) {
@@ -243,9 +282,14 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
         return {
           projectId: input.projectId,
           methodologyVersionId: projectPin.methodologyVersionId,
+          workUnitTypeKey: workUnitType.key,
           stepExecution,
           workflowDetail,
           actionStep,
+          artifactSlotDefinitions: artifactSlotDefinitions.map((slot) => ({
+            id: slot.id,
+            key: slot.key,
+          })),
           workflowContextFacts: workflowEditor.contextFacts.filter(
             (
               fact,
@@ -394,12 +438,270 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
           );
         }
 
+        const artifactSlotDefinitionId =
+          contextFact.kind === "artifact_reference_fact"
+            ? (() => {
+                const slotRef = contextFact.artifactSlotDefinitionId;
+                const matchedSlot = params.context.artifactSlotDefinitions.find(
+                  (slot) => slot.id === slotRef || slot.key === slotRef,
+                );
+
+                return matchedSlot ? matchedSlot.id : undefined;
+              })()
+            : undefined;
+
+        if (contextFact.kind === "artifact_reference_fact" && !artifactSlotDefinitionId) {
+          return yield* makeActionRuntimeError(
+            "action-step-runtime.target-context",
+            `artifact slot '${contextFact.artifactSlotDefinitionId}' could not be resolved on work-unit type '${params.context.workUnitTypeKey}'`,
+          );
+        }
+
         return {
+          ...(artifactSlotDefinitionId ? { artifactSlotDefinitionId } : {}),
           contextFactDefinitionId,
           contextFactKind: contextFact.kind,
           contextFactKey: contextFact.key,
           ...(contextFact.label ? { contextFactLabel: contextFact.label } : {}),
         } satisfies EffectiveTargetContext;
+      });
+
+    const normalizeArtifactPaths = (rows: readonly { valueJson: unknown }[]): readonly string[] => {
+      const uniquePaths = new Set<string>();
+      for (const row of rows) {
+        if (isArtifactReferenceValue(row.valueJson)) {
+          const path = row.valueJson.relativePath.trim();
+          if (path.length > 0) {
+            uniquePaths.add(path);
+          }
+        }
+      }
+      return [...uniquePaths].sort((left, right) => left.localeCompare(right));
+    };
+
+    const resolveArtifactPresentFiles = (
+      rows: readonly { valueJson: unknown }[],
+    ): ReadonlyMap<
+      string,
+      {
+        readonly filePath: string;
+        readonly memberStatus: "present";
+        readonly gitCommitHash: string | null;
+        readonly gitBlobHash: string | null;
+        readonly gitCommitTitle: string | null;
+        readonly gitCommitBody: string | null;
+      }
+    > => {
+      const filesByPath = new Map<
+        string,
+        {
+          readonly filePath: string;
+          readonly memberStatus: "present";
+          readonly gitCommitHash: string | null;
+          readonly gitBlobHash: string | null;
+          readonly gitCommitTitle: string | null;
+          readonly gitCommitBody: string | null;
+        }
+      >();
+
+      for (const row of rows) {
+        if (!isArtifactReferenceValue(row.valueJson)) {
+          continue;
+        }
+
+        const filePath = row.valueJson.relativePath.trim();
+        if (filesByPath.has(filePath)) {
+          continue;
+        }
+
+        const metadata = resolveArtifactGitMetadata(row.valueJson);
+        filesByPath.set(filePath, {
+          filePath,
+          memberStatus: "present",
+          gitCommitHash: metadata.gitCommitHash,
+          gitBlobHash: metadata.gitBlobHash,
+          gitCommitTitle: metadata.gitCommitTitle,
+          gitCommitBody: metadata.gitCommitBody,
+        });
+      }
+
+      return filesByPath;
+    };
+
+    const persistArtifactSnapshotFromRows = (params: {
+      readonly context: LoadedActionRuntimeContext;
+      readonly contextFactDefinitionId: string;
+      readonly slotDefinitionId: string;
+      readonly rows: readonly {
+        contextFactDefinitionId: string;
+        instanceOrder: number;
+        valueJson: unknown;
+      }[];
+    }): Effect.Effect<void, RepositoryError> =>
+      Effect.gen(function* () {
+        const targetPaths = normalizeArtifactPaths(params.rows);
+        const presentFilesByPath = resolveArtifactPresentFiles(params.rows);
+        const current = yield* artifactRepo.getCurrentSnapshotBySlot({
+          projectWorkUnitId: params.context.workflowDetail.projectWorkUnitId,
+          slotDefinitionId: params.slotDefinitionId,
+        });
+
+        const currentMembersByPath = new Map(
+          current.members.map((member) => [member.filePath, member]),
+        );
+        const currentPaths = new Set(current.members.map((member) => member.filePath));
+        const targetPathSet = new Set(targetPaths);
+
+        const addedPaths = targetPaths.filter((path) => !currentPaths.has(path));
+        const removedPaths = current.members
+          .map((member) => member.filePath)
+          .filter((path) => !targetPathSet.has(path))
+          .sort((left, right) => left.localeCompare(right));
+
+        const deltaFiles = [
+          ...addedPaths.map(
+            (filePath) =>
+              presentFilesByPath.get(filePath) ?? {
+                filePath,
+                memberStatus: "present" as const,
+                gitCommitHash: null,
+                gitBlobHash: null,
+                gitCommitTitle: null,
+                gitCommitBody: null,
+              },
+          ),
+          ...removedPaths.map((filePath) => ({
+            filePath,
+            memberStatus: "removed" as const,
+          })),
+          ...targetPaths
+            .filter((path) => currentPaths.has(path))
+            .filter((path) => {
+              const nextMember = presentFilesByPath.get(path);
+              const currentMember = currentMembersByPath.get(path);
+              if (!nextMember || !currentMember) {
+                return false;
+              }
+
+              return (
+                (nextMember.gitCommitHash ?? null) !== (currentMember.gitCommitHash ?? null) ||
+                (nextMember.gitBlobHash ?? null) !== (currentMember.gitBlobHash ?? null) ||
+                (nextMember.gitCommitTitle ?? null) !== (currentMember.gitCommitTitle ?? null) ||
+                (nextMember.gitCommitBody ?? null) !== (currentMember.gitCommitBody ?? null)
+              );
+            })
+            .map(
+              (filePath) =>
+                presentFilesByPath.get(filePath) ?? {
+                  filePath,
+                  memberStatus: "present" as const,
+                  gitCommitHash: null,
+                  gitBlobHash: null,
+                  gitCommitTitle: null,
+                  gitCommitBody: null,
+                },
+            ),
+        ];
+
+        if (current.snapshot && deltaFiles.length === 0) {
+          return;
+        }
+
+        const snapshot = yield* artifactRepo.createSnapshot({
+          projectWorkUnitId: params.context.workflowDetail.projectWorkUnitId,
+          slotDefinitionId: params.slotDefinitionId,
+          recordedByTransitionExecutionId: params.context.workflowDetail.transitionExecution.id,
+          recordedByWorkflowExecutionId: params.context.stepExecution.workflowExecutionId,
+          supersededByProjectArtifactSnapshotId: current.snapshot?.id ?? null,
+        });
+
+        const filesForSnapshot =
+          current.snapshot === null
+            ? targetPaths.map(
+                (filePath) =>
+                  presentFilesByPath.get(filePath) ?? {
+                    filePath,
+                    memberStatus: "present" as const,
+                    gitCommitHash: null,
+                    gitBlobHash: null,
+                    gitCommitTitle: null,
+                    gitCommitBody: null,
+                  },
+              )
+            : deltaFiles;
+
+        if (filesForSnapshot.length > 0) {
+          yield* artifactRepo.addSnapshotFiles({
+            artifactSnapshotId: snapshot.id,
+            files: filesForSnapshot,
+          });
+        }
+      });
+
+    const persistArtifactSnapshotsForOutcomes = (params: {
+      readonly context: LoadedActionRuntimeContext;
+      readonly itemOutcomes: readonly ExecutedItemOutcome[];
+      readonly allContextRows: readonly RuntimeWorkflowExecutionContextFactRow[];
+    }): Effect.Effect<void, RepositoryError> =>
+      Effect.gen(function* () {
+        const artifactSucceeded = params.itemOutcomes.filter(
+          (item) =>
+            item.status === "succeeded" && item.contextFactKind === "artifact_reference_fact",
+        );
+
+        if (artifactSucceeded.length === 0) {
+          return;
+        }
+
+        const rowsBySlotDefinitionId = new Map<
+          string,
+          {
+            contextFactDefinitionId: string;
+            rows: Array<{
+              contextFactDefinitionId: string;
+              instanceOrder: number;
+              valueJson: unknown;
+            }>;
+          }
+        >();
+
+        for (const succeededItem of artifactSucceeded) {
+          const slotDefinitionId = succeededItem.artifactSlotDefinitionId;
+          if (!slotDefinitionId) {
+            return yield* makeActionRuntimeError(
+              "action-step-runtime.artifact-slot",
+              `artifact context fact '${succeededItem.targetContextFactDefinitionId}' is missing an artifact slot definition id`,
+            );
+          }
+
+          const slotRows = rowsBySlotDefinitionId.get(slotDefinitionId) ?? {
+            contextFactDefinitionId: succeededItem.targetContextFactDefinitionId,
+            rows: [],
+          };
+
+          const contextRows = params.allContextRows
+            .filter(
+              (row) => row.contextFactDefinitionId === succeededItem.targetContextFactDefinitionId,
+            )
+            .sort((left, right) => left.instanceOrder - right.instanceOrder)
+            .map((row) => ({
+              contextFactDefinitionId: row.contextFactDefinitionId,
+              instanceOrder: row.instanceOrder,
+              valueJson: row.valueJson,
+            }));
+
+          slotRows.rows.push(...contextRows);
+          rowsBySlotDefinitionId.set(slotDefinitionId, slotRows);
+        }
+
+        for (const [slotDefinitionId, payload] of rowsBySlotDefinitionId.entries()) {
+          yield* persistArtifactSnapshotFromRows({
+            context: params.context,
+            contextFactDefinitionId: payload.contextFactDefinitionId,
+            slotDefinitionId,
+            rows: payload.rows,
+          });
+        }
       });
 
     const normalizeExternalContextRows = (params: {
@@ -729,6 +1031,10 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
               return {
                 itemDefinitionId: item.itemId,
                 targetContextFactDefinitionId: effectiveTarget.contextFactDefinitionId,
+                contextFactKind: effectiveTarget.contextFactKind,
+                ...(effectiveTarget.contextFactKind === "artifact_reference_fact"
+                  ? { artifactSlotDefinitionId: effectiveTarget.artifactSlotDefinitionId }
+                  : {}),
                 status: outcomeStatus.status,
                 resultSummaryJson,
                 resultJson,
@@ -736,6 +1042,12 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
               } satisfies ExecutedItemOutcome;
             }),
         );
+
+        yield* persistArtifactSnapshotsForOutcomes({
+          context: params.context,
+          itemOutcomes,
+          allContextRows,
+        });
 
         const actionStatus = deriveActionStatus(itemOutcomes.map((item) => item.status));
         const updatedAction = yield* runtimeRepo.updateActionExecution({
@@ -1404,21 +1716,44 @@ function resolveAffectedTargets(params: {
 }): readonly RuntimeActionAffectedTarget[] {
   switch (params.target.contextFactKind) {
     case "artifact_reference_fact":
-      return params.rows.length > 0
-        ? params.rows.map((row) =>
-            isArtifactReferenceValue(row.valueJson)
-              ? {
-                  targetKind: "artifact" as const,
-                  targetState: "exists" as const,
-                  targetId: row.valueJson.relativePath,
-                  label: row.valueJson.relativePath,
-                }
-              : {
-                  targetKind: "artifact" as const,
-                  targetState: "missing" as const,
-                  label: params.target.contextFactLabel ?? params.target.contextFactKey,
-                },
-          )
+      if (params.rows.length < 1) {
+        return [
+          {
+            targetKind: "artifact" as const,
+            targetState: "missing" as const,
+            label: params.target.contextFactLabel ?? params.target.contextFactKey,
+          },
+        ];
+      }
+
+      const uniqueArtifactPaths = new Set<string>();
+      const artifactTargets: RuntimeActionAffectedTarget[] = [];
+      for (const row of params.rows) {
+        if (!isArtifactReferenceValue(row.valueJson)) {
+          artifactTargets.push({
+            targetKind: "artifact" as const,
+            targetState: "missing" as const,
+            label: params.target.contextFactLabel ?? params.target.contextFactKey,
+          });
+          continue;
+        }
+
+        const path = row.valueJson.relativePath.trim();
+        if (path.length < 1 || uniqueArtifactPaths.has(path)) {
+          continue;
+        }
+
+        uniqueArtifactPaths.add(path);
+        artifactTargets.push({
+          targetKind: "artifact" as const,
+          targetState: "exists" as const,
+          targetId: path,
+          label: path,
+        });
+      }
+
+      return artifactTargets.length > 0
+        ? artifactTargets
         : [
             {
               targetKind: "artifact" as const,

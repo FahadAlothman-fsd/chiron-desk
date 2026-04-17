@@ -376,11 +376,14 @@ export const AgentStepSessionCommandServiceLive = Layer.effect(
             to: "active_streaming",
             stateRepo,
           });
-        } else if (context.runtimeState !== "active_streaming") {
+        } else {
           return yield* new AgentStepStateTransitionError({
             fromState: context.runtimeState,
             toState: "active_streaming",
-            message: "Messages can be sent only while the Agent step session is active.",
+            message:
+              context.runtimeState === "active_streaming"
+                ? "A session turn is already in progress. Wait for it to finish before sending another message."
+                : "Messages can be sent only while the Agent step session is active.",
           });
         }
 

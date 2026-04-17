@@ -97,5 +97,7 @@ describe("runtime schema lock", () => {
     expect(artifactSnapshotFiles.memberStatus).toBeDefined();
     expect(artifactSnapshotFiles.gitCommitHash).toBeDefined();
     expect(artifactSnapshotFiles.gitBlobHash).toBeDefined();
+    expect(artifactSnapshotFiles.gitCommitTitle).toBeDefined();
+    expect(artifactSnapshotFiles.gitCommitBody).toBeDefined();
   });
 });
