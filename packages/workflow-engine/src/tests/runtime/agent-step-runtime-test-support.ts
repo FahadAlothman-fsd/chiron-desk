@@ -156,6 +156,7 @@ export function makeAgentStepRuntimeTestContext(options?: {
       sessionStart: "explicit" as const,
       continuationMode: "bootstrap_only" as const,
       liveStreamCount: 1 as const,
+      bootstrapPromptNoReply: true as const,
       nativeMessageLog: false as const,
       persistedWritePolicy: "applied_only" as const,
     },

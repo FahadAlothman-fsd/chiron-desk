@@ -144,6 +144,35 @@ describe("AgentStep runtime services", () => {
     });
   });
 
+  it("starts generation from bootstrap injection when runtime policy disables noReply", async () => {
+    const ctx = makeAgentStepRuntimeTestContext();
+    ctx.agentPayload.runtimePolicy.bootstrapPromptNoReply = false;
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* AgentStepSessionCommandService;
+        return yield* service.startAgentStepSession({
+          projectId: "project-1",
+          stepExecutionId: "step-exec-1",
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    const afterStart = await Effect.runPromise(
+      Effect.gen(function* () {
+        const detail = yield* AgentStepExecutionDetailService;
+        return yield* detail.getAgentStepExecutionDetail({
+          projectId: "project-1",
+          stepExecutionId: "step-exec-1",
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    expect(afterStart?.body.timelinePreview).toEqual(
+      expect.arrayContaining([expect.objectContaining({ itemType: "message", role: "assistant" })]),
+    );
+  });
+
   it("enforces runtime state transitions, idempotent start, and next-turn selection updates", async () => {
     const ctx = makeAgentStepRuntimeTestContext();
 

@@ -182,6 +182,7 @@ export const AgentStepSessionCommandServiceLive = Layer.effect(
             ...harnessSelection,
             objective: context.agentPayload.objective,
             instructionsMarkdown: context.agentPayload.instructionsMarkdown,
+            noReply: context.agentPayload.runtimePolicy.bootstrapPromptNoReply ?? true,
           });
 
           yield* persistBoundBinding({
