@@ -1,570 +1,668 @@
 # L3 Plan B — Fact Unification + Runtime Validation
 
 ## TL;DR
-> **Summary**: Follow Plan A with a bounded system plan that unifies design-time and runtime fact shapes, introduces one shared decode/normalize/validate pipeline, hardens all approved fact write boundaries, upgrades `work_unit_draft_spec_fact` to the richer nested payload, and closes the agent/MCP/runtime fact CRUD audit. Preserve the existing storage model unless compatibility testing proves storage itself is blocking correctness.
+> **Summary**: Implement the canonical fact/runtime model locked after Plan A, then route every approved fact read/write surface through it: manual runtime CRUD, workflow-context mutation, invoke materialization, and agent/MCP boundaries. This plan also adds the missing manual runtime CRUD home for workflow-context facts and replaces raw/legacy fact handling with runtime-enforced canonical validation.
 > **Deliverables**:
-> - Canonical fact value/instance model spanning methodology facts, runtime facts, and workflow-context facts
-> - Shared runtime decode → normalize → validate pipeline
-> - Hardening of agent/MCP/form/project-runtime/context write boundaries
-> - Richer invoke `work_unit_draft_spec_fact` payload with compatibility policy
-> - Fact CRUD surface inventory, remediation matrix, and no-bypass regression proof
+> - Canonical fact family contracts, closed schemas, and compatibility rules
+> - Shared runtime manual-CRUD/orchestration + validation service
+> - Family-specific runtime CRUD procedures for project facts, work-unit facts, and workflow-context facts
+> - Manual CRUD UI/dialogs on project fact detail, work-unit fact detail, and workflow execution detail
+> - Progressive-disclosure MCP read/write model using `readItemId` / `writeItemId`
+> - Template-only `work_unit_draft_spec_fact` with invoke-state materialization mappings
+> - Work-unit runtime identity (immutable key + display-name rule) and artifact snapshot semantics
 > **Effort**: XL
-> **Parallel**: YES - 3 waves
-> **Critical Path**: Inventory/fixtures → Canonical model → Shared pipeline → Boundary hardening → Invoke payload upgrade → Audit closure
-
-## Lock Update (2026-04-18)
-- **Execution lock**: Plan B is the immediate next refinement plan and is prioritized before UI-polish waves.
-- **Scope lock additions**:
-  1. Compatibility must explicitly normalize wrapped legacy envelopes such as `{ factInstanceId, value }` wherever fact/operator evaluation and boundary writes read values.
-  2. Artifact-slot linking is in-scope for both project-fact and work-unit-fact references, including canonical id/key normalization (`slotDefinitionId` authority at persistence boundaries).
-  3. Artifact-slot rule hardening for folder/path validation is in-scope (replace ad-hoc `unknown` handling with explicit schema + boundary validation policy).
-- **Out-of-scope lock** remains: no broad UI redesign and no methodology-version-layer thinning in this plan.
+> **Parallel**: YES - 4 waves
+> **Critical Path**: Contract lock → schema/repo/service foundation → runtime boundaries/procedures → UI/dialogs → audit/regression
 
 ## Context
 ### Original Request
-- Generate Plan B as the follow-on to Plan A.
-- Discuss how design-time and runtime fact shapes will be unified and what can be normalized.
-- Make sure Plan A explicitly points at Plan B as the next system plan.
+- Treat this as the immediate next plan after Plan A closure.
+- Include artifact-slot linking with both project facts and work-unit facts.
+- Enforce canonical `slotDefinitionId` at persistence boundaries.
+- Normalize wrapped compatibility envelopes `{ factInstanceId, value }`.
+- Add explicit folder/path validation and runtime CRUD.
+- Keep methodology-version thinning and broad UI refactors out of scope.
+- Add manual user-facing runtime CRUD: runtime pages, dialogs by cardinality/fact type, and the procedures/services behind them.
 
-### Prerequisite
-- **Plan A first**: `.sisyphus/plans/l3-plan-a-action-branch-gates.md`
-- Plan B assumes Action and runtime Branch exist already and treats their new fact-touching surfaces as part of the hardening inventory rather than reopening their feature semantics.
-
-### Audit Summary
-- Design-time fact contracts are mostly sound.
-- Core runtime storage tables are mostly sound.
-- The real systemic problem is cross-layer `valueJson` shape drift and the lack of a centralized decode/normalize/validate path.
-- Agent-step, MCP, and project-runtime write boundaries still accept raw/unknown values with weak runtime enforcement of methodology fact rules.
-- Existing invoke propagation is correct within its current flat-shape assumptions, but the richer `work_unit_draft_spec_fact` payload is deferred to this plan.
+### Interview Summary
+- Primitive-backed facts unify across layers: `string`, `number` (+ min/max), `boolean`, `json`.
+- `definition_backed_external_fact` and `bound_external_fact` collapse into canonical `bound_fact`.
+- Canonical `bound_fact` runtime value always stores both `{ instanceId, value }`.
+- Workflow steps interact only with workflow-context facts; project/work-unit facts are reached through context proxies/bindings.
+- Artifact semantics become `artifact_snapshot_fact`-style: slot authority, grouped files, repo-relative regex validation, optional runtime folder binding, fallback to repo root.
+- `work_unit_draft_spec_fact` is a closed-schema reusable template; created runtime ids live in invoke state, not in the template.
+- Manual runtime CRUD must exist for project facts, work-unit facts, and workflow-context facts.
+- Workflow-context manual CRUD belongs on workflow execution detail as a context section with per-fact dialogs.
+- Manual CRUD UX is detail-page + dialogs, not broad inline editing.
+- Cardinality-one uses direct set/replace dialog; cardinality-many uses instance list + per-instance dialogs.
+- Backend uses a shared runtime manual CRUD orchestration service with family-specific repositories and family-specific external procedures.
+- MCP redesign is runtime-only, step-scoped by session, uses `readItemId` / `writeItemId`, mode-driven reads, `queryParam`, and structured errors.
 
 ### Metis Review (gaps addressed)
-- Keep storage intact unless compatibility fixtures prove storage is itself blocking correctness.
-- Start with fixtures and surface inventory before enforcement changes.
-- Define one canonical runtime fact model and one shared pipeline; do not harden boundaries independently with ad hoc logic.
-- Treat richer `work_unit_draft_spec_fact` payload work as a bounded subtrack, not a general invoke redesign.
-- Add explicit read-compatibility policy for legacy rows before turning on hard rejection.
-- Close with a no-bypass audit proving every approved fact write path uses the shared pipeline.
+- Front-load a contract-lock task before any boundary hardening.
+- Add explicit runtime CRUD tasks and workflow-context runtime CRUD surfaces.
+- Add explicit consumer migration tasks for legacy envelope readers, not only write boundaries.
+- Add explicit work-unit identity task.
+- Add explicit artifact snapshot semantics task.
+- Preserve the step → workflow-context → outward propagation invariant.
 
 ## Work Objectives
 ### Core Objective
-Unify fact interpretation and validation across design time and runtime by defining a canonical runtime fact model, routing all approved fact writes through one decode/normalize/validate pipeline, and converging read/write surfaces on that model without rewriting the underlying storage layout.
+Make fact handling decision-complete and runtime-safe by standardizing canonical fact shapes, adding one shared runtime CRUD/validation orchestration layer, exposing manual CRUD consistently across the three runtime layers, and upgrading all read/write surfaces to the locked semantics without reopening unrelated UI architecture.
 
 ### Deliverables
-- Canonical fact model and compatibility policy in `packages/contracts`
-- Shared runtime fact codec/normalizer/validator in `packages/workflow-engine`
-- Hardened write boundaries in MCP, agent-step, form/context mutation, and project-runtime fact APIs
-- Richer invoke `work_unit_draft_spec_fact` payload and compatibility handling in `packages/workflow-engine` and `packages/contracts`
-- Fact CRUD surface inventory with remediation ownership and regression proof
-- Artifact-slot definition/linking normalization with explicit folder/path validation rules for fact-linked slots
-
-### Canonical Runtime Fact Model (locked for Plan B)
-1. **Design-time remains the authority** for fact type, cardinality, validation rules, and context-fact kind.
-2. **Underlying fact-type canonical values**:
-   - `string` → direct string
-   - `number` → direct number
-   - `boolean` → direct boolean
-   - `json` → direct JSON value
-   - `work_unit` → canonical object `{ projectWorkUnitId: string }`
-3. **Project facts / work-unit facts**:
-   - canonical domain value uses the underlying fact-type canonical value
-   - for work-unit references, `referencedProjectWorkUnitId` remains storage-authoritative where that column exists; codecs expose `{ projectWorkUnitId }`
-4. **Workflow context fact kinds**:
-   - `plain_value_fact` → underlying fact-type canonical value
-   - `definition_backed_external_fact` / `bound_external_fact` → `{ instanceId: string | null, value: <underlying fact-type canonical value> }`
-   - `workflow_reference_fact` → `{ workflowDefinitionId: string, workflowExecutionId: string }`
-   - `artifact_reference_fact` → `{ artifactSnapshotId: string, artifactSlotDefinitionId: string | null, relativePath: string, gitCommitHash: string | null, gitBlobHash: string | null }`
-   - `work_unit_draft_spec_fact` → `{ instance: { projectWorkUnitId: string, workUnitDefinitionId: string }, facts: Array<{ factDefinitionId: string, workUnitFactInstanceId: string | null, value: unknown }>, artifacts: Array<{ artifactSlotDefinitionId: string, artifactSnapshotId: string, relativePath: string | null, gitCommitHash: string | null, gitBlobHash: string | null }> }`
-5. **Normalization policy allowed in Plan B**:
-   - alias key normalization
-   - scalar→object lifting where required by the canonical model
-   - default filling for missing nullable metadata fields only
-   - null/empty stripping only when explicitly declared in tests
-   - no destructive coercion of incompatible values
-   - legacy envelope unwrapping for canonical comparison/evaluation inputs where shape is `{ factInstanceId, value }`
-6. **Compatibility policy**:
-   - legacy rows must remain decodable
-   - after a boundary is hardened, that boundary writes only canonical shapes
-   - no DB-wide backfill/migration is included unless fixture evidence proves decode-on-read is insufficient
-   - persistence boundaries must store canonical slot-definition IDs (not friendly keys) for artifact-linked facts/snapshots
+- Canonical contracts for fact families, context-fact kinds, MCP read/write, runtime CRUD inputs/outputs, and invoke template/state payloads
+- Runtime schema/repository support for workflow-context manual CRUD and work-unit identity metadata
+- Shared `RuntimeManualFactCrudService` plus family-specific repository adapters
+- Family-specific project/work-unit/workflow-context CRUD procedures using normalized CRUD verbs
+- Manual CRUD UI/dialogs on:
+  - `apps/web/src/routes/projects.$projectId.facts.$factDefinitionId.tsx`
+  - `apps/web/src/routes/projects.$projectId.work-units.$projectWorkUnitId.facts.$factDefinitionId.tsx`
+  - `apps/web/src/routes/projects.$projectId.workflow-executions.$workflowExecutionId.tsx`
+- Progressive-disclosure MCP read/write contract and runtime services
+- Template-only `work_unit_draft_spec_fact` and invoke-state materialization mapping
+- Artifact slot/path validation, folder-path binding, and canonical `slotDefinitionId` persistence
+- No-bypass audit and regression proof, including Plan A reruns
 
 ### Definition of Done (verifiable conditions with commands)
-- `bunx vitest run packages/contracts/src/tests/fact-canonical-model.test.ts`
-- `bunx vitest run packages/workflow-engine/src/tests/runtime/fact-codec-compatibility.test.ts`
-- `bunx vitest run packages/workflow-engine/src/tests/runtime/fact-validation-service.test.ts`
-- `bunx vitest run packages/workflow-engine/src/tests/runtime/agent-step-fact-write-validation.test.ts`
-- `bunx vitest run packages/workflow-engine/src/tests/runtime/context-fact-mutation-validation.test.ts`
-- `bunx vitest run packages/api/src/tests/routers/runtime-fact-boundary-validation.test.ts`
-- `bunx vitest run packages/workflow-engine/src/tests/runtime/invoke-draft-spec-payload-compat.test.ts`
-- `bunx vitest run packages/workflow-engine/src/tests/runtime/fact-audit-no-bypass.test.ts`
+- `bunx vitest run packages/contracts/src/tests/fact-unification-runtime-contracts.test.ts`
+- `bunx vitest run packages/contracts/src/tests/mcp-progressive-disclosure-contract.test.ts`
+- `bunx vitest run packages/db/src/tests/schema/runtime-fact-unification-schema.test.ts`
+- `bunx vitest run packages/db/src/tests/repository/runtime-fact-crud-repositories.test.ts`
+- `bunx vitest run packages/workflow-engine/src/tests/runtime/runtime-manual-fact-crud-service.test.ts`
+- `bunx vitest run packages/workflow-engine/src/tests/runtime/bound-fact-compatibility.test.ts`
+- `bunx vitest run packages/workflow-engine/src/tests/runtime/artifact-snapshot-fact-semantics.test.ts`
+- `bunx vitest run packages/workflow-engine/src/tests/runtime/invoke-draft-spec-template-state.test.ts`
+- `bunx vitest run packages/workflow-engine/src/tests/runtime/work-unit-instance-identity.test.ts`
+- `bunx vitest run packages/api/src/tests/routers/runtime-fact-crud-logical-delete.test.ts`
+- `bunx vitest run packages/api/src/tests/routers/runtime-workflow-context-fact-crud.test.ts`
+- `bunx vitest run apps/web/src/tests/runtime/runtime-fact-dialogs.test.tsx`
+- `bunx vitest run apps/web/src/tests/runtime/workflow-context-fact-crud-section.test.tsx`
+- `bunx vitest run packages/contracts/src/tests/l3-plan-a-action-branch-contracts.test.ts`
+- `bunx vitest run packages/api/src/tests/routers/action-branch-plan-a-routers.test.ts`
+- `bunx vitest run packages/db/src/tests/repository/l3-plan-a-action-branch-repositories.test.ts`
+- `bunx vitest run packages/db/src/tests/schema/l3-plan-a-action-branch-schema.test.ts`
+- `bunx vitest run packages/workflow-engine/src/tests/runtime/action-step-runtime-services.test.ts`
+- `bunx vitest run packages/workflow-engine/src/tests/runtime/branch-runtime-services.test.ts`
+- `bunx vitest run packages/workflow-engine/src/tests/runtime/runtime-invoke-workunit-start.test.ts`
+- `bunx vitest run packages/workflow-engine/src/tests/runtime/runtime-invoke-completion.test.ts`
 - `bun run check-types`
 - `bun run test`
 - `bun run build`
 
 ### Must Have
-- One canonical runtime fact model used by all approved fact write boundaries.
-- Legacy persisted fact rows remain decodable under explicit compatibility tests.
-- New writes from hardened boundaries emit canonical shapes only.
-- Methodology-defined fact validation rules are enforced at runtime where writes occur.
-- The richer nested `work_unit_draft_spec_fact` payload is implemented with an explicit old/new compatibility policy.
-- A finite inventory exists for all fact CRUD mutation surfaces and each surface is either hardened or explicitly deferred with rationale.
-- A no-bypass regression proves approved write paths cannot persist raw/unvalidated fact payloads directly.
-- Artifact-slot linking supports project/work-unit fact relationships with explicit folder/path validation and deterministic error behavior.
+- Canonical `bound_fact`, `workflow_ref_fact`, `artifact_snapshot_fact`, `work_unit_draft_spec_fact`, and primitive-backed value semantics implemented in contracts and runtime validators
+- Closed `work_unit_draft_spec_fact` schema with no arbitrary keys
+- Manual runtime CRUD for project facts, work-unit facts, and workflow-context facts
+- Structured runtime CRUD dialogs by cardinality and fact family
+- Shared runtime manual CRUD service with family-specific repositories
+- MCP read/write redesign using `readItemId` / `writeItemId`, no `stepExecutionId`, mode-driven reads, structured errors
+- Work-unit immutable runtime key `{definition_key}-{instance#}` and cardinality-many display-name flag behavior
+- Artifact slot/folder-path validation with canonical `slotDefinitionId` persistence and repo-root fallback
+- Legacy compatibility normalization for `{ factInstanceId, value }` and other approved read shapes
+- Explicit proof that steps still mutate only workflow-context facts directly
 
 ### Must NOT Have
-- No replacement of `valueJson` storage with typed DB columns in this plan.
-- No broad feature redesign of Action, Branch, or transition gates beyond what canonical fact handling requires.
-- No generic operator-system rewrite.
-- No speculative repository rewrites for style consistency.
-- No broad UI redesign unrelated to fact boundary enforcement.
-- No silent destructive normalization.
+- No broad UI redesign outside the identified runtime surfaces
+- No methodology-version-layer thinning
+- No direct step mutation of project/work-unit facts
+- No raw JSON-first dialogs for special fact families
+- No direct repo-file deletion by Chiron
+- No persistence of friendly slot keys at canonical boundaries
+- No created runtime ids written into `work_unit_draft_spec_fact` templates
 
 ## Verification Strategy
 > ZERO HUMAN INTERVENTION - all verification is agent-executed.
-- Test decision: fixtures first, enforcement second, then repo-wide regression.
-- QA policy: every task below includes exact compatibility and failure-path checks.
-- Evidence: `.sisyphus/evidence/task-{N}-{slug}.{ext}`
+- Test decision: tests-after with explicit boundary fixtures and regression reruns
+- QA policy: every task includes happy path + failure path, exact commands, and evidence files
+- Evidence: `.sisyphus/evidence/task-{N}-{slug}.log`
 
 ## Execution Strategy
 ### Locked Architecture Decisions
-1. Plan B is the explicit follow-on to Plan A and must not reopen Plan A feature semantics.
-2. The DB storage model stays unless compatibility fixtures prove decode-on-read cannot safely support legacy rows.
-3. One shared runtime pipeline owns decoding, normalization, validation, and canonical serialization for approved fact write paths.
-4. Boundary hardening proceeds one family at a time, never all at once.
-5. Richer invoke `work_unit_draft_spec_fact` payload work is bounded to payload shape + compatibility, not a general invoke redesign.
-6. The CRUD audit is fact-surface scoped only: project facts, work-unit facts, workflow-context facts, agent-step writes, MCP writes, and related runtime mutation APIs.
-
-### Deferred Beyond Plan B
-- Replacing JSON storage with typed DB columns
-- Full operator-system convergence beyond fact-shape normalization needs
-- Generic JSON query/subfield engine redesign
-- Non-fact domain CRUD audit/remediation
+1. `bound_fact` is the canonical cross-layer replacement for the two legacy external kinds.
+2. Runtime enforcement is authoritative at MCP/form/action/invoke/manual-CRUD boundaries.
+3. Workflow steps directly mutate only workflow-context facts.
+4. Manual runtime CRUD procedures use CRUD verbs (`create/update/remove/delete`) and remain family-specific at the router boundary.
+5. `remove` vs `delete` exists only for workflow-context facts; project/work-unit facts use logical delete only.
+6. Workflow-context manual CRUD lives on workflow execution detail as a context section + per-fact dialogs.
+7. Project/work-unit manual CRUD remain on existing fact detail pages with upgraded dialogs and backend semantics.
+8. Artifact slots remain the authority for path/format rules; optional folder-path fact binding supplies runtime base path only.
+9. `work_unit_draft_spec_fact` is template-only; invoke state stores frozen run values + created runtime ids.
+10. MCP read grants become explicit `readItemId` records parallel to `writeItemId`.
 
 ### Parallel Execution Waves
-Wave 1: inventory + fixture matrix + canonical contracts
-Wave 2: shared pipeline + boundary hardening families
-Wave 3: invoke payload upgrade + audit closure + repo-wide regression
+Wave 1: contract lock + schema/repo foundation
+Wave 2: shared service foundation + work-unit/artifact semantics
+Wave 3: runtime boundaries, MCP, invoke, manual CRUD procedures
+Wave 4: web runtime surfaces + audit/regression
 
 ### Dependency Matrix (full, all tasks)
-- T1 inventory → blocks T2-T10
-- T2 canonical contracts/model → blocks T3-T10
-- T3 compatibility fixture matrix → blocks T4-T10
-- T4 shared runtime fact pipeline → blocks T5-T10
-- T5 harden workflow-context mutation boundaries → blocks T8-T10
-- T6 harden agent/MCP boundaries → blocks T8-T10
-- T7 harden project/work-unit runtime fact boundaries → blocks T8-T10
-- T8 richer invoke draft-spec payload + compatibility → blocks T9-T10
-- T9 no-bypass audit closure → blocks T10 and Final Verification
-- T10 repo-wide regression and compatibility proof → blocks Final Verification
+- T1 contract/model lock → blocks T2-T11
+- T2 schema/repository foundation → blocks T3-T11
+- T3 shared runtime manual CRUD service → blocks T4-T11
+- T4 artifact + path semantics → blocks T6-T11
+- T5 work-unit identity + progressive disclosure → blocks T7-T11
+- T6 project/work-unit runtime CRUD procedure migration → blocks T10-T11
+- T7 workflow-context runtime CRUD + MCP redesign → blocks T8-T11
+- T8 invoke template/state migration → blocks T11
+- T9 legacy consumer migration and boundary hardening → blocks T11
+- T10 web runtime CRUD dialogs/pages → blocks T11
+- T11 audit/regression + Plan A reruns → blocks Final Verification Wave
 
 ### Agent Dispatch Summary
-- Wave 1 → 3 tasks → deep / unspecified-high
-- Wave 2 → 4 tasks → deep
-- Wave 3 → 3 tasks → deep / unspecified-high
+- Wave 1 → 2 tasks → deep
+- Wave 2 → 3 tasks → deep / unspecified-high
+- Wave 3 → 4 tasks → deep
+- Wave 4 → 2 tasks → visual-engineering / unspecified-high
 
 ## TODOs
 > Implementation + Test = ONE task. Never separate.
 > EVERY task MUST have: Agent Profile + Parallelization + QA Scenarios.
 
-- [ ] 1. Inventory all fact CRUD and mutation surfaces
+- [ ] 1. Lock canonical contracts, schemas, and runtime payload shapes
 
-  **What to do**: Produce the authoritative inventory of all approved fact mutation surfaces across project facts, work-unit facts, workflow-context facts, agent-step writes, MCP writes, form/context mutation, invoke propagation, and any new Plan A surfaces. Each surface must be tagged as: harden in Plan B, preserve read-only compatibility, or explicitly defer.
-  **Must NOT do**: Do not change behavior in this task. Do not start hardening before the inventory is complete.
+  **What to do**: Update contracts to freeze the final canonical fact family shapes, manual CRUD payloads, MCP `readItemId` / `writeItemId` direction, explicit `queryParam`, runtime error envelopes, `bound_fact`, `workflow_ref_fact`, `artifact_snapshot_fact`, closed `work_unit_draft_spec_fact`, CRUD verbs, and the fixed/fact-backed invoke source matrix. Rename the methodology/design-time enum layer to `bound_fact` now; do not keep legacy design-time names as canonical.
+  **Must NOT do**: Do not harden runtime services in this task. Do not keep `stepExecutionId` in the final MCP v1 tool inputs.
 
   **Recommended Agent Profile**:
-  - Category: `deep`
-  - Skills: [`effect-best-practices`] - Reason: the inventory must align with actual service/repository seams.
-  - Omitted: [`hono`] - Reason: transport details are secondary to mutation ownership.
+  - Category: `deep` - Reason: this is the plan’s contract lock and must drive all later work.
+  - Skills: [`effect-best-practices`] - Reason: contract/runtime schemas and tagged errors must align.
+  - Omitted: [`web-design-guidelines`] - Reason: no UI implementation in this task.
 
-  **Parallelization**: Can Parallel: NO | Wave 1 | Blocks: T2-T10 | Blocked By: none
+  **Parallelization**: Can Parallel: NO | Wave 1 | Blocks: T2-T11 | Blocked By: none
 
   **References**:
-  - Plan A: `.sisyphus/plans/l3-plan-a-action-branch-gates.md`
-  - Agent-step write path: `packages/workflow-engine/src/services/runtime/agent-step-context-write-service.ts`
-  - Context mutation seam: `packages/workflow-engine/src/services/step-context-mutation-service.ts`
-  - Runtime repositories: `packages/db/src/runtime-repositories/**`
-  - Runtime router: `packages/api/src/routers/project-runtime.ts`
+  - `packages/contracts/src/methodology/fact.ts`
+  - `packages/contracts/src/methodology/workflow.ts`
+  - `packages/contracts/src/runtime/facts.ts`
+  - `packages/contracts/src/mcp/tools.ts`
+  - `packages/contracts/src/agent-step/runtime.ts`
+  - Plan decisions in this file under `## Context` and `## Execution Strategy`
 
   **Acceptance Criteria**:
-  - [ ] `bunx vitest run packages/workflow-engine/src/tests/runtime/fact-crud-surface-inventory.test.ts`
+  - [ ] `bunx vitest run packages/contracts/src/tests/fact-unification-runtime-contracts.test.ts`
+  - [ ] `bunx vitest run packages/contracts/src/tests/mcp-progressive-disclosure-contract.test.ts`
   - [ ] `bun run check-types`
 
   **QA Scenarios**:
   ```
-  Scenario: Fact surface inventory stays complete
+  Scenario: Canonical fact contracts match locked decisions
     Tool: Bash
-    Steps: run `bunx vitest run packages/workflow-engine/src/tests/runtime/fact-crud-surface-inventory.test.ts --reporter=verbose | tee .sisyphus/evidence/task-1-fact-inventory.log`
-    Expected: PASS; every approved fact mutation surface is listed with owner and disposition
-    Evidence: .sisyphus/evidence/task-1-fact-inventory.log
+    Steps: run `bunx vitest run packages/contracts/src/tests/fact-unification-runtime-contracts.test.ts --reporter=verbose | tee .sisyphus/evidence/task-1-contract-lock.log`
+    Expected: PASS; `bound_fact`, artifact snapshot facts, workflow refs, work-unit draft spec, CRUD payloads, and work-unit identity rules match the locked model
+    Evidence: .sisyphus/evidence/task-1-contract-lock.log
 
-  Scenario: No surprise mutation surfaces remain
+  Scenario: MCP inputs are item-id based and step-scoped by session only
     Tool: Bash
-    Steps: run the same suite filtered to search/assertion fixtures for unclassified mutation seams
-    Expected: PASS; test fails if an approved fact write path exists outside the inventory
-    Evidence: .sisyphus/evidence/task-1-fact-inventory-guard.log
+    Steps: run `bunx vitest run packages/contracts/src/tests/mcp-progressive-disclosure-contract.test.ts --reporter=verbose | tee .sisyphus/evidence/task-1-mcp-contract.log`
+    Expected: PASS; no `stepExecutionId` remains in MCP tool inputs; `readItemId`, `writeItemId`, modes, `queryParam`, and structured errors are defined
+    Evidence: .sisyphus/evidence/task-1-mcp-contract.log
   ```
 
-  **Commit**: YES | Message: `test(facts): inventory mutation surfaces` | Files: `packages/**`
+  **Commit**: YES | Message: `feat(contracts): lock plan-b fact and mcp contracts` | Files: `packages/contracts/src/**`
 
-- [ ] 2. Lock the canonical fact model and compatibility policy
+- [ ] 2. Add runtime schema and repository foundation for workflow-context CRUD and work-unit identity
 
-  **What to do**: Encode the canonical runtime fact model, allowed normalizations, and legacy compatibility policy in contracts/tests. This task freezes the shapes and policies listed above so every boundary hardening step implements the same model.
-  **Must NOT do**: Do not harden write paths yet. Do not redesign DB storage in this task.
+  **What to do**: Add/extend runtime schema and repository support for workflow-context manual CRUD, immutable work-unit keys, display-name metadata behavior, and any needed runtime CRUD persistence records. Keep family-specific repositories under `packages/db/src/runtime-repositories/**` and add the missing workflow-context runtime repository rather than reusing design-time methodology repositories.
+  **Must NOT do**: Do not put manual CRUD logic in routers. Do not write created invoke ids into draft-spec storage.
 
   **Recommended Agent Profile**:
-  - Category: `deep`
-  - Skills: [`effect-best-practices`] - Reason: the model must line up with the repo’s schema and runtime contracts.
-  - Omitted: [`effect-review`] - Reason: this is definition work, not review.
+  - Category: `deep` - Reason: schema/repository changes determine everything above them.
+  - Skills: [`effect-best-practices`] - Reason: repository contracts and error behavior must stay typed.
+  - Omitted: [`hono`] - Reason: HTTP transport is irrelevant here.
 
-  **Parallelization**: Can Parallel: YES | Wave 1 | Blocks: T3-T10 | Blocked By: T1
+  **Parallelization**: Can Parallel: YES | Wave 1 | Blocks: T3-T11 | Blocked By: T1
 
   **References**:
-  - Design-time fact contracts: `packages/contracts/src/methodology/fact.ts`
-  - Workflow context fact contracts: `packages/contracts/src/methodology/workflow.ts`
-  - Runtime fact contracts: `packages/contracts/src/runtime/facts.ts`, `packages/contracts/src/runtime/executions.ts`
+  - `packages/db/src/schema/runtime.ts`
+  - `packages/db/src/runtime-repositories/project-fact-repository.ts`
+  - `packages/db/src/runtime-repositories/work-unit-fact-repository.ts`
+  - `packages/db/src/repositories/workflow-context-fact-repository.ts`
+  - `packages/workflow-engine/src/repositories/project-fact-repository.ts`
+  - `packages/workflow-engine/src/repositories/work-unit-fact-repository.ts`
 
   **Acceptance Criteria**:
-  - [ ] `bunx vitest run packages/contracts/src/tests/fact-canonical-model.test.ts`
+  - [ ] `bunx vitest run packages/db/src/tests/schema/runtime-fact-unification-schema.test.ts`
+  - [ ] `bunx vitest run packages/db/src/tests/repository/runtime-fact-crud-repositories.test.ts`
   - [ ] `bun run check-types`
 
   **QA Scenarios**:
   ```
-  Scenario: Legacy and canonical shapes are both declared explicitly
+  Scenario: Runtime schema supports workflow-context CRUD and work-unit identity
     Tool: Bash
-    Steps: run `bunx vitest run packages/contracts/src/tests/fact-canonical-model.test.ts --reporter=verbose | tee .sisyphus/evidence/task-2-fact-model.log`
-    Expected: PASS; the canonical model, allowed normalizations, and compatibility policy are all explicit in contracts/tests
-    Evidence: .sisyphus/evidence/task-2-fact-model.log
+    Steps: run `bunx vitest run packages/db/src/tests/schema/runtime-fact-unification-schema.test.ts --reporter=verbose | tee .sisyphus/evidence/task-2-runtime-schema.log`
+    Expected: PASS; schema includes workflow-context runtime CRUD support and immutable work-unit key fields without forcing unrelated migrations
+    Evidence: .sisyphus/evidence/task-2-runtime-schema.log
 
-  Scenario: Disallowed destructive normalization is rejected
+  Scenario: Runtime repositories honor logical delete and family boundaries
     Tool: Bash
-    Steps: run the same suite filtered to invalid normalization fixtures
-    Expected: PASS; incompatible values are rejected rather than coerced silently
-    Evidence: .sisyphus/evidence/task-2-fact-model-invalid.log
+    Steps: run `bunx vitest run packages/db/src/tests/repository/runtime-fact-crud-repositories.test.ts --reporter=verbose | tee .sisyphus/evidence/task-2-runtime-repos.log`
+    Expected: PASS; project/work-unit/workflow-context runtime repositories create/update/logically-delete correctly and do not cross family boundaries
+    Evidence: .sisyphus/evidence/task-2-runtime-repos.log
   ```
 
-  **Commit**: YES | Message: `feat(facts): lock canonical model and compat policy` | Files: `packages/contracts/src/**`
+  **Commit**: YES | Message: `feat(runtime): add fact crud repository foundation` | Files: `packages/db/src/**`, `packages/workflow-engine/src/repositories/**`
 
-- [ ] 3. Add the legacy/canonical fixture matrix
+- [ ] 3. Implement shared runtime manual fact CRUD orchestration and error model
 
-  **What to do**: Create the golden fixture matrix covering legacy shapes, canonical shapes, invalid shapes, and boundary-specific malformed inputs for every approved fact family and context-fact kind.
-  **Must NOT do**: Do not enable rejection yet. Do not hardcode boundary-specific custom parsing logic into the fixtures.
+  **What to do**: Add one shared orchestration layer (for example `RuntimeManualFactCrudService`) that owns canonical decode/normalize/validate/apply logic for manual runtime CRUD across project facts, work-unit facts, and workflow-context facts. This service must enforce runtime-only validation, family-specific policy, logical delete semantics, context-only remove/delete distinction, and structured agent/user-facing errors.
+  **Must NOT do**: Do not bypass methodology/context definitions. Do not let routers call repositories directly for Plan B-managed runtime CRUD after this task.
 
   **Recommended Agent Profile**:
-  - Category: `unspecified-high`
-  - Skills: [`effect-best-practices`] - Reason: fixtures must be reusable across the shared pipeline and boundary tests.
-  - Omitted: [`vercel-react-best-practices`] - Reason: no UI in this task.
+  - Category: `deep` - Reason: this is the central business-logic layer.
+  - Skills: [`effect-best-practices`] - Reason: tagged errors, services, and validation flows must remain composable.
+  - Omitted: [`web-design-guidelines`] - Reason: no UI here.
 
-  **Parallelization**: Can Parallel: YES | Wave 1 | Blocks: T4-T10 | Blocked By: T2
+  **Parallelization**: Can Parallel: NO | Wave 2 | Blocks: T4-T11 | Blocked By: T2
 
   **References**:
-  - Canonical model from T2
-  - Existing invoke propagation: `packages/workflow-engine/src/services/invoke-propagation-service.ts`
-  - Existing external prefill: `packages/workflow-engine/src/services/workflow-context-external-prefill-service.ts`
+  - `packages/workflow-engine/src/services/runtime-fact-service.ts`
+  - `packages/workflow-engine/src/services/step-context-mutation-service.ts`
+  - `packages/workflow-engine/src/services/runtime/agent-step-context-write-service.ts`
+  - `packages/contracts/src/methodology/fact.ts`
+  - `packages/contracts/src/methodology/workflow.ts`
 
   **Acceptance Criteria**:
-  - [ ] `bunx vitest run packages/workflow-engine/src/tests/runtime/fact-codec-compatibility.test.ts`
+  - [ ] `bunx vitest run packages/workflow-engine/src/tests/runtime/runtime-manual-fact-crud-service.test.ts`
   - [ ] `bun run check-types`
 
   **QA Scenarios**:
   ```
-  Scenario: Fixture matrix covers legacy, canonical, and invalid payloads
+  Scenario: Shared service enforces canonical validation and CRUD semantics
     Tool: Bash
-    Steps: run `bunx vitest run packages/workflow-engine/src/tests/runtime/fact-codec-compatibility.test.ts --reporter=verbose | tee .sisyphus/evidence/task-3-fact-fixtures.log`
-    Expected: PASS; all supported fact families and context-fact kinds have explicit legacy/canonical/invalid fixtures
-    Evidence: .sisyphus/evidence/task-3-fact-fixtures.log
+    Steps: run `bunx vitest run packages/workflow-engine/src/tests/runtime/runtime-manual-fact-crud-service.test.ts --reporter=verbose | tee .sisyphus/evidence/task-3-runtime-crud-service.log`
+    Expected: PASS; project/work-unit/workflow-context CRUD all go through one service and honor family-specific rules
+    Evidence: .sisyphus/evidence/task-3-runtime-crud-service.log
 
-  Scenario: Old and new draft-spec payload fixtures coexist explicitly
+  Scenario: Structured runtime errors are returned on invalid writes
     Tool: Bash
-    Steps: run the same suite filtered to `work_unit_draft_spec_fact` fixtures
-    Expected: PASS; both flat and richer nested draft-spec payload fixtures are present and classified by compatibility policy
-    Evidence: .sisyphus/evidence/task-3-draft-spec-fixtures.log
+    Steps: run `bunx vitest run packages/workflow-engine/src/tests/runtime/runtime-manual-fact-crud-service.test.ts --testNamePattern="invalid payload|forbidden operation|structured error" --reporter=verbose | tee .sisyphus/evidence/task-3-runtime-crud-errors.log`
+    Expected: PASS; invalid shape, unsupported capability, and scope violations return explicit structured errors
+    Evidence: .sisyphus/evidence/task-3-runtime-crud-errors.log
   ```
 
-  **Commit**: YES | Message: `test(facts): add legacy and canonical fixture matrix` | Files: `packages/workflow-engine/src/tests/**`
+  **Commit**: YES | Message: `feat(runtime): add shared manual fact crud service` | Files: `packages/workflow-engine/src/services/**`
 
-- [ ] 4. Implement the shared runtime fact pipeline
+- [ ] 4. Implement artifact snapshot semantics and shared path validation
 
-  **What to do**: Add the shared decode → normalize → validate → canonicalize pipeline used by approved fact write paths and compatibility reads. The pipeline must consume methodology fact definitions/context-fact kinds and emit canonical runtime values plus explicit validation errors.
-  **Must NOT do**: Do not harden all boundaries in this task. Do not bypass methodology definitions.
+  **What to do**: Implement the canonical `artifact_snapshot_fact` semantics: grouped files per slot, canonical `slotDefinitionId` persistence, full repo-relative path regex validation, optional folder-path fact binding, repo-root fallback when folder fact is missing, explicit file status values, `record_deleted_file` / `remove_from_slot` distinction, and no direct repo deletion. Apply this to both project-fact-linked and work-unit-fact-linked artifact relationships.
+  **Must NOT do**: Do not persist friendly slot keys. Do not infer folder binding from unrelated facts.
 
   **Recommended Agent Profile**:
-  - Category: `deep`
-  - Skills: [`effect-best-practices`] - Reason: this is the core service/layer of Plan B.
-  - Omitted: [`hono`] - Reason: transport adapters come later.
+  - Category: `deep` - Reason: artifact semantics touch validation, persistence, and runtime reads.
+  - Skills: [`effect-best-practices`] - Reason: error handling and service coordination must remain explicit.
+  - Omitted: [`vercel-react-best-practices`] - Reason: this is backend/runtime semantics.
 
-  **Parallelization**: Can Parallel: YES | Wave 2 | Blocks: T5-T10 | Blocked By: T3
+  **Parallelization**: Can Parallel: YES | Wave 2 | Blocks: T6-T11 | Blocked By: T3
 
   **References**:
-  - Methodology fact contracts: `packages/contracts/src/methodology/fact.ts`
-  - Workflow context fact contracts: `packages/contracts/src/methodology/workflow.ts`
-  - Runtime fact service: `packages/workflow-engine/src/services/runtime-fact-service.ts`
+  - `packages/contracts/src/methodology/artifact-slot.ts`
+  - `packages/contracts/src/methodology/fact.ts`
+  - `packages/workflow-engine/src/services/runtime/agent-step-context-write-service.ts`
+  - `apps/web/src/routes/projects.$projectId.work-units.$projectWorkUnitId.artifact-slots.$slotDefinitionId.tsx`
 
   **Acceptance Criteria**:
-  - [ ] `bunx vitest run packages/workflow-engine/src/tests/runtime/fact-validation-service.test.ts`
-  - [ ] `bunx vitest run packages/workflow-engine/src/tests/runtime/fact-codec-compatibility.test.ts`
+  - [ ] `bunx vitest run packages/workflow-engine/src/tests/runtime/artifact-snapshot-fact-semantics.test.ts`
   - [ ] `bun run check-types`
 
   **QA Scenarios**:
   ```
-  Scenario: Shared pipeline canonicalizes approved legacy shapes
+  Scenario: Artifact snapshot semantics accept only valid repo-relative paths
     Tool: Bash
-    Steps: run `bunx vitest run packages/workflow-engine/src/tests/runtime/fact-codec-compatibility.test.ts --reporter=verbose | tee .sisyphus/evidence/task-4-fact-codec.log`
-    Expected: PASS; approved legacy payload variants decode to the locked canonical shapes
-    Evidence: .sisyphus/evidence/task-4-fact-codec.log
+    Steps: run `bunx vitest run packages/workflow-engine/src/tests/runtime/artifact-snapshot-fact-semantics.test.ts --reporter=verbose | tee .sisyphus/evidence/task-4-artifact-semantics.log`
+    Expected: PASS; valid slot/file writes succeed and invalid absolute/traversal/wrong-regex paths fail explicitly
+    Evidence: .sisyphus/evidence/task-4-artifact-semantics.log
 
-  Scenario: Shared pipeline rejects invalid values with explicit errors
+  Scenario: Folder-path binding falls back to repo root safely
     Tool: Bash
-    Steps: run `bunx vitest run packages/workflow-engine/src/tests/runtime/fact-validation-service.test.ts --reporter=verbose | tee .sisyphus/evidence/task-4-fact-validation.log`
-    Expected: PASS; invalid values fail consistently with explicit validation errors
-    Evidence: .sisyphus/evidence/task-4-fact-validation.log
+    Steps: run `bunx vitest run packages/workflow-engine/src/tests/runtime/artifact-snapshot-fact-semantics.test.ts --testNamePattern="folder binding fallback|repo root fallback|missing folder fact" --reporter=verbose | tee .sisyphus/evidence/task-4-folder-fallback.log`
+    Expected: PASS; missing/deleted folder fact uses repo root without blocking migrations, while still enforcing slot regex rules
+    Evidence: .sisyphus/evidence/task-4-folder-fallback.log
   ```
 
-  **Commit**: YES | Message: `feat(facts): add shared runtime normalization pipeline` | Files: `packages/workflow-engine/src/**`
+  **Commit**: YES | Message: `feat(facts): add artifact snapshot validation semantics` | Files: `packages/contracts/src/**`, `packages/workflow-engine/src/**`, `packages/db/src/**`
 
-- [ ] 5. Harden workflow-context mutation boundaries
+- [ ] 5. Implement work-unit runtime identity and progressive-disclosure reads
 
-  **What to do**: Route workflow-context fact writes through the shared pipeline in form submission, step-context mutation, Plan A Action/Branch runtime writes, and any workflow-context replacement paths.
-  **Must NOT do**: Do not harden project/work-unit runtime fact APIs in this task. Do not add special-case validation outside the shared pipeline.
+  **What to do**: Implement immutable `{definition_key}-{instance#}` work-unit keys, cardinality-many display-name flag behavior, and progressive-disclosure runtime reads for work-unit search/expansion. Keep default query results lightweight and require explicit expansion for facts/artifacts.
+  **Must NOT do**: Do not reuse instance numbers after deletion. Do not expose full fact/artifact payloads by default.
 
   **Recommended Agent Profile**:
-  - Category: `deep`
-  - Skills: [`effect-best-practices`] - Reason: these are workflow-engine boundary seams.
-  - Omitted: [`web-design-guidelines`] - Reason: no UI changes required here.
+  - Category: `deep` - Reason: runtime identity and disclosure rules affect both services and UI.
+  - Skills: [`effect-best-practices`] - Reason: schema + query outputs must stay typed.
+  - Omitted: [`opencode-sdk`] - Reason: harness integration is separate.
 
-  **Parallelization**: Can Parallel: YES | Wave 2 | Blocks: T8-T10 | Blocked By: T4
+  **Parallelization**: Can Parallel: YES | Wave 2 | Blocks: T7-T11 | Blocked By: T3
 
   **References**:
-  - Context mutation seam: `packages/workflow-engine/src/services/step-context-mutation-service.ts`
-  - Step transaction seam: `packages/workflow-engine/src/services/step-execution-transaction-service.ts`
-  - Form/runtime services in `packages/workflow-engine/src/services/**`
+  - `packages/workflow-engine/src/services/runtime-work-unit-service.ts`
+  - `packages/contracts/src/runtime/work-units.ts`
+  - `packages/workflow-engine/src/services/runtime/agent-step-context-read-service.ts`
 
   **Acceptance Criteria**:
-  - [ ] `bunx vitest run packages/workflow-engine/src/tests/runtime/context-fact-mutation-validation.test.ts`
+  - [ ] `bunx vitest run packages/workflow-engine/src/tests/runtime/work-unit-instance-identity.test.ts`
   - [ ] `bun run check-types`
 
   **QA Scenarios**:
   ```
-  Scenario: Workflow-context writes use the shared pipeline
+  Scenario: Work-unit instance keys are immutable and monotonic
     Tool: Bash
-    Steps: run `bunx vitest run packages/workflow-engine/src/tests/runtime/context-fact-mutation-validation.test.ts --reporter=verbose | tee .sisyphus/evidence/task-5-context-mutation.log`
-    Expected: PASS; workflow-context write paths canonicalize valid inputs and reject invalid ones consistently
-    Evidence: .sisyphus/evidence/task-5-context-mutation.log
+    Steps: run `bunx vitest run packages/workflow-engine/src/tests/runtime/work-unit-instance-identity.test.ts --reporter=verbose | tee .sisyphus/evidence/task-5-work-unit-identity.log`
+    Expected: PASS; keys follow `{definition_key}-{instance#}`, remain immutable, and numbers are never reused after delete
+    Evidence: .sisyphus/evidence/task-5-work-unit-identity.log
 
-  Scenario: Legacy context rows remain readable after hardening
+  Scenario: Progressive-disclosure reads stay lightweight by default
     Tool: Bash
-    Steps: run the same suite filtered to legacy-row compatibility fixtures
-    Expected: PASS; legacy persisted context values still decode under the compatibility policy
-    Evidence: .sisyphus/evidence/task-5-context-compat.log
+    Steps: run `bunx vitest run packages/workflow-engine/src/tests/runtime/work-unit-instance-identity.test.ts --testNamePattern="progressive disclosure|lightweight default read|explicit expansion" --reporter=verbose | tee .sisyphus/evidence/task-5-work-unit-read-disclosure.log`
+    Expected: PASS; default reads expose only identity/key/display/type, with facts/artifacts available only through explicit expansion
+    Evidence: .sisyphus/evidence/task-5-work-unit-read-disclosure.log
   ```
 
-  **Commit**: YES | Message: `feat(facts): harden workflow context mutation boundaries` | Files: `packages/workflow-engine/src/**`
+  **Commit**: YES | Message: `feat(runtime): add work-unit identity and disclosure rules` | Files: `packages/db/src/**`, `packages/workflow-engine/src/**`, `packages/contracts/src/**`
 
-- [ ] 6. Harden agent-step and MCP write boundaries
+- [ ] 6. Migrate project and work-unit manual runtime CRUD procedures to CRUD verbs over shared service
 
-  **What to do**: Replace raw/unknown value handling in agent-step and MCP write paths with the shared pipeline and explicit runtime validation against methodology fact definitions/context-fact kinds.
-  **Must NOT do**: Do not leave `Schema.Unknown` / raw `valueJson` as the final enforcement point. Do not create agent-only validation logic.
+  **What to do**: Replace router-direct project/work-unit runtime fact mutation flows with family-specific CRUD procedures over the shared service. Migrate the current add/set/replace behavior into explicit `create/update/delete` semantics while preserving the existing project fact and work-unit fact detail pages as the canonical manual CRUD homes.
+  **Must NOT do**: Do not keep the web UI dependent on the old `add/set/replace` procedure names after this task. Do not add `remove` for project/work-unit facts.
 
   **Recommended Agent Profile**:
-  - Category: `deep`
-  - Skills: [`effect-best-practices`] - Reason: these are high-risk correctness boundaries.
-  - Omitted: [`opencode-sdk`] - Reason: not harness integration.
+  - Category: `deep` - Reason: router, service, and runtime fact pages all change together.
+  - Skills: [`effect-best-practices`] - Reason: procedure contracts and service boundaries must stay consistent.
+  - Omitted: [`hono`] - Reason: router usage is straightforward; the complexity is in the contracts.
 
-  **Parallelization**: Can Parallel: YES | Wave 2 | Blocks: T8-T10 | Blocked By: T4
+  **Parallelization**: Can Parallel: YES | Wave 3 | Blocks: T10-T11 | Blocked By: T3, T4
 
   **References**:
-  - MCP tools contract: `packages/contracts/src/mcp/tools.ts`
-  - Agent-step write service: `packages/workflow-engine/src/services/runtime/agent-step-context-write-service.ts`
-  - Agent-step MCP service: `packages/workflow-engine/src/services/runtime/agent-step-mcp-service.ts`
+  - `packages/api/src/routers/project-runtime.ts`
+  - `apps/web/src/routes/projects.$projectId.facts.$factDefinitionId.tsx`
+  - `apps/web/src/routes/projects.$projectId.work-units.$projectWorkUnitId.facts.$factDefinitionId.tsx`
+  - `packages/workflow-engine/src/services/runtime-fact-service.ts`
 
   **Acceptance Criteria**:
-  - [ ] `bunx vitest run packages/workflow-engine/src/tests/runtime/agent-step-fact-write-validation.test.ts`
+  - [ ] `bunx vitest run packages/api/src/tests/routers/runtime-fact-crud-logical-delete.test.ts`
   - [ ] `bun run check-types`
 
   **QA Scenarios**:
   ```
-  Scenario: Agent/MCP writes reject invalid fact payloads consistently
+  Scenario: Project/work-unit CRUD procedures use CRUD verbs and logical delete
     Tool: Bash
-    Steps: run `bunx vitest run packages/workflow-engine/src/tests/runtime/agent-step-fact-write-validation.test.ts --reporter=verbose | tee .sisyphus/evidence/task-6-agent-mcp-validation.log`
-    Expected: PASS; invalid values fail at the boundary with explicit errors instead of reaching persistence
-    Evidence: .sisyphus/evidence/task-6-agent-mcp-validation.log
+    Steps: run `bunx vitest run packages/api/src/tests/routers/runtime-fact-crud-logical-delete.test.ts --reporter=verbose | tee .sisyphus/evidence/task-6-project-workunit-crud.log`
+    Expected: PASS; manual runtime CRUD procedures are family-specific, use CRUD verbs, and project/work-unit delete is logical only
+    Evidence: .sisyphus/evidence/task-6-project-workunit-crud.log
 
-  Scenario: Valid agent/MCP writes are canonicalized before persistence
+  Scenario: Number min/max and JSON compatibility are enforced at runtime CRUD boundary
     Tool: Bash
-    Steps: run the same suite filtered to valid write fixtures
-    Expected: PASS; accepted values are canonicalized through the shared pipeline before apply/write
-    Evidence: .sisyphus/evidence/task-6-agent-mcp-canonical.log
+    Steps: run `bunx vitest run packages/api/src/tests/routers/runtime-fact-crud-logical-delete.test.ts --testNamePattern="min/max|json compatibility|exact key-shape" --reporter=verbose | tee .sisyphus/evidence/task-6-project-workunit-validation.log`
+    Expected: PASS; invalid min/max and incompatible JSON writes fail with explicit errors
+    Evidence: .sisyphus/evidence/task-6-project-workunit-validation.log
   ```
 
-  **Commit**: YES | Message: `feat(facts): harden agent and mcp write boundaries` | Files: `packages/contracts/src/**`, `packages/workflow-engine/src/**`
+  **Commit**: YES | Message: `feat(api): migrate project and work-unit fact crud` | Files: `packages/api/src/**`, `packages/workflow-engine/src/**`, `apps/web/src/routes/**`
 
-- [ ] 7. Harden project and work-unit runtime fact boundaries
+- [ ] 7. Implement workflow-context manual runtime CRUD and MCP progressive-disclosure model
 
-  **What to do**: Route project-runtime and work-unit-runtime fact mutations through the shared pipeline, including API/service validation and repository-facing canonicalization.
-  **Must NOT do**: Do not redesign repository storage contracts beyond what canonical writes require. Do not add separate validation frameworks per route.
+  **What to do**: Add runtime workflow-context CRUD procedures and services, expose them on workflow execution detail as the canonical manual CRUD home, and redesign MCP read/write around `readItemId` / `writeItemId`, mode-driven reads, `queryParam`, `limit`, and structured runtime errors. Keep workflow-context `remove` vs `delete` distinction only here.
+  **Must NOT do**: Do not make step execution detail the primary manual CRUD home. Do not leave definition-id based read contracts in place.
 
   **Recommended Agent Profile**:
-  - Category: `deep`
-  - Skills: [`effect-best-practices`] - Reason: these are service/router/repository seams that must stay consistent.
-  - Omitted: [`hono`] - Reason: transport is secondary to validation consistency.
+  - Category: `deep` - Reason: this is the most cross-cutting runtime-surface task.
+  - Skills: [`effect-best-practices`] - Reason: tagged errors and service wiring must remain coherent.
+  - Omitted: [`opencode-sdk`] - Reason: no harness implementation changes beyond MCP contract/runtime service.
 
-  **Parallelization**: Can Parallel: YES | Wave 2 | Blocks: T8-T10 | Blocked By: T4
+  **Parallelization**: Can Parallel: YES | Wave 3 | Blocks: T8-T11 | Blocked By: T3, T5
 
   **References**:
-  - Runtime router: `packages/api/src/routers/project-runtime.ts`
-  - Project fact repository: `packages/db/src/runtime-repositories/project-fact-repository.ts`
-  - Work-unit fact repository: `packages/db/src/runtime-repositories/work-unit-fact-repository.ts`
+  - `packages/contracts/src/mcp/tools.ts`
+  - `packages/workflow-engine/src/services/runtime/agent-step-context-read-service.ts`
+  - `packages/workflow-engine/src/services/runtime/agent-step-context-write-service.ts`
+  - `packages/contracts/src/agent-step/runtime.ts`
+  - `apps/web/src/routes/projects.$projectId.workflow-executions.$workflowExecutionId.tsx`
 
   **Acceptance Criteria**:
-  - [ ] `bunx vitest run packages/api/src/tests/routers/runtime-fact-boundary-validation.test.ts`
+  - [ ] `bunx vitest run packages/api/src/tests/routers/runtime-workflow-context-fact-crud.test.ts`
+  - [ ] `bunx vitest run packages/contracts/src/tests/mcp-progressive-disclosure-contract.test.ts`
   - [ ] `bun run check-types`
 
   **QA Scenarios**:
   ```
-  Scenario: Project/work-unit fact APIs enforce runtime validation uniformly
+  Scenario: Workflow-context manual CRUD supports create/update/remove/delete correctly
     Tool: Bash
-    Steps: run `bunx vitest run packages/api/src/tests/routers/runtime-fact-boundary-validation.test.ts --reporter=verbose | tee .sisyphus/evidence/task-7-runtime-fact-boundaries.log`
-    Expected: PASS; project/work-unit fact mutations reject invalid payloads and canonicalize valid ones through the shared pipeline
-    Evidence: .sisyphus/evidence/task-7-runtime-fact-boundaries.log
+    Steps: run `bunx vitest run packages/api/src/tests/routers/runtime-workflow-context-fact-crud.test.ts --reporter=verbose | tee .sisyphus/evidence/task-7-workflow-context-crud.log`
+    Expected: PASS; workflow-context CRUD exists at runtime, `remove` vs `delete` are distinct, and direct project/work-unit mutation bypass is rejected
+    Evidence: .sisyphus/evidence/task-7-workflow-context-crud.log
 
-  Scenario: Legacy runtime fact rows remain readable under the compatibility policy
+  Scenario: MCP progressive-disclosure reads and writes are item-id scoped
     Tool: Bash
-    Steps: run the same suite filtered to compatibility fixtures
-    Expected: PASS; existing persisted rows still decode correctly after boundary hardening
-    Evidence: .sisyphus/evidence/task-7-runtime-fact-compat.log
+    Steps: run `bunx vitest run packages/contracts/src/tests/mcp-progressive-disclosure-contract.test.ts --reporter=verbose | tee .sisyphus/evidence/task-7-mcp-progressive.log`
+    Expected: PASS; reads are mode-driven by `readItemId`, writes target `writeItemId`, invalid modes/queryParam produce structured errors, and no input requires `stepExecutionId`
+    Evidence: .sisyphus/evidence/task-7-mcp-progressive.log
   ```
 
-  **Commit**: YES | Message: `feat(facts): harden project and work-unit fact boundaries` | Files: `packages/api/src/**`, `packages/db/src/runtime-repositories/**`, `packages/workflow-engine/src/**`
+  **Commit**: YES | Message: `feat(runtime): add workflow context crud and mcp progressive reads` | Files: `packages/contracts/src/**`, `packages/api/src/**`, `packages/workflow-engine/src/**`, `apps/web/src/routes/**`
 
-- [ ] 8. Upgrade `work_unit_draft_spec_fact` to the richer nested payload with compatibility
+- [ ] 8. Redefine invoke template/state handling around template-only draft specs
 
-  **What to do**: Upgrade the invoke/runtime ecosystem to emit and consume the richer nested `work_unit_draft_spec_fact` payload, while preserving explicit read compatibility with the flat legacy payload according to the locked compatibility policy.
-  **Must NOT do**: Do not redesign invoke execution semantics. Do not make this task a general invoke-runtime rewrite.
+  **What to do**: Redefine `work_unit_draft_spec_fact` as a closed template-only payload with stable draft keys, grouped artifact slots/files, and no created runtime ids. Move created work-unit/fact/artifact instance ids and the fully resolved frozen values into invoke state/materialization mappings only. Preserve template reuse across multiple invoke runs.
+  **Must NOT do**: Do not persist created runtime ids back into the template. Do not keep flat artifact arrays.
 
   **Recommended Agent Profile**:
-  - Category: `deep`
-  - Skills: [`effect-best-practices`] - Reason: this change spans contracts, propagation, and downstream consumers.
-  - Omitted: [`visual-engineering`] - Reason: payload compatibility is the main concern.
+  - Category: `deep` - Reason: invoke semantics and persistence mappings must be exact.
+  - Skills: [`effect-best-practices`] - Reason: state transitions and payload schemas require disciplined typing.
+  - Omitted: [`bmad-quick-dev`] - Reason: this is not freeform implementation; it is contract-led runtime work.
 
-  **Parallelization**: Can Parallel: YES | Wave 3 | Blocks: T9-T10 | Blocked By: T5, T6, T7
+  **Parallelization**: Can Parallel: YES | Wave 3 | Blocks: T11 | Blocked By: T3, T7
 
   **References**:
-  - Current invoke propagation: `packages/workflow-engine/src/services/invoke-propagation-service.ts`
-  - Workflow contracts: `packages/contracts/src/methodology/workflow.ts`
-  - Runtime execution contracts: `packages/contracts/src/runtime/executions.ts`
+  - `packages/workflow-engine/src/services/invoke-propagation-service.ts`
+  - `packages/workflow-engine/src/tests/runtime/runtime-invoke-workunit-start.test.ts`
+  - `packages/workflow-engine/src/tests/runtime/runtime-invoke-completion.test.ts`
 
   **Acceptance Criteria**:
-  - [ ] `bunx vitest run packages/workflow-engine/src/tests/runtime/invoke-draft-spec-payload-compat.test.ts`
+  - [ ] `bunx vitest run packages/workflow-engine/src/tests/runtime/invoke-draft-spec-template-state.test.ts`
   - [ ] `bun run check-types`
 
   **QA Scenarios**:
   ```
-  Scenario: New nested draft-spec payload is emitted canonically
+  Scenario: Draft spec stays template-only and invoke state stores materialization results
     Tool: Bash
-    Steps: run `bunx vitest run packages/workflow-engine/src/tests/runtime/invoke-draft-spec-payload-compat.test.ts --reporter=verbose | tee .sisyphus/evidence/task-8-draft-spec-upgrade.log`
-    Expected: PASS; invoke propagation writes the richer nested payload in canonical form for hardened write paths
-    Evidence: .sisyphus/evidence/task-8-draft-spec-upgrade.log
+    Steps: run `bunx vitest run packages/workflow-engine/src/tests/runtime/invoke-draft-spec-template-state.test.ts --reporter=verbose | tee .sisyphus/evidence/task-8-invoke-template-state.log`
+    Expected: PASS; templates contain no created runtime ids, invoke state stores frozen run values and created runtime mappings
+    Evidence: .sisyphus/evidence/task-8-invoke-template-state.log
 
-  Scenario: Legacy flat draft-spec payload still decodes under compatibility policy
+  Scenario: Reusing one draft-spec template across multiple invokes remains safe
     Tool: Bash
-    Steps: run the same suite filtered to legacy payload fixtures
-    Expected: PASS; old persisted flat payloads remain readable until compatibility is explicitly retired later
-    Evidence: .sisyphus/evidence/task-8-draft-spec-compat.log
+    Steps: run `bunx vitest run packages/workflow-engine/src/tests/runtime/invoke-draft-spec-template-state.test.ts --testNamePattern="template reuse|multiple invokes|distinct materialization state" --reporter=verbose | tee .sisyphus/evidence/task-8-invoke-template-reuse.log`
+    Expected: PASS; multiple invoke runs reuse the same template while writing distinct invoke-state materialization results
+    Evidence: .sisyphus/evidence/task-8-invoke-template-reuse.log
   ```
 
-  **Commit**: YES | Message: `feat(facts): upgrade draft spec payload with compat` | Files: `packages/contracts/src/**`, `packages/workflow-engine/src/**`
+  **Commit**: YES | Message: `feat(invoke): make draft spec template-only` | Files: `packages/contracts/src/**`, `packages/workflow-engine/src/**`
 
-- [ ] 9. Close the fact CRUD audit and prove no bypass remains
+- [ ] 9. Migrate legacy readers/consumers and harden all runtime boundaries
 
-  **What to do**: Reconcile the inventory from T1 with the hardened surfaces from T5-T8 and add the final no-bypass audit proof. Every approved mutation surface must either use the shared pipeline or be explicitly deferred with rationale.
-  **Must NOT do**: Do not leave uncategorized mutation surfaces. Do not close the audit on prose alone; it needs executable proof.
+  **What to do**: Audit and update all readers/evaluators/consumers that still expect legacy envelopes or flat draft-spec payloads: detail views, action runtime, command services, invoke readers, form/context consumers, and any compatibility fallbacks. Ensure write hardening and read compatibility land together.
+  **Must NOT do**: Do not harden writers only and leave readers stale. Do not leave raw `factInstanceId` envelopes as the canonical runtime expectation.
 
   **Recommended Agent Profile**:
-  - Category: `unspecified-high`
-  - Skills: [`effect-best-practices`] - Reason: this is systems closure across multiple packages.
-  - Omitted: [`web-design-guidelines`] - Reason: not UI focused.
+  - Category: `deep` - Reason: this is the no-drift closure task.
+  - Skills: [`effect-best-practices`] - Reason: consumers must stay consistent across layered services.
+  - Omitted: [`web-design-guidelines`] - Reason: this is not a visual task.
 
-  **Parallelization**: Can Parallel: YES | Wave 3 | Blocks: T10 and Final Verification | Blocked By: T8
+  **Parallelization**: Can Parallel: YES | Wave 3 | Blocks: T11 | Blocked By: T3, T4, T7, T8
 
   **References**:
-  - Inventory from T1
-  - Hardened boundaries from T5-T8
+  - `packages/workflow-engine/src/services/step-execution-detail-service.ts`
+  - `packages/workflow-engine/src/services/workflow-execution-step-command-service.ts`
+  - `packages/workflow-engine/src/services/action-step-runtime-service.ts`
+  - `packages/workflow-engine/src/services/form-step-execution-service.ts`
 
   **Acceptance Criteria**:
-  - [ ] `bunx vitest run packages/workflow-engine/src/tests/runtime/fact-audit-no-bypass.test.ts`
+  - [ ] `bunx vitest run packages/workflow-engine/src/tests/runtime/bound-fact-compatibility.test.ts`
+  - [ ] `bunx vitest run packages/workflow-engine/src/tests/runtime/artifact-snapshot-fact-semantics.test.ts`
   - [ ] `bun run check-types`
 
   **QA Scenarios**:
   ```
-  Scenario: No approved fact write path bypasses the shared pipeline
+  Scenario: Legacy wrapped envelopes normalize correctly for readers and evaluators
     Tool: Bash
-    Steps: run `bunx vitest run packages/workflow-engine/src/tests/runtime/fact-audit-no-bypass.test.ts --reporter=verbose | tee .sisyphus/evidence/task-9-no-bypass.log`
-    Expected: PASS; approved mutation surfaces all route through the shared decode/normalize/validate path or are explicitly deferred
-    Evidence: .sisyphus/evidence/task-9-no-bypass.log
+    Steps: run `bunx vitest run packages/workflow-engine/src/tests/runtime/bound-fact-compatibility.test.ts --reporter=verbose | tee .sisyphus/evidence/task-9-bound-compat.log`
+    Expected: PASS; `{ factInstanceId, value }` and approved legacy shapes remain readable while canonical writes emit `{ instanceId, value }`
+    Evidence: .sisyphus/evidence/task-9-bound-compat.log
 
-  Scenario: Deferred surfaces are explicit and finite
+  Scenario: No runtime consumer still expects flat draft-spec or friendly slot keys
     Tool: Bash
-    Steps: run the same suite filtered to defer-rationale fixtures
-    Expected: PASS; any deferred surfaces are named explicitly with owner and rationale rather than silently skipped
-    Evidence: .sisyphus/evidence/task-9-deferred-surfaces.log
+    Steps: run `bunx vitest run packages/workflow-engine/src/tests/runtime/bound-fact-compatibility.test.ts packages/workflow-engine/src/tests/runtime/artifact-snapshot-fact-semantics.test.ts --testNamePattern="draft spec consumer|slotDefinitionId persistence|friendly slot key|flat draft spec" --reporter=verbose | tee .sisyphus/evidence/task-9-consumer-migration.log`
+    Expected: PASS; all relevant readers/consumers understand the new grouped template/state and canonical slotDefinitionId persistence
+    Evidence: .sisyphus/evidence/task-9-consumer-migration.log
   ```
 
-  **Commit**: YES | Message: `test(facts): close crud audit and prove no bypass` | Files: `packages/**`
+  **Commit**: YES | Message: `fix(runtime): migrate fact consumers to canonical model` | Files: `packages/workflow-engine/src/**`, `packages/api/src/**`
 
-- [ ] 10. Run repo-wide compatibility and regression verification
+- [ ] 10. Implement manual runtime CRUD dialogs and page flows on existing runtime surfaces
 
-  **What to do**: Run the targeted Plan B suites first, then repo-wide typecheck/test/build. Confirm Plan A surfaces still work under the new canonical fact pipeline and compatibility policy.
-  **Must NOT do**: Do not merge Plan B while any legacy compatibility or no-bypass proof is red.
+  **What to do**: Upgrade the existing runtime pages to the locked UI matrix. Keep project fact CRUD on `projects.$projectId.facts.$factDefinitionId`, work-unit fact CRUD on `projects.$projectId.work-units.$projectWorkUnitId.facts.$factDefinitionId`, and add workflow-context CRUD as a context section on workflow execution detail. Use dialogs by default: cardinality-one direct set/replace dialog; cardinality-many instance list + per-instance dialogs. Use kind-specific structured dialogs for `bound_fact`, `work_unit`, `artifact_snapshot_fact`, `workflow_ref_fact`, and `work_unit_draft_spec_fact`.
+  **Must NOT do**: Do not introduce a broad new runtime CRUD UI architecture. Do not use generic JSON-first dialogs for special fact families.
 
   **Recommended Agent Profile**:
-  - Category: `unspecified-high`
-  - Skills: [`web-design-guidelines`] - Reason: final regression should catch user-facing fallout from boundary hardening too.
-  - Omitted: [`opencode-sdk`] - Reason: unrelated.
+  - Category: `visual-engineering` - Reason: this is the one major runtime-surface/UI integration task.
+  - Skills: [`vercel-react-best-practices`, `web-design-guidelines`] - Reason: dialog/data-fetch patterns must stay performant and consistent.
+  - Omitted: [`vercel-composition-patterns`] - Reason: not a component-library redesign.
 
-  **Parallelization**: Can Parallel: NO | Wave 3 | Blocks: Final Verification | Blocked By: T9
+  **Parallelization**: Can Parallel: YES | Wave 4 | Blocks: T11 | Blocked By: T6, T7, T8
 
   **References**:
-  - Root scripts: `package.json`
-  - All T1-T9 suites
+  - `apps/web/src/routes/projects.$projectId.facts.$factDefinitionId.tsx`
+  - `apps/web/src/routes/projects.$projectId.work-units.$projectWorkUnitId.facts.$factDefinitionId.tsx`
+  - `apps/web/src/routes/projects.$projectId.workflow-executions.$workflowExecutionId.tsx`
+  - `apps/web/src/components/ui/dialog.tsx`
+  - `apps/web/src/components/ui/sheet.tsx`
+  - `apps/web/src/features/workflow-editor/dialogs.tsx`
 
   **Acceptance Criteria**:
+  - [ ] `bunx vitest run apps/web/src/tests/runtime/runtime-fact-dialogs.test.tsx`
+  - [ ] `bunx vitest run apps/web/src/tests/runtime/workflow-context-fact-crud-section.test.tsx`
   - [ ] `bun run check-types`
+
+  **QA Scenarios**:
+  ```
+  Scenario: Manual runtime fact dialogs follow the locked cardinality matrix
+    Tool: Bash
+    Steps: run `bunx vitest run apps/web/src/tests/runtime/runtime-fact-dialogs.test.tsx --reporter=verbose | tee .sisyphus/evidence/task-10-runtime-dialogs.log`
+    Expected: PASS; cardinality-one uses direct set/replace dialog, cardinality-many uses list + per-instance dialogs, and special kinds use structured dialogs
+    Evidence: .sisyphus/evidence/task-10-runtime-dialogs.log
+
+  Scenario: Workflow execution detail hosts workflow-context CRUD as a context section
+    Tool: Bash
+    Steps: run `bunx vitest run apps/web/src/tests/runtime/workflow-context-fact-crud-section.test.tsx --reporter=verbose | tee .sisyphus/evidence/task-10-workflow-context-ui.log`
+    Expected: PASS; workflow execution detail is the canonical manual CRUD home for workflow-context facts and step execution pages do not become the primary CRUD surface
+    Evidence: .sisyphus/evidence/task-10-workflow-context-ui.log
+  ```
+
+  **Commit**: YES | Message: `feat(web): add plan-b runtime fact dialogs` | Files: `apps/web/src/routes/**`, `apps/web/src/components/**`
+
+- [ ] 11. Run no-bypass audit, regression, and Plan A compatibility proof
+
+  **What to do**: Prove that all approved fact mutation surfaces now use the canonical runtime model and shared runtime enforcement where required, that workflow-context mediation remains intact, and that Plan A action/branch flows still pass. Include exact regression commands and evidence.
+  **Must NOT do**: Do not leave compatibility claims as prose. Do not skip Plan A reruns.
+
+  **Recommended Agent Profile**:
+  - Category: `unspecified-high` - Reason: this is a broad regression and audit wave.
+  - Skills: [`effect-best-practices`] - Reason: audit assertions must remain aligned with service boundaries.
+  - Omitted: [`review-work`] - Reason: the plan already defines the exact review wave below.
+
+  **Parallelization**: Can Parallel: NO | Wave 4 | Blocks: Final Verification Wave | Blocked By: T6-T10
+
+  **References**:
+  - `packages/api/src/routers/project-runtime.ts`
+  - `packages/workflow-engine/src/services/runtime/agent-step-context-write-service.ts`
+  - `packages/workflow-engine/src/services/invoke-propagation-service.ts`
+  - `.sisyphus/plans/l3-plan-a-action-branch-gates.md`
+
+  **Acceptance Criteria**:
+  - [ ] `bunx vitest run packages/contracts/src/tests/l3-plan-a-action-branch-contracts.test.ts`
+  - [ ] `bunx vitest run packages/api/src/tests/routers/action-branch-plan-a-routers.test.ts`
+  - [ ] `bunx vitest run packages/db/src/tests/repository/l3-plan-a-action-branch-repositories.test.ts`
+  - [ ] `bunx vitest run packages/db/src/tests/schema/l3-plan-a-action-branch-schema.test.ts`
+  - [ ] `bunx vitest run packages/workflow-engine/src/tests/runtime/action-step-runtime-services.test.ts`
+  - [ ] `bunx vitest run packages/workflow-engine/src/tests/runtime/branch-runtime-services.test.ts`
+  - [ ] `bunx vitest run packages/workflow-engine/src/tests/runtime/runtime-invoke-workunit-start.test.ts`
+  - [ ] `bunx vitest run packages/workflow-engine/src/tests/runtime/runtime-invoke-completion.test.ts`
   - [ ] `bun run test`
   - [ ] `bun run build`
 
   **QA Scenarios**:
   ```
-  Scenario: Targeted Plan B suites are green before repo-wide verification
+  Scenario: Plan A runtime branches/actions remain green after Plan B
     Tool: Bash
-    Steps: run the Plan B targeted vitest commands in order, then `bun run check-types && bun run test && bun run build | tee .sisyphus/evidence/task-10-plan-b-repo-verification.log`
-    Expected: PASS; canonicalization, compatibility, boundary hardening, invoke payload upgrade, and audit closure all stay green through repo-wide verification
-    Evidence: .sisyphus/evidence/task-10-plan-b-repo-verification.log
+    Steps: run `bunx vitest run packages/contracts/src/tests/l3-plan-a-action-branch-contracts.test.ts packages/api/src/tests/routers/action-branch-plan-a-routers.test.ts packages/db/src/tests/repository/l3-plan-a-action-branch-repositories.test.ts packages/db/src/tests/schema/l3-plan-a-action-branch-schema.test.ts packages/workflow-engine/src/tests/runtime/action-step-runtime-services.test.ts packages/workflow-engine/src/tests/runtime/branch-runtime-services.test.ts packages/workflow-engine/src/tests/runtime/runtime-invoke-workunit-start.test.ts packages/workflow-engine/src/tests/runtime/runtime-invoke-completion.test.ts --reporter=verbose | tee .sisyphus/evidence/task-11-plan-a-regression.log`
+    Expected: PASS; Plan A action/branch/invoke behavior remains compatible after Plan B hardening
+    Evidence: .sisyphus/evidence/task-11-plan-a-regression.log
 
-  Scenario: Plan A remains compatible under Plan B enforcement
+  Scenario: No approved write path bypasses canonical runtime enforcement
     Tool: Bash
-    Steps: rerun the relevant Plan A suites for Action, Branch, and gate alignment after Plan B changes
-    Expected: PASS; Plan A feature behavior remains intact while using the hardened fact pipeline and canonical shapes
-    Evidence: .sisyphus/evidence/task-10-plan-a-compat.log
+    Steps: run `bun run test -- --reporter=verbose | tee .sisyphus/evidence/task-11-no-bypass.log`
+    Expected: PASS; all approved mutation surfaces pass and any bypass fixture fails loudly
+    Evidence: .sisyphus/evidence/task-11-no-bypass.log
   ```
 
-  **Commit**: YES | Message: `test(facts): verify compatibility and regression closure` | Files: `packages/**`, `apps/**`
+  **Commit**: YES | Message: `test(facts): prove plan-b regression closure` | Files: `packages/**`, `apps/web/src/tests/**`
 
 ## Final Verification Wave (MANDATORY — after ALL implementation tasks)
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 > **Never mark F1-F4 as checked before getting user's okay.** Rejection or user feedback -> fix -> re-run -> present again -> wait for okay.
 - [ ] F1. Plan Compliance Audit — oracle
+
+  **QA Scenarios**:
+  ```
+  Scenario: Oracle verifies implementation against this plan
+    Tool: Bash
+    Steps: run `bun run check-types && bun run test | tee .sisyphus/evidence/f1-plan-compliance.log`
+    Expected: Oracle review packet has passing type/test evidence and confirms task-by-task compliance against this plan
+    Evidence: .sisyphus/evidence/f1-plan-compliance.log
+  ```
 - [ ] F2. Code Quality Review — unspecified-high
-- [ ] F3. Real Manual QA — unspecified-high (+ playwright if UI fallout needs checking)
+
+  **QA Scenarios**:
+  ```
+  Scenario: Code quality review packet is complete
+    Tool: Bash
+    Steps: run `bun run build | tee .sisyphus/evidence/f2-code-quality.log`
+    Expected: Build passes and reviewer can inspect final code paths, error handling, and layering without unresolved quality defects
+    Evidence: .sisyphus/evidence/f2-code-quality.log
+  ```
+- [ ] F3. Real Manual QA — unspecified-high (+ playwright if UI)
+
+  **QA Scenarios**:
+  ```
+  Scenario: Runtime CRUD UI/manual QA is exercised end-to-end
+    Tool: Playwright
+    Steps: open the project runtime fact detail pages and workflow execution detail page, execute create/update/delete/remove flows for representative fact families, and capture screenshots/logs
+    Expected: All manual runtime CRUD surfaces behave according to the plan, with correct dialogs, validation, and page ownership
+    Evidence: .sisyphus/evidence/f3-real-manual-qa.log
+  ```
 - [ ] F4. Scope Fidelity Check — deep
 
+  **QA Scenarios**:
+  ```
+  Scenario: Final scope check confirms no forbidden expansion landed
+    Tool: Bash
+    Steps: run `bunx vitest run packages/contracts/src/tests/fact-unification-runtime-contracts.test.ts packages/contracts/src/tests/mcp-progressive-disclosure-contract.test.ts packages/api/src/tests/routers/runtime-fact-crud-logical-delete.test.ts packages/api/src/tests/routers/runtime-workflow-context-fact-crud.test.ts --reporter=verbose | tee .sisyphus/evidence/f4-scope-fidelity.log`
+    Expected: Final review confirms the work stayed inside Plan B scope and did not re-open methodology thinning or broad UI redesign
+    Evidence: .sisyphus/evidence/f4-scope-fidelity.log
+  ```
+
 ## Commit Strategy
-- Prefer 7-10 atomic commits aligned to proof-oriented deltas: inventory, model, fixtures, shared pipeline, boundary family hardening, draft-spec upgrade, audit closure, final verification.
-- Never mix boundary hardening with speculative storage redesign.
-- Keep each boundary family independently revertible.
+- Commit 1: contracts/schema lock (`packages/contracts`, `packages/db/src/schema`, repo interfaces)
+- Commit 2: shared runtime CRUD/orchestration + artifact/work-unit semantics (`packages/workflow-engine`, repo implementations)
+- Commit 3: runtime procedures + MCP/runtime boundary redesign (`packages/api`, `packages/workflow-engine`, `packages/contracts`)
+- Commit 4: web runtime CRUD surfaces/dialogs (`apps/web`)
+- Commit 5: audit/regression closure (tests only if practical; otherwise combine with previous wave)
+- Keep commits aligned to task clusters above; do not mix broad UI changes into contract-only commits.
 
 ## Success Criteria
-- Design-time and runtime fact interpretation use one canonical model.
-- Approved fact write paths no longer persist raw/unvalidated payloads directly.
-- Methodology-defined fact validation is enforced consistently at runtime.
-- Legacy rows remain readable under an explicit compatibility policy.
-- The richer nested `work_unit_draft_spec_fact` payload is live without breaking legacy reads.
-- The fact CRUD audit is closed with executable no-bypass proof.
+- Every fact family and runtime surface follows the locked canonical semantics without new judgment calls by the executor.
+- Manual runtime CRUD exists and is discoverable on the correct runtime pages for project facts, work-unit facts, and workflow-context facts.
+- MCP/agent runtime interactions are step-scoped, item-id based, mode-driven, and return structured errors.
+- `work_unit_draft_spec_fact` is template-only, invoke state is frozen-per-run, and legacy compatibility remains explicit.
+- Work-unit identity, artifact path semantics, slot-definition persistence, and Plan A compatibility are all proven by executable tests.
