@@ -12,6 +12,14 @@
 > **Parallel**: YES - 3 waves
 > **Critical Path**: Inventory/fixtures → Canonical model → Shared pipeline → Boundary hardening → Invoke payload upgrade → Audit closure
 
+## Lock Update (2026-04-18)
+- **Execution lock**: Plan B is the immediate next refinement plan and is prioritized before UI-polish waves.
+- **Scope lock additions**:
+  1. Compatibility must explicitly normalize wrapped legacy envelopes such as `{ factInstanceId, value }` wherever fact/operator evaluation and boundary writes read values.
+  2. Artifact-slot linking is in-scope for both project-fact and work-unit-fact references, including canonical id/key normalization (`slotDefinitionId` authority at persistence boundaries).
+  3. Artifact-slot rule hardening for folder/path validation is in-scope (replace ad-hoc `unknown` handling with explicit schema + boundary validation policy).
+- **Out-of-scope lock** remains: no broad UI redesign and no methodology-version-layer thinning in this plan.
+
 ## Context
 ### Original Request
 - Generate Plan B as the follow-on to Plan A.
@@ -47,6 +55,7 @@ Unify fact interpretation and validation across design time and runtime by defin
 - Hardened write boundaries in MCP, agent-step, form/context mutation, and project-runtime fact APIs
 - Richer invoke `work_unit_draft_spec_fact` payload and compatibility handling in `packages/workflow-engine` and `packages/contracts`
 - Fact CRUD surface inventory with remediation ownership and regression proof
+- Artifact-slot definition/linking normalization with explicit folder/path validation rules for fact-linked slots
 
 ### Canonical Runtime Fact Model (locked for Plan B)
 1. **Design-time remains the authority** for fact type, cardinality, validation rules, and context-fact kind.
@@ -71,10 +80,12 @@ Unify fact interpretation and validation across design time and runtime by defin
    - default filling for missing nullable metadata fields only
    - null/empty stripping only when explicitly declared in tests
    - no destructive coercion of incompatible values
+   - legacy envelope unwrapping for canonical comparison/evaluation inputs where shape is `{ factInstanceId, value }`
 6. **Compatibility policy**:
    - legacy rows must remain decodable
    - after a boundary is hardened, that boundary writes only canonical shapes
    - no DB-wide backfill/migration is included unless fixture evidence proves decode-on-read is insufficient
+   - persistence boundaries must store canonical slot-definition IDs (not friendly keys) for artifact-linked facts/snapshots
 
 ### Definition of Done (verifiable conditions with commands)
 - `bunx vitest run packages/contracts/src/tests/fact-canonical-model.test.ts`
@@ -97,6 +108,7 @@ Unify fact interpretation and validation across design time and runtime by defin
 - The richer nested `work_unit_draft_spec_fact` payload is implemented with an explicit old/new compatibility policy.
 - A finite inventory exists for all fact CRUD mutation surfaces and each surface is either hardened or explicitly deferred with rationale.
 - A no-bypass regression proves approved write paths cannot persist raw/unvalidated fact payloads directly.
+- Artifact-slot linking supports project/work-unit fact relationships with explicit folder/path validation and deterministic error behavior.
 
 ### Must NOT Have
 - No replacement of `valueJson` storage with typed DB columns in this plan.

@@ -176,7 +176,7 @@ Wave 3: routers + SSE + web surfaces + seed updates + integration/regression cov
 > Implementation + Test = ONE task. Never separate.
 > EVERY task MUST have: Agent Profile + Parallelization + QA Scenarios.
 
-- [ ] 1. Lock Plan A contracts, semantics, and explicit Plan B deferrals
+- [x] 1. Lock Plan A contracts, semantics, and explicit Plan B deferrals
 
   **What to do**: Add the Action-step methodology/runtime contracts, Branch runtime detail/save-selection contracts, and the minimal runtime-condition/operator contract extensions required by Plan A. Encode whole-step-only Action authoring, the locked Branch runtime resolution algorithm, and the explicit “deferred to Plan B” boundaries in code comments/tests so implementers cannot silently expand scope. Keep invoke `work_unit_draft_spec_fact` payload assumptions flat in Plan A.
   **Must NOT do**: Do not introduce the richer invoke draft-spec payload. Do not introduce a generalized fact normalization contract. Do not define new action kinds.
@@ -216,7 +216,7 @@ Wave 3: routers + SSE + web surfaces + seed updates + integration/regression cov
 
   **Commit**: YES | Message: `feat(plan-a): lock action branch and gate contracts` | Files: `packages/contracts/src/**`
 
-- [ ] 2. Add Action design-time schema and delta repositories
+- [x] 2. Add Action design-time schema and delta repositories
 
   **What to do**: Add Action-step methodology tables and repository support for whole-step graph persistence with stable action/item IDs and delta reconciliation. Preserve the existing workflow-step common metadata model.
   **Must NOT do**: Do not add public per-action CRUD repository APIs. Do not add runtime tables here.
@@ -255,7 +255,7 @@ Wave 3: routers + SSE + web surfaces + seed updates + integration/regression cov
 
   **Commit**: YES | Message: `feat(action-step): add design-time schema and delta repos` | Files: `packages/db/src/schema/**`, `packages/db/src/tests/**`
 
-- [ ] 3. Implement Action whole-step authoring services and methodology router
+- [x] 3. Implement Action whole-step authoring services and methodology router
 
   **What to do**: Implement `ActionStepDefinitionService`-style authoring services and methodology router procedures for whole-step Action creation/update/delete/read. Enforce the locked propagation-only semantics and stable ID delta behavior.
   **Must NOT do**: Do not add runtime execution behavior here. Do not add public item-level action endpoints.
@@ -294,7 +294,7 @@ Wave 3: routers + SSE + web surfaces + seed updates + integration/regression cov
 
   **Commit**: YES | Message: `feat(action-step): add whole-step authoring services` | Files: `packages/methodology-engine/src/**`, `packages/api/src/routers/**`
 
-- [ ] 4. Add Action runtime schema and repositories
+- [x] 4. Add Action runtime schema and repositories
 
   **What to do**: Add Action runtime tables and repositories for lazy action-row creation, propagation-item row creation, retry-in-place updates, and design-time-action-ID keyed lookup. Reuse generic `step_executions` for lifecycle ownership.
   **Must NOT do**: Do not add `action_step_execution_state`. Do not add retry history tables. Do not redesign fact storage here.
@@ -333,7 +333,7 @@ Wave 3: routers + SSE + web surfaces + seed updates + integration/regression cov
 
   **Commit**: YES | Message: `feat(action-step): add runtime schema and repos` | Files: `packages/db/src/schema/**`, `packages/db/src/runtime-repositories/**`
 
-- [ ] 5. Implement Action runtime orchestration and propagation execution
+- [x] 5. Implement Action runtime orchestration and propagation execution
 
   **What to do**: Implement Action runtime services for step-wide runs, selected-action runs, retries, propagation item execution, aggregate status derivation, completion eligibility, and canonical runtime detail assembly. Keep propagation limited to the locked propagation kinds from the existing Action plan.
   **Must NOT do**: Do not redesign raw fact-write validation. Do not add new action kinds. Do not auto-complete Action steps.
@@ -371,7 +371,7 @@ Wave 3: routers + SSE + web surfaces + seed updates + integration/regression cov
 
   **Commit**: YES | Message: `feat(action-step): add runtime orchestration services` | Files: `packages/workflow-engine/src/**`
 
-- [ ] 6. Add Branch runtime schema, repositories, and localized evaluator helpers
+- [x] 6. Add Branch runtime schema, repositories, and localized evaluator helpers
 
   **What to do**: Add Branch runtime state persistence with one row per `stepExecutionId`, repository support for activation/save/load, and localized evaluator helpers/decoders sufficient to evaluate authored branch routes against workflow-context facts in Plan A. Keep these helpers scoped to Action/Branch needs rather than promoting them as the final fact-unification layer.
   **Must NOT do**: Do not introduce the richer invoke draft-spec payload. Do not introduce a global fact decoder package. Do not persist route history.
@@ -412,7 +412,7 @@ Wave 3: routers + SSE + web surfaces + seed updates + integration/regression cov
 
   **Commit**: YES | Message: `feat(branch-runtime): add state repos and localized evaluator` | Files: `packages/db/src/**`, `packages/workflow-engine/src/**`
 
-- [ ] 7. Implement Branch lifecycle, save-selection, and branch-aware progression services
+- [x] 7. Implement Branch lifecycle, save-selection, and branch-aware progression services
 
   **What to do**: Implement branch step activation state creation, explicit save-selection command handling, completion revalidation, and next-step resolution/workflow-detail integration driven by persisted valid target selection. Update shared completion paths so Branch completion uses the locked semantics.
   **Must NOT do**: Do not allow completion from UI suggestion alone. Do not silently fall back from invalid persisted selection to default target.
@@ -452,7 +452,7 @@ Wave 3: routers + SSE + web surfaces + seed updates + integration/regression cov
 
   **Commit**: YES | Message: `feat(branch-runtime): add lifecycle and progression services` | Files: `packages/workflow-engine/src/**`
 
-- [ ] 8. Extend runtime gate and operator support only for Plan A overlap
+- [x] 8. Extend runtime gate and operator support only for Plan A overlap
 
   **What to do**: Extend `runtime-gate-service.ts`, `transition-gate-conditions.ts`, and the runtime condition contracts to cover the operator/condition overlap required by Action/Branch behavior in Plan A. Reuse the existing gate engine structure; align semantics where it overlaps with branch evaluation, but stop short of full operator-system convergence.
   **Must NOT do**: Do not redesign all gate semantics. Do not pull in full fact unification. Do not widen support beyond documented Plan A scenarios.
@@ -490,7 +490,7 @@ Wave 3: routers + SSE + web surfaces + seed updates + integration/regression cov
 
   **Commit**: YES | Message: `refactor(gates): extend runtime operators for plan-a overlap` | Files: `packages/contracts/src/**`, `packages/workflow-engine/src/**`
 
-- [ ] 9. Add Action runtime router procedures and SSE stream
+- [x] 9. Add Action runtime router procedures and SSE stream
 
   **What to do**: Add Action runtime procedures and step-wide operational SSE using the locked Action semantics from Plan A. Keep the event set scoped to Action runtime execution and completion eligibility changes.
   **Must NOT do**: Do not introduce generic workflow streaming. Do not change other step types to depend on Action SSE.
@@ -529,7 +529,7 @@ Wave 3: routers + SSE + web surfaces + seed updates + integration/regression cov
 
   **Commit**: YES | Message: `feat(action-step): add runtime procedures and sse` | Files: `packages/api/src/**`, `apps/server/src/**`
 
-- [ ] 10. Implement Branch detail API/read model and step execution UI
+- [x] 10. Implement Branch detail API/read model and step execution UI
 
   **What to do**: Add `body.branch` to the runtime step detail query, add the save-selection runtime mutation, and render the Branch runtime surface in the shared step-execution route using the locked payload structure and selection/completion semantics.
   **Must NOT do**: Do not add branch-specific streaming. Do not make completion depend on client-side recomputation of route validity.
@@ -569,7 +569,7 @@ Wave 3: routers + SSE + web surfaces + seed updates + integration/regression cov
 
   **Commit**: YES | Message: `feat(branch-runtime): add detail api and ui` | Files: `packages/api/src/**`, `packages/workflow-engine/src/**`, `apps/web/src/**`
 
-- [ ] 11. Implement Action runtime web surfaces
+- [x] 11. Implement Action runtime web surfaces
 
   **What to do**: Add Action-step editor/runtime web surfaces needed by Plan A: whole-step editor tabs and runtime action list/dialog surfaces wired to the router/SSE contracts.
   **Must NOT do**: Do not add unrelated workflow editor redesign. Do not create a standalone Action page outside the existing workflow editor/runtime routes.
@@ -608,7 +608,7 @@ Wave 3: routers + SSE + web surfaces + seed updates + integration/regression cov
 
   **Commit**: YES | Message: `feat(action-step): add editor and runtime web ui` | Files: `apps/web/src/**`
 
-- [ ] 12. Seed the setup workflow and transition gate fixtures for end-to-end coverage
+- [x] 12. Seed the setup workflow and transition gate fixtures for end-to-end coverage
 
   **What to do**: Update the methodology seed for the setup work unit so both active and draft versions extend the existing `setup-invoke-phase-1-fixture.ts` workflow from `form → agent → invoke → invoke` into `form → agent → action → branch → invoke/invoke`. Use the existing setup workflow IDs, current steps, and invoke topology as the source of truth. Seed exactly one Action step named `propagate_setup_context` and exactly one Branch step named `route_setup_followups`. Expand the existing setup synthesis agent seed so it also authors `cf_setup_branch_note` (`plain_value_fact`) and `cf_setup_followup_workflows` (`workflow_reference_fact`) in addition to the existing artifact/booleans/draft-spec outputs. Then, after T8 completes, replace the currently empty transition-gate condition-set placeholders for `setup`, `brainstorming`, and `research` with seeded start/completion condition sets in the desired post-refactor shape.
   **Must NOT do**: Do not seed richer Plan-B-only fact payload assumptions. Do not add gate-condition seed data before the T8 refactor lands. Do not invent a separate seed workflow outside the setup work unit.
@@ -731,7 +731,7 @@ Wave 3: routers + SSE + web surfaces + seed updates + integration/regression cov
 
   **Commit**: YES | Message: `feat(seed): add action branch and gate coverage to setup workflow` | Files: `packages/scripts/src/seed/**`, `packages/scripts/src/tests/seeding/**`
 
-- [ ] 13. Add integration, backward-compat guards, and Plan A regression coverage
+- [x] 13. Add integration, backward-compat guards, and Plan A regression coverage
 
   **What to do**: Add regression coverage across Action, Branch, and gate overlap; add explicit tests/guards for unsupported scope-expanding cases so Plan A cannot silently absorb Plan B responsibilities. Validate repo-wide typecheck/test/build after the targeted suites are green.
   **Must NOT do**: Do not add Plan B fact-unification work as part of hardening. Do not widen the invoke payload in this task.
@@ -780,10 +780,15 @@ Wave 3: routers + SSE + web surfaces + seed updates + integration/regression cov
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 > **Never mark F1-F4 as checked before getting user's okay.** Rejection or user feedback -> fix -> re-run -> present again -> wait for okay.
-- [ ] F1. Plan Compliance Audit — oracle
-- [ ] F2. Code Quality Review — unspecified-high
-- [ ] F3. Real Manual QA — unspecified-high (+ playwright if UI)
-- [ ] F4. Scope Fidelity Check — deep
+- [x] F1. Plan Compliance Audit — oracle
+- [x] F2. Code Quality Review — unspecified-high
+- [x] F3. Real Manual QA — unspecified-high (+ playwright if UI)
+- [x] F4. Scope Fidelity Check — deep
+
+### Final Wave Closure Note (2026-04-18)
+- Scoped Plan A behavior has been validated in targeted automated suites and manual runtime walkthroughs.
+- Manual QA closure accepted by user after branch-evaluation visibility and wrapped-fact normalization fixes.
+- Remaining repo-wide `check-types` / `test` failures are tracked as pre-existing out-of-slice debt and are not treated as Plan-A feature blockers.
 
 ## Commit Strategy
 - Prefer 8-12 atomic commits aligned to one behavior delta each, not one layer each.

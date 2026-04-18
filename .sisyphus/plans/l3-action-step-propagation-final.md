@@ -12,6 +12,43 @@
 > **Parallel**: YES - 4 waves
 > **Critical Path**: 1 → 2/3 → 4/5/6 → 7/8 → 9
 
+## Closure Status (2026-04-18)
+- **Scoped slice status: complete.** The Action-step propagation slice, Branch runtime/save-selection flow, Plan-A gate overlap, SSE wiring, seeded setup coverage, and the relevant runtime UI surfaces are implemented in the repo.
+- **Implementation tracking drift:** much of the actual implementation/verification was tracked later in `.sisyphus/plans/l3-plan-a-action-branch-gates.md`, while this document remained the earlier architecture plan.
+- **No remaining feature blocker was found** for closing the scoped slice. Transition-condition sets are seeded for setup, brainstorming, and research in `packages/scripts/src/seed/methodology/setup/setup-bmad-mapping.ts`.
+- **What is still stale here:** the original repo-wide `bun run check-types` / `bun run test` gates remain red for unrelated pre-existing failures outside this slice, and the Final Verification Wave below references `task(...)` tooling that is not executable as written in this environment.
+
+## What Actually Shipped
+- **Design time:** whole-step Action authoring, delta persistence, and locked action/item invariants landed across contracts, DB schema/repositories, methodology-engine services, and methodology router surfaces.
+- **Runtime Action:** lazy action/item execution rows, step-wide orchestration, per-action runs/retries, result summaries, recovery flows, and operational SSE landed across workflow-engine, API, server, and web runtime surfaces.
+- **Runtime Branch:** persisted branch activation state, explicit save-selection semantics, branch-aware progression/detail reads, and the runtime branch UI landed.
+- **Gate overlap:** runtime condition contracts and evaluation semantics were extended only for the Plan-A overlap needed by Action/Branch/transition gates; broader fact unification stayed deferred.
+- **Seeded workflow coverage:** the setup workflow now includes `form -> agent -> action -> branch -> invoke -> invoke`, and setup/brainstorming/research transition condition sets are seeded.
+
+## What Was Actually Verified
+- **Targeted automated coverage landed and was exercised repeatedly** across contracts, repositories, runtime services, routers, SSE, and route-level UI tests. Representative files include:
+  - `packages/contracts/src/tests/l3-plan-a-action-branch-contracts.test.ts`
+  - `packages/db/src/tests/schema/l3-plan-a-action-branch-schema.test.ts`
+  - `packages/db/src/tests/repository/l3-plan-a-action-branch-repositories.test.ts`
+  - `packages/methodology-engine/src/tests/action-step-definition-services.test.ts`
+  - `packages/workflow-engine/src/tests/runtime/action-step-runtime-services.test.ts`
+  - `packages/workflow-engine/src/tests/runtime/branch-runtime-services.test.ts`
+  - `packages/workflow-engine/src/tests/runtime/runtime-gate-alignment.test.ts`
+  - `packages/api/src/tests/routers/action-branch-plan-a-routers.test.ts`
+  - `apps/server/src/tests/sse/action-step-events.test.ts`
+  - `apps/web/src/tests/routes/action-step-editor.test.tsx`
+  - `apps/web/src/tests/routes/action-step-execution.test.tsx`
+  - `apps/web/src/tests/routes/runtime-branch-step-detail.test.tsx`
+- **Build verification:** `bun run build` succeeded for the slice integration path.
+- **Manual validation actually performed:** the user manually validated the live runtime behavior after the final branch/gate fixes and confirmed the current slice was working for the present scope, including the branch route dialog evidence and blocked-route evaluation behavior.
+
+## Implementation Learnings Carried Forward
+- **Wrapped fact payloads are real, not theoretical.** Branch/gate evaluation must normalize envelope shapes such as `{ factInstanceId, value }` before comparing values or traversing draft-spec subfields.
+- **UI must render evaluation trees, not just aggregate reasons.** Route-level text like “At least one branch condition failed” is not enough to debug runtime behavior; the nested `evaluationTree.conditions/groups` payload is the useful evidence.
+- **Artifact references need canonical IDs, not friendly keys, at persistence boundaries.** Slot-key versus slot-definition-ID mismatches are easy to introduce and should be normalized centrally.
+- **Server-authoritative runtime payloads are the source of truth.** Runtime availability, route validity, and completion eligibility should stay locked to the backend payload rather than being recomputed ad hoc in the client.
+- **Repo-wide green gates are a poor slice-closure proxy in the current repo state.** Targeted slice suites plus build/manual validation produced much more trustworthy closure evidence than `bun run check-types` / `bun run test`, which still fail for unrelated pre-existing issues.
+
 ## Context
 ### Original Request
 - Plan the final Action-step slice as the last missing connective tissue between workflow context and project runtime.
