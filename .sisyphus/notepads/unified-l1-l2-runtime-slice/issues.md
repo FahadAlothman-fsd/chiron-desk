@@ -28,3 +28,9 @@
 - Command: `bun test` (repo root)
 - Result: fails with broad pre-existing suite/environment issues across e2e, desktop, and web tests (Playwright invocation context, browser/electron globals, jsdom/vitest API mismatch), unrelated to `packages/workflow-engine/src/layers/live.ts` change.
 - Local evidence for changed scope: `bun run build` succeeded and `lsp_diagnostics` on `packages/workflow-engine/src/layers/live.ts` returned clean.
+
+## 2026-04-17 - Dashboard runtime overview missing StepProgressionService
+
+- Symptom: `POST /rpc/project/getRuntimeOverview` failed with `Service not found: @chiron/workflow-engine/services/StepProgressionService`.
+- Root cause: `WorkflowEngineRuntimeLive` constructed workflow execution command/detail services without internally providing the step-core layer, so runtime overview queries pulled in a partially wired dependency graph.
+- Resolution: provided workflow execution command/detail services from a combined `WorkflowEngineRuntimeBaseLayer + WorkflowEngineRuntimeStepCoreLayer` dependency layer and added `createBranchStepRuntimeRepoLayer(db)` to server runtime repo composition so the newly wired `StepProgressionServiceLive` could fully resolve.

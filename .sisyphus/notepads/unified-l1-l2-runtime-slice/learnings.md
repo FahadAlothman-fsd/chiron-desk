@@ -337,6 +337,12 @@
 - Open/Future section stays merged (not split into separate Open/Future top-level blocks), preserves bootstrap evaluation order, and surfaces source indicators on candidate rows.
 
 ### Dialog integration
+
+## 2026-04-17 - Runtime overview StepProgression DI wiring regression
+
+- `WorkflowEngineRuntimeLive` cannot leave `WorkflowExecutionCommandServiceLive` / `WorkflowExecutionDetailServiceLive` as siblings of `StepProgressionServiceLive` and hope outer `Layer.mergeAll(...)` will resolve them safely.
+- For workflow-engine live wiring, build a dedicated dependency layer that merges runtime base repos with step-core services, then `Layer.provide(...)` the workflow execution command/detail services from that combined dependency layer.
+- Once `StepProgressionServiceLive` is part of the runtime overview dependency graph, server runtime repo composition must include `createBranchStepRuntimeRepoLayer(db)` or the next missing-service failure shifts from `StepProgressionService` to `BranchStepRuntimeRepository`.
 - Added shared runtime start-gate dialog component (`apps/web/src/components/runtime/runtime-start-gate-dialog.tsx`) driven by `project.getRuntimeStartGateDetail`.
 - Added launch decision helper (`resolveRuntimeGuidanceLaunchDecision`) to route actions through:
   - `startTransitionExecution` for future candidates and open candidates without active transition context.
