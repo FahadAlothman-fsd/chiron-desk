@@ -64,6 +64,14 @@ export interface BranchTargetSuggestion {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+const isExternalFactEnvelope = (
+  value: unknown,
+): value is { factInstanceId: string; value: unknown } =>
+  isRecord(value) && typeof value.factInstanceId === "string" && "value" in value;
+
+const unwrapExternalFactEnvelope = (value: unknown): unknown =>
+  isExternalFactEnvelope(value) ? value.value : value;
+
 const getRouteSortOrder = (route: BranchEvaluableRoute, index: number): number =>
   typeof route.sortOrder === "number" ? route.sortOrder : index;
 
@@ -153,8 +161,14 @@ const extractFactValues = (
   row: RuntimeWorkflowExecutionContextFactRow,
   subFieldKey: string | null,
 ): readonly unknown[] => {
+  const rawValue = unwrapExternalFactEnvelope(row.valueJson);
+
   if (!subFieldKey) {
-    return typeof row.valueJson === "undefined" || row.valueJson === null ? [] : [row.valueJson];
+    if (typeof row.valueJson === "undefined" || row.valueJson === null) {
+      return [];
+    }
+
+    return [rawValue];
   }
 
   switch (definition.kind) {
@@ -163,9 +177,9 @@ const extractFactValues = (
     case "bound_external_fact":
     case "workflow_reference_fact":
     case "artifact_reference_fact":
-      return pickJsonSubFieldValues(row.valueJson, subFieldKey);
+      return pickJsonSubFieldValues(rawValue, subFieldKey);
     case "work_unit_draft_spec_fact": {
-      const normalized = normalizeDraftSpecValue(row.valueJson);
+      const normalized = normalizeDraftSpecValue(rawValue);
       if (!normalized) {
         return [];
       }

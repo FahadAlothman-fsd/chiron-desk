@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React, { type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { RuntimeConditionEvaluationTree } from "@chiron/contracts/runtime/conditions";
 
 const { useRouteContextMock, useParamsMock } = vi.hoisted(() => ({
   useRouteContextMock: vi.fn(),
@@ -163,6 +164,7 @@ function buildDetail(params?: {
     isValid: boolean;
     sortOrder: number;
     reason?: string;
+    evaluationTree?: RuntimeConditionEvaluationTree;
   }>;
   defaultTargetStepId?: string | null;
   suggestion?: {
@@ -240,13 +242,15 @@ function buildDetail(params?: {
         sortOrder: route.sortOrder,
         isValid: route.isValid,
         conditionMode: "all" as const,
-        evaluationTree: {
-          mode: "all" as const,
-          met: route.isValid,
-          ...(route.reason ? { reason: route.reason } : {}),
-          conditions: [],
-          groups: [],
-        },
+        evaluationTree:
+          route.evaluationTree ??
+          ({
+            mode: "all" as const,
+            met: route.isValid,
+            ...(route.reason ? { reason: route.reason } : {}),
+            conditions: [],
+            groups: [],
+          } satisfies RuntimeConditionEvaluationTree),
       })),
       defaultTargetStepId,
       saveSelectionAction: {
@@ -558,5 +562,71 @@ describe("runtime branch step detail route", () => {
     expect(
       screen.getByText("No valid targets are available to save from the current server payload."),
     ).toBeTruthy();
+  });
+
+  it("renders nested condition-level branch evaluation details", async () => {
+    await renderHarness(
+      buildDetail({
+        conditionalRoutes: [
+          {
+            routeId: "route-evidence",
+            targetStepId: "step-next-a",
+            isValid: false,
+            sortOrder: 0,
+            reason: "At least one branch condition failed",
+            evaluationTree: {
+              mode: "all",
+              met: false,
+              reason: "At least one branch condition failed",
+              conditions: [],
+              groups: [
+                {
+                  mode: "all",
+                  met: true,
+                  conditions: [
+                    {
+                      met: true,
+                      condition: {
+                        kind: "fact",
+                        factDefinitionId: "fact-requires-brainstorming",
+                        factKey: "requires_brainstorming",
+                        operator: "equals",
+                        comparisonJson: { value: true },
+                      },
+                    },
+                  ],
+                  groups: [],
+                },
+                {
+                  mode: "any",
+                  met: false,
+                  reason: "No ANY branch satisfied",
+                  conditions: [
+                    {
+                      met: false,
+                      reason: "Context fact 'branch_note' did not satisfy equals",
+                      condition: {
+                        kind: "fact",
+                        factDefinitionId: "fact-branch-note",
+                        factKey: "branch_note",
+                        operator: "equals",
+                        comparisonJson: { value: "brainstorm_then_research" },
+                      },
+                    },
+                  ],
+                  groups: [],
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(screen.getAllByText("ALL group").length).toBeGreaterThan(0);
+    expect(screen.getByText("requires_brainstorming equals true")).toBeTruthy();
+    expect(screen.getByText("ANY group")).toBeTruthy();
+    expect(screen.getByText("branch_note equals brainstorm_then_research")).toBeTruthy();
+    expect(screen.getByText("Context fact 'branch_note' did not satisfy equals")).toBeTruthy();
   });
 });

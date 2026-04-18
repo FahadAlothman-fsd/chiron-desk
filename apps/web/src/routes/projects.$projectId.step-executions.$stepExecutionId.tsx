@@ -6,6 +6,10 @@ import type {
 } from "@chiron/contracts/agent-step/runtime";
 import type { WorkflowContextFactKind } from "@chiron/contracts/methodology/workflow";
 import type {
+  RuntimeConditionEvaluation,
+  RuntimeConditionEvaluationTree,
+} from "@chiron/contracts/runtime/conditions";
+import type {
   GetRuntimeStepExecutionDetailOutput,
   RuntimeActionAffectedTarget,
   RuntimeInvokeWorkUnitTargetRow,
@@ -568,6 +572,121 @@ function formatUnknown(value: unknown): string {
   });
 
   return serialized.isOk() ? serialized.value : "[unserializable]";
+}
+
+function unwrapComparisonValue(value: unknown): unknown {
+  if (value && typeof value === "object" && !Array.isArray(value) && "value" in value) {
+    return (value as { value: unknown }).value;
+  }
+
+  return value;
+}
+
+function getBranchConditionSummary(evaluation: RuntimeConditionEvaluation): string {
+  const condition = evaluation.condition;
+
+  if (condition.kind === "artifact") {
+    const expression = `artifact:${condition.slotKey} ${condition.operator}`;
+    return condition.isNegated ? `NOT ${expression}` : expression;
+  }
+
+  const target = condition.subFieldKey
+    ? `${condition.factKey}.${condition.subFieldKey}`
+    : condition.factKey;
+  const operator =
+    condition.operator === "equals"
+      ? `equals ${formatUnknown(unwrapComparisonValue(condition.comparisonJson))}`
+      : "exists";
+  const expression = `${target} ${operator}`;
+
+  return condition.isNegated ? `NOT ${expression}` : expression;
+}
+
+function countBranchEvaluations(tree: RuntimeConditionEvaluationTree): {
+  met: number;
+  total: number;
+} {
+  const conditionCounts = tree.conditions.reduce(
+    (totals, condition) => ({
+      met: totals.met + (condition.met ? 1 : 0),
+      total: totals.total + 1,
+    }),
+    { met: 0, total: 0 },
+  );
+
+  return tree.groups.reduce((totals, group) => {
+    const nested = countBranchEvaluations(group);
+    return {
+      met: totals.met + nested.met,
+      total: totals.total + nested.total,
+    };
+  }, conditionCounts);
+}
+
+function BranchConditionEvaluationTreePanel({
+  tree,
+  depth = 0,
+}: {
+  tree: RuntimeConditionEvaluationTree;
+  depth?: number;
+}) {
+  const counts = countBranchEvaluations(tree);
+
+  return (
+    <div className={cn("space-y-2", depth > 0 ? "border-l border-border/60 pl-3" : undefined)}>
+      <div className="space-y-2 border border-border/70 bg-background/30 p-2">
+        <div className="flex flex-wrap gap-2">
+          <ExecutionBadge label={`${tree.mode.toUpperCase()} group`} tone="slate" />
+          <ExecutionBadge
+            label={tree.met ? "Satisfied" : "Blocked"}
+            tone={tree.met ? "emerald" : "rose"}
+          />
+          <ExecutionBadge label={`${counts.met}/${counts.total} matched`} tone="violet" />
+        </div>
+        {tree.reason ? <p className="text-xs text-muted-foreground">{tree.reason}</p> : null}
+      </div>
+
+      {tree.conditions.length > 0 ? (
+        <div className="space-y-2">
+          {tree.conditions.map((evaluation, index) => (
+            <div
+              key={`${getBranchConditionSummary(evaluation)}-${index}`}
+              className={cn(
+                "space-y-1 border bg-background/30 p-2",
+                evaluation.met ? "border-emerald-500/30" : "border-rose-500/30",
+              )}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <ExecutionBadge
+                  label={evaluation.met ? "Matched" : "Failed"}
+                  tone={evaluation.met ? "emerald" : "rose"}
+                />
+                <ExecutionBadge label={evaluation.condition.kind} tone="slate" />
+              </div>
+              <p className="break-all font-mono text-[11px] text-foreground/85">
+                {getBranchConditionSummary(evaluation)}
+              </p>
+              {!evaluation.met && evaluation.reason ? (
+                <p className="text-xs text-muted-foreground">{evaluation.reason}</p>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {tree.groups.length > 0 ? (
+        <div className="space-y-2">
+          {tree.groups.map((group, index) => (
+            <BranchConditionEvaluationTreePanel
+              key={`${group.mode}-${index}`}
+              tree={group}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function parseToolPayload(value: string | undefined): unknown {
@@ -3361,10 +3480,8 @@ function BranchInteractionSurface(props: {
                         </div>
                       </div>
 
-                      {!route.isValid && route.evaluationTree?.reason ? (
-                        <p className="text-xs text-muted-foreground">
-                          {route.evaluationTree.reason}
-                        </p>
+                      {route.evaluationTree ? (
+                        <BranchConditionEvaluationTreePanel tree={route.evaluationTree} />
                       ) : null}
                     </CardContent>
                   </Card>

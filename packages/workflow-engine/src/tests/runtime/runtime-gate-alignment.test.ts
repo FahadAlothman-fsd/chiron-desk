@@ -557,4 +557,271 @@ describe("runtime gate / branch overlap alignment", () => {
     expect(gateResult.result).toBe("blocked");
     expect(gateResult.firstReason).toBe("Work-unit fact 'status' did not satisfy exists");
   });
+
+  it("unwraps external fact envelopes for equals checks in both branch and gate evaluation", async () => {
+    const contextFactDefinitions: readonly WorkflowContextFactDto[] = [
+      {
+        contextFactDefinitionId: "requires-brainstorming-fact-id",
+        kind: "definition_backed_external_fact",
+        key: "requires_brainstorming",
+        cardinality: "one",
+        bindingKey: "requires-brainstorming",
+        valueType: "boolean",
+      },
+    ];
+
+    const envelopeValue = {
+      factInstanceId: "wu-fact-1",
+      value: true,
+    };
+
+    const branchEvaluations = evaluateRoutes({
+      routes: [
+        {
+          routeId: "route-1",
+          targetStepId: "step-brainstorm",
+          sortOrder: 0,
+          conditionMode: "all",
+          groups: [
+            {
+              groupId: "group-1",
+              mode: "all",
+              conditions: [
+                {
+                  conditionId: "cond-1",
+                  contextFactDefinitionId: "requires-brainstorming-fact-id",
+                  subFieldKey: null,
+                  operator: "equals",
+                  isNegated: false,
+                  comparisonJson: { value: true },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      contextFacts: [
+        {
+          id: "ctx-1",
+          workflowExecutionId: "workflow-1",
+          contextFactDefinitionId: "requires-brainstorming-fact-id",
+          instanceOrder: 0,
+          valueJson: envelopeValue,
+          sourceStepExecutionId: null,
+          createdAt: new Date("2026-04-17T00:00:00.000Z"),
+          updatedAt: new Date("2026-04-17T00:00:00.000Z"),
+        },
+      ],
+      contextFactDefinitions,
+    });
+
+    const gateResult = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* RuntimeGateService;
+        return yield* service.evaluateCompletionGateExhaustive({
+          projectId: "project-1",
+          projectWorkUnitId: "wu-1",
+          conditionTree: toRuntimeConditionTree([
+            {
+              mode: "all",
+              groupsJson: [
+                {
+                  mode: "all",
+                  conditions: [
+                    {
+                      kind: "work_unit_fact",
+                      required: true,
+                      config: {
+                        factKey: "requires_brainstorming",
+                        factDefinitionId: "requires-brainstorming-fact-id",
+                        operator: "equals",
+                        comparisonJson: { value: true },
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          ]),
+        });
+      }).pipe(
+        Effect.provide(
+          makeRuntimeGateLayer({
+            workUnitFacts: new Map([["requires-brainstorming-fact-id", [envelopeValue]]]),
+          }),
+        ),
+      ),
+    );
+
+    expect(branchEvaluations[0]?.isValid).toBe(true);
+    expect(branchEvaluations[0]?.evaluationTree.met).toBe(true);
+    expect(gateResult.result).toBe("available");
+    expect(gateResult.evaluationTree.met).toBe(true);
+  });
+
+  it("unwraps enveloped draft-spec values for fact subfield checks in branch and gate evaluation", async () => {
+    const contextFactDefinitions: readonly WorkflowContextFactDto[] = [
+      {
+        contextFactDefinitionId: "draft-spec-fact-id",
+        kind: "work_unit_draft_spec_fact",
+        key: "draft_spec",
+        cardinality: "one",
+        workUnitDefinitionId: "wu-type-1",
+        selectedWorkUnitFactDefinitionIds: ["status-id"],
+        selectedArtifactSlotDefinitionIds: [],
+      },
+    ];
+
+    const envelopedDraftSpec = {
+      factInstanceId: "wu-fact-1",
+      value: {
+        facts: [{ factDefinitionId: "status-id", value: "ready" }],
+        artifacts: [],
+        instance: {},
+      },
+    };
+
+    const branchEvaluations = evaluateRoutes({
+      routes: [
+        {
+          routeId: "route-draft-spec",
+          targetStepId: "step-next",
+          sortOrder: 0,
+          conditionMode: "all",
+          groups: [
+            {
+              groupId: "group-draft-spec",
+              mode: "all",
+              conditions: [
+                {
+                  conditionId: "cond-status",
+                  contextFactDefinitionId: "draft-spec-fact-id",
+                  subFieldKey: "fact:status-id",
+                  operator: "equals",
+                  isNegated: false,
+                  comparisonJson: { value: "ready" },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      contextFacts: [
+        {
+          id: "ctx-draft-spec",
+          workflowExecutionId: "workflow-1",
+          contextFactDefinitionId: "draft-spec-fact-id",
+          instanceOrder: 0,
+          valueJson: envelopedDraftSpec,
+          sourceStepExecutionId: null,
+          createdAt: new Date("2026-04-17T00:00:00.000Z"),
+          updatedAt: new Date("2026-04-17T00:00:00.000Z"),
+        },
+      ],
+      contextFactDefinitions,
+    });
+
+    const gateResult = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* RuntimeGateService;
+        return yield* service.evaluateCompletionGateExhaustive({
+          projectId: "project-1",
+          projectWorkUnitId: "wu-1",
+          conditionTree: toRuntimeConditionTree([
+            {
+              mode: "all",
+              groupsJson: [
+                {
+                  mode: "all",
+                  conditions: [
+                    {
+                      kind: "work_unit_fact",
+                      required: true,
+                      config: {
+                        factKey: "draft_spec",
+                        factDefinitionId: "draft-spec-fact-id",
+                        subFieldKey: "fact:status-id",
+                        operator: "equals",
+                        comparisonJson: { value: "ready" },
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          ]),
+        });
+      }).pipe(
+        Effect.provide(
+          makeRuntimeGateLayer({
+            workUnitFacts: new Map([["draft-spec-fact-id", [envelopedDraftSpec]]]),
+          }),
+        ),
+      ),
+    );
+
+    expect(branchEvaluations[0]?.isValid).toBe(true);
+    expect(branchEvaluations[0]?.evaluationTree.met).toBe(true);
+    expect(gateResult.result).toBe("available");
+    expect(gateResult.evaluationTree.met).toBe(true);
+  });
+
+  it("does not surface firstReason when an ANY gate is available", async () => {
+    const gateResult = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* RuntimeGateService;
+        return yield* service.evaluateCompletionGateExhaustive({
+          projectId: "project-1",
+          projectWorkUnitId: "wu-1",
+          conditionTree: toRuntimeConditionTree([
+            {
+              mode: "any",
+              groupsJson: [
+                {
+                  mode: "all",
+                  conditions: [
+                    {
+                      kind: "work_unit_fact",
+                      required: true,
+                      config: {
+                        factKey: "status",
+                        factDefinitionId: "status-fact-id",
+                        operator: "equals",
+                        comparisonJson: { value: "ready" },
+                      },
+                    },
+                  ],
+                },
+                {
+                  mode: "all",
+                  conditions: [
+                    {
+                      kind: "work_unit_fact",
+                      required: true,
+                      config: {
+                        factKey: "status",
+                        factDefinitionId: "status-fact-id",
+                        operator: "equals",
+                        comparisonJson: { value: "blocked" },
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          ]),
+        });
+      }).pipe(
+        Effect.provide(
+          makeRuntimeGateLayer({
+            workUnitFacts: new Map([["status-fact-id", ["ready"]]]),
+          }),
+        ),
+      ),
+    );
+
+    expect(gateResult.result).toBe("available");
+    expect(gateResult.firstReason).toBeUndefined();
+    expect(gateResult.evaluationTree.met).toBe(true);
+  });
 });

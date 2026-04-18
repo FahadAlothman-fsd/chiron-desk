@@ -115,6 +115,10 @@ const evaluateTree = (
   });
 
 const findFirstBlockingReason = (tree: RuntimeConditionEvaluationTree): string | undefined => {
+  if (tree.met) {
+    return undefined;
+  }
+
   for (const condition of tree.conditions) {
     if (!condition.met) {
       return condition.reason;
@@ -213,6 +217,14 @@ const normalizeSlotDefinitionId = (condition: {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+const isExternalFactEnvelope = (
+  value: unknown,
+): value is { factInstanceId: string; value: unknown } =>
+  isRecord(value) && typeof value.factInstanceId === "string" && "value" in value;
+
+const unwrapExternalFactEnvelope = (value: unknown): unknown =>
+  isExternalFactEnvelope(value) ? value.value : value;
+
 type DraftSpecFactEntry = {
   factDefinitionId: string;
   value?: unknown;
@@ -303,12 +315,15 @@ const extractFactValues = (
 ): readonly unknown[] => {
   if (!subFieldKey) {
     return rows.flatMap((row) =>
-      typeof row.valueJson === "undefined" || row.valueJson === null ? [] : [row.valueJson],
+      typeof row.valueJson === "undefined" || row.valueJson === null
+        ? []
+        : [unwrapExternalFactEnvelope(row.valueJson)],
     );
   }
 
   return rows.flatMap((row) => {
-    const normalized = normalizeDraftSpecValue(row.valueJson);
+    const rawValue = unwrapExternalFactEnvelope(row.valueJson);
+    const normalized = normalizeDraftSpecValue(rawValue);
     if (normalized) {
       if (subFieldKey.startsWith("fact:")) {
         const factDefinitionId = subFieldKey.slice("fact:".length);
@@ -344,7 +359,7 @@ const extractFactValues = (
       }
     }
 
-    return pickJsonSubFieldValues(row.valueJson, subFieldKey);
+    return pickJsonSubFieldValues(rawValue, subFieldKey);
   });
 };
 
