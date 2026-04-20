@@ -258,7 +258,7 @@ function formatInvokeTargetKindLabel(targetKind: InvokeBody["targetKind"]): stri
 }
 
 function formatInvokeSourceModeLabel(sourceMode: InvokeBody["sourceMode"]): string {
-  return sourceMode === "context_fact_backed" ? "Context-fact backed" : "Fixed set";
+  return sourceMode === "fact_backed" ? "Fact backed" : "Fixed";
 }
 
 function formatInvokeCompletionRuleLabel(targetKind: InvokeBody["targetKind"]): string {
@@ -607,20 +607,26 @@ function countBranchEvaluations(tree: RuntimeConditionEvaluationTree): {
   total: number;
 } {
   const conditionCounts = tree.conditions.reduce(
-    (totals, condition) => ({
+    (
+      totals: { met: number; total: number },
+      condition: RuntimeConditionEvaluationTree["conditions"][number],
+    ) => ({
       met: totals.met + (condition.met ? 1 : 0),
       total: totals.total + 1,
     }),
     { met: 0, total: 0 },
   );
 
-  return tree.groups.reduce((totals, group) => {
-    const nested = countBranchEvaluations(group);
-    return {
-      met: totals.met + nested.met,
-      total: totals.total + nested.total,
-    };
-  }, conditionCounts);
+  return tree.groups.reduce(
+    (totals: { met: number; total: number }, group: RuntimeConditionEvaluationTree) => {
+      const nested = countBranchEvaluations(group);
+      return {
+        met: totals.met + nested.met,
+        total: totals.total + nested.total,
+      };
+    },
+    conditionCounts,
+  );
 }
 
 function BranchConditionEvaluationTreePanel({
@@ -648,35 +654,37 @@ function BranchConditionEvaluationTreePanel({
 
       {tree.conditions.length > 0 ? (
         <div className="space-y-2">
-          {tree.conditions.map((evaluation, index) => (
-            <div
-              key={`${getBranchConditionSummary(evaluation)}-${index}`}
-              className={cn(
-                "space-y-1 border bg-background/30 p-2",
-                evaluation.met ? "border-emerald-500/30" : "border-rose-500/30",
-              )}
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <ExecutionBadge
-                  label={evaluation.met ? "Matched" : "Failed"}
-                  tone={evaluation.met ? "emerald" : "rose"}
-                />
-                <ExecutionBadge label={evaluation.condition.kind} tone="slate" />
+          {tree.conditions.map(
+            (evaluation: RuntimeConditionEvaluationTree["conditions"][number], index: number) => (
+              <div
+                key={`${getBranchConditionSummary(evaluation)}-${index}`}
+                className={cn(
+                  "space-y-1 border bg-background/30 p-2",
+                  evaluation.met ? "border-emerald-500/30" : "border-rose-500/30",
+                )}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <ExecutionBadge
+                    label={evaluation.met ? "Matched" : "Failed"}
+                    tone={evaluation.met ? "emerald" : "rose"}
+                  />
+                  <ExecutionBadge label={evaluation.condition.kind} tone="slate" />
+                </div>
+                <p className="break-all font-mono text-[11px] text-foreground/85">
+                  {getBranchConditionSummary(evaluation)}
+                </p>
+                {!evaluation.met && evaluation.reason ? (
+                  <p className="text-xs text-muted-foreground">{evaluation.reason}</p>
+                ) : null}
               </div>
-              <p className="break-all font-mono text-[11px] text-foreground/85">
-                {getBranchConditionSummary(evaluation)}
-              </p>
-              {!evaluation.met && evaluation.reason ? (
-                <p className="text-xs text-muted-foreground">{evaluation.reason}</p>
-              ) : null}
-            </div>
-          ))}
+            ),
+          )}
         </div>
       ) : null}
 
       {tree.groups.length > 0 ? (
         <div className="space-y-2">
-          {tree.groups.map((group, index) => (
+          {tree.groups.map((group: RuntimeConditionEvaluationTree, index: number) => (
             <BranchConditionEvaluationTreePanel
               key={`${group.mode}-${index}`}
               tree={group}
@@ -1081,16 +1089,28 @@ function removeArrayValue(current: unknown, index: number): unknown[] {
   return Array.isArray(current) ? current.filter((_, itemIndex) => itemIndex !== index) : [];
 }
 
+function isBoundReferenceContextFactKind(kind: string): boolean {
+  return kind === "bound_fact";
+}
+
+function isWorkflowReferenceContextFactKind(kind: string): boolean {
+  return kind === "workflow_ref_fact";
+}
+
+function isArtifactReferenceContextFactKind(kind: string): boolean {
+  return kind === "artifact_slot_reference_fact";
+}
+
 function primitiveFromInput(value: string, field: RuntimeFormResolvedField): unknown {
-  if (field.contextFactKind === "artifact_reference_fact") {
+  if (isArtifactReferenceContextFactKind(field.contextFactKind)) {
     return value.length > 0 ? { relativePath: value } : null;
   }
 
-  if (field.contextFactKind === "workflow_reference_fact") {
+  if (isWorkflowReferenceContextFactKind(field.contextFactKind)) {
     return value.length > 0 ? { workflowDefinitionId: value } : null;
   }
 
-  if (field.contextFactKind === "bound_external_fact") {
+  if (isBoundReferenceContextFactKind(field.contextFactKind)) {
     return value.length > 0 ? { factInstanceId: value } : null;
   }
 
@@ -1110,16 +1130,20 @@ function primitiveToInput(value: unknown, field: RuntimeFormResolvedField): stri
     return "";
   }
 
-  if (field.contextFactKind === "artifact_reference_fact" && isPlainRecord(value)) {
+  if (isArtifactReferenceContextFactKind(field.contextFactKind) && isPlainRecord(value)) {
     return typeof value.relativePath === "string" ? value.relativePath : "";
   }
 
-  if (field.contextFactKind === "workflow_reference_fact" && isPlainRecord(value)) {
+  if (isWorkflowReferenceContextFactKind(field.contextFactKind) && isPlainRecord(value)) {
     return typeof value.workflowDefinitionId === "string" ? value.workflowDefinitionId : "";
   }
 
-  if (field.contextFactKind === "bound_external_fact" && isPlainRecord(value)) {
-    return typeof value.factInstanceId === "string" ? value.factInstanceId : "";
+  if (isBoundReferenceContextFactKind(field.contextFactKind) && isPlainRecord(value)) {
+    return typeof value.instanceId === "string"
+      ? value.instanceId
+      : typeof value.factInstanceId === "string"
+        ? value.factInstanceId
+        : "";
   }
 
   if (
@@ -1968,7 +1992,7 @@ function ReferenceField(props: {
   const { field, value, onChange, disabled } = props;
   const options = field.widget.options ?? [];
   const hasOptions = options.length > 0;
-  const shouldUseCombobox = hasOptions || field.contextFactKind === "bound_external_fact";
+  const shouldUseCombobox = hasOptions || isBoundReferenceContextFactKind(field.contextFactKind);
 
   if (field.widget.renderedMultiplicity === "many") {
     const items = Array.isArray(value) ? value : [];
@@ -2086,7 +2110,7 @@ function FormFieldEditor(props: {
   }
 
   if (
-    field.contextFactKind === "workflow_reference_fact" ||
+    isWorkflowReferenceContextFactKind(field.contextFactKind) ||
     (field.widget.control === "select" && (field.widget.options?.length ?? 0) > 0)
   ) {
     return <SelectField field={field} value={value} onChange={onChange} disabled={disabled} />;
@@ -2096,7 +2120,7 @@ function FormFieldEditor(props: {
     return <ReferenceField field={field} value={value} onChange={onChange} disabled={disabled} />;
   }
 
-  if (field.contextFactKind === "artifact_reference_fact") {
+  if (isArtifactReferenceContextFactKind(field.contextFactKind)) {
     return (
       <div className="space-y-2">
         <Input
@@ -2460,11 +2484,11 @@ function FormInteractionSurface(props: {
                           <ExecutionBadge
                             label={renderContextFactKindLabel(resolvedField.contextFactKind)}
                             tone={
-                              resolvedField.contextFactKind === "bound_external_fact"
+                              resolvedField.contextFactKind === "bound_fact"
                                 ? "amber"
-                                : resolvedField.contextFactKind === "workflow_reference_fact"
+                                : resolvedField.contextFactKind === "workflow_ref_fact"
                                   ? "violet"
-                                  : resolvedField.contextFactKind === "artifact_reference_fact"
+                                  : resolvedField.contextFactKind === "artifact_slot_reference_fact"
                                     ? "emerald"
                                     : resolvedField.contextFactKind === "work_unit_draft_spec_fact"
                                       ? "sky"
@@ -3618,7 +3642,7 @@ function InvokeInteractionSurface(props: {
             <div className="border border-border/70 bg-background/40 p-3">
               <DetailLabel>Source mode</DetailLabel>
               <DetailPrimary>{formatInvokeSourceModeLabel(body.sourceMode)}</DetailPrimary>
-              {body.sourceMode === "context_fact_backed" ? (
+              {body.sourceMode === "fact_backed" ? (
                 <div className="mt-1 space-y-1 text-xs text-muted-foreground">
                   <p>
                     Bound context fact: {body.sourceContextFactKey ?? "(key unavailable)"}

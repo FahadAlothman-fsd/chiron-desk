@@ -38,8 +38,8 @@ vi.mock("@/components/ui/skeleton", () => ({
   Skeleton: () => <div>loading</div>,
 }));
 
-vi.mock("@/components/runtime/artifact-snapshot-dialog", () => ({
-  ArtifactSnapshotDialog: () => <div>artifact-snapshot-dialog</div>,
+vi.mock("@/components/runtime/artifact-instance-dialog", () => ({
+  ArtifactInstanceDialog: () => <div>artifact-instance-dialog</div>,
 }));
 
 import { ProjectWorkUnitArtifactSlotDetailRoute } from "../../routes/projects.$projectId.work-units.$projectWorkUnitId.artifact-slots.$slotDefinitionId.tsx";
@@ -63,31 +63,18 @@ function createHarness() {
         slotName: "Project Brief",
         artifactKind: "file_set",
       },
-      currentEffectiveSnapshot: {
+      currentArtifactInstance: {
         exists: false,
-        memberCounts: { currentCount: 0 },
-        members: [],
+        fileCount: 0,
+        files: [],
       },
-      lineage: [
-        {
-          projectArtifactSnapshotId: "snap-latest",
-          createdAt: "2026-03-28T12:00:00.000Z",
-          memberCounts: { deltaRowCount: 2, effectiveCount: 0 },
-          actions: {
-            inspectSnapshot: {
-              kind: "open_artifact_snapshot_dialog",
-              projectArtifactSnapshotId: "snap-latest",
-            },
-          },
-        },
-      ],
     }),
   }));
 
   const checkArtifactSlotCurrentStateMutationOptionsMock = vi.fn(() => ({
     mutationFn: vi.fn(async () => ({
       result: "unavailable",
-      currentEffectiveSnapshotExists: false,
+      currentArtifactInstanceExists: false,
     })),
   }));
 
@@ -99,7 +86,7 @@ function createHarness() {
       checkArtifactSlotCurrentState: {
         mutationOptions: checkArtifactSlotCurrentStateMutationOptionsMock,
       },
-      getRuntimeArtifactSnapshotDialog: {
+      getRuntimeArtifactInstanceDialog: {
         queryOptions: vi.fn(),
       },
     },
@@ -135,7 +122,7 @@ describe("runtime artifact slot detail route", () => {
     vi.clearAllMocks();
   });
 
-  it("renders current effective snapshot before lineage and wires current-state check on detail page", async () => {
+  it("renders current artifact instance state and wires current-state check on detail page", async () => {
     const {
       queryClient,
       orpc,
@@ -159,17 +146,16 @@ describe("runtime artifact slot detail route", () => {
       </QueryClientProvider>,
     );
 
-    const currentSectionIndex = markup.indexOf("Current effective snapshot");
-    const lineageSectionIndex = markup.indexOf("Lineage history");
+    const currentSectionIndex = markup.indexOf("Current artifact instance");
+    const inspectSectionIndex = markup.indexOf("Artifact instance details");
 
     expect(markup).toContain("Project Brief");
-    expect(markup).toContain("No current effective artifact");
-    expect(markup).toContain("snap-latest");
-    expect(markup).toContain("Inspect snapshot");
+    expect(markup).toContain("No current artifact instance");
+    expect(markup).not.toContain("Lineage history");
     expect(markup).toContain("Check current slot state");
-    expect(markup).toContain("artifact-snapshot-dialog");
+    expect(markup).toContain("artifact-instance-dialog");
     expect(currentSectionIndex).toBeGreaterThanOrEqual(0);
-    expect(lineageSectionIndex).toBeGreaterThan(currentSectionIndex);
+    expect(inspectSectionIndex).toBe(-1);
 
     expect(getRuntimeArtifactSlotDetailQueryOptionsMock).toHaveBeenCalledWith({
       input: {

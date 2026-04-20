@@ -266,8 +266,43 @@ function buildDetail(params?: {
   };
 }
 
+type RuntimeBranchStepDetail = ReturnType<typeof buildDetail>;
+type CompletedRuntimeBranchStepDetail = Omit<RuntimeBranchStepDetail, "shell"> & {
+  shell: Omit<RuntimeBranchStepDetail["shell"], "status" | "completedAt" | "completionAction"> & {
+    status: "completed";
+    completedAt: string;
+    completionAction: {
+      kind: "complete_step_execution";
+      visible: false;
+      enabled: false;
+    };
+  };
+};
+
+function toCompletedDetail(detail: RuntimeBranchStepDetail): CompletedRuntimeBranchStepDetail {
+  return {
+    ...detail,
+    shell: {
+      ...detail.shell,
+      status: "completed",
+      completedAt: "2026-04-17T12:05:00.000Z",
+      completionAction: {
+        kind: "complete_step_execution",
+        visible: false,
+        enabled: false,
+      },
+    },
+  };
+}
+
+function isActiveDetail(
+  detail: RuntimeBranchStepDetail | CompletedRuntimeBranchStepDetail,
+): detail is RuntimeBranchStepDetail {
+  return detail.shell.status === "active";
+}
+
 async function renderHarness(initialDetail = buildDetail()) {
-  let currentDetail = initialDetail;
+  let currentDetail: RuntimeBranchStepDetail | CompletedRuntimeBranchStepDetail = initialDetail;
   const saveSelectionCalls: Array<Record<string, unknown>> = [];
   const completeCalls: Array<Record<string, unknown>> = [];
 
@@ -342,19 +377,11 @@ async function renderHarness(initialDetail = buildDetail()) {
     (options?: { onSuccess?: () => Promise<void> | void }) => ({
       mutationFn: async (input: Record<string, any>) => {
         completeCalls.push(input);
-        currentDetail = {
-          ...currentDetail,
-          shell: {
-            ...currentDetail.shell,
-            status: "completed",
-            completedAt: "2026-04-17T12:05:00.000Z",
-            completionAction: {
-              kind: "complete_step_execution",
-              visible: false,
-              enabled: false,
-            },
-          },
-        } as typeof currentDetail;
+        if (isActiveDetail(currentDetail)) {
+          currentDetail = toCompletedDetail(currentDetail);
+        } else {
+          currentDetail = toCompletedDetail(initialDetail);
+        }
         await options?.onSuccess?.();
         return { stepExecutionId: "step-branch-1", status: "completed" as const };
       },

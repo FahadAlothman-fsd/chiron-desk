@@ -4,7 +4,7 @@ import type {
 } from "@chiron/contracts/runtime/guidance";
 import { Link } from "@tanstack/react-router";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -255,38 +255,37 @@ export function RuntimeGuidanceSections({
               </CardContent>
               <CardFooter className="flex-wrap justify-between gap-2 text-[0.68rem] uppercase tracking-[0.12em]">
                 <div className="flex flex-wrap gap-2">
-                  <Button asChild size="xs" className="rounded-none uppercase tracking-[0.12em]">
-                    <Link
-                      to="/projects/$projectId/transition-executions/$transitionExecutionId"
-                      params={{
-                        projectId,
-                        transitionExecutionId:
-                          card.actions.openTransitionTarget.transitionExecutionId,
-                      }}
-                      search={{ projectWorkUnitId: card.projectWorkUnitId }}
-                      data-testid="open-transition-detail"
-                    >
-                      Open transition detail
-                    </Link>
-                  </Button>
-
-                  <Button
-                    asChild
-                    size="xs"
-                    variant="secondary"
-                    className="rounded-none uppercase tracking-[0.12em]"
+                  <Link
+                    to="/projects/$projectId/transition-executions/$transitionExecutionId"
+                    params={{
+                      projectId,
+                      transitionExecutionId:
+                        card.actions.openTransitionTarget.transitionExecutionId,
+                    }}
+                    search={{ projectWorkUnitId: card.projectWorkUnitId }}
+                    data-testid="open-transition-detail"
+                    className={cn(
+                      buttonVariants({ size: "xs" }),
+                      "rounded-none uppercase tracking-[0.12em]",
+                    )}
                   >
-                    <Link
-                      to="/projects/$projectId/workflow-executions/$workflowExecutionId"
-                      params={{
-                        projectId,
-                        workflowExecutionId: card.actions.openWorkflowTarget.workflowExecutionId,
-                      }}
-                      data-testid="open-workflow-detail"
-                    >
-                      Open workflow detail
-                    </Link>
-                  </Button>
+                    Open transition detail
+                  </Link>
+
+                  <Link
+                    to="/projects/$projectId/workflow-executions/$workflowExecutionId"
+                    params={{
+                      projectId,
+                      workflowExecutionId: card.actions.openWorkflowTarget.workflowExecutionId,
+                    }}
+                    data-testid="open-workflow-detail"
+                    className={cn(
+                      buttonVariants({ size: "xs", variant: "secondary" }),
+                      "rounded-none uppercase tracking-[0.12em]",
+                    )}
+                  >
+                    Open workflow detail
+                  </Link>
                 </div>
 
                 {card.activeTransition.readyForCompletion ? (

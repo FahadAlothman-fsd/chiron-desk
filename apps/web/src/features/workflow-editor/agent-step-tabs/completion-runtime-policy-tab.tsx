@@ -1,6 +1,6 @@
 import type { WorkflowAgentStepPayload, WorkflowContextFactDefinitionItem } from "../types";
 
-import { FieldDescription, FieldGroup } from "../../../components/ui/field";
+import { FieldDescription } from "../../../components/ui/field";
 
 type CompletionRuntimePolicyTabProps = {
   values: WorkflowAgentStepPayload;

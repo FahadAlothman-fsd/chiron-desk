@@ -56,21 +56,16 @@ function createHarness() {
             slotName: "Project Brief",
             artifactKind: "single_file",
           },
-          currentEffectiveSnapshot: {
+          currentArtifactInstance: {
             exists: true,
-            projectArtifactSnapshotId: "snap-1",
-            createdAt: "2026-03-28T12:00:00.000Z",
-            memberCounts: { currentCount: 1 },
-            previewMembers: [
+            artifactInstanceId: "artifact-instance-1",
+            updatedAt: "2026-03-28T12:00:00.000Z",
+            fileCount: 1,
+            previewFiles: [
               {
-                artifactSnapshotFileId: "file-1",
                 filePath: "docs/project-brief.md",
               },
             ],
-          },
-          latestLineageHead: {
-            projectArtifactSnapshotId: "snap-1",
-            createdAt: "2026-03-28T12:00:00.000Z",
           },
           target: {
             page: "artifact-slot-detail",
@@ -84,14 +79,10 @@ function createHarness() {
             slotName: "Risk Register",
             artifactKind: "file_set",
           },
-          currentEffectiveSnapshot: {
+          currentArtifactInstance: {
             exists: false,
-            memberCounts: { currentCount: 0 },
-            previewMembers: [],
-          },
-          latestLineageHead: {
-            projectArtifactSnapshotId: "snap-older",
-            createdAt: "2026-03-28T10:00:00.000Z",
+            fileCount: 0,
+            previewFiles: [],
           },
           target: {
             page: "artifact-slot-detail",
@@ -103,7 +94,7 @@ function createHarness() {
   }));
 
   const checkArtifactSlotCurrentStateMutationOptionsMock = vi.fn(() => ({
-    mutationFn: vi.fn(async () => ({ result: "unchanged", currentEffectiveSnapshotExists: true })),
+    mutationFn: vi.fn(async () => ({ result: "unchanged", currentArtifactInstanceExists: true })),
   }));
 
   const orpc = {
@@ -143,7 +134,7 @@ describe("runtime artifact slots route", () => {
     vi.clearAllMocks();
   });
 
-  it("renders one card per slot with current effective summary and detail navigation", async () => {
+  it("renders one card per slot with current artifact instance summary and detail navigation", async () => {
     const {
       queryClient,
       orpc,
@@ -166,7 +157,7 @@ describe("runtime artifact slots route", () => {
     expect(markup).toContain("Project Brief");
     expect(markup).toContain("Risk Register");
     expect(markup).toContain("docs/project-brief.md");
-    expect(markup).toContain("No current effective artifact");
+    expect(markup).toContain("No current artifact instance");
     expect(markup).toContain(
       'href="/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots/$slotDefinitionId"',
     );

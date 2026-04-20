@@ -58,7 +58,7 @@ type ActionType = WorkflowActionStepPayload["actions"][number]["actionKind"];
 type ActionDraft = WorkflowActionStepPayload["actions"][number];
 type PropagationItemDraft = ActionDraft["items"][number];
 type EligibleActionContextFact = WorkflowContextFactDefinitionItem & {
-  kind: ActionDraft["contextFactKind"];
+  kind: ActionDraft["contextFactKind"] | "artifact_slot_reference_fact";
 };
 
 type ActionStepDialogProps = {
@@ -115,9 +115,8 @@ const ACTION_TYPE_OPTIONS: ReadonlyArray<{
 ];
 
 const ACTION_ALLOWED_CONTEXT_FACT_KINDS = new Set([
-  "definition_backed_external_fact",
-  "bound_external_fact",
-  "artifact_reference_fact",
+  "bound_fact",
+  "artifact_slot_reference_fact",
 ] as const);
 
 function createLocalId(prefix: string) {
@@ -143,8 +142,12 @@ function createEmptyActionStepPayload(): WorkflowActionStepPayload {
 
 function isEligibleActionContextFactKind(
   kind: WorkflowContextFactDefinitionItem["kind"],
-): kind is ActionDraft["contextFactKind"] {
-  return ACTION_ALLOWED_CONTEXT_FACT_KINDS.has(kind as ActionDraft["contextFactKind"]);
+): kind is EligibleActionContextFact["kind"] {
+  if (kind === "bound_fact" || kind === "artifact_slot_reference_fact") {
+    return ACTION_ALLOWED_CONTEXT_FACT_KINDS.has(kind);
+  }
+
+  return false;
 }
 
 function isActionEditorStep(
@@ -237,12 +240,10 @@ function getValueTypeBadgeLabel(
 
 function getContextKindBadge(fact: EligibleActionContextFact): WorkflowEditorPickerBadge | null {
   switch (fact.kind) {
-    case "definition_backed_external_fact":
-      return { label: "definition backed", tone: "external-fact" };
-    case "bound_external_fact":
+    case "bound_fact":
       return { label: "bound", tone: "bound-fact" };
-    case "artifact_reference_fact":
-      return { label: "artifact", tone: "artifact-reference" };
+    case "artifact_slot_reference_fact":
+      return { label: "artifact", tone: "artifact-snapshot" };
     default:
       return null;
   }
@@ -250,19 +251,18 @@ function getContextKindBadge(fact: EligibleActionContextFact): WorkflowEditorPic
 
 function getUnderlyingBindingBadges(fact: EligibleActionContextFact): WorkflowEditorPickerBadge[] {
   switch (fact.kind) {
-    case "definition_backed_external_fact":
-    case "bound_external_fact":
-      return fact.externalFactDefinitionId?.trim()
+    case "bound_fact":
+      return fact.factDefinitionId?.trim()
         ? [
             {
-              label: fact.externalFactDefinitionId.trim(),
-              tone: getContextKindBadge(fact)?.tone ?? "external-fact",
+              label: fact.factDefinitionId.trim(),
+              tone: getContextKindBadge(fact)?.tone ?? "bound-fact",
             },
           ]
         : [];
-    case "artifact_reference_fact":
-      return fact.artifactSlotDefinitionId?.trim()
-        ? [{ label: fact.artifactSlotDefinitionId.trim(), tone: "artifact-reference" }]
+    case "artifact_slot_reference_fact":
+      return fact.slotDefinitionId?.trim()
+        ? [{ label: fact.slotDefinitionId.trim(), tone: "artifact-snapshot" }]
         : [];
     default:
       return [];
@@ -340,7 +340,7 @@ function createDefaultAction(
     sortOrder: (index + 1) * 100,
     actionKind: kind,
     contextFactDefinitionId: firstEligibleFact?.contextFactDefinitionId ?? "",
-    contextFactKind: firstEligibleFact?.kind ?? "definition_backed_external_fact",
+    contextFactKind: firstEligibleFact?.kind ?? "bound_fact",
     items: [createDefaultPropagationItem(firstEligibleFact?.contextFactDefinitionId)],
   };
 }
@@ -593,12 +593,12 @@ function summarizeActionKinds(
 
 function getTargetContextFactBadge(fact: EligibleActionContextFact): WorkflowEditorPickerBadge {
   switch (fact.kind) {
-    case "definition_backed_external_fact":
-      return { label: fact.label, tone: "external-fact" };
-    case "bound_external_fact":
+    case "bound_fact":
       return { label: fact.label, tone: "bound-fact" };
-    case "artifact_reference_fact":
-      return { label: fact.label, tone: "artifact-reference" };
+    case "artifact_slot_reference_fact":
+      return { label: fact.label, tone: "artifact-snapshot" };
+    default:
+      return { label: fact.label, tone: "bound-fact" };
   }
 }
 

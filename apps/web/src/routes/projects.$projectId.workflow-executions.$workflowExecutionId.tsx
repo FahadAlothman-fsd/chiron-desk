@@ -1,8 +1,17 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 
+import {
+  RuntimeConfirmDialog,
+  RuntimeFactValueDialog,
+  type RuntimeDialogEditor,
+  type RuntimeDraftSpecArtifactDefinition,
+  type RuntimeDraftSpecFieldDefinition,
+  type RuntimeFactOption,
+  type RuntimePrimitiveDefinition,
+} from "@/components/runtime/runtime-fact-dialogs";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
@@ -64,6 +73,70 @@ type WorkflowContextFactGroup = {
   definitionDescriptionJson?: unknown;
   instances: readonly WorkflowContextFactInstance[];
 };
+
+type WorkflowContextDefinition =
+  | {
+      kind: "plain_value_fact";
+      contextFactDefinitionId: string;
+      key: string;
+      label?: string;
+      descriptionJson?: unknown;
+      cardinality: "one" | "many";
+      valueType: "string" | "number" | "boolean" | "json";
+      validationJson?: unknown;
+    }
+  | {
+      kind: "bound_fact";
+      contextFactDefinitionId: string;
+      key: string;
+      label?: string;
+      descriptionJson?: unknown;
+      cardinality: "one" | "many";
+      factDefinitionId: string;
+      valueType?: "string" | "number" | "boolean" | "json" | "work_unit";
+      workUnitDefinitionId?: string;
+      validationJson?: unknown;
+    }
+  | {
+      kind: "workflow_ref_fact";
+      contextFactDefinitionId: string;
+      key: string;
+      label?: string;
+      descriptionJson?: unknown;
+      cardinality: "one" | "many";
+      allowedWorkflowDefinitionIds: string[];
+    }
+  | {
+      kind: "artifact_slot_reference_fact";
+      contextFactDefinitionId: string;
+      key: string;
+      label?: string;
+      descriptionJson?: unknown;
+      cardinality: "one" | "many";
+      slotDefinitionId: string;
+    }
+  | {
+      kind: "work_unit_draft_spec_fact";
+      contextFactDefinitionId: string;
+      key: string;
+      label?: string;
+      descriptionJson?: unknown;
+      cardinality: "one" | "many";
+      workUnitDefinitionId: string;
+      selectedWorkUnitFactDefinitionIds: string[];
+      selectedArtifactSlotDefinitionIds: string[];
+    };
+
+type FactDefinitionCatalogEntry = {
+  label: string;
+  definition: RuntimePrimitiveDefinition;
+};
+
+type WorkUnitCatalogEntry = {
+  label: string;
+};
+
+type ArtifactSnapshotOptionsBySlot = Map<string, RuntimeFactOption[]>;
 
 type WorkflowStepSurface =
   | {
@@ -236,6 +309,483 @@ function renderWorkflowRoleLabel(role: string): string {
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getProjectPin(
+  value: unknown,
+): { methodologyId: string; methodologyVersionId: string } | null {
+  if (!isPlainRecord(value) || !isPlainRecord(value.pin)) {
+    return null;
+  }
+
+  return typeof value.pin.methodologyId === "string" &&
+    typeof value.pin.methodologyVersionId === "string"
+    ? {
+        methodologyId: value.pin.methodologyId,
+        methodologyVersionId: value.pin.methodologyVersionId,
+      }
+    : null;
+}
+
+function toRuntimeWorkUnitOptions(value: unknown): RuntimeFactOption[] {
+  if (!isPlainRecord(value) || !Array.isArray(value.rows)) {
+    return [];
+  }
+
+  return value.rows.flatMap((row) => {
+    if (!isPlainRecord(row) || typeof row.projectWorkUnitId !== "string") {
+      return [];
+    }
+
+    const displayIdentity = isPlainRecord(row.displayIdentity) ? row.displayIdentity : null;
+    const primaryLabel =
+      typeof displayIdentity?.primaryLabel === "string"
+        ? displayIdentity.primaryLabel
+        : row.projectWorkUnitId;
+    const secondaryLabel =
+      typeof displayIdentity?.secondaryLabel === "string" ? displayIdentity.secondaryLabel : null;
+
+    return [
+      {
+        value: row.projectWorkUnitId,
+        label: secondaryLabel ? `${primaryLabel} · ${secondaryLabel}` : primaryLabel,
+      },
+    ];
+  });
+}
+
+function toWorkflowContextDefinitions(value: unknown): Map<string, WorkflowContextDefinition> {
+  if (!isPlainRecord(value) || !Array.isArray(value.contextFacts)) {
+    return new Map();
+  }
+
+  const definitions = new Map<string, WorkflowContextDefinition>();
+
+  for (const entry of value.contextFacts) {
+    if (!isPlainRecord(entry) || typeof entry.kind !== "string" || typeof entry.key !== "string") {
+      continue;
+    }
+
+    const contextFactDefinitionId =
+      typeof entry.contextFactDefinitionId === "string" ? entry.contextFactDefinitionId : null;
+    const cardinality = entry.cardinality === "many" ? "many" : "one";
+    if (!contextFactDefinitionId) {
+      continue;
+    }
+
+    switch (entry.kind) {
+      case "plain_value_fact":
+        if (
+          entry.valueType === "string" ||
+          entry.valueType === "number" ||
+          entry.valueType === "boolean" ||
+          entry.valueType === "json"
+        ) {
+          definitions.set(contextFactDefinitionId, {
+            kind: entry.kind,
+            contextFactDefinitionId,
+            key: entry.key,
+            ...(typeof entry.label === "string" ? { label: entry.label } : {}),
+            ...(entry.descriptionJson !== undefined
+              ? { descriptionJson: entry.descriptionJson }
+              : {}),
+            cardinality,
+            valueType: entry.valueType,
+            ...(entry.validationJson !== undefined ? { validationJson: entry.validationJson } : {}),
+          });
+        }
+        break;
+      case "bound_fact":
+        if (typeof entry.factDefinitionId === "string") {
+          definitions.set(contextFactDefinitionId, {
+            kind: entry.kind,
+            contextFactDefinitionId,
+            key: entry.key,
+            ...(typeof entry.label === "string" ? { label: entry.label } : {}),
+            ...(entry.descriptionJson !== undefined
+              ? { descriptionJson: entry.descriptionJson }
+              : {}),
+            cardinality,
+            factDefinitionId: entry.factDefinitionId,
+            ...(entry.valueType === "string" ||
+            entry.valueType === "number" ||
+            entry.valueType === "boolean" ||
+            entry.valueType === "json" ||
+            entry.valueType === "work_unit"
+              ? { valueType: entry.valueType }
+              : {}),
+            ...(typeof entry.workUnitDefinitionId === "string"
+              ? { workUnitDefinitionId: entry.workUnitDefinitionId }
+              : {}),
+            ...(entry.validationJson !== undefined ? { validationJson: entry.validationJson } : {}),
+          });
+        }
+        break;
+      case "workflow_ref_fact":
+        definitions.set(contextFactDefinitionId, {
+          kind: entry.kind,
+          contextFactDefinitionId,
+          key: entry.key,
+          ...(typeof entry.label === "string" ? { label: entry.label } : {}),
+          ...(entry.descriptionJson !== undefined
+            ? { descriptionJson: entry.descriptionJson }
+            : {}),
+          cardinality,
+          allowedWorkflowDefinitionIds: Array.isArray(entry.allowedWorkflowDefinitionIds)
+            ? entry.allowedWorkflowDefinitionIds.filter(
+                (candidate): candidate is string => typeof candidate === "string",
+              )
+            : [],
+        });
+        break;
+      case "artifact_slot_reference_fact":
+        if (typeof entry.slotDefinitionId === "string") {
+          definitions.set(contextFactDefinitionId, {
+            kind: entry.kind,
+            contextFactDefinitionId,
+            key: entry.key,
+            ...(typeof entry.label === "string" ? { label: entry.label } : {}),
+            ...(entry.descriptionJson !== undefined
+              ? { descriptionJson: entry.descriptionJson }
+              : {}),
+            cardinality,
+            slotDefinitionId: entry.slotDefinitionId,
+          });
+        }
+        break;
+      case "work_unit_draft_spec_fact":
+        if (typeof entry.workUnitDefinitionId === "string") {
+          definitions.set(contextFactDefinitionId, {
+            kind: entry.kind,
+            contextFactDefinitionId,
+            key: entry.key,
+            ...(typeof entry.label === "string" ? { label: entry.label } : {}),
+            ...(entry.descriptionJson !== undefined
+              ? { descriptionJson: entry.descriptionJson }
+              : {}),
+            cardinality,
+            workUnitDefinitionId: entry.workUnitDefinitionId,
+            selectedWorkUnitFactDefinitionIds: Array.isArray(
+              entry.selectedWorkUnitFactDefinitionIds,
+            )
+              ? entry.selectedWorkUnitFactDefinitionIds.filter(
+                  (candidate): candidate is string => typeof candidate === "string",
+                )
+              : [],
+            selectedArtifactSlotDefinitionIds: Array.isArray(
+              entry.selectedArtifactSlotDefinitionIds,
+            )
+              ? entry.selectedArtifactSlotDefinitionIds.filter(
+                  (candidate): candidate is string => typeof candidate === "string",
+                )
+              : [],
+          });
+        }
+        break;
+    }
+  }
+
+  return definitions;
+}
+
+function toProjectFactCatalog(value: unknown): Map<string, FactDefinitionCatalogEntry> {
+  if (!isPlainRecord(value) || !Array.isArray(value.factDefinitions)) {
+    return new Map();
+  }
+
+  return new Map(
+    value.factDefinitions.flatMap((entry) => {
+      if (!isPlainRecord(entry) || typeof entry.id !== "string" || typeof entry.key !== "string") {
+        return [];
+      }
+
+      const factType =
+        entry.valueType === "string" ||
+        entry.valueType === "number" ||
+        entry.valueType === "boolean" ||
+        entry.valueType === "json" ||
+        entry.valueType === "work_unit"
+          ? entry.valueType
+          : null;
+      if (!factType) {
+        return [];
+      }
+
+      return [
+        [
+          entry.id,
+          {
+            label: typeof entry.name === "string" ? entry.name : entry.key,
+            definition: {
+              factType,
+              ...(entry.validationJson !== undefined ? { validation: entry.validationJson } : {}),
+            },
+          } satisfies FactDefinitionCatalogEntry,
+        ],
+      ];
+    }),
+  );
+}
+
+function toWorkUnitFactCatalog(value: unknown): Map<string, FactDefinitionCatalogEntry> {
+  if (!isPlainRecord(value) || !Array.isArray(value.workUnitTypes)) {
+    return new Map();
+  }
+
+  return new Map(
+    value.workUnitTypes.flatMap((workUnitType) => {
+      if (!isPlainRecord(workUnitType) || !Array.isArray(workUnitType.factSchemas)) {
+        return [];
+      }
+
+      return workUnitType.factSchemas.flatMap((entry) => {
+        if (
+          !isPlainRecord(entry) ||
+          typeof entry.id !== "string" ||
+          typeof entry.key !== "string"
+        ) {
+          return [];
+        }
+
+        const factType =
+          entry.factType === "string" ||
+          entry.factType === "number" ||
+          entry.factType === "boolean" ||
+          entry.factType === "json" ||
+          entry.factType === "work_unit"
+            ? entry.factType
+            : null;
+        if (!factType) {
+          return [];
+        }
+
+        return [
+          [
+            entry.id,
+            {
+              label: typeof entry.name === "string" ? entry.name : entry.key,
+              definition: {
+                factType,
+                ...(entry.validationJson !== undefined ? { validation: entry.validationJson } : {}),
+              },
+            } satisfies FactDefinitionCatalogEntry,
+          ],
+        ];
+      });
+    }),
+  );
+}
+
+function toWorkUnitCatalog(value: unknown): Map<string, WorkUnitCatalogEntry> {
+  if (!isPlainRecord(value) || !Array.isArray(value.workUnitTypes)) {
+    return new Map();
+  }
+
+  return new Map(
+    value.workUnitTypes.flatMap((entry) => {
+      if (!isPlainRecord(entry) || typeof entry.id !== "string" || typeof entry.key !== "string") {
+        return [];
+      }
+
+      return [
+        [
+          entry.id,
+          {
+            label: typeof entry.displayName === "string" ? entry.displayName : entry.key,
+          } satisfies WorkUnitCatalogEntry,
+        ],
+      ];
+    }),
+  );
+}
+
+function toWorkflowOptions(value: unknown): RuntimeFactOption[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!isPlainRecord(entry) || typeof entry.id !== "string") {
+      return [];
+    }
+
+    const key = typeof entry.key === "string" ? entry.key : entry.id;
+    const name = typeof entry.name === "string" ? entry.name : key;
+    return [{ value: entry.id, label: `${name} · ${key}` }];
+  });
+}
+
+function toArtifactSlotCatalog(value: unknown): Map<string, WorkUnitCatalogEntry> {
+  if (!Array.isArray(value)) {
+    return new Map();
+  }
+
+  return new Map(
+    value.flatMap((entry) => {
+      if (!isPlainRecord(entry) || typeof entry.id !== "string") {
+        return [];
+      }
+
+      return [
+        [
+          entry.id,
+          {
+            label:
+              typeof entry.displayName === "string"
+                ? entry.displayName
+                : typeof entry.key === "string"
+                  ? entry.key
+                  : entry.id,
+          } satisfies WorkUnitCatalogEntry,
+        ],
+      ];
+    }),
+  );
+}
+
+function toArtifactSnapshotOptionsBySlot(
+  queries: ReadonlyArray<{ data?: unknown }>,
+): ArtifactSnapshotOptionsBySlot {
+  const result = new Map<string, RuntimeFactOption[]>();
+
+  for (const query of queries) {
+    if (!isPlainRecord(query.data) || !isPlainRecord(query.data.slotDefinition)) {
+      continue;
+    }
+
+    const slotDefinitionId =
+      typeof query.data.slotDefinition.slotDefinitionId === "string"
+        ? query.data.slotDefinition.slotDefinitionId
+        : null;
+    if (!slotDefinitionId) {
+      continue;
+    }
+
+    const options: RuntimeFactOption[] = [];
+    if (
+      isPlainRecord(query.data.currentArtifactInstance) &&
+      query.data.currentArtifactInstance.exists === true
+    ) {
+      const artifactInstanceId =
+        typeof query.data.currentArtifactInstance.artifactInstanceId === "string"
+          ? query.data.currentArtifactInstance.artifactInstanceId
+          : null;
+      if (artifactInstanceId) {
+        options.push({ value: artifactInstanceId, label: `Current · ${artifactInstanceId}` });
+      }
+    }
+
+    result.set(slotDefinitionId, options);
+  }
+
+  return result;
+}
+
+function buildWorkflowContextDialogEditor(params: {
+  definition: WorkflowContextDefinition;
+  projectFactCatalog: Map<string, FactDefinitionCatalogEntry>;
+  workUnitFactCatalog: Map<string, FactDefinitionCatalogEntry>;
+  workUnitCatalog: Map<string, WorkUnitCatalogEntry>;
+  workflowOptions: RuntimeFactOption[];
+  artifactSlotCatalog: Map<string, WorkUnitCatalogEntry>;
+  artifactSnapshotOptionsBySlot: ArtifactSnapshotOptionsBySlot;
+  workUnitOptions: RuntimeFactOption[];
+}): RuntimeDialogEditor | null {
+  switch (params.definition.kind) {
+    case "plain_value_fact":
+      return {
+        kind: "primitive",
+        definition: {
+          factType: params.definition.valueType,
+          ...(params.definition.validationJson !== undefined
+            ? { validation: params.definition.validationJson }
+            : {}),
+        },
+      };
+    case "bound_fact": {
+      const resolvedDefinition =
+        params.projectFactCatalog.get(params.definition.factDefinitionId) ??
+        params.workUnitFactCatalog.get(params.definition.factDefinitionId) ??
+        null;
+
+      return {
+        kind: "bound_fact",
+        instanceLabel: `${resolvedDefinition?.label ?? params.definition.factDefinitionId} instance ID`,
+        definition: resolvedDefinition?.definition ?? {
+          factType: params.definition.valueType ?? "json",
+          ...(params.definition.validationJson !== undefined
+            ? { validation: params.definition.validationJson }
+            : {}),
+        },
+        workUnitOptions: params.workUnitOptions,
+      };
+    }
+    case "workflow_ref_fact":
+      return {
+        kind: "workflow_ref_fact",
+        options: params.definition.allowedWorkflowDefinitionIds.map((workflowDefinitionId) => {
+          return (
+            params.workflowOptions.find((option) => option.value === workflowDefinitionId) ?? {
+              value: workflowDefinitionId,
+              label: workflowDefinitionId,
+            }
+          );
+        }),
+      };
+    case "artifact_slot_reference_fact":
+      return {
+        kind: "artifact_slot_reference_fact",
+        slotDefinitionId: params.definition.slotDefinitionId,
+        slotLabel:
+          params.artifactSlotCatalog.get(params.definition.slotDefinitionId)?.label ??
+          params.definition.slotDefinitionId,
+        options: params.artifactSnapshotOptionsBySlot.get(params.definition.slotDefinitionId) ?? [],
+      };
+    case "work_unit_draft_spec_fact": {
+      const fields: RuntimeDraftSpecFieldDefinition[] =
+        params.definition.selectedWorkUnitFactDefinitionIds.map((workUnitFactDefinitionId) => {
+          const catalogEntry = params.workUnitFactCatalog.get(workUnitFactDefinitionId);
+          return {
+            workUnitFactDefinitionId,
+            label: catalogEntry?.label ?? workUnitFactDefinitionId,
+            definition: catalogEntry?.definition ?? { factType: "json" },
+          };
+        });
+
+      const artifacts: RuntimeDraftSpecArtifactDefinition[] =
+        params.definition.selectedArtifactSlotDefinitionIds.map((slotDefinitionId) => ({
+          slotDefinitionId,
+          label: params.artifactSlotCatalog.get(slotDefinitionId)?.label ?? slotDefinitionId,
+        }));
+
+      return {
+        kind: "work_unit_draft_spec_fact",
+        workUnitDefinitionId: params.definition.workUnitDefinitionId,
+        workUnitLabel:
+          params.workUnitCatalog.get(params.definition.workUnitDefinitionId)?.label ??
+          params.definition.workUnitDefinitionId,
+        fields,
+        artifacts,
+        workUnitOptions: params.workUnitOptions,
+      };
+    }
+    default:
+      if ((params.definition as { kind?: string }).kind === "artifact_slot_reference_fact") {
+        return {
+          kind: "artifact_slot_reference_fact",
+          slotDefinitionId: (params.definition as { slotDefinitionId: string }).slotDefinitionId,
+          slotLabel:
+            params.artifactSlotCatalog.get(
+              (params.definition as { slotDefinitionId: string }).slotDefinitionId,
+            )?.label ?? (params.definition as { slotDefinitionId: string }).slotDefinitionId,
+          options:
+            params.artifactSnapshotOptionsBySlot.get(
+              (params.definition as { slotDefinitionId: string }).slotDefinitionId,
+            ) ?? [],
+        };
+      }
+      return null;
+  }
 }
 
 function WorkflowContextValuePresentation({ value }: { value: unknown }) {
@@ -439,6 +989,302 @@ export function WorkflowContextFactDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function WorkflowContextManualCrudCard({
+  group,
+  definition,
+  editor,
+  onCreate,
+  onUpdate,
+  onRemove,
+  onDeleteAll,
+  isCreating,
+  isUpdating,
+  isRemoving,
+  isDeleting,
+}: {
+  group: WorkflowContextFactGroup;
+  definition: WorkflowContextDefinition | null;
+  editor: RuntimeDialogEditor | null;
+  onCreate: (value: unknown) => Promise<void>;
+  onUpdate: (instanceId: string, value: unknown) => Promise<void>;
+  onRemove: (instanceId: string) => Promise<void>;
+  onDeleteAll: () => Promise<void>;
+  isCreating: boolean;
+  isUpdating: boolean;
+  isRemoving: boolean;
+  isDeleting: boolean;
+}) {
+  const description = formatDescription(group.definitionDescriptionJson);
+  const title = group.definitionLabel ?? group.definitionKey ?? group.contextFactDefinitionId;
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editInstanceId, setEditInstanceId] = useState<string | null>(null);
+  const [removeInstanceId, setRemoveInstanceId] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const primaryInstance = group.instances[0] ?? null;
+  const editingInstance =
+    group.instances.find((instance) => instance.contextFactInstanceId === editInstanceId) ?? null;
+  const removeTarget =
+    group.instances.find((instance) => instance.contextFactInstanceId === removeInstanceId) ?? null;
+  const isSingle = definition?.cardinality === "one";
+  const canCreateNew = definition
+    ? definition.cardinality === "many" || group.instances.length === 0
+    : false;
+
+  return (
+    <Card frame="flat" tone="runtime" className="border-border/70 bg-background/40">
+      <CardHeader>
+        <CardDescription>{group.definitionKey ?? group.contextFactDefinitionId}</CardDescription>
+        <CardTitle>{title}</CardTitle>
+        <CardAction>
+          <span className="border border-border/70 bg-background/40 px-2 py-1 text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">
+            {group.instances.length} instance{group.instances.length === 1 ? "" : "s"}
+          </span>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="space-y-4 text-xs text-muted-foreground">
+        <div className="space-y-1">
+          <p>{description ?? "No definition description recorded."}</p>
+          <p>
+            Manual workflow-context CRUD lives here. Single-cardinality facts use direct set or
+            replace dialogs. Multi-cardinality facts keep per-instance edit and remove dialogs.
+          </p>
+        </div>
+
+        {error ? (
+          <div className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            {error}
+          </div>
+        ) : null}
+
+        {!definition || !editor ? (
+          <p className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            Context fact contract metadata is unavailable, so structured manual CRUD cannot open.
+          </p>
+        ) : null}
+
+        {group.instances.length === 0 ? (
+          <p className="border border-border/70 bg-background/60 px-3 py-2 text-xs text-muted-foreground">
+            No current instances recorded.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {group.instances.map((instance) => {
+              const instanceId =
+                instance.contextFactInstanceId ??
+                `${group.contextFactDefinitionId}-${instance.instanceOrder}`;
+
+              return (
+                <section
+                  key={instanceId}
+                  className="space-y-3 border border-border/70 bg-background/60 p-3"
+                >
+                  <div className="space-y-1">
+                    <p className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
+                      Instance {instance.instanceOrder + 1}
+                    </p>
+                    <p>Recorded: {formatTimestamp(instance.recordedAt)}</p>
+                  </div>
+
+                  <WorkflowContextValuePresentation value={instance.valueJson} />
+
+                  {instance.contextFactInstanceId &&
+                  definition?.cardinality === "many" &&
+                  editor ? (
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={isUpdating}
+                        onClick={() => {
+                          setError(null);
+                          setEditInstanceId(instance.contextFactInstanceId!);
+                        }}
+                      >
+                        Edit instance
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={isRemoving}
+                        onClick={() => {
+                          setError(null);
+                          setRemoveInstanceId(instance.contextFactInstanceId!);
+                        }}
+                      >
+                        Remove instance
+                      </Button>
+                    </div>
+                  ) : null}
+                </section>
+              );
+            })}
+          </div>
+        )}
+
+        {definition && editor ? (
+          <div className="space-y-2 border border-border/70 bg-background/60 p-3">
+            <p className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
+              Actions
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {canCreateNew ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isCreating}
+                  onClick={() => {
+                    setError(null);
+                    setCreateDialogOpen(true);
+                  }}
+                >
+                  {isSingle ? "Set value" : "Add instance"}
+                </Button>
+              ) : null}
+
+              {isSingle && primaryInstance?.contextFactInstanceId ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isUpdating}
+                  onClick={() => {
+                    setError(null);
+                    setEditInstanceId(primaryInstance.contextFactInstanceId ?? null);
+                  }}
+                >
+                  Replace value
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+      </CardContent>
+      <CardFooter className="justify-between gap-3">
+        <p className="text-xs text-muted-foreground">
+          Delete clears every current instance for this definition.
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={isDeleting || group.instances.length === 0}
+          onClick={async () => {
+            setError(null);
+            setDeleteDialogOpen(true);
+          }}
+        >
+          Delete definition state
+        </Button>
+      </CardFooter>
+
+      {editor ? (
+        <RuntimeFactValueDialog
+          open={createDialogOpen}
+          onOpenChange={setCreateDialogOpen}
+          title={isSingle ? `Set ${title}` : `Add ${title} instance`}
+          description={
+            isSingle
+              ? "Set the current runtime value for this workflow-context fact."
+              : "Create a new runtime instance for this workflow-context fact."
+          }
+          submitLabel={isSingle ? "Set value" : "Create instance"}
+          editor={editor}
+          isPending={isCreating}
+          errorMessage={createDialogOpen ? error : null}
+          onSubmit={async (value) => {
+            try {
+              setError(null);
+              await onCreate(value);
+              setCreateDialogOpen(false);
+            } catch (cause) {
+              setError(toErrorMessage(cause));
+            }
+          }}
+        />
+      ) : null}
+
+      {editor && editingInstance?.contextFactInstanceId ? (
+        <RuntimeFactValueDialog
+          open={editInstanceId !== null}
+          onOpenChange={(open) =>
+            setEditInstanceId(open ? (editingInstance.contextFactInstanceId ?? null) : null)
+          }
+          title={isSingle ? `Replace ${title}` : `Edit ${title} instance`}
+          description={
+            isSingle
+              ? "Replace the current runtime value for this workflow-context fact."
+              : `Update instance ${editingInstance.instanceOrder + 1} for this workflow-context fact.`
+          }
+          submitLabel={isSingle ? "Replace value" : "Save instance"}
+          editor={editor}
+          initialValue={editingInstance.valueJson}
+          isPending={isUpdating}
+          errorMessage={editInstanceId !== null ? error : null}
+          onSubmit={async (value) => {
+            try {
+              setError(null);
+              await onUpdate(editingInstance.contextFactInstanceId!, value);
+              setEditInstanceId(null);
+            } catch (cause) {
+              setError(toErrorMessage(cause));
+            }
+          }}
+        />
+      ) : null}
+
+      <RuntimeConfirmDialog
+        open={removeInstanceId !== null}
+        onOpenChange={(open) => setRemoveInstanceId(open ? removeInstanceId : null)}
+        title={`Remove ${title} instance?`}
+        description={
+          removeTarget
+            ? `Remove instance ${removeTarget.instanceOrder + 1} from the current workflow-context state.`
+            : "Remove the selected workflow-context instance."
+        }
+        confirmLabel="Remove instance"
+        isPending={isRemoving}
+        errorMessage={removeInstanceId !== null ? error : null}
+        onConfirm={async () => {
+          if (!removeInstanceId) {
+            return;
+          }
+
+          try {
+            setError(null);
+            await onRemove(removeInstanceId);
+            setRemoveInstanceId(null);
+          } catch (cause) {
+            setError(toErrorMessage(cause));
+          }
+        }}
+      />
+
+      <RuntimeConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title={`Delete ${title} state?`}
+        description="Delete clears every current instance for this workflow-context definition."
+        confirmLabel="Delete definition state"
+        isPending={isDeleting}
+        errorMessage={deleteDialogOpen ? error : null}
+        onConfirm={async () => {
+          try {
+            setError(null);
+            await onDeleteAll();
+            setDeleteDialogOpen(false);
+          } catch (cause) {
+            setError(toErrorMessage(cause));
+          }
+        }}
+      />
+    </Card>
   );
 }
 
@@ -697,6 +1543,12 @@ export function WorkflowExecutionDetailRoute() {
     queryKey: runtimeWorkflowExecutionDetailQueryKey(projectId, workflowExecutionId),
   });
 
+  const invalidateWorkflowExecutionDetail = async () => {
+    await queryClient.invalidateQueries({
+      queryKey: runtimeWorkflowExecutionDetailQueryKey(projectId, workflowExecutionId),
+    });
+  };
+
   const retrySameWorkflowMutation = useMutation(
     orpc.project.retrySameWorkflowExecution.mutationOptions({
       onSuccess: async (result) => {
@@ -761,9 +1613,250 @@ export function WorkflowExecutionDetailRoute() {
     }),
   );
 
+  const createWorkflowContextFactMutation = useMutation(
+    orpc.project.createRuntimeWorkflowContextFactValue.mutationOptions({
+      onSuccess: invalidateWorkflowExecutionDetail,
+    }),
+  );
+
+  const updateWorkflowContextFactMutation = useMutation(
+    orpc.project.updateRuntimeWorkflowContextFactValue.mutationOptions({
+      onSuccess: invalidateWorkflowExecutionDetail,
+    }),
+  );
+
+  const removeWorkflowContextFactMutation = useMutation(
+    orpc.project.removeRuntimeWorkflowContextFactValue.mutationOptions({
+      onSuccess: invalidateWorkflowExecutionDetail,
+    }),
+  );
+
+  const deleteWorkflowContextFactMutation = useMutation(
+    orpc.project.deleteRuntimeWorkflowContextFactValue.mutationOptions({
+      onSuccess: invalidateWorkflowExecutionDetail,
+    }),
+  );
+
   const detail = workflowExecutionDetailQuery.data;
   const isLoading = workflowExecutionDetailQuery.isLoading;
   const hasError = Boolean(workflowExecutionDetailQuery.error);
+  const projectDetailsQuery = useQuery(
+    (orpc.project.getProjectDetails?.queryOptions?.({ input: { projectId } }) ?? {
+      queryKey: ["project-details", projectId],
+      queryFn: async () => null,
+    }) as unknown as {
+      queryKey: unknown[];
+      queryFn: () => Promise<unknown>;
+    },
+  );
+  const projectPin = getProjectPin(projectDetailsQuery.data);
+  const workflowProcedures = orpc.methodology?.version?.workUnit?.workflow as unknown as {
+    getEditorDefinition?: {
+      queryOptions?: (input: {
+        input: {
+          methodologyId: string;
+          versionId: string;
+          workUnitTypeKey: string;
+          workflowDefinitionId: string;
+        };
+      }) => { queryKey: unknown[]; queryFn: () => Promise<unknown> };
+    };
+    list?: {
+      queryOptions?: (input: { input: { versionId: string; workUnitTypeKey: string } }) => {
+        queryKey: unknown[];
+        queryFn: () => Promise<unknown>;
+      };
+    };
+  };
+
+  const contextEditorDefinitionQuery = useQuery(
+    (projectPin && detail
+      ? (workflowProcedures.getEditorDefinition?.queryOptions?.({
+          input: {
+            methodologyId: projectPin.methodologyId,
+            versionId: projectPin.methodologyVersionId,
+            workUnitTypeKey: detail.workUnit.workUnitTypeKey,
+            workflowDefinitionId: detail.workflowExecution.workflowId,
+          },
+        }) ?? {
+          queryKey: [
+            "workflow-editor-definition",
+            projectPin.methodologyId,
+            projectPin.methodologyVersionId,
+            detail.workUnit.workUnitTypeKey,
+            detail.workflowExecution.workflowId,
+          ],
+          queryFn: async () => null,
+        })
+      : {
+          queryKey: ["workflow-editor-definition", projectId, workflowExecutionId, "idle"],
+          queryFn: async () => null,
+        }) as unknown as { queryKey: unknown[]; queryFn: () => Promise<unknown> },
+  );
+
+  const methodologyFactDefinitionsQuery = useQuery(
+    (projectPin
+      ? (orpc.methodology?.version?.fact?.list?.queryOptions?.({
+          input: { versionId: projectPin.methodologyVersionId },
+        }) ?? {
+          queryKey: ["methodology-facts", projectPin.methodologyVersionId],
+          queryFn: async () => ({ factDefinitions: [] }),
+        })
+      : {
+          queryKey: ["methodology-facts", "idle"],
+          queryFn: async () => ({ factDefinitions: [] }),
+        }) as unknown as { queryKey: unknown[]; queryFn: () => Promise<unknown> },
+  );
+
+  const workUnitFactDefinitionsQuery = useQuery(
+    (projectPin
+      ? (orpc.methodology?.version?.workUnit?.fact?.list?.queryOptions?.({
+          input: { versionId: projectPin.methodologyVersionId },
+        }) ?? {
+          queryKey: ["work-unit-facts", projectPin.methodologyVersionId],
+          queryFn: async () => ({ workUnitTypes: [] }),
+        })
+      : {
+          queryKey: ["work-unit-facts", "idle"],
+          queryFn: async () => ({ workUnitTypes: [] }),
+        }) as unknown as { queryKey: unknown[]; queryFn: () => Promise<unknown> },
+  );
+
+  const workUnitDefinitionsQuery = useQuery(
+    (projectPin
+      ? (orpc.methodology?.version?.workUnit?.list?.queryOptions?.({
+          input: { versionId: projectPin.methodologyVersionId },
+        }) ?? {
+          queryKey: ["work-unit-types", projectPin.methodologyVersionId],
+          queryFn: async () => ({ workUnitTypes: [] }),
+        })
+      : {
+          queryKey: ["work-unit-types", "idle"],
+          queryFn: async () => ({ workUnitTypes: [] }),
+        }) as unknown as { queryKey: unknown[]; queryFn: () => Promise<unknown> },
+  );
+
+  const workflowDefinitionsQuery = useQuery(
+    (projectPin && detail
+      ? (workflowProcedures.list?.queryOptions?.({
+          input: {
+            versionId: projectPin.methodologyVersionId,
+            workUnitTypeKey: detail.workUnit.workUnitTypeKey,
+          },
+        }) ?? {
+          queryKey: [
+            "work-unit-workflows",
+            projectPin.methodologyVersionId,
+            detail.workUnit.workUnitTypeKey,
+          ],
+          queryFn: async () => [],
+        })
+      : {
+          queryKey: ["work-unit-workflows", "idle"],
+          queryFn: async () => [],
+        }) as unknown as { queryKey: unknown[]; queryFn: () => Promise<unknown> },
+  );
+
+  const artifactSlotDefinitionsQuery = useQuery(
+    (projectPin && detail
+      ? (orpc.methodology?.version?.workUnit?.artifactSlot?.list?.queryOptions?.({
+          input: {
+            versionId: projectPin.methodologyVersionId,
+            workUnitTypeKey: detail.workUnit.workUnitTypeKey,
+          },
+        }) ?? {
+          queryKey: [
+            "artifact-slots",
+            projectPin.methodologyVersionId,
+            detail.workUnit.workUnitTypeKey,
+          ],
+          queryFn: async () => [],
+        })
+      : {
+          queryKey: ["artifact-slots", "idle"],
+          queryFn: async () => [],
+        }) as unknown as { queryKey: unknown[]; queryFn: () => Promise<unknown> },
+  );
+
+  const runtimeWorkUnitsQuery = useQuery(
+    (orpc.project.getRuntimeWorkUnits?.queryOptions?.({ input: { projectId } }) ?? {
+      queryKey: ["runtime-work-units", projectId],
+      queryFn: async () => ({ rows: [] }),
+    }) as unknown as { queryKey: unknown[]; queryFn: () => Promise<unknown> },
+  );
+
+  const contextDefinitions = useMemo(
+    () => toWorkflowContextDefinitions(contextEditorDefinitionQuery.data),
+    [contextEditorDefinitionQuery.data],
+  );
+  const artifactSnapshotSlotIds = useMemo(
+    () =>
+      [...contextDefinitions.values()]
+        .filter(
+          (
+            definition,
+          ): definition is Extract<
+            WorkflowContextDefinition,
+            { kind: "artifact_slot_reference_fact" }
+          > => definition.kind === "artifact_slot_reference_fact",
+        )
+        .map((definition) => definition.slotDefinitionId),
+    [contextDefinitions],
+  );
+  const artifactSnapshotQueries = useQueries({
+    queries: artifactSnapshotSlotIds.map(
+      (slotDefinitionId) =>
+        (detail
+          ? (orpc.project.getRuntimeArtifactSlotDetail?.queryOptions?.({
+              input: {
+                projectId,
+                projectWorkUnitId: detail.workUnit.projectWorkUnitId,
+                slotDefinitionId,
+              },
+            }) ?? {
+              queryKey: [
+                "runtime-artifact-slot-detail",
+                projectId,
+                detail.workUnit.projectWorkUnitId,
+                slotDefinitionId,
+              ],
+              queryFn: async () => null,
+            })
+          : {
+              queryKey: ["runtime-artifact-slot-detail", projectId, "idle", slotDefinitionId],
+              queryFn: async () => null,
+            }) as { queryKey: unknown[]; queryFn: () => Promise<unknown> },
+    ),
+  });
+
+  const projectFactCatalog = useMemo(
+    () => toProjectFactCatalog(methodologyFactDefinitionsQuery.data),
+    [methodologyFactDefinitionsQuery.data],
+  );
+  const workUnitFactCatalog = useMemo(
+    () => toWorkUnitFactCatalog(workUnitFactDefinitionsQuery.data),
+    [workUnitFactDefinitionsQuery.data],
+  );
+  const workUnitCatalog = useMemo(
+    () => toWorkUnitCatalog(workUnitDefinitionsQuery.data),
+    [workUnitDefinitionsQuery.data],
+  );
+  const workflowOptions = useMemo(
+    () => toWorkflowOptions(workflowDefinitionsQuery.data),
+    [workflowDefinitionsQuery.data],
+  );
+  const artifactSlotCatalog = useMemo(
+    () => toArtifactSlotCatalog(artifactSlotDefinitionsQuery.data),
+    [artifactSlotDefinitionsQuery.data],
+  );
+  const workUnitOptions = useMemo(
+    () => toRuntimeWorkUnitOptions(runtimeWorkUnitsQuery.data),
+    [runtimeWorkUnitsQuery.data],
+  );
+  const artifactSnapshotOptionsBySlot = useMemo(
+    () => toArtifactSnapshotOptionsBySlot(artifactSnapshotQueries),
+    [artifactSnapshotQueries],
+  );
 
   return (
     <MethodologyWorkspaceShell
@@ -902,7 +1995,7 @@ export function WorkflowExecutionDetailRoute() {
                 <Link
                   to="/projects/$projectId/work-units/$projectWorkUnitId"
                   params={{ projectId, projectWorkUnitId: detail.workUnit.projectWorkUnitId }}
-                  search={{ q: "", hasActiveTransition: "all" }}
+                  search={{ q: "" }}
                   className="inline-flex font-medium uppercase tracking-[0.1em] text-primary hover:underline"
                 >
                   Open work unit overview
@@ -1005,9 +2098,9 @@ export function WorkflowExecutionDetailRoute() {
                 await activateWorkflowStepMutation.mutateAsync({ projectId, workflowExecutionId });
               }}
               isActivating={activateWorkflowStepMutation.isPending}
-              completeWorkflow={
-                detail.completeAction?.enabled ? () => setOpenCompleteDialog(true) : undefined
-              }
+              {...(detail.completeAction?.enabled
+                ? { completeWorkflow: () => setOpenCompleteDialog(true) }
+                : {})}
               isCompleting={completeWorkflowMutation.isPending}
             />
 
@@ -1042,9 +2135,11 @@ export function WorkflowExecutionDetailRoute() {
 
           <section className="max-w-5xl space-y-3 border border-border/80 bg-background p-4">
             <div className="space-y-1">
-              <DetailEyebrow className="text-[0.72rem]">Workflow context facts</DetailEyebrow>
+              <DetailEyebrow className="text-[0.72rem]">Workflow context manual CRUD</DetailEyebrow>
               <p className="text-sm text-muted-foreground">
-                Read-only current-state context facts grouped by definition order.
+                This workflow execution detail is the canonical manual CRUD home for
+                workflow-context facts. Remove affects one instance; delete clears the full current
+                definition state.
               </p>
             </div>
 
@@ -1055,49 +2150,73 @@ export function WorkflowExecutionDetailRoute() {
             ) : (
               <div className="grid gap-3 lg:grid-cols-2">
                 {detail.workflowContextFacts.groups.map((group) => {
-                  const description = formatDescription(group.definitionDescriptionJson);
-                  const title =
-                    group.definitionLabel ?? group.definitionKey ?? group.contextFactDefinitionId;
+                  const definition = contextDefinitions.get(group.contextFactDefinitionId) ?? null;
+                  const editor = definition
+                    ? buildWorkflowContextDialogEditor({
+                        definition,
+                        projectFactCatalog,
+                        workUnitFactCatalog,
+                        workUnitCatalog,
+                        workflowOptions,
+                        artifactSlotCatalog,
+                        artifactSnapshotOptionsBySlot,
+                        workUnitOptions,
+                      })
+                    : null;
 
                   return (
                     <div key={group.contextFactDefinitionId} className="space-y-0">
-                      <Card
-                        frame="flat"
-                        tone="runtime"
-                        className="border-border/70 bg-background/40"
-                      >
-                        <CardHeader>
-                          <CardDescription>
-                            {group.definitionKey ?? group.contextFactDefinitionId}
-                          </CardDescription>
-                          <CardTitle>{title}</CardTitle>
-                          <CardAction>
-                            <span className="border border-border/70 bg-background/40 px-2 py-1 text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">
-                              {group.instances.length} instance
-                              {group.instances.length === 1 ? "" : "s"}
-                            </span>
-                          </CardAction>
-                        </CardHeader>
-                        <CardContent className="space-y-2 text-xs text-muted-foreground">
-                          <p>{description ?? "No definition description recorded."}</p>
-                          <p>
-                            {group.instances.length === 0
-                              ? "No current instances recorded."
-                              : group.instances.length === 1
-                                ? "One current instance recorded."
-                                : `${group.instances.length} current instances recorded.`}
-                          </p>
-                        </CardContent>
-                        <CardFooter className="justify-end">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setOpenContextFactId(group.contextFactDefinitionId)}
-                          >
-                            View instances
-                          </Button>
-                        </CardFooter>
-                      </Card>
+                      <WorkflowContextManualCrudCard
+                        group={group}
+                        definition={definition}
+                        editor={editor}
+                        onCreate={async (value) => {
+                          await createWorkflowContextFactMutation.mutateAsync({
+                            projectId,
+                            workflowExecutionId,
+                            contextFactDefinitionId: group.contextFactDefinitionId,
+                            value,
+                          });
+                        }}
+                        onUpdate={async (instanceId, value) => {
+                          await updateWorkflowContextFactMutation.mutateAsync({
+                            projectId,
+                            workflowExecutionId,
+                            contextFactDefinitionId: group.contextFactDefinitionId,
+                            instanceId,
+                            value,
+                          });
+                        }}
+                        onRemove={async (instanceId) => {
+                          await removeWorkflowContextFactMutation.mutateAsync({
+                            projectId,
+                            workflowExecutionId,
+                            contextFactDefinitionId: group.contextFactDefinitionId,
+                            instanceId,
+                          });
+                        }}
+                        onDeleteAll={async () => {
+                          await deleteWorkflowContextFactMutation.mutateAsync({
+                            projectId,
+                            workflowExecutionId,
+                            contextFactDefinitionId: group.contextFactDefinitionId,
+                          });
+                        }}
+                        isCreating={createWorkflowContextFactMutation.isPending}
+                        isUpdating={updateWorkflowContextFactMutation.isPending}
+                        isRemoving={removeWorkflowContextFactMutation.isPending}
+                        isDeleting={deleteWorkflowContextFactMutation.isPending}
+                      />
+
+                      <div className="flex justify-end border-x border-b border-border/70 bg-background/20 px-4 py-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setOpenContextFactId(group.contextFactDefinitionId)}
+                        >
+                          View instances
+                        </Button>
+                      </div>
 
                       <WorkflowContextFactDialog
                         group={group}

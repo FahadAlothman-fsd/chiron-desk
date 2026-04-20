@@ -165,9 +165,18 @@ function getEvaluationCounts(tree: RuntimeConditionEvaluationTree): {
   const nested = tree.groups.map((group: RuntimeConditionEvaluationTree) =>
     getEvaluationCounts(group),
   );
-  const nestedTotal = nested.reduce((sum: number, group) => sum + group.total, 0);
-  const nestedMet = nested.reduce((sum: number, group) => sum + group.met, 0);
-  const nestedUnmet = nested.reduce((sum: number, group) => sum + group.unmet, 0);
+  const nestedTotal = nested.reduce(
+    (sum: number, group: { total: number; met: number; unmet: number }) => sum + group.total,
+    0,
+  );
+  const nestedMet = nested.reduce(
+    (sum: number, group: { total: number; met: number; unmet: number }) => sum + group.met,
+    0,
+  );
+  const nestedUnmet = nested.reduce(
+    (sum: number, group: { total: number; met: number; unmet: number }) => sum + group.unmet,
+    0,
+  );
 
   return {
     total: tree.conditions.length + nestedTotal,

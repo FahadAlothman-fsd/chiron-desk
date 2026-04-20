@@ -189,24 +189,6 @@ export function MethodologyWorkspaceEntryRoute() {
         });
       },
     },
-    openAgents: {
-      disabledReason: null,
-      onTrigger: () => {
-        void navigate({
-          to: "/methodologies/$methodologyId/versions/$versionId/agents",
-          params: { methodologyId, versionId },
-        });
-      },
-    },
-    createAgent: {
-      disabledReason: null,
-      onTrigger: () => {
-        void navigate({
-          to: "/methodologies/$methodologyId/versions/$versionId/agents",
-          params: { methodologyId, versionId },
-        });
-      },
-    },
     openLinkTypes: {
       disabledReason: null,
       onTrigger: () => {
@@ -237,7 +219,6 @@ export function MethodologyWorkspaceEntryRoute() {
         parsedDraft.workflows.factDefinitions,
         parsedDraft.lifecycle.workUnitTypes,
       ),
-      agents: createAgentSummary(parsedDraft.lifecycle.agentTypes),
       linkTypes: createLinkTypeSummary(parsedDraft.workflows.transitionWorkflowBindings),
     }),
     [parsedDraft],
@@ -694,13 +675,6 @@ function createFactSummary(
   return {
     primary: formatCount(factDefinitions.length, "methodology fact"),
     secondary: [formatCount(schemaCount, "work-unit schema")],
-  };
-}
-
-function createAgentSummary(agentTypes: readonly unknown[]): AuthorHubSurfaceSummary {
-  return {
-    primary: formatCount(agentTypes.length, "agent definition"),
-    secondary: [],
   };
 }
 

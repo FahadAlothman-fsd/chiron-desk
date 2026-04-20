@@ -11,7 +11,6 @@ export type AuthorHubSurfaceSummary = {
 type AuthorHubSummaries = {
   workUnits: AuthorHubSurfaceSummary;
   facts: AuthorHubSurfaceSummary;
-  agents: AuthorHubSurfaceSummary;
   linkTypes: AuthorHubSurfaceSummary;
 };
 
@@ -149,8 +148,6 @@ function toneForSummaryKey(summaryKey: keyof AuthorHubSummaries): SurfaceCardTon
       return "work-units";
     case "facts":
       return "facts";
-    case "agents":
-      return "agents";
     case "linkTypes":
       return "link-types";
   }

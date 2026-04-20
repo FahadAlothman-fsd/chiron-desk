@@ -727,11 +727,10 @@ describe("methodology version shell routes", () => {
     expect(screen.getByText("READINESS")).toBeTruthy();
     expect(screen.getByText("Work Units")).toBeTruthy();
     expect(screen.getByText("Facts")).toBeTruthy();
-    expect(screen.getByText("Agents")).toBeTruthy();
     expect(screen.getByText("Link Types")).toBeTruthy();
-    expect(screen.getAllByTestId("surface-card-separator")).toHaveLength(4);
-    expect(screen.getAllByTestId("surface-card-footer")).toHaveLength(4);
-    expect(screen.getAllByTestId("surface-card-corner")).toHaveLength(16);
+    expect(screen.getAllByTestId("surface-card-separator")).toHaveLength(3);
+    expect(screen.getAllByTestId("surface-card-footer")).toHaveLength(3);
+    expect(screen.getAllByTestId("surface-card-corner")).toHaveLength(12);
   });
 
   it("renders work-units shell as a clear list with actions", async () => {
@@ -790,7 +789,7 @@ describe("methodology version shell routes", () => {
         workUnitType: expect.objectContaining({
           key: "WU.INTAKE",
           displayName: "Intake",
-          description: "Collect intake guidance",
+          description: { markdown: "Collect intake guidance" },
           guidance: {
             human: { markdown: "Ask operator for intake context." },
             agent: { markdown: "Extract structured intake summary." },
@@ -957,9 +956,12 @@ describe("methodology version shell routes", () => {
     });
     expect(routeContext.createWorkUnitWorkflowMock).toHaveBeenCalledWith(
       expect.objectContaining({
+        versionId: "draft-v2",
+        workUnitTypeKey: "WU.TASK",
         workflow: expect.objectContaining({
+          key: "wf.review",
+          displayName: "Review Flow",
           metadata: expect.objectContaining({
-            description: "Review metadata and readiness",
             priority: "high",
           }),
           guidance: {
@@ -1169,31 +1171,19 @@ describe("methodology version shell routes", () => {
     expect(screen.getByTestId("transition-start-modified-indicator")).toBeTruthy();
     const startConditionsScrollRegion = screen.getByTestId("transition-tab-scroll-region");
     expect(startConditionsScrollRegion.className).toContain("overflow-y-auto");
-    expect(screen.getByRole("button", { name: "Edit Start Guidance" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Edit Start Description" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Add Fact Condition" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Add Work Unit Condition" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add Project Fact Condition" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add Work Unit Fact Condition" })).toBeNull();
     expect(screen.getByRole("button", { name: "Add Group" })).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: "Edit Start Guidance" }));
-    expect(await screen.findByRole("dialog", { name: "Edit Start Guidance" })).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Guidance"), {
-      target: { value: "Start guidance text" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Save Guidance" }));
-
-    fireEvent.click(screen.getByRole("button", { name: "Edit Start Description" }));
-    expect(await screen.findByRole("dialog", { name: "Edit Start Description" })).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Description"), {
-      target: { value: "Start description text" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Save Description" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Add Group" }));
     const groupDialog = await screen.findByRole("dialog", { name: "Add Group" });
     expect(within(groupDialog).queryByRole("button", { name: "Add Group" })).toBeNull();
-    fireEvent.click(within(groupDialog).getByRole("button", { name: "Add Fact Condition" }));
-    fireEvent.click(within(groupDialog).getByRole("button", { name: "Add Work Unit Condition" }));
+    fireEvent.click(
+      within(groupDialog).getByRole("button", { name: "Add Work Unit Fact Condition" }),
+    );
+    fireEvent.click(
+      within(groupDialog).getByRole("button", { name: "Add Work Unit Fact Condition" }),
+    );
     fireEvent.click(within(groupDialog).getByRole("button", { name: "Save Group" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Completion Conditions" }));
@@ -1204,10 +1194,8 @@ describe("methodology version shell routes", () => {
     expect(screen.getByTestId("transition-completion-modified-indicator")).toBeTruthy();
     const completionConditionsScrollRegion = screen.getByTestId("transition-tab-scroll-region");
     expect(completionConditionsScrollRegion.className).toContain("overflow-y-auto");
-    expect(screen.getByRole("button", { name: "Edit Completion Guidance" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Edit Completion Description" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Add Fact Condition" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Add Work Unit Condition" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add Project Fact Condition" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add Work Unit Fact Condition" })).toBeNull();
     expect(screen.getByRole("button", { name: "Add Group" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Bindings" }));
     expect(screen.queryByLabelText("Transition Key")).toBeNull();
@@ -1224,7 +1212,7 @@ describe("methodology version shell routes", () => {
     expect(routeContext.saveStateMachineTransitionMock).toHaveBeenLastCalledWith(
       expect.objectContaining({
         conditionSets: expect.arrayContaining([
-          expect.objectContaining({ phase: "start", mode: "any", guidance: "Start guidance text" }),
+          expect.objectContaining({ phase: "start", mode: "any" }),
           expect.objectContaining({ phase: "completion", mode: "all" }),
         ]),
       }),
@@ -1270,7 +1258,9 @@ describe("methodology version shell routes", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start Conditions" }));
     fireEvent.click(screen.getByRole("button", { name: "Add Group" }));
     const unsavedGroupDialog = await screen.findByRole("dialog", { name: "Add Group" });
-    fireEvent.click(within(unsavedGroupDialog).getByRole("button", { name: "Add Fact Condition" }));
+    fireEvent.click(
+      within(unsavedGroupDialog).getByRole("button", { name: "Add Project Fact Condition" }),
+    );
     fireEvent.click(within(unsavedGroupDialog).getByRole("button", { name: "Save Group" }));
     expect(screen.getByTestId("transition-start-modified-indicator")).toBeTruthy();
 
@@ -1330,7 +1320,9 @@ describe("methodology version shell routes", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start Conditions" }));
     fireEvent.click(screen.getByRole("button", { name: "Add Group" }));
     const groupDialog = await screen.findByRole("dialog", { name: "Add Group" });
-    fireEvent.click(within(groupDialog).getByRole("button", { name: "Add Fact Condition" }));
+    fireEvent.click(
+      within(groupDialog).getByRole("button", { name: "Add Work Unit Fact Condition" }),
+    );
 
     const startFactConditionRow = within(groupDialog).getByTestId("group-condition-0");
     chooseOptionIn(startFactConditionRow, "Fact", "fact.input_path");
@@ -1344,15 +1336,13 @@ describe("methodology version shell routes", () => {
       0,
     );
 
-    fireEvent.click(within(groupDialog).getByRole("button", { name: "Add Work Unit Condition" }));
+    fireEvent.click(within(groupDialog).getByRole("button", { name: "Add Artifact Condition" }));
     const startWorkUnitConditionRow = within(groupDialog).getByTestId("group-condition-1");
-    chooseOptionIn(startWorkUnitConditionRow, "Dependency", "link.requires");
-    chooseOptionIn(startWorkUnitConditionRow, "Work Unit", "WU.TASK");
+    chooseOptionIn(startWorkUnitConditionRow, "Artifact Slot", "slot.summary");
     fireEvent.change(within(startWorkUnitConditionRow).getByLabelText("Operator"), {
-      target: { value: "state_is" },
+      target: { value: "exists" },
     });
-    chooseOptionIn(startWorkUnitConditionRow, "State", "done");
-    expect(within(startWorkUnitConditionRow).getAllByText(/link.requires/i).length).toBeGreaterThan(
+    expect(within(startWorkUnitConditionRow).getAllByText(/slot.summary/i).length).toBeGreaterThan(
       0,
     );
 
@@ -1362,7 +1352,7 @@ describe("methodology version shell routes", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add Group" }));
     const completionGroupDialog = await screen.findByRole("dialog", { name: "Add Group" });
     fireEvent.click(
-      within(completionGroupDialog).getByRole("button", { name: "Add Fact Condition" }),
+      within(completionGroupDialog).getByRole("button", { name: "Add Work Unit Fact Condition" }),
     );
     const completionFactConditionRow =
       within(completionGroupDialog).getByTestId("group-condition-0");
@@ -1388,7 +1378,7 @@ describe("methodology version shell routes", () => {
               expect.objectContaining({
                 conditions: expect.arrayContaining([
                   expect.objectContaining({
-                    kind: "fact",
+                    kind: "work_unit_fact",
                     config: expect.objectContaining({
                       factKey: "fact.input_path",
                       operator: "equals",
@@ -1396,12 +1386,10 @@ describe("methodology version shell routes", () => {
                     }),
                   }),
                   expect.objectContaining({
-                    kind: "work_unit",
+                    kind: "artifact",
                     config: expect.objectContaining({
-                      dependencyKey: "link.requires",
-                      workUnitKey: "WU.TASK",
-                      operator: "state_is",
-                      stateKey: "done",
+                      slotKey: "slot.summary",
+                      operator: "exists",
                     }),
                   }),
                 ]),
@@ -1414,7 +1402,7 @@ describe("methodology version shell routes", () => {
               expect.objectContaining({
                 conditions: expect.arrayContaining([
                   expect.objectContaining({
-                    kind: "fact",
+                    kind: "work_unit_fact",
                     config: expect.objectContaining({
                       factKey: "fact.contract_json",
                       operator: "exists",
@@ -1509,7 +1497,7 @@ describe("methodology version shell routes", () => {
     expect(screen.getByText(/fact\.input_path equals docs\/seeded-start\.md/i)).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Completion Conditions" }));
-    expect(screen.getByText(/link\.requires state_is done/i)).toBeTruthy();
+    expect(screen.getByText(/link\.requires exists/i)).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Save Transition" }));
     await waitFor(() => {
@@ -1779,26 +1767,13 @@ describe("methodology version shell routes", () => {
     });
     expect(routeContext.replaceArtifactSlotsMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        slots: [
-          expect.objectContaining({
-            id: expect.any(String),
-            key: "slot.summary",
-            cardinality: "single",
-            displayName: undefined,
-            description: undefined,
-            guidance: undefined,
-            templates: [
-              expect.objectContaining({
-                id: expect.any(String),
-                key: "tpl.default",
-                displayName: undefined,
-                description: undefined,
-                guidance: undefined,
-                content: undefined,
-              }),
-            ],
-          }),
-        ],
+        versionId: "draft-v2",
+        workUnitTypeKey: "WU.TASK",
+        slot: expect.objectContaining({
+          key: "slot.summary",
+          cardinality: "single",
+        }),
+        templateOps: { add: [], remove: [], update: [] },
       }),
       expect.anything(),
     );
@@ -1915,33 +1890,30 @@ describe("methodology version shell routes", () => {
     expect(routeContext.replaceArtifactSlotsMock).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        slots: [
-          expect.objectContaining({
-            id: "slot.seeded",
-            templates: [
-              expect.objectContaining({
-                id: "template.seeded.default",
+        slotId: "slot.seeded",
+        templateOps: expect.objectContaining({
+          add: [
+            expect.objectContaining({
+              key: "tpl.generated",
+              displayName: "Generated Template",
+              guidance: {
+                human: { markdown: "Generated guidance" },
+                agent: { markdown: "" },
+              },
+              content: "# Generated content",
+            }),
+          ],
+          update: [
+            expect.objectContaining({
+              templateId: "template.seeded.default",
+              template: expect.objectContaining({
                 key: "tpl.default.v2",
                 displayName: "Default Template v2",
                 content: "# Updated summary template",
               }),
-              expect.objectContaining({
-                id: expect.stringMatching(/^draft:/),
-                key: "tpl.generated",
-                displayName: "Generated Template",
-                description: {
-                  human: { markdown: "Generated description" },
-                  agent: { markdown: "" },
-                },
-                guidance: {
-                  human: { markdown: "Generated guidance" },
-                  agent: { markdown: "" },
-                },
-                content: "# Generated content",
-              }),
-            ],
-          }),
-        ],
+            }),
+          ],
+        }),
       }),
       expect.anything(),
     );
@@ -1984,12 +1956,10 @@ describe("methodology version shell routes", () => {
     expect(routeContext.replaceArtifactSlotsMock).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        slots: [
-          expect.objectContaining({
-            id: "slot.seeded",
-            templates: [],
-          }),
-        ],
+        slotId: "slot.seeded",
+        templateOps: expect.objectContaining({
+          remove: ["template.seeded.default", expect.stringMatching(/^local:/)],
+        }),
       }),
       expect.anything(),
     );
@@ -2067,16 +2037,14 @@ describe("methodology version shell routes", () => {
 
     expect(routeContext.replaceArtifactSlotsMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        slots: [
-          expect.objectContaining({
-            templates: expect.arrayContaining([
-              expect.objectContaining({
-                key: "tpl.variables",
-                content: expect.stringContaining("{{methodology.facts.{key}}}"),
-              }),
-            ]),
-          }),
-        ],
+        templateOps: expect.objectContaining({
+          add: [
+            expect.objectContaining({
+              key: "tpl.variables",
+              content: expect.stringContaining("{{methodology.facts.{key}}}"),
+            }),
+          ],
+        }),
       }),
       expect.anything(),
     );
@@ -2085,9 +2053,9 @@ describe("methodology version shell routes", () => {
     expect(replaceCall).toBeTruthy();
     const replacePayloadCandidate = (replaceCall as unknown as unknown[] | undefined)?.[0];
     const replacePayload = replacePayloadCandidate as {
-      slots: Array<{ templates: Array<{ key: string; content?: string }> }>;
+      templateOps: { add: Array<{ key: string; content?: string }> };
     };
-    const insertedTemplate = replacePayload.slots[0]?.templates.find(
+    const insertedTemplate = replacePayload.templateOps.add.find(
       (template) => template.key === "tpl.variables",
     );
     expect(insertedTemplate?.content).toContain("{{workUnit.facts.{key}}}");
@@ -2343,7 +2311,7 @@ describe("methodology version shell routes", () => {
     expect(screen.getByText("Work Unit: WU.MISSING")).toBeTruthy();
   });
 
-  it("opens the agents create dialog from add-agent intent and clears intent after create", async () => {
+  it("redirects the removed methodology agents route back to the version workspace", async () => {
     const { MethodologyVersionAgentsRoute } =
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.agents");
     const routeContext = createRouteContext();
@@ -2353,125 +2321,7 @@ describe("methodology version shell routes", () => {
 
     renderWithQueryClient(<MethodologyVersionAgentsRoute />);
 
-    expect(await screen.findByText("+ Add Agent")).toBeTruthy();
-    expect(screen.getByText("Add Agent requested from command palette.")).toBeTruthy();
-    expect(screen.getByText("Contracts")).toBeTruthy();
-    expect(screen.getByText("Diagnostics")).toBeTruthy();
-
-    expect(screen.getByLabelText("Agent Key")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Agent Key"), { target: { value: "agent.review" } });
-    fireEvent.change(screen.getByLabelText("Display Name"), { target: { value: "Review Agent" } });
-    fireEvent.change(screen.getByLabelText("Description"), {
-      target: { value: "Reviews outputs" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Guidance" }));
-    fireEvent.change(screen.getByLabelText("System Prompt (Markdown)"), {
-      target: { value: "Thorough reviewer" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Create Agent" }));
-
-    await waitFor(() => expect(routeContext.createAgentMock).toHaveBeenCalledTimes(1));
-    await waitFor(() =>
-      expect(useNavigateMock).toHaveBeenCalledWith({
-        to: "/methodologies/$methodologyId/versions/$versionId/agents",
-        params: { methodologyId: "equity-core", versionId: "draft-v2" },
-        search: {},
-        replace: true,
-      }),
-    );
-  });
-
-  it("creates an agent through version.agent.create", async () => {
-    const { MethodologyVersionAgentsRoute } =
-      await import("../../routes/methodologies.$methodologyId.versions.$versionId.agents");
-    const routeContext = createRouteContext();
-    useParamsMock.mockReturnValue({ methodologyId: "equity-core", versionId: "draft-v2" });
-    useSearchMock.mockReturnValue({});
-    useRouteContextMock.mockReturnValue(routeContext);
-
-    renderWithQueryClient(<MethodologyVersionAgentsRoute />);
-
-    fireEvent.click(await screen.findByRole("button", { name: "+ Add Agent" }));
-    fireEvent.change(screen.getByLabelText("Agent Key"), { target: { value: "agent.review" } });
-    fireEvent.change(screen.getByLabelText("Display Name"), { target: { value: "Review Agent" } });
-    fireEvent.change(screen.getByLabelText("Description"), {
-      target: { value: "Reviews outputs" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Guidance" }));
-    fireEvent.change(screen.getByLabelText("System Prompt (Markdown)"), {
-      target: { value: "Thorough reviewer" },
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Advanced (Deferred)" }));
-    expect(
-      screen.getByText(
-        "Advanced runtime settings are deferred in v1; this raw JSON editor is temporary.",
-      ),
-    ).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Advanced JSON"), {
-      target: {
-        value: "{ invalid",
-      },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Create Agent" }));
-
-    expect(routeContext.createAgentMock).toHaveBeenCalledTimes(0);
-    expect(screen.getByText("Advanced JSON must be valid JSON before saving.")).toBeTruthy();
-
-    fireEvent.change(screen.getByLabelText("Advanced JSON"), {
-      target: {
-        value:
-          '{"defaultModel":{"provider":"openai","model":"gpt-5"},"mcpServers":["filesystem","github"],"capabilities":["reasoning","tool-use"]}',
-      },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Create Agent" }));
-
-    await waitFor(() => expect(routeContext.createAgentMock).toHaveBeenCalledTimes(1));
-    expect(routeContext.createAgentMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        agent: expect.objectContaining({
-          defaultModel: { provider: "openai", model: "gpt-5" },
-          mcpServers: ["filesystem", "github"],
-          capabilities: ["reasoning", "tool-use"],
-        }),
-      }),
-      expect.anything(),
-    );
-  });
-
-  it("updates an agent through version.agent.update", async () => {
-    const { MethodologyVersionAgentsRoute } =
-      await import("../../routes/methodologies.$methodologyId.versions.$versionId.agents");
-    const routeContext = createRouteContext();
-    useParamsMock.mockReturnValue({ methodologyId: "equity-core", versionId: "draft-v2" });
-    useSearchMock.mockReturnValue({});
-    useRouteContextMock.mockReturnValue(routeContext);
-
-    renderWithQueryClient(<MethodologyVersionAgentsRoute />);
-
-    fireEvent.click(await screen.findByRole("button", { name: "Edit Research Agent" }));
-    fireEvent.change(screen.getByLabelText("Display Name"), {
-      target: { value: "Research Agent Updated" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Save Agent Changes" }));
-
-    await waitFor(() => expect(routeContext.updateAgentMock).toHaveBeenCalledTimes(1));
-  });
-
-  it("deletes an agent through version.agent.delete", async () => {
-    const { MethodologyVersionAgentsRoute } =
-      await import("../../routes/methodologies.$methodologyId.versions.$versionId.agents");
-    const routeContext = createRouteContext();
-    useParamsMock.mockReturnValue({ methodologyId: "equity-core", versionId: "draft-v2" });
-    useSearchMock.mockReturnValue({});
-    useRouteContextMock.mockReturnValue(routeContext);
-
-    renderWithQueryClient(<MethodologyVersionAgentsRoute />);
-
-    fireEvent.click(await screen.findByRole("button", { name: "Delete Research Agent" }));
-    fireEvent.click(screen.getByRole("button", { name: "Confirm Delete Agent" }));
-
-    await waitFor(() => expect(routeContext.deleteAgentMock).toHaveBeenCalledTimes(1));
+    expect(useNavigateMock).not.toHaveBeenCalled();
   });
 
   it("opens the dependency definition dialog from add-link-type intent and clears intent after create", async () => {

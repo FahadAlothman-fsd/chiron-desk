@@ -19,8 +19,6 @@ type HubActions = {
   createWorkUnit: HubAction;
   openFacts: HubAction;
   createFact: HubAction;
-  openAgents: HubAction;
-  createAgent: HubAction;
   openLinkTypes: HubAction;
   createLinkType: HubAction;
 };
@@ -31,8 +29,6 @@ function createActions(): HubActions {
     createWorkUnit: { disabledReason: null, onTrigger: vi.fn() },
     openFacts: { disabledReason: null, onTrigger: vi.fn() },
     createFact: { disabledReason: null, onTrigger: vi.fn() },
-    openAgents: { disabledReason: null, onTrigger: vi.fn() },
-    createAgent: { disabledReason: null, onTrigger: vi.fn() },
     openLinkTypes: { disabledReason: null, onTrigger: vi.fn() },
     createLinkType: { disabledReason: null, onTrigger: vi.fn() },
   };
@@ -57,10 +53,6 @@ function renderHub(actions: HubActions) {
         facts: {
           primary: "1 methodology fact",
           secondary: ["4 work-unit schemas"],
-        },
-        agents: {
-          primary: "3 agent definitions",
-          secondary: ["1 pending contract warning"],
         },
         linkTypes: {
           primary: "2 link types",
@@ -87,10 +79,10 @@ describe("MethodologyVersionWorkspaceAuthorHub", () => {
     renderHub(actions);
 
     fireEvent.click(screen.getByRole("button", { name: "Open Work Units" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add Agent" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Link Type" }));
 
     expect(actions.openWorkUnits.onTrigger).toHaveBeenCalledTimes(1);
-    expect(actions.createAgent.onTrigger).toHaveBeenCalledTimes(1);
+    expect(actions.createLinkType.onTrigger).toHaveBeenCalledTimes(1);
   });
 
   it("registers the existing command grammar as hotkey sequences", () => {
@@ -101,7 +93,7 @@ describe("MethodologyVersionWorkspaceAuthorHub", () => {
     );
 
     expect(registeredSequences).toEqual(
-      expect.arrayContaining(["G W", "C W", "G F", "C F", "G A", "C A", "G L", "C L"]),
+      expect.arrayContaining(["G W", "C W", "G F", "C F", "G L", "C L"]),
     );
   });
 
@@ -126,9 +118,6 @@ describe("MethodologyVersionWorkspaceAuthorHub", () => {
 
     expect(screen.getByText("1 methodology fact")).toBeTruthy();
     expect(screen.getByText("4 work-unit schemas")).toBeTruthy();
-
-    expect(screen.getByText("3 agent definitions")).toBeTruthy();
-    expect(screen.getByText("1 pending contract warning")).toBeTruthy();
 
     expect(screen.getByText("2 link types")).toBeTruthy();
     expect(screen.getByText("5 active bindings")).toBeTruthy();

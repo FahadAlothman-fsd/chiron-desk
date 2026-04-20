@@ -12,13 +12,17 @@ import { Textarea } from "../../../components/ui/textarea";
 
 type OverviewTabProps = {
   values: WorkflowAgentStepPayload;
-  setValue: <K extends keyof WorkflowAgentStepPayload>(
-    key: K,
-    value: WorkflowAgentStepPayload[K],
-  ) => void;
+  onKeyChange: (value: string) => void;
+  onLabelChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
 };
 
-export function OverviewTab({ values, setValue }: OverviewTabProps) {
+export function OverviewTab({
+  values,
+  onKeyChange,
+  onLabelChange,
+  onDescriptionChange,
+}: OverviewTabProps) {
   return (
     <FieldGroup>
       <Field>
@@ -27,7 +31,7 @@ export function OverviewTab({ values, setValue }: OverviewTabProps) {
           <Input
             id="agent-step-key"
             value={values.key}
-            onChange={(event) => setValue("key", event.target.value)}
+            onChange={(event) => onKeyChange(event.target.value)}
           />
           <FieldDescription>
             Stable workflow step identifier used by edges and runtime state.
@@ -41,7 +45,7 @@ export function OverviewTab({ values, setValue }: OverviewTabProps) {
           <Input
             id="agent-step-label"
             value={values.label ?? ""}
-            onChange={(event) => setValue("label", event.target.value)}
+            onChange={(event) => onLabelChange(event.target.value)}
           />
           <FieldDescription>
             Human-facing name for the workflow editor canvas and inspector.
@@ -56,12 +60,7 @@ export function OverviewTab({ values, setValue }: OverviewTabProps) {
             id="agent-step-description"
             rows={6}
             value={values.descriptionJson?.markdown ?? ""}
-            onChange={(event) =>
-              setValue(
-                "descriptionJson",
-                event.target.value.trim().length > 0 ? { markdown: event.target.value } : undefined,
-              )
-            }
+            onChange={(event) => onDescriptionChange(event.target.value)}
           />
           <FieldDescription>
             Short canvas summary that explains what this agent step does.

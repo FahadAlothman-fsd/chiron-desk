@@ -112,7 +112,7 @@ function normalizePayload(step: WorkflowEditorStep | undefined): WorkflowAgentSt
     ...createEmptyAgentStepPayload(),
     ...payload,
     label: payload.label ?? "",
-    descriptionJson: payload.descriptionJson,
+    ...(payload.descriptionJson ? { descriptionJson: payload.descriptionJson } : {}),
     harnessSelection: payload.harnessSelection ?? { harness: "opencode" },
     explicitReadGrants: payload.explicitReadGrants ?? [],
     writeItems: payload.writeItems ?? [],
@@ -134,17 +134,21 @@ function deriveReadModePreview(
   source: "explicit" | "inferred_from_write",
 ) {
   switch (fact.kind) {
+    case "plain_fact":
     case "plain_value_fact":
       return source === "explicit" ? "value_read" : "value_write_target";
-    case "definition_backed_external_fact":
-    case "bound_external_fact":
+    case "bound_fact":
       return source === "explicit" ? "external_read" : "external_write_target";
-    case "workflow_reference_fact":
+    case "workflow_ref_fact":
       return source === "explicit" ? "workflow_reference_read" : "workflow_reference_write_target";
-    case "artifact_reference_fact":
+    case "work_unit_reference_fact":
+      return source === "explicit" ? "workflow_reference_read" : "workflow_reference_write_target";
+    case "artifact_slot_reference_fact":
       return source === "explicit" ? "artifact_reference_read" : "artifact_reference_write_target";
     case "work_unit_draft_spec_fact":
       return source === "explicit" ? "draft_spec_read" : "draft_spec_write_target";
+    default:
+      return source === "explicit" ? "value_read" : "value_write_target";
   }
 }
 
@@ -354,14 +358,24 @@ export function AgentStepDialog({
                     {activeTab === "overview" ? (
                       <OverviewTab
                         values={state.values}
-                        setValue={(key, value) => form.setFieldValue(key, value)}
+                        onKeyChange={(value) => form.setFieldValue("key", value)}
+                        onLabelChange={(value) => form.setFieldValue("label", value)}
+                        onDescriptionChange={(value) =>
+                          form.setFieldValue(
+                            "descriptionJson",
+                            value.trim().length > 0 ? { markdown: value } : undefined,
+                          )
+                        }
                       />
                     ) : null}
 
                     {activeTab === "objective_and_instructions" ? (
                       <ObjectiveInstructionsTab
                         values={state.values}
-                        setValue={(key, value) => form.setFieldValue(key, value)}
+                        onObjectiveChange={(value) => form.setFieldValue("objective", value)}
+                        onInstructionsChange={(value) =>
+                          form.setFieldValue("instructionsMarkdown", value)
+                        }
                       />
                     ) : null}
 

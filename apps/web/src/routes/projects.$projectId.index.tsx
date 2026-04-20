@@ -102,7 +102,7 @@ export function ProjectDashboardRoute() {
             <Link
               to="/projects/$projectId/work-units"
               params={{ projectId }}
-              search={{ q: "", hasActiveTransition: "all" }}
+              search={{ q: "" }}
               className="group block"
             >
               <RuntimeStatCard

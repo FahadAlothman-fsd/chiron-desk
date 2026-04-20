@@ -3,8 +3,6 @@ export type MethodologyVersionWorkspaceAuthorHubActionKey =
   | "createWorkUnit"
   | "openFacts"
   | "createFact"
-  | "openAgents"
-  | "createAgent"
   | "openLinkTypes"
   | "createLinkType";
 
@@ -21,7 +19,7 @@ export type MethodologyVersionWorkspaceAuthorHubActions = Record<
 export type MethodologyVersionWorkspaceAuthorHubSurface = {
   title: string;
   description: string;
-  summaryKey: "workUnits" | "facts" | "agents" | "linkTypes";
+  summaryKey: "workUnits" | "facts" | "linkTypes";
   open: {
     key: MethodologyVersionWorkspaceAuthorHubActionKey;
     label: string;
@@ -69,23 +67,6 @@ export const AUTHOR_HUB_SURFACES: MethodologyVersionWorkspaceAuthorHubSurface[] 
       label: "Add Fact",
       shortcutLabel: "C F",
       sequence: ["c", "f"],
-    },
-  },
-  {
-    title: "Agents",
-    description: "Review the agent directory on the dedicated owner page.",
-    summaryKey: "agents",
-    open: {
-      key: "openAgents",
-      label: "Open Agents",
-      shortcutLabel: "G A",
-      sequence: ["g", "a"],
-    },
-    create: {
-      key: "createAgent",
-      label: "Add Agent",
-      shortcutLabel: "C A",
-      sequence: ["c", "a"],
     },
   },
   {

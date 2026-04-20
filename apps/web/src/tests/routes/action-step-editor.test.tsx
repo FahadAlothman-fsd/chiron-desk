@@ -373,18 +373,18 @@ function createEditorDefinition() {
         key: "bound_setup_summary",
         label: "Bound Setup Summary",
         descriptionJson: { markdown: "Bound external setup summary." },
-        kind: "bound_external_fact",
+        kind: "bound_fact",
         cardinality: "one",
-        externalFactDefinitionId: "ext-bound-setup-summary",
+        factDefinitionId: "ext-bound-setup-summary",
       },
       {
         contextFactDefinitionId: "ctx-artifact",
         key: "setup_artifact",
         label: "Setup Artifact",
         descriptionJson: { markdown: "Setup artifact reference." },
-        kind: "artifact_reference_fact",
+        kind: "artifact_slot_reference_fact",
         cardinality: "one",
-        artifactSlotDefinitionId: "slot-setup",
+        slotDefinitionId: "slot-setup",
       },
     ],
     formDefinitions: [],
@@ -416,7 +416,7 @@ function createRouteContext(editorDefinition = createEditorDefinition()) {
               sortOrder: 100,
               actionKind: "propagation",
               contextFactDefinitionId: "ctx-bound",
-              contextFactKind: "bound_external_fact",
+              contextFactKind: "bound_fact",
               items: [
                 {
                   itemId: "item-1",
@@ -668,7 +668,7 @@ describe("action step editor route", () => {
               actionKey: "propagate-bound-setup-summary",
               label: "Setup Summary Value",
               contextFactDefinitionId: "ctx-bound",
-              contextFactKind: "bound_external_fact",
+              contextFactKind: "bound_fact",
               sortOrder: 100,
               items: [
                 expect.objectContaining({
@@ -749,6 +749,9 @@ describe("action step editor route", () => {
       .closest("article") as HTMLElement | null;
     expect(firstItemCard).toBeTruthy();
     expect(secondItemCard).toBeTruthy();
+    if (!firstItemCard || !secondItemCard) {
+      throw new Error("Expected propagation item cards to render.");
+    }
 
     fireEvent.click(within(secondItemCard).getByRole("button", { name: /Setup Artifact/i }));
 
@@ -790,6 +793,9 @@ describe("action step editor route", () => {
       .getByLabelText("Item key 2")
       .closest("article") as HTMLElement | null;
     expect(secondItemCard).toBeTruthy();
+    if (!secondItemCard) {
+      throw new Error("Expected second propagation item card to render.");
+    }
 
     fireEvent.click(within(secondItemCard).getByRole("button", { name: /Setup Artifact/i }));
     expect(screen.queryByText(/same context fact kind/i)).toBeNull();

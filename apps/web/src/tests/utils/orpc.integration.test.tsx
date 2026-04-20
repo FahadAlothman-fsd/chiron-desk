@@ -50,6 +50,7 @@ describe("orpc runtime bridge", () => {
       },
       getRuntimeStatus: vi.fn(),
       recoverLocalServices: vi.fn(),
+      selectProjectRootDirectory: vi.fn(),
     };
 
     await import("../../utils/orpc");

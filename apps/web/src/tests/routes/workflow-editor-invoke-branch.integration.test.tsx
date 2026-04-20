@@ -339,7 +339,17 @@ vi.mock("../../features/workflow-editor/workflow-canvas", () => ({
   ),
 }));
 
-function createEditorDefinition() {
+type TestWorkflowEditorDefinition = {
+  workflow: Record<string, unknown>;
+  steps: unknown[];
+  edges: unknown[];
+  contextFacts: Array<Record<string, unknown>>;
+  formDefinitions: unknown[];
+  agentStepDefinitions: unknown[];
+  actionStepDefinitions?: unknown[];
+};
+
+function createEditorDefinition(): TestWorkflowEditorDefinition {
   return {
     workflow: {
       workflowDefinitionId: "wf-def-001",
@@ -382,7 +392,7 @@ function createEditorDefinition() {
             agent: { markdown: "Preserve only the bound workflow facts." },
           },
           targetKind: "work_unit",
-          sourceMode: "fixed_set",
+          sourceMode: "fixed",
           workUnitDefinitionId: "wut-story",
           bindings: [
             {
@@ -492,7 +502,7 @@ function createEditorDefinition() {
         key: "workflow_targets",
         label: "Workflow Targets",
         descriptionJson: { markdown: "Workflow reference fan-out targets." },
-        kind: "workflow_reference_fact",
+        kind: "workflow_ref_fact",
         cardinality: "many",
         allowedWorkflowDefinitionIds: ["wf-review", "wf-implementation"],
       },
@@ -512,9 +522,9 @@ function createEditorDefinition() {
         key: "current_story",
         label: "Current Story",
         descriptionJson: { markdown: "Definition-backed external work unit reference." },
-        kind: "definition_backed_external_fact",
+        kind: "bound_fact",
         cardinality: "one",
-        externalFactDefinitionId: "ext-current-story",
+        factDefinitionId: "ext-current-story",
         workUnitDefinitionId: "wut-story",
       },
       {
@@ -522,9 +532,9 @@ function createEditorDefinition() {
         key: "bound_external_json",
         label: "Bound External JSON",
         descriptionJson: { markdown: "Bound external JSON fact with subfields." },
-        kind: "bound_external_fact",
+        kind: "bound_fact",
         cardinality: "one",
-        externalFactDefinitionId: "ext-bound-json",
+        factDefinitionId: "ext-bound-json",
       },
     ],
     formDefinitions: [],
@@ -842,7 +852,7 @@ describe("workflow editor invoke route", () => {
           key: "invoke-review-work",
           label: "Invoke Review Work",
           targetKind: "workflow",
-          sourceMode: "fixed_set",
+          sourceMode: "fixed",
           workflowDefinitionIds: ["wf-review", "wf-implementation"],
         }),
       }),
@@ -987,7 +997,7 @@ describe("workflow editor invoke route", () => {
         expect.objectContaining({
           key: "invoke-story",
           targetKind: "work_unit",
-          sourceMode: "fixed_set",
+          sourceMode: "fixed",
           workUnitDefinitionId: "wut-story",
           bindings: [
             expect.objectContaining({
@@ -1057,7 +1067,7 @@ describe("workflow editor invoke route", () => {
         payload: expect.objectContaining({
           label: "Invoke Story Work Updated",
           targetKind: "work_unit",
-          sourceMode: "fixed_set",
+          sourceMode: "fixed",
           workUnitDefinitionId: "wut-story",
           bindings: [
             expect.objectContaining({
@@ -1643,7 +1653,7 @@ describe("workflow editor invoke route", () => {
             payload: {
               key: "invoke-story-work",
               targetKind: "workflow",
-              sourceMode: "fixed_set",
+              sourceMode: "fixed",
               workflowDefinitionIds: [],
             },
           } as any,
@@ -1811,9 +1821,9 @@ describe("workflow editor invoke route", () => {
         key: "project_overview",
         label: "Project Overview Artifact",
         descriptionJson: { markdown: "Seeded project overview artifact." },
-        kind: "artifact_reference_fact",
+        kind: "artifact_slot_reference_fact",
         cardinality: "one",
-        artifactSlotDefinitionId: "PROJECT_OVERVIEW",
+        slotDefinitionId: "PROJECT_OVERVIEW",
       },
     ];
 

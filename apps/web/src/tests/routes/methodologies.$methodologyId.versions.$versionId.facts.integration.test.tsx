@@ -3,9 +3,10 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { useRouteContextMock, toastSuccessMock } = vi.hoisted(() => ({
+const { useRouteContextMock, toastSuccessMock, toastErrorMock } = vi.hoisted(() => ({
   useRouteContextMock: vi.fn(),
   toastSuccessMock: vi.fn(),
+  toastErrorMock: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -29,7 +30,7 @@ vi.mock("@/features/methodologies/workspace-shell", () => ({
 vi.mock("sonner", () => ({
   toast: {
     success: toastSuccessMock,
-    error: vi.fn(),
+    error: toastErrorMock,
   },
 }));
 
@@ -258,9 +259,6 @@ describe("methodology version facts route", () => {
     fireEvent.change(screen.getByLabelText("Key Name"), {
       target: { value: "workspaceRoot" },
     });
-    fireEvent.change(screen.getByLabelText("Default Value"), {
-      target: { value: "/repo" },
-    });
     fireEvent.click(comboboxForField("Value Type"));
     expect(screen.queryByRole("option", { name: "json" })).toBeNull();
     const stringValueOption = screen.getByRole("option", { name: "string" });
@@ -340,7 +338,6 @@ describe("methodology version facts route", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: "Edit" }));
     expect(await screen.findByDisplayValue("Workspace Root Path")).toBeTruthy();
     expect(screen.getByDisplayValue("workspaceRoot")).toBeTruthy();
-    expect(screen.getByDisplayValue("/repo")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await waitFor(() => {
       expect(screen.queryByDisplayValue("Workspace Root Path")).toBeNull();
@@ -366,5 +363,182 @@ describe("methodology version facts route", () => {
       expect(toastSuccessMock).toHaveBeenCalledWith("Fact deleted");
       expect(invalidateQueriesMock).toHaveBeenCalled();
     });
+  });
+
+  it("sends number min/max as json-schema minimum/maximum in create mutation payload", async () => {
+    const { queryClient, createFactMock } = createTestHarness();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MethodologyVersionFactsRoute />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText("Repository URL");
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Fact" }));
+    await screen.findByText("Contract");
+
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Effort Score" },
+    });
+    fireEvent.change(screen.getByLabelText("Fact Key"), {
+      target: { value: "effort_score" },
+    });
+
+    chooseOption("Fact Type", "number");
+
+    fireEvent.change(screen.getByLabelText("Minimum Value"), {
+      target: { value: "1" },
+    });
+    fireEvent.change(screen.getByLabelText("Maximum Value"), {
+      target: { value: "10" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(createFactMock).toHaveBeenCalledTimes(1);
+    });
+
+    const createdValidation = createFactMock.mock.calls[0]?.[0]?.fact?.validation as
+      | Record<string, unknown>
+      | undefined;
+    const createdSchema = isRecord(createdValidation?.schema)
+      ? (createdValidation.schema as Record<string, unknown>)
+      : {};
+
+    expect(createdValidation?.kind).toBe("json-schema");
+    expect(createdSchema.type).toBe("number");
+    expect(createdSchema.minimum).toBe(1);
+    expect(createdSchema.maximum).toBe(10);
+  });
+
+  it("blocks save when number maximum is less than minimum", async () => {
+    const { queryClient, createFactMock } = createTestHarness();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MethodologyVersionFactsRoute />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText("Repository URL");
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Fact" }));
+    await screen.findByText("Contract");
+
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Invalid Bounds" },
+    });
+    fireEvent.change(screen.getByLabelText("Fact Key"), {
+      target: { value: "invalid_bounds" },
+    });
+
+    chooseOption("Fact Type", "number");
+
+    fireEvent.change(screen.getByLabelText("Minimum Value"), {
+      target: { value: "10" },
+    });
+    fireEvent.change(screen.getByLabelText("Maximum Value"), {
+      target: { value: "2" },
+    });
+
+    expect(await screen.findByTestId("fact-number-range-error")).toBeTruthy();
+    const saveButton = screen.getByRole("button", { name: "Save" });
+    expect(saveButton).toHaveProperty("disabled", true);
+
+    fireEvent.click(saveButton);
+
+    expect(createFactMock).not.toHaveBeenCalled();
+    expect(toastErrorMock).not.toHaveBeenCalledWith(
+      "Maximum value cannot be less than minimum value.",
+    );
+  });
+
+  it("blocks save when JSON number subfield maximum is less than minimum", async () => {
+    const { queryClient, createFactMock } = createTestHarness();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MethodologyVersionFactsRoute />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText("Repository URL");
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Fact" }));
+    await screen.findByText("Contract");
+
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "JSON Invalid Bounds" },
+    });
+    fireEvent.change(screen.getByLabelText("Fact Key"), {
+      target: { value: "json_invalid_bounds" },
+    });
+
+    chooseOption("Fact Type", "json");
+    fireEvent.click(screen.getByRole("button", { name: "Add JSON Key" }));
+    fireEvent.change(screen.getByLabelText("Key Display Name"), {
+      target: { value: "Score" },
+    });
+    fireEvent.change(screen.getByLabelText("Key Name"), {
+      target: { value: "score" },
+    });
+    chooseOption("Value Type", "number");
+
+    fireEvent.change(screen.getByLabelText("Value Minimum"), {
+      target: { value: "10" },
+    });
+    fireEvent.change(screen.getByLabelText("Value Maximum"), {
+      target: { value: "2" },
+    });
+
+    expect(await screen.findByTestId("fact-json-number-range-error")).toBeTruthy();
+    const saveButton = screen.getByRole("button", { name: "Save" });
+    expect(saveButton).toHaveProperty("disabled", true);
+
+    fireEvent.click(saveButton);
+    expect(createFactMock).not.toHaveBeenCalled();
+  });
+
+  it("persists and rehydrates string allowed-values validation", async () => {
+    const { queryClient, createFactMock } = createTestHarness();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MethodologyVersionFactsRoute />
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText("Repository URL");
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Fact" }));
+    await screen.findByText("Contract");
+
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Output Format" },
+    });
+    fireEvent.change(screen.getByLabelText("Fact Key"), {
+      target: { value: "output_format" },
+    });
+
+    chooseOption("Validation Type", "allowed-values");
+    const allowedValueInput = screen.getByLabelText("Allowed value input");
+    fireEvent.change(allowedValueInput, { target: { value: "markdown" } });
+    fireEvent.keyDown(allowedValueInput, { key: "Enter", code: "Enter" });
+    fireEvent.change(allowedValueInput, { target: { value: "asciidoc" } });
+    fireEvent.keyDown(allowedValueInput, { key: "Enter", code: "Enter" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(createFactMock).toHaveBeenCalledTimes(1);
+    });
+
+    const createdValidation = createFactMock.mock.calls[0]?.[0]?.fact?.validation as
+      | Record<string, unknown>
+      | undefined;
+    expect(createdValidation?.kind).toBe("allowed-values");
+    expect(createdValidation?.values).toEqual(["markdown", "asciidoc"]);
+
+    expect(await screen.findByText("Output Format")).toBeTruthy();
+    expect(screen.getByText("Allowed values (2)")).toBeTruthy();
   });
 });

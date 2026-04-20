@@ -318,6 +318,9 @@ describe("create project route", () => {
     fireEvent.change(screen.getByLabelText("Project name"), {
       target: { value: "Aurora Atlas 321" },
     });
+    fireEvent.change(screen.getByLabelText("Project root path"), {
+      target: { value: "/workspace/aurora-atlas-321" },
+    });
 
     const createButton = screen.getByRole("button", {
       name: "Create and pin project",
@@ -331,6 +334,7 @@ describe("create project route", () => {
         methodologyId: "m1",
         versionId: "bmad-v10",
         name: "Aurora Atlas 321",
+        projectRootPath: "/workspace/aurora-atlas-321",
       });
     });
   });
@@ -350,6 +354,9 @@ describe("create project route", () => {
 
     fireEvent.change(screen.getByLabelText("Project name"), {
       target: { value: "Aurora Atlas 321" },
+    });
+    fireEvent.change(screen.getByLabelText("Project root path"), {
+      target: { value: "/workspace/aurora-atlas-321" },
     });
 
     fireEvent.click(screen.getByText("BMAD v1"));

@@ -183,7 +183,7 @@ const isNumberOperand = (operand: WorkflowConditionOperand) => operand.operandTy
 const isWorkUnitOperand = (operand: WorkflowConditionOperand) =>
   operand.operandType === "work_unit";
 const isArtifactReferenceOperand = (operand: WorkflowConditionOperand) =>
-  operand.operandType === "artifact_reference";
+  operand.operandType === "artifact_snapshot";
 const isJsonObjectOperand = (operand: WorkflowConditionOperand) =>
   operand.operandType === "json_object";
 
@@ -308,23 +308,24 @@ function normalizeContextFactKind(
   value: unknown,
 ): WorkflowContextFactDefinitionItem["kind"] | null {
   switch (value) {
+    case "plain_fact":
     case "plain_value_fact":
-    case "definition_backed_external_fact":
-    case "bound_external_fact":
-    case "workflow_reference_fact":
-    case "artifact_reference_fact":
+    case "bound_fact":
+    case "workflow_ref_fact":
+    case "artifact_slot_reference_fact":
+    case "work_unit_reference_fact":
     case "work_unit_draft_spec_fact":
       return value;
     case "plain_value":
-      return "plain_value_fact";
+      return "plain_fact";
     case "workflow_reference":
-      return "workflow_reference_fact";
+      return "workflow_ref_fact";
     case "artifact_reference":
-      return "artifact_reference_fact";
+      return "artifact_slot_reference_fact";
     case "draft_spec":
       return "work_unit_draft_spec_fact";
     case "external_binding":
-      return "bound_external_fact";
+      return "bound_fact";
     default:
       return null;
   }
@@ -332,27 +333,32 @@ function normalizeContextFactKind(
 
 function summarizeContextFact(fact: WorkflowContextFactDraft | WorkflowContextFactDefinitionItem) {
   const lead = `${fact.kind.replaceAll("_", " ")} · ${fact.cardinality}`;
+  const factValueType = fact.type ?? fact.valueType ?? "string";
 
   switch (fact.kind) {
+    case "plain_fact":
     case "plain_value_fact":
-      return `${lead} · ${fact.valueType ?? "string"}`;
-    case "definition_backed_external_fact":
-    case "bound_external_fact":
-      return fact.externalFactDefinitionId?.trim()
-        ? `${lead} · ${fact.externalFactDefinitionId.trim()}`
-        : lead;
-    case "workflow_reference_fact":
+      return `${lead} · ${factValueType}`;
+    case "bound_fact":
+      return fact.factDefinitionId?.trim() ? `${lead} · ${fact.factDefinitionId.trim()}` : lead;
+    case "workflow_ref_fact":
       return fact.allowedWorkflowDefinitionIds.length > 0
         ? `${lead} · ${fact.allowedWorkflowDefinitionIds.length} workflow${
             fact.allowedWorkflowDefinitionIds.length === 1 ? "" : "s"
           }`
         : lead;
-    case "artifact_reference_fact":
-      return fact.artifactSlotDefinitionId?.trim()
-        ? `${lead} · ${fact.artifactSlotDefinitionId.trim()}`
+    case "artifact_slot_reference_fact":
+      return fact.slotDefinitionId?.trim() ? `${lead} · ${fact.slotDefinitionId.trim()}` : lead;
+    case "work_unit_reference_fact":
+      return fact.workUnitDefinitionId?.trim()
+        ? `${lead} · ${fact.workUnitDefinitionId.trim()}`
         : lead;
     case "work_unit_draft_spec_fact":
-      return fact.workUnitTypeKey?.trim() ? `${lead} · ${fact.workUnitTypeKey.trim()}` : lead;
+      return fact.workUnitDefinitionId?.trim()
+        ? `${lead} · ${fact.workUnitDefinitionId.trim()}`
+        : lead;
+    default:
+      return lead;
   }
 }
 
@@ -494,6 +500,9 @@ function toWorkflowAgentPayload(rawPayload: unknown): WorkflowAgentStepPayload |
     return null;
   }
 
+  const harnessSelection = asRecord(payload.harnessSelection);
+  const harnessSelectionModel = asRecord(harnessSelection?.model);
+
   const writeItems = Array.isArray(payload.writeItems)
     ? payload.writeItems.flatMap((entry) => {
         const writeItem = asRecord(entry);
@@ -535,17 +544,14 @@ function toWorkflowAgentPayload(rawPayload: unknown): WorkflowAgentStepPayload |
     instructionsMarkdown:
       typeof payload.instructionsMarkdown === "string" ? payload.instructionsMarkdown : "",
     harnessSelection: {
-      harness: asRecord(payload.harnessSelection)?.harness === "opencode" ? "opencode" : "opencode",
-      ...(typeof asRecord(payload.harnessSelection)?.agent === "string"
-        ? { agent: asRecord(payload.harnessSelection)?.agent as string }
-        : {}),
-      ...(asRecord(payload.harnessSelection?.model) &&
-      typeof asRecord(payload.harnessSelection?.model)?.provider === "string" &&
-      typeof asRecord(payload.harnessSelection?.model)?.model === "string"
+      harness: harnessSelection?.harness === "opencode" ? "opencode" : "opencode",
+      ...(typeof harnessSelection?.agent === "string" ? { agent: harnessSelection.agent } : {}),
+      ...(typeof harnessSelectionModel?.provider === "string" &&
+      typeof harnessSelectionModel?.model === "string"
         ? {
             model: {
-              provider: asRecord(payload.harnessSelection?.model)?.provider as string,
-              model: asRecord(payload.harnessSelection?.model)?.model as string,
+              provider: harnessSelectionModel.provider,
+              model: harnessSelectionModel.model,
             },
           }
         : {}),
@@ -681,11 +687,11 @@ function toWorkflowInvokePayload(rawPayload: unknown): WorkflowInvokeStepPayload
     },
   };
 
-  if (payload.targetKind === "workflow" && payload.sourceMode === "fixed_set") {
+  if (payload.targetKind === "workflow" && payload.sourceMode === "fixed") {
     return {
       ...base,
       targetKind: "workflow",
-      sourceMode: "fixed_set",
+      sourceMode: "fixed",
       workflowDefinitionIds: Array.isArray(payload.workflowDefinitionIds)
         ? payload.workflowDefinitionIds.filter(
             (workflowDefinitionId): workflowDefinitionId is string =>
@@ -697,26 +703,26 @@ function toWorkflowInvokePayload(rawPayload: unknown): WorkflowInvokeStepPayload
 
   if (
     payload.targetKind === "workflow" &&
-    payload.sourceMode === "context_fact_backed" &&
+    payload.sourceMode === "fact_backed" &&
     typeof payload.contextFactDefinitionId === "string"
   ) {
     return {
       ...base,
       targetKind: "workflow",
-      sourceMode: "context_fact_backed",
+      sourceMode: "fact_backed",
       contextFactDefinitionId: payload.contextFactDefinitionId,
     };
   }
 
   if (
     payload.targetKind === "work_unit" &&
-    payload.sourceMode === "fixed_set" &&
+    payload.sourceMode === "fixed" &&
     typeof payload.workUnitDefinitionId === "string"
   ) {
     return {
       ...base,
       targetKind: "work_unit",
-      sourceMode: "fixed_set",
+      sourceMode: "fixed",
       workUnitDefinitionId: payload.workUnitDefinitionId,
       bindings: toInvokeBindings(payload.bindings),
       activationTransitions: toInvokeActivationTransitions(payload.activationTransitions),
@@ -725,13 +731,13 @@ function toWorkflowInvokePayload(rawPayload: unknown): WorkflowInvokeStepPayload
 
   if (
     payload.targetKind === "work_unit" &&
-    payload.sourceMode === "context_fact_backed" &&
+    payload.sourceMode === "fact_backed" &&
     typeof payload.contextFactDefinitionId === "string"
   ) {
     return {
       ...base,
       targetKind: "work_unit",
-      sourceMode: "context_fact_backed",
+      sourceMode: "fact_backed",
       contextFactDefinitionId: payload.contextFactDefinitionId,
       bindings: toInvokeBindings(payload.bindings),
       activationTransitions: toInvokeActivationTransitions(payload.activationTransitions),
@@ -809,6 +815,15 @@ function toWorkflowBranchPayload(rawPayload: unknown): WorkflowBranchStepPayload
                                 return [];
                               }
 
+                              const operator =
+                                condition.operator === "exists" || condition.operator === "equals"
+                                  ? condition.operator
+                                  : null;
+
+                              if (!operator) {
+                                return [];
+                              }
+
                               return [
                                 {
                                   conditionId: condition.conditionId,
@@ -818,12 +833,8 @@ function toWorkflowBranchPayload(rawPayload: unknown): WorkflowBranchStepPayload
                                     condition.subFieldKey.trim().length > 0
                                       ? condition.subFieldKey
                                       : null,
-                                  operator:
-                                    condition.operator === "stale" ? "fresh" : condition.operator,
-                                  isNegated:
-                                    condition.operator === "stale"
-                                      ? true
-                                      : condition.isNegated === true,
+                                  operator,
+                                  isNegated: condition.isNegated === true,
                                   comparisonJson:
                                     typeof condition.comparisonJson === "undefined"
                                       ? null
@@ -870,9 +881,8 @@ function toWorkflowActionPayload(rawPayload: unknown): WorkflowActionStepPayload
             typeof action.actionId !== "string" ||
             typeof action.actionKey !== "string" ||
             typeof action.contextFactDefinitionId !== "string" ||
-            (action.contextFactKind !== "definition_backed_external_fact" &&
-              action.contextFactKind !== "bound_external_fact" &&
-              action.contextFactKind !== "artifact_reference_fact")
+            (action.contextFactKind !== "bound_fact" &&
+              action.contextFactKind !== "artifact_slot_reference_fact")
           ) {
             return [];
           }
@@ -954,13 +964,14 @@ function toWorkflowSteps(
   if (Array.isArray(rawAgentStepDefinitions)) {
     rawAgentStepDefinitions.forEach((entry) => {
       const definition = asRecord(entry);
-      if (!definition || typeof definition.step?.stepId !== "string") {
+      const nestedStep = asRecord(definition?.step);
+      if (!definition || typeof nestedStep?.stepId !== "string") {
         return;
       }
 
       const payload = toWorkflowAgentPayload(definition.payload);
       if (payload) {
-        agentDefinitionsByStepId.set(definition.step.stepId, payload);
+        agentDefinitionsByStepId.set(nestedStep.stepId, payload);
       }
     });
   }
@@ -1018,10 +1029,9 @@ function toWorkflowSteps(
                 payload: {
                   key: `agent-${index + 1}`,
                   label: "Agent Step",
-                  descriptionJson:
-                    typeof step.defaultMessage === "string"
-                      ? { markdown: step.defaultMessage }
-                      : undefined,
+                  ...(typeof step.defaultMessage === "string"
+                    ? { descriptionJson: { markdown: step.defaultMessage } }
+                    : {}),
                   objective: "",
                   instructionsMarkdown: "",
                   harnessSelection: { harness: "opencode" },
@@ -1240,28 +1250,20 @@ function toContextFactDefinitions(
         summary: typeof value.summary === "string" ? value.summary : "",
       };
 
-      if (
-        value.valueType === "string" ||
-        value.valueType === "number" ||
-        value.valueType === "boolean" ||
-        value.valueType === "json" ||
-        value.valueType === "work_unit"
-      ) {
-        item.valueType = value.valueType;
+      const itemValueType = normalizeWorkflowValueType(value.valueType);
+      if (itemValueType) {
+        item.valueType = itemValueType;
       }
 
-      if (typeof value.externalFactDefinitionId === "string") {
-        item.externalFactDefinitionId = value.externalFactDefinitionId;
+      if (typeof value.factDefinitionId === "string") {
+        item.factDefinitionId = value.factDefinitionId;
       }
 
-      if (
-        (kind === "definition_backed_external_fact" || kind === "bound_external_fact") &&
-        item.externalFactDefinitionId
-      ) {
+      if (kind === "bound_fact" && item.factDefinitionId) {
         const externalDefinitionMetadata = getExternalFactDefinitionMetadata({
           rawMethodologyFacts,
           rawWorkUnitFacts,
-          externalFactDefinitionId: item.externalFactDefinitionId,
+          factDefinitionId: item.factDefinitionId,
         });
 
         if (!item.valueType && externalDefinitionMetadata?.valueType) {
@@ -1277,11 +1279,6 @@ function toContextFactDefinitions(
 
         if (!item.workUnitDefinitionId && externalDefinitionMetadata?.workUnitDefinitionId) {
           item.workUnitDefinitionId = externalDefinitionMetadata.workUnitDefinitionId;
-          item.workUnitTypeKey =
-            resolveWorkUnitTypeKey(
-              rawWorkUnitTypes,
-              externalDefinitionMetadata.workUnitDefinitionId,
-            ) ?? undefined;
         }
       }
 
@@ -1290,20 +1287,15 @@ function toContextFactDefinitions(
         value.workUnitDefinitionId.trim().length > 0
       ) {
         item.workUnitDefinitionId = value.workUnitDefinitionId.trim();
-        item.workUnitTypeKey =
-          resolveWorkUnitTypeKey(rawWorkUnitTypes, value.workUnitDefinitionId.trim()) ?? undefined;
-        if (
-          !item.valueType &&
-          (kind === "definition_backed_external_fact" || kind === "bound_external_fact")
-        ) {
+        if (!item.valueType && kind === "bound_fact") {
           item.valueType = "work_unit";
         }
       }
 
-      if (typeof value.artifactSlotDefinitionId === "string") {
-        item.artifactSlotDefinitionId = value.artifactSlotDefinitionId;
+      if (typeof value.slotDefinitionId === "string") {
+        item.slotDefinitionId = value.slotDefinitionId;
       } else if (typeof value.artifactSlotKey === "string") {
-        item.artifactSlotDefinitionId = value.artifactSlotKey;
+        item.slotDefinitionId = value.artifactSlotKey;
       }
 
       if (kind === "work_unit_draft_spec_fact") {
@@ -1313,12 +1305,11 @@ function toContextFactDefinitions(
             ? value.workUnitDefinitionId.trim()
             : inferWorkUnitTypeIdentifierFromDraftSpecFactDefinitionIds(
                 rawWorkUnitFacts,
-                item.selectedWorkUnitFactDefinitionIds,
+                item.selectedWorkUnitFactDefinitionIds ?? [],
               );
 
         item.workUnitDefinitionId = resolvedWorkUnitDefinitionId;
-        item.workUnitTypeKey = resolvedWorkUnitDefinitionId;
-        item.includedFactDefinitionIds = item.selectedWorkUnitFactDefinitionIds;
+        item.includedFactDefinitionIds = item.selectedWorkUnitFactDefinitionIds ?? [];
         if (resolvedWorkUnitDefinitionId) {
           item.workUnitStateOptions = getWorkUnitStateOptions(
             rawWorkUnitTypes,
@@ -1332,18 +1323,12 @@ function toContextFactDefinitions(
         });
       }
 
-      if (
-        (kind === "definition_backed_external_fact" || kind === "bound_external_fact") &&
-        item.valueType === "work_unit" &&
-        item.externalFactDefinitionId
-      ) {
+      if (kind === "bound_fact" && item.valueType === "work_unit" && item.factDefinitionId) {
         const workUnitTypeIdentifier =
           item.workUnitDefinitionId ??
-          getExternalFactWorkUnitTypeIdentifier(rawWorkUnitFacts, item.externalFactDefinitionId);
+          getExternalFactWorkUnitTypeIdentifier(rawWorkUnitFacts, item.factDefinitionId);
         if (workUnitTypeIdentifier) {
           item.workUnitDefinitionId = workUnitTypeIdentifier;
-          item.workUnitTypeKey =
-            resolveWorkUnitTypeKey(rawWorkUnitTypes, workUnitTypeIdentifier) ?? undefined;
           if (!item.valueType) {
             item.valueType = "work_unit";
           }
@@ -1366,6 +1351,8 @@ function toContextFactMutationPayload(draft: WorkflowContextFactDraft) {
   const descriptionMarkdown = draft.descriptionMarkdown.trim();
   const humanMarkdown = draft.guidance.humanMarkdown.trim();
   const agentMarkdown = draft.guidance.agentMarkdown.trim();
+  const selectedWorkUnitFactDefinitionIds = draft.selectedWorkUnitFactDefinitionIds ?? [];
+  const selectedArtifactSlotDefinitionIds = draft.selectedArtifactSlotDefinitionIds ?? [];
 
   const base = {
     kind: draft.kind,
@@ -1384,6 +1371,16 @@ function toContextFactMutationPayload(draft: WorkflowContextFactDraft) {
   };
 
   switch (draft.kind) {
+    case "plain_fact":
+      return {
+        ...base,
+        type: draft.type ?? draft.valueType ?? "string",
+        ...(typeof draft.validationJson === "undefined"
+          ? {}
+          : {
+              validationJson: draft.validationJson,
+            }),
+      };
     case "plain_value_fact":
       return {
         ...base,
@@ -1394,32 +1391,31 @@ function toContextFactMutationPayload(draft: WorkflowContextFactDraft) {
               validationJson: draft.validationJson,
             }),
       };
-    case "definition_backed_external_fact":
-    case "bound_external_fact":
+    case "bound_fact":
       return {
         ...base,
-        externalFactDefinitionId: draft.externalFactDefinitionId?.trim() ?? "",
+        factDefinitionId: draft.factDefinitionId?.trim() ?? "",
+        ...(draft.valueType ? { valueType: draft.valueType } : {}),
       };
-    case "workflow_reference_fact":
+    case "workflow_ref_fact":
       return {
         ...base,
         allowedWorkflowDefinitionIds: draft.allowedWorkflowDefinitionIds,
       };
-    case "artifact_reference_fact":
+    case "artifact_slot_reference_fact":
       return {
         ...base,
-        artifactSlotDefinitionId: draft.artifactSlotDefinitionId?.trim() ?? "",
+        slotDefinitionId: draft.slotDefinitionId?.trim() ?? "",
       };
     case "work_unit_draft_spec_fact":
       return {
         ...base,
-        workUnitDefinitionId:
-          draft.workUnitDefinitionId?.trim() ?? draft.workUnitTypeKey?.trim() ?? "",
+        workUnitDefinitionId: draft.workUnitDefinitionId?.trim() ?? "",
         selectedWorkUnitFactDefinitionIds:
-          draft.selectedWorkUnitFactDefinitionIds.length > 0
-            ? draft.selectedWorkUnitFactDefinitionIds
+          selectedWorkUnitFactDefinitionIds.length > 0
+            ? selectedWorkUnitFactDefinitionIds
             : draft.includedFactDefinitionIds,
-        selectedArtifactSlotDefinitionIds: draft.selectedArtifactSlotDefinitionIds,
+        selectedArtifactSlotDefinitionIds,
       };
   }
 }
@@ -1488,7 +1484,7 @@ function toActionStepMutationPayload(payload: WorkflowActionStepPayload) {
 function toInvokeStepMutationPayload(payload: WorkflowInvokeStepPayload) {
   const descriptionMarkdown = readMarkdown(payload.descriptionJson);
 
-  if (payload.targetKind === "workflow" && payload.sourceMode === "fixed_set") {
+  if (payload.targetKind === "workflow" && payload.sourceMode === "fixed") {
     return {
       key: payload.key,
       ...(typeof payload.label === "string" && payload.label.trim().length > 0
@@ -1497,7 +1493,7 @@ function toInvokeStepMutationPayload(payload: WorkflowInvokeStepPayload) {
       ...(descriptionMarkdown ? { descriptionJson: { markdown: descriptionMarkdown } } : {}),
       guidance: payload.guidance,
       targetKind: "workflow",
-      sourceMode: "fixed_set",
+      sourceMode: "fixed",
       workflowDefinitionIds: payload.workflowDefinitionIds,
     };
   }
@@ -1511,12 +1507,12 @@ function toInvokeStepMutationPayload(payload: WorkflowInvokeStepPayload) {
       ...(descriptionMarkdown ? { descriptionJson: { markdown: descriptionMarkdown } } : {}),
       guidance: payload.guidance,
       targetKind: "workflow",
-      sourceMode: "context_fact_backed",
+      sourceMode: "fact_backed",
       contextFactDefinitionId: payload.contextFactDefinitionId,
     };
   }
 
-  if (payload.sourceMode === "fixed_set") {
+  if (payload.sourceMode === "fixed") {
     return {
       key: payload.key,
       ...(typeof payload.label === "string" && payload.label.trim().length > 0
@@ -1525,7 +1521,7 @@ function toInvokeStepMutationPayload(payload: WorkflowInvokeStepPayload) {
       ...(descriptionMarkdown ? { descriptionJson: { markdown: descriptionMarkdown } } : {}),
       guidance: payload.guidance,
       targetKind: "work_unit",
-      sourceMode: "fixed_set",
+      sourceMode: "fixed",
       workUnitDefinitionId: payload.workUnitDefinitionId,
       bindings: payload.bindings,
       activationTransitions: payload.activationTransitions,
@@ -1540,7 +1536,7 @@ function toInvokeStepMutationPayload(payload: WorkflowInvokeStepPayload) {
     ...(descriptionMarkdown ? { descriptionJson: { markdown: descriptionMarkdown } } : {}),
     guidance: payload.guidance,
     targetKind: "work_unit",
-    sourceMode: "context_fact_backed",
+    sourceMode: "fact_backed",
     contextFactDefinitionId: payload.contextFactDefinitionId,
     bindings: payload.bindings,
     activationTransitions: payload.activationTransitions,
@@ -1700,8 +1696,8 @@ function getDraftSpecSubFieldOptions(params: {
   const workUnitFactOptions = workUnitDefinitionId
     ? toWorkUnitDraftSpecFactOptions(rawWorkUnitFacts, workUnitDefinitionId)
     : [];
-  const selectedFactIds = new Set(fact.selectedWorkUnitFactDefinitionIds);
-  const selectedArtifactIds = new Set(fact.selectedArtifactSlotDefinitionIds);
+  const selectedFactIds = new Set(fact.selectedWorkUnitFactDefinitionIds ?? []);
+  const selectedArtifactIds = new Set(fact.selectedArtifactSlotDefinitionIds ?? []);
 
   const factOptions = workUnitFactOptions
     .filter((option) => selectedFactIds.has(option.value))
@@ -1713,17 +1709,25 @@ function getDraftSpecSubFieldOptions(params: {
       const validationKind = stringValidation.kind;
       const operandType = mapPickerValueTypeToOperandType(option.valueType);
 
+      const cardinality = getPickerOptionCardinality(option) ?? "one";
+      const workUnitStateOptions =
+        operandType === "work_unit" && option.workUnitDefinitionId
+          ? getWorkUnitStateOptions(rawWorkUnitTypes, option.workUnitDefinitionId)
+          : [];
+
       return {
         value: `fact:${option.value}`,
         label: formatDraftSpecTargetLabel({
           label: option.label,
-          cardinality: option.cardinality ?? "one",
+          cardinality,
           operandType,
           kind: "fact",
         }),
-        secondaryLabel: option.secondaryLabel,
         description: getDraftSpecTargetDescription(operandType, "fact"),
-        searchText: option.searchText,
+        ...(typeof option.secondaryLabel === "string"
+          ? { secondaryLabel: option.secondaryLabel }
+          : {}),
+        ...(typeof option.searchText === "string" ? { searchText: option.searchText } : {}),
         badges: (option.badges ?? []).filter(
           (badge) =>
             badge.tone === "cardinality" ||
@@ -1734,23 +1738,22 @@ function getDraftSpecSubFieldOptions(params: {
             badge.tone === "type-work-unit" ||
             badge.tone === "work-unit-definition",
         ),
-        valueType: option.valueType,
         validationJson: option.validationJson,
-        workUnitDefinitionId: option.workUnitDefinitionId,
+        ...(option.valueType ? { valueType: option.valueType } : {}),
+        ...(option.workUnitDefinitionId
+          ? { workUnitDefinitionId: option.workUnitDefinitionId }
+          : {}),
         kind: "fact" as const,
         operandType,
-        cardinality: option.cardinality ?? "one",
+        cardinality,
         freshnessCapable: false,
         validationKind,
         allowedValues: stringValidation.allowedValues,
-        workUnitStateOptions:
-          operandType === "work_unit" && option.workUnitDefinitionId
-            ? getWorkUnitStateOptions(rawWorkUnitTypes, option.workUnitDefinitionId)
-            : [],
+        ...(workUnitStateOptions.length > 0 ? { workUnitStateOptions } : {}),
       } satisfies WorkflowDraftSpecSubFieldOption;
     });
 
-  const artifactOptions = fact.selectedArtifactSlotDefinitionIds
+  const artifactOptions = (fact.selectedArtifactSlotDefinitionIds ?? [])
     .filter((definitionId) => selectedArtifactIds.has(definitionId))
     .map(
       (definitionId) =>
@@ -1759,16 +1762,16 @@ function getDraftSpecSubFieldOptions(params: {
           label: formatDraftSpecTargetLabel({
             label: titleizeKey(definitionId),
             cardinality: "one",
-            operandType: "artifact_reference",
+            operandType: "artifact_snapshot",
             kind: "artifact",
           }),
-          description: getDraftSpecTargetDescription("artifact_reference", "artifact"),
+          description: getDraftSpecTargetDescription("artifact_snapshot", "artifact"),
           badges: [
             { label: "one", tone: "cardinality" as const },
-            { label: "artifact", tone: "artifact-reference" as const },
+            { label: "artifact", tone: "artifact-snapshot" as const },
           ],
           kind: "artifact" as const,
-          operandType: "artifact_reference" as const,
+          operandType: "artifact_snapshot" as const,
           cardinality: "one" as const,
           freshnessCapable: true,
           workUnitStateOptions: [],
@@ -1817,6 +1820,40 @@ function normalizePickerFactType(value: unknown) {
     default:
       return null;
   }
+}
+
+function normalizeWorkflowValueType(
+  value: unknown,
+): WorkflowEditorPickerOption["valueType"] | undefined {
+  const normalized = normalizePickerFactType(value);
+
+  switch (normalized) {
+    case "string":
+    case "number":
+    case "boolean":
+    case "json":
+      return normalized;
+    case "work unit":
+      return "work_unit";
+    default:
+      return undefined;
+  }
+}
+
+function getPickerOptionCardinality(
+  option: WorkflowEditorPickerOption | undefined,
+): WorkflowContextFactDefinitionItem["cardinality"] | undefined {
+  const label = option?.badges?.find((badge) => badge.tone === "cardinality")?.label;
+
+  if (label === "one" || label === "single") {
+    return "one";
+  }
+
+  if (label === "many" || label === "fileset") {
+    return "many";
+  }
+
+  return undefined;
 }
 
 function getWorkUnitTypeLabel(rawWorkUnits: unknown, workUnitTypeIdentifier: string) {
@@ -1884,14 +1921,14 @@ function getWorkUnitStateOptions(rawWorkUnits: unknown, workUnitTypeIdentifier: 
   const workUnit = asRecord(matchedWorkUnit);
   const states = Array.isArray(workUnit?.lifecycleStates) ? workUnit.lifecycleStates : [];
 
-  const stateOptions = states
-    .map((entry) => {
-      const state = asRecord(entry);
-      if (!state || typeof state.key !== "string" || state.key.trim().length === 0) {
-        return null;
-      }
+  const stateOptions = states.flatMap((entry) => {
+    const state = asRecord(entry);
+    if (!state || typeof state.key !== "string" || state.key.trim().length === 0) {
+      return [];
+    }
 
-      return {
+    return [
+      {
         value: state.key,
         label:
           typeof state.displayName === "string" && state.displayName.trim().length > 0
@@ -1899,19 +1936,16 @@ function getWorkUnitStateOptions(rawWorkUnits: unknown, workUnitTypeIdentifier: 
             : state.key,
         secondaryLabel: state.key,
         description: readMarkdown(state.description) || readMarkdown(state.descriptionJson),
-      } satisfies WorkflowEditorPickerOption;
-    })
-    .filter((entry): entry is WorkflowEditorPickerOption => entry !== null);
+      } satisfies WorkflowEditorPickerOption,
+    ];
+  });
 
   return stateOptions.some((entry) => entry.value === activationOption.value)
     ? stateOptions
     : [activationOption, ...stateOptions];
 }
 
-function getExternalFactWorkUnitTypeIdentifier(
-  rawWorkUnits: unknown,
-  externalFactDefinitionId: string,
-) {
+function getExternalFactWorkUnitTypeIdentifier(rawWorkUnits: unknown, factDefinitionId: string) {
   for (const entry of getWorkUnitEntries(rawWorkUnits)) {
     const workUnit = asRecord(entry);
     if (!workUnit || typeof workUnit.key !== "string") {
@@ -1922,9 +1956,9 @@ function getExternalFactWorkUnitTypeIdentifier(
       const fact = asRecord(rawFact);
       return (
         fact &&
-        (fact.id === externalFactDefinitionId ||
-          fact.factDefinitionId === externalFactDefinitionId ||
-          fact.key === externalFactDefinitionId)
+        (fact.id === factDefinitionId ||
+          fact.factDefinitionId === factDefinitionId ||
+          fact.key === factDefinitionId)
       );
     });
 
@@ -1941,54 +1975,50 @@ function getExternalFactWorkUnitTypeIdentifier(
 function getExternalFactDefinitionMetadata(params: {
   rawMethodologyFacts: unknown;
   rawWorkUnitFacts: unknown;
-  externalFactDefinitionId: string;
-}) {
-  const { rawMethodologyFacts, rawWorkUnitFacts, externalFactDefinitionId } = params;
+  factDefinitionId: string;
+}): {
+  valueType?: WorkflowEditorPickerOption["valueType"];
+  validationJson?: unknown;
+  workUnitDefinitionId?: string;
+} | null {
+  const { rawMethodologyFacts, rawWorkUnitFacts, factDefinitionId } = params;
 
   const methodologyFact = getFactDefinitionEntries(rawMethodologyFacts)
     .map((entry) => asRecord(entry))
     .find(
       (fact) =>
         fact &&
-        (fact.id === externalFactDefinitionId ||
-          fact.factDefinitionId === externalFactDefinitionId ||
-          fact.key === externalFactDefinitionId),
+        (fact.id === factDefinitionId ||
+          fact.factDefinitionId === factDefinitionId ||
+          fact.key === factDefinitionId),
     );
 
   if (methodologyFact) {
+    const valueType = normalizeWorkflowValueType(
+      methodologyFact.valueType ?? methodologyFact.factType,
+    );
+    const workUnitDefinitionId =
+      typeof methodologyFact.workUnitTypeId === "string" &&
+      methodologyFact.workUnitTypeId.trim().length > 0
+        ? methodologyFact.workUnitTypeId.trim()
+        : typeof methodologyFact.workUnitDefinitionId === "string" &&
+            methodologyFact.workUnitDefinitionId.trim().length > 0
+          ? methodologyFact.workUnitDefinitionId.trim()
+          : undefined;
+
     return {
-      valueType:
-        methodologyFact.valueType === "string" ||
-        methodologyFact.valueType === "number" ||
-        methodologyFact.valueType === "boolean" ||
-        methodologyFact.valueType === "json" ||
-        methodologyFact.valueType === "work_unit"
-          ? methodologyFact.valueType
-          : methodologyFact.factType === "string" ||
-              methodologyFact.factType === "number" ||
-              methodologyFact.factType === "boolean" ||
-              methodologyFact.factType === "json" ||
-              methodologyFact.factType === "work_unit"
-            ? methodologyFact.factType
-            : undefined,
+      ...(valueType ? { valueType } : {}),
       validationJson:
         typeof methodologyFact.validationJson !== "undefined"
           ? methodologyFact.validationJson
           : methodologyFact.validation,
-      workUnitDefinitionId:
-        typeof methodologyFact.workUnitTypeId === "string" &&
-        methodologyFact.workUnitTypeId.trim().length > 0
-          ? methodologyFact.workUnitTypeId.trim()
-          : typeof methodologyFact.workUnitDefinitionId === "string" &&
-              methodologyFact.workUnitDefinitionId.trim().length > 0
-            ? methodologyFact.workUnitDefinitionId.trim()
-            : undefined,
+      ...(workUnitDefinitionId ? { workUnitDefinitionId } : {}),
     };
   }
 
   const workUnitTypeIdentifier = getExternalFactWorkUnitTypeIdentifier(
     rawWorkUnitFacts,
-    externalFactDefinitionId,
+    factDefinitionId,
   );
   if (!workUnitTypeIdentifier) {
     return null;
@@ -1999,24 +2029,19 @@ function getExternalFactDefinitionMetadata(params: {
     .find(
       (fact) =>
         fact &&
-        (fact.id === externalFactDefinitionId ||
-          fact.factDefinitionId === externalFactDefinitionId ||
-          fact.key === externalFactDefinitionId),
+        (fact.id === factDefinitionId ||
+          fact.factDefinitionId === factDefinitionId ||
+          fact.key === factDefinitionId),
     );
 
   if (!workUnitFact) {
     return null;
   }
 
+  const valueType = normalizeWorkflowValueType(workUnitFact.factType);
+
   return {
-    valueType:
-      workUnitFact.factType === "string" ||
-      workUnitFact.factType === "number" ||
-      workUnitFact.factType === "boolean" ||
-      workUnitFact.factType === "json" ||
-      workUnitFact.factType === "work_unit"
-        ? workUnitFact.factType
-        : undefined,
+    ...(valueType ? { valueType } : {}),
     validationJson:
       typeof workUnitFact.validationJson !== "undefined"
         ? workUnitFact.validationJson
@@ -2053,98 +2078,93 @@ function toFactOptions(
 ): WorkflowEditorPickerOption[] {
   const facts = getFactDefinitionEntries(rawFactDefinitions);
 
-  return facts
-    .map((entry) => {
-      const value = asRecord(entry);
-      if (!value || typeof value.key !== "string") {
-        return null;
-      }
+  return facts.flatMap((entry) => {
+    const value = asRecord(entry);
+    if (!value || typeof value.key !== "string") {
+      return [];
+    }
 
-      const label =
-        typeof value.name === "string" && value.name.trim().length > 0
-          ? value.name.trim()
-          : typeof value.label === "string" && value.label.trim().length > 0
-            ? value.label.trim()
-            : typeof value.displayName === "string" && value.displayName.trim().length > 0
-              ? value.displayName.trim()
-              : value.key;
-      const optionValue =
-        mode === "id" ? (getFactDefinitionIdentifier(value) ?? value.key) : value.key;
+    const label =
+      typeof value.name === "string" && value.name.trim().length > 0
+        ? value.name.trim()
+        : typeof value.label === "string" && value.label.trim().length > 0
+          ? value.label.trim()
+          : typeof value.displayName === "string" && value.displayName.trim().length > 0
+            ? value.displayName.trim()
+            : value.key;
+    const optionValue =
+      mode === "id" ? (getFactDefinitionIdentifier(value) ?? value.key) : value.key;
 
-      const description = readMarkdown(value.descriptionJson) || readMarkdown(value.description);
-      const cardinality =
-        value.cardinality === "one" || value.cardinality === "many" ? value.cardinality : null;
-      const factType = normalizePickerFactType(value.valueType ?? value.factType);
-      const workUnitTypeKey =
-        typeof value.workUnitTypeKey === "string" && value.workUnitTypeKey.trim().length > 0
-          ? value.workUnitTypeKey.trim()
-          : null;
-      const workUnitTypeLabel =
-        factType === "work unit" && workUnitTypeKey
-          ? getWorkUnitTypeLabel(rawWorkUnits, workUnitTypeKey)
-          : null;
-      const badges: WorkflowEditorPickerBadge[] = [
-        {
-          label: source === "methodology" ? "Methodology" : "Current Work Unit",
-          tone: source === "methodology" ? "source-methodology" : "source-current-work-unit",
-        },
-        ...(cardinality ? [{ label: cardinality, tone: "cardinality" as const }] : []),
-        ...(factType ? [{ label: factType, tone: getFactTypeBadgeTone(factType) }] : []),
-        ...(workUnitTypeLabel
-          ? [{ label: workUnitTypeLabel, tone: "work-unit-definition" as const }]
-          : []),
-      ];
-      const searchText = [
-        value.key,
-        label,
-        description,
-        fallbackDescription,
-        workUnitTypeKey,
-        ...badges.map((badge) => badge.label),
-      ]
-        .filter((segment): segment is string => typeof segment === "string" && segment.length > 0)
-        .join(" ");
+    const description = readMarkdown(value.descriptionJson) || readMarkdown(value.description);
+    const cardinality =
+      value.cardinality === "one" || value.cardinality === "many" ? value.cardinality : null;
+    const factType = normalizePickerFactType(value.valueType ?? value.factType);
+    const workUnitTypeKey =
+      typeof value.workUnitTypeKey === "string" && value.workUnitTypeKey.trim().length > 0
+        ? value.workUnitTypeKey.trim()
+        : null;
+    const workUnitTypeLabel =
+      factType === "work unit" && workUnitTypeKey
+        ? getWorkUnitTypeLabel(rawWorkUnits, workUnitTypeKey)
+        : null;
+    const badges: WorkflowEditorPickerBadge[] = [
+      {
+        label: source === "methodology" ? "Methodology" : "Current Work Unit",
+        tone: source === "methodology" ? "source-methodology" : "source-current-work-unit",
+      },
+      ...(cardinality ? [{ label: cardinality, tone: "cardinality" as const }] : []),
+      ...(factType ? [{ label: factType, tone: getFactTypeBadgeTone(factType) }] : []),
+      ...(workUnitTypeLabel
+        ? [{ label: workUnitTypeLabel, tone: "work-unit-definition" as const }]
+        : []),
+    ];
+    const searchText = [
+      value.key,
+      label,
+      description,
+      fallbackDescription,
+      workUnitTypeKey,
+      ...badges.map((badge) => badge.label),
+    ]
+      .filter((segment): segment is string => typeof segment === "string" && segment.length > 0)
+      .join(" ");
 
-      return {
-        value: optionValue,
-        label,
-        secondaryLabel: value.key,
-        description: description || fallbackDescription,
-        searchText,
-        badges,
-        ...(factType
-          ? {
-              valueType:
-                factType === "work unit"
-                  ? "work_unit"
-                  : factType === "string" ||
-                      factType === "number" ||
-                      factType === "boolean" ||
-                      factType === "json"
-                    ? factType
-                    : undefined,
-            }
+    const option: WorkflowEditorPickerOption = {
+      value: optionValue,
+      label,
+      secondaryLabel: value.key,
+      description: description || fallbackDescription,
+      searchText,
+      badges,
+      ...(factType === "work unit"
+        ? { valueType: "work_unit" as const }
+        : factType === "string" ||
+            factType === "number" ||
+            factType === "boolean" ||
+            factType === "json"
+          ? { valueType: factType }
           : {}),
-        ...(typeof value.validationJson !== "undefined"
-          ? { validationJson: value.validationJson }
-          : typeof value.validation !== "undefined"
-            ? { validationJson: value.validation }
+      ...(typeof value.validationJson !== "undefined"
+        ? { validationJson: value.validationJson }
+        : typeof value.validation !== "undefined"
+          ? { validationJson: value.validation }
+          : {}),
+      ...(typeof value.workUnitTypeId === "string" && value.workUnitTypeId.trim().length > 0
+        ? { workUnitDefinitionId: value.workUnitTypeId.trim() }
+        : typeof value.workUnitDefinitionId === "string" &&
+            value.workUnitDefinitionId.trim().length > 0
+          ? { workUnitDefinitionId: value.workUnitDefinitionId.trim() }
+          : typeof value.workUnitTypeKey === "string" && value.workUnitTypeKey.trim().length > 0
+            ? {
+                workUnitDefinitionId:
+                  resolveWorkUnitTypeKey(rawWorkUnits, value.workUnitTypeKey.trim()) ??
+                  value.workUnitTypeKey.trim(),
+              }
             : {}),
-        ...(typeof value.workUnitTypeId === "string" && value.workUnitTypeId.trim().length > 0
-          ? { workUnitDefinitionId: value.workUnitTypeId.trim() }
-          : typeof value.workUnitDefinitionId === "string" &&
-              value.workUnitDefinitionId.trim().length > 0
-            ? { workUnitDefinitionId: value.workUnitDefinitionId.trim() }
-            : typeof value.workUnitTypeKey === "string" && value.workUnitTypeKey.trim().length > 0
-              ? {
-                  workUnitDefinitionId:
-                    resolveWorkUnitTypeKey(rawWorkUnits, value.workUnitTypeKey.trim()) ??
-                    value.workUnitTypeKey.trim(),
-                }
-              : {}),
-      };
-    })
-    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+    };
+
+    return [option];
+  });
 }
 
 function toMethodologyFactOptions(rawFactDefinitions: unknown, rawWorkUnits: unknown) {
@@ -2175,26 +2195,26 @@ function toInvokeWorkUnitFactDefinitions(
   rawWorkUnits: unknown,
   workUnitTypeIdentifier: string,
 ): WorkflowInvokeWorkUnitFactDefinition[] {
-  return getWorkUnitFactEntries(rawWorkUnits, workUnitTypeIdentifier)
-    .map((entry) => {
-      const fact = asRecord(entry);
-      if (!fact || typeof fact.key !== "string") {
-        return null;
-      }
+  return getWorkUnitFactEntries(rawWorkUnits, workUnitTypeIdentifier).flatMap((entry) => {
+    const fact = asRecord(entry);
+    if (!fact || typeof fact.key !== "string") {
+      return [];
+    }
 
-      const factType =
-        fact.factType === "string" ||
-        fact.factType === "number" ||
-        fact.factType === "boolean" ||
-        fact.factType === "json" ||
-        fact.factType === "work_unit"
-          ? fact.factType
-          : null;
-      if (!factType) {
-        return null;
-      }
+    const factType =
+      fact.factType === "string" ||
+      fact.factType === "number" ||
+      fact.factType === "boolean" ||
+      fact.factType === "json" ||
+      fact.factType === "work_unit"
+        ? fact.factType
+        : null;
+    if (!factType) {
+      return [];
+    }
 
-      return {
+    return [
+      {
         id:
           typeof fact.id === "string" && fact.id.trim().length > 0
             ? fact.id.trim()
@@ -2211,9 +2231,9 @@ function toInvokeWorkUnitFactDefinitions(
         factType,
         cardinality: fact.cardinality === "many" ? "many" : "one",
         validationJson: fact.validationJson ?? fact.validation ?? null,
-      } satisfies WorkflowInvokeWorkUnitFactDefinition;
-    })
-    .filter((entry): entry is WorkflowInvokeWorkUnitFactDefinition => entry !== null);
+      } satisfies WorkflowInvokeWorkUnitFactDefinition,
+    ];
+  });
 }
 
 function toWorkUnitTypeOptions(rawWorkUnits: unknown) {
@@ -2259,26 +2279,26 @@ function toArtifactSlotOptions(rawArtifactSlots: unknown) {
       ? record.artifactSlots
       : [];
 
-  return slots
-    .map((entry) => {
-      const slot = asRecord(entry);
-      if (!slot || typeof slot.key !== "string") {
-        return null;
-      }
+  return slots.flatMap((entry) => {
+    const slot = asRecord(entry);
+    if (!slot || typeof slot.key !== "string") {
+      return [];
+    }
 
-      const cardinality =
-        typeof slot.cardinality === "string" ? slot.cardinality.replaceAll("_", " ") : null;
-      const slotDefinitionId =
-        typeof slot.id === "string" && slot.id.trim().length > 0
-          ? slot.id.trim()
-          : typeof slot.artifactSlotDefinitionId === "string" &&
-              slot.artifactSlotDefinitionId.trim().length > 0
-            ? slot.artifactSlotDefinitionId.trim()
-            : typeof slot.definitionId === "string" && slot.definitionId.trim().length > 0
-              ? slot.definitionId.trim()
-              : slot.key;
+    const cardinality =
+      typeof slot.cardinality === "string" ? slot.cardinality.replaceAll("_", " ") : null;
+    const slotDefinitionId =
+      typeof slot.id === "string" && slot.id.trim().length > 0
+        ? slot.id.trim()
+        : typeof slot.artifactSlotDefinitionId === "string" &&
+            slot.artifactSlotDefinitionId.trim().length > 0
+          ? slot.artifactSlotDefinitionId.trim()
+          : typeof slot.definitionId === "string" && slot.definitionId.trim().length > 0
+            ? slot.definitionId.trim()
+            : slot.key;
 
-      return {
+    return [
+      {
         value: slotDefinitionId,
         label:
           typeof slot.displayName === "string" && slot.displayName.trim().length > 0
@@ -2287,18 +2307,9 @@ function toArtifactSlotOptions(rawArtifactSlots: unknown) {
         secondaryLabel: slot.key,
         description: readMarkdown(slot.description) || "Artifact slot",
         badges: cardinality ? [{ label: cardinality, tone: "cardinality" as const }] : [],
-      };
-    })
-    .filter(
-      (
-        entry,
-      ): entry is {
-        value: string;
-        label: string;
-        description: string;
-        badges: { label: string; tone: "cardinality" }[];
-      } => entry !== null,
-    );
+      },
+    ];
+  });
 }
 
 function toInvokeArtifactSlotDefinitions(
@@ -2322,92 +2333,80 @@ function toWorkflowOptions(rawWorkflows: unknown) {
       ? rawWorkflows
       : [];
 
-  return workflows
-    .map((entry) => {
-      const workflow = asRecord(entry);
-      if (!workflow) {
-        return null;
-      }
+  return workflows.flatMap((entry) => {
+    const workflow = asRecord(entry);
+    if (!workflow) {
+      return [];
+    }
 
-      const value =
-        typeof workflow.workflowDefinitionId === "string" &&
-        workflow.workflowDefinitionId.trim().length > 0
-          ? workflow.workflowDefinitionId
-          : typeof workflow.key === "string" && workflow.key.trim().length > 0
-            ? workflow.key
-            : null;
+    const value =
+      typeof workflow.workflowDefinitionId === "string" &&
+      workflow.workflowDefinitionId.trim().length > 0
+        ? workflow.workflowDefinitionId
+        : typeof workflow.key === "string" && workflow.key.trim().length > 0
+          ? workflow.key
+          : null;
 
-      if (!value) {
-        return null;
-      }
+    if (!value) {
+      return [];
+    }
 
-      return {
+    return [
+      {
         value,
         label:
           typeof workflow.displayName === "string" && workflow.displayName.trim().length > 0
             ? workflow.displayName
             : value,
-        secondaryLabel:
-          typeof workflow.key === "string" && workflow.key.trim().length > 0
-            ? workflow.key
-            : undefined,
+        ...(typeof workflow.key === "string" && workflow.key.trim().length > 0
+          ? { secondaryLabel: workflow.key }
+          : {}),
         description:
           readMarkdown(workflow.descriptionJson) ||
           readMarkdown(workflow.description) ||
           readMarkdown(workflow.guidanceJson) ||
           "Workflow",
-      };
-    })
-    .filter(
-      (entry): entry is { value: string; label: string; description: string } => entry !== null,
-    );
+      },
+    ];
+  });
 }
 
 function toTransitionOptions(rawTransitions: unknown) {
   const transitions = Array.isArray(rawTransitions) ? rawTransitions : [];
 
-  return transitions
-    .map((entry) => {
-      const transition = asRecord(entry);
-      const transitionIdentifier =
-        typeof transition?.transitionId === "string" && transition.transitionId.trim().length > 0
-          ? transition.transitionId
-          : typeof transition?.id === "string" && transition.id.trim().length > 0
-            ? transition.id
-            : null;
-      if (!transition || !transitionIdentifier) {
-        return null;
-      }
+  return transitions.flatMap((entry) => {
+    const transition = asRecord(entry);
+    const transitionIdentifier =
+      typeof transition?.transitionId === "string" && transition.transitionId.trim().length > 0
+        ? transition.transitionId
+        : typeof transition?.id === "string" && transition.id.trim().length > 0
+          ? transition.id
+          : null;
+    if (!transition || !transitionIdentifier) {
+      return [];
+    }
 
-      const label =
-        typeof transition.transitionName === "string" && transition.transitionName.trim().length > 0
-          ? transition.transitionName
-          : typeof transition.transitionKey === "string" &&
-              transition.transitionKey.trim().length > 0
-            ? transition.transitionKey
-            : (transition.transitionId ?? transition.id);
+    const label =
+      typeof transition.transitionName === "string" && transition.transitionName.trim().length > 0
+        ? transition.transitionName
+        : typeof transition.transitionKey === "string" && transition.transitionKey.trim().length > 0
+          ? transition.transitionKey
+          : transitionIdentifier;
 
-      return {
+    return [
+      {
         value: transitionIdentifier,
         label,
-        secondaryLabel:
-          typeof transition.transitionKey === "string" ? transition.transitionKey : undefined,
+        ...(typeof transition.transitionKey === "string"
+          ? { secondaryLabel: transition.transitionKey }
+          : {}),
         description:
           typeof transition.transitionKey === "string" && transition.transitionKey.trim().length > 0
             ? transition.transitionKey
             : "Lifecycle transition",
-      };
-    })
-    .filter(
-      (
-        entry,
-      ): entry is {
-        value: string;
-        label: string;
-        secondaryLabel?: string;
-        description: string;
-      } => entry !== null,
-    );
+      },
+    ];
+  });
 }
 
 function resolveTransitionKey(rawTransitions: unknown, transitionIdentifier: string) {

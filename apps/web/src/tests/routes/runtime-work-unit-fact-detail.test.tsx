@@ -22,6 +22,9 @@ vi.mock("@/features/methodologies/workspace-shell", () => ({
 }));
 
 vi.mock("@/components/ui/button", () => ({
+  Button: ({ children, ...props }: React.ComponentProps<"button">) => (
+    <button {...props}>{children}</button>
+  ),
   buttonVariants: () => "",
 }));
 
@@ -56,22 +59,19 @@ vi.mock("@/lib/utils", () => ({
 import { ProjectWorkUnitFactDetailRoute } from "../../routes/projects.$projectId.work-units.$projectWorkUnitId.facts.$factDefinitionId.tsx";
 
 function createHarness() {
-  const addRuntimeWorkUnitFactValueMutationOptionsMock = vi.fn(() => ({
+  const createRuntimeWorkUnitFactValueMutationOptionsMock = vi.fn(() => ({
     mutationFn: vi.fn(async () => ({ workUnitFactInstanceId: "wufi-new" })),
   }));
 
-  const setRuntimeWorkUnitFactValueMutationOptionsMock = vi.fn(() => ({
+  const updateRuntimeWorkUnitFactValueMutationOptionsMock = vi.fn(() => ({
     mutationFn: vi.fn(async () => ({
       workUnitFactInstanceId: "wufi-set",
       supersededWorkUnitFactInstanceId: "wufi-1",
     })),
   }));
 
-  const replaceRuntimeWorkUnitFactValueMutationOptionsMock = vi.fn(() => ({
-    mutationFn: vi.fn(async () => ({
-      workUnitFactInstanceId: "wufi-replaced",
-      supersededWorkUnitFactInstanceId: "wufi-1",
-    })),
+  const deleteRuntimeWorkUnitFactValueMutationOptionsMock = vi.fn(() => ({
+    mutationFn: vi.fn(async () => ({ affectedCount: 1, affectedInstanceIds: ["wufi-deleted"] })),
   }));
 
   const orpc = {
@@ -113,14 +113,30 @@ function createHarness() {
           }),
         })),
       },
-      addRuntimeWorkUnitFactValue: {
-        mutationOptions: addRuntimeWorkUnitFactValueMutationOptionsMock,
+      getRuntimeWorkUnits: {
+        queryOptions: vi.fn((_input?: unknown) => ({
+          queryKey: ["runtime-work-units", "project-1"],
+          queryFn: async () => ({
+            rows: [
+              {
+                projectWorkUnitId: "wu-2",
+                displayIdentity: {
+                  primaryLabel: "Project Context #2",
+                  secondaryLabel: "project_context_2",
+                },
+              },
+            ],
+          }),
+        })),
       },
-      setRuntimeWorkUnitFactValue: {
-        mutationOptions: setRuntimeWorkUnitFactValueMutationOptionsMock,
+      createRuntimeWorkUnitFactValue: {
+        mutationOptions: createRuntimeWorkUnitFactValueMutationOptionsMock,
       },
-      replaceRuntimeWorkUnitFactValue: {
-        mutationOptions: replaceRuntimeWorkUnitFactValueMutationOptionsMock,
+      updateRuntimeWorkUnitFactValue: {
+        mutationOptions: updateRuntimeWorkUnitFactValueMutationOptionsMock,
+      },
+      deleteRuntimeWorkUnitFactValue: {
+        mutationOptions: deleteRuntimeWorkUnitFactValueMutationOptionsMock,
       },
     },
   };
@@ -146,9 +162,9 @@ function createHarness() {
   return {
     queryClient,
     orpc,
-    addRuntimeWorkUnitFactValueMutationOptionsMock,
-    setRuntimeWorkUnitFactValueMutationOptionsMock,
-    replaceRuntimeWorkUnitFactValueMutationOptionsMock,
+    createRuntimeWorkUnitFactValueMutationOptionsMock,
+    updateRuntimeWorkUnitFactValueMutationOptionsMock,
+    deleteRuntimeWorkUnitFactValueMutationOptionsMock,
   };
 }
 
@@ -157,13 +173,13 @@ describe("runtime work-unit fact detail route", () => {
     vi.clearAllMocks();
   });
 
-  it("renders definition-scoped detail and wires add/set/replace mutations only", async () => {
+  it("renders definition-scoped detail and wires create/update/delete mutations only", async () => {
     const {
       queryClient,
       orpc,
-      addRuntimeWorkUnitFactValueMutationOptionsMock,
-      setRuntimeWorkUnitFactValueMutationOptionsMock,
-      replaceRuntimeWorkUnitFactValueMutationOptionsMock,
+      createRuntimeWorkUnitFactValueMutationOptionsMock,
+      updateRuntimeWorkUnitFactValueMutationOptionsMock,
+      deleteRuntimeWorkUnitFactValueMutationOptionsMock,
     } = createHarness();
 
     await queryClient.prefetchQuery(
@@ -185,13 +201,12 @@ describe("runtime work-unit fact detail route", () => {
     expect(markup).toContain("Delivery Mode");
     expect(markup).toContain("deliveryMode");
     expect(markup).toContain("Current state");
-    expect(markup).toContain("work-unit-fact-set-form");
-    expect(markup).toContain("work-unit-fact-replace-form-wufi-1");
-    expect(markup).not.toContain("Delete");
+    expect(markup).toContain("Replace value");
+    expect(markup).toContain("Delete current value");
     expect(markup).not.toContain("Clear");
 
-    expect(addRuntimeWorkUnitFactValueMutationOptionsMock).toHaveBeenCalledTimes(1);
-    expect(setRuntimeWorkUnitFactValueMutationOptionsMock).toHaveBeenCalledTimes(1);
-    expect(replaceRuntimeWorkUnitFactValueMutationOptionsMock).toHaveBeenCalledTimes(1);
+    expect(createRuntimeWorkUnitFactValueMutationOptionsMock).toHaveBeenCalledTimes(1);
+    expect(updateRuntimeWorkUnitFactValueMutationOptionsMock).toHaveBeenCalledTimes(1);
+    expect(deleteRuntimeWorkUnitFactValueMutationOptionsMock).toHaveBeenCalledTimes(1);
   });
 });

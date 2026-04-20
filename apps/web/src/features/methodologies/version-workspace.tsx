@@ -142,6 +142,10 @@ export type FactEditorValue = {
         };
       }
     | {
+        kind: "allowed-values";
+        values: string[];
+      }
+    | {
         kind: "json-schema";
         schemaDialect: string;
         schema: unknown;
@@ -259,6 +263,11 @@ function toFactEditorValue(input: unknown, fallbackId?: string): FactEditorValue
       schema: value.validation.schema ?? {},
       ...("subSchema" in value.validation ? { subSchema: value.validation.subSchema } : {}),
     };
+  } else if (isRecord(value.validation)) {
+    const allowedValues = getAllowedValues(value.validation);
+    if (value.validation.kind === "allowed-values" || allowedValues.length > 0) {
+      validation = createAllowedValuesValidation(allowedValues);
+    }
   }
 
   const name = typeof value.name === "string" ? value.name : undefined;

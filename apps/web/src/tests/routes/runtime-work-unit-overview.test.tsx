@@ -31,6 +31,7 @@ vi.mock("@/components/ui/card", () => ({
 
 vi.mock("@/components/ui/button", () => ({
   Button: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
+  buttonVariants: () => "",
 }));
 
 vi.mock("@/components/runtime/runtime-start-gate-dialog", () => ({

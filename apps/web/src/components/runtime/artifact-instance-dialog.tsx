@@ -1,4 +1,4 @@
-import type { GetArtifactSnapshotDialogOutput } from "@chiron/contracts/runtime/artifacts";
+import type { GetArtifactInstanceDialogOutput } from "@chiron/contracts/runtime/artifacts";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -10,10 +10,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-type ArtifactSnapshotDialogProps = {
+type ArtifactInstanceDialogProps = {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
-  readonly detail: GetArtifactSnapshotDialogOutput | null;
+  readonly detail: GetArtifactInstanceDialogOutput | null;
   readonly isLoading: boolean;
   readonly errorMessage: string | null;
 };
@@ -27,40 +27,42 @@ function formatTimestamp(timestamp: string): string {
   return parsed.toLocaleString();
 }
 
-function formatRecordedBy(snapshot: GetArtifactSnapshotDialogOutput["snapshot"]): string {
-  if (!snapshot.recordedBy) {
+function formatRecordedBy(
+  artifactInstance: GetArtifactInstanceDialogOutput["artifactInstance"],
+): string {
+  if (!artifactInstance.recordedBy) {
     return "Recording provenance not available";
   }
 
   const parts = [
-    snapshot.recordedBy.transitionName ?? snapshot.recordedBy.transitionKey,
-    snapshot.recordedBy.workflowName ?? snapshot.recordedBy.workflowKey,
-    snapshot.recordedBy.userId,
+    artifactInstance.recordedBy.transitionName ?? artifactInstance.recordedBy.transitionKey,
+    artifactInstance.recordedBy.workflowName ?? artifactInstance.recordedBy.workflowKey,
+    artifactInstance.recordedBy.userId,
   ].filter((value): value is string => Boolean(value));
 
   return parts.length > 0 ? parts.join(" · ") : "Recording provenance not available";
 }
 
-export function ArtifactSnapshotDialog({
+export function ArtifactInstanceDialog({
   open,
   onOpenChange,
   detail,
   isLoading,
   errorMessage,
-}: ArtifactSnapshotDialogProps) {
+}: ArtifactInstanceDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl rounded-none border border-border/80 bg-background">
         <DialogHeader>
-          <DialogTitle>Artifact snapshot drill-in</DialogTitle>
+          <DialogTitle>Artifact instance drill-in</DialogTitle>
           <DialogDescription>
-            Snapshot-specific metadata and delta members. File content viewing is out of scope for
-            this slice.
+            Current artifact-instance metadata and tracked files. File content viewing is out of
+            scope for this slice.
           </DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading snapshot details…</p>
+          <p className="text-sm text-muted-foreground">Loading artifact details…</p>
         ) : null}
 
         {errorMessage ? (
@@ -73,21 +75,18 @@ export function ArtifactSnapshotDialog({
           <div className="space-y-3 text-xs">
             <section className="space-y-1 border border-border/70 bg-background/40 p-3">
               <p className="text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
-                Snapshot context
+                Artifact instance context
               </p>
               <p className="font-medium">
                 {detail.slotDefinition.slotName ?? detail.slotDefinition.slotKey} ·{" "}
                 {detail.slotDefinition.artifactKind}
               </p>
               <p className="text-muted-foreground">
-                Snapshot ID: {detail.snapshot.projectArtifactSnapshotId}
+                Artifact instance ID: {detail.artifactInstance.artifactInstanceId ?? "unknown"}
               </p>
-              <p className="text-muted-foreground">
-                Recorded: {formatTimestamp(detail.snapshot.createdAt)}
-              </p>
-              {detail.snapshot.supersedesProjectArtifactSnapshotId ? (
+              {detail.artifactInstance.updatedAt ? (
                 <p className="text-muted-foreground">
-                  Supersedes: {detail.snapshot.supersedesProjectArtifactSnapshotId}
+                  Updated: {formatTimestamp(detail.artifactInstance.updatedAt)}
                 </p>
               ) : null}
             </section>
@@ -96,42 +95,32 @@ export function ArtifactSnapshotDialog({
               <p className="text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
                 Recording provenance
               </p>
-              <p className="text-muted-foreground">{formatRecordedBy(detail.snapshot)}</p>
+              <p className="text-muted-foreground">{formatRecordedBy(detail.artifactInstance)}</p>
             </section>
 
             <section className="space-y-2 border border-border/70 bg-background/40 p-3">
               <p className="text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
-                Delta members
+                Tracked files
               </p>
-              {detail.snapshot.deltaMembers.length === 0 ? (
+              {detail.artifactInstance.files.length === 0 ? (
                 <p className="text-muted-foreground">
-                  No delta members were recorded for this snapshot.
+                  No tracked files are recorded for this artifact instance.
                 </p>
               ) : (
                 <ul className="space-y-1">
-                  {detail.snapshot.deltaMembers.map((member) => (
+                  {detail.artifactInstance.files.map((member) => (
                     <li
-                      key={member.artifactSnapshotFileId}
+                      key={member.filePath}
                       className="space-y-1 border border-border/70 bg-background/50 px-2 py-2"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="truncate text-foreground">{member.filePath}</p>
-                        <span
-                          className={
-                            member.memberStatus === "present"
-                              ? "border border-primary/50 bg-primary/15 px-2 py-0.5 text-[0.65rem] uppercase tracking-[0.1em] text-primary"
-                              : "border border-destructive/50 bg-destructive/10 px-2 py-0.5 text-[0.65rem] uppercase tracking-[0.1em] text-destructive"
-                          }
-                        >
-                          {member.memberStatus}
-                        </span>
                       </div>
 
-                      {(member.gitBlobHash ?? member.gitCommitHash) ? (
+                      {member.gitCommitHash ? (
                         <p className="text-[0.68rem] text-muted-foreground">
-                          {member.gitBlobHash ? `blob ${member.gitBlobHash}` : "blob —"}
-                          {" · "}
-                          {member.gitCommitHash ? `commit ${member.gitCommitHash}` : "commit —"}
+                          commit {member.gitCommitHash}
+                          {member.gitCommitTitle ? ` · ${member.gitCommitTitle}` : ""}
                         </p>
                       ) : null}
                     </li>
@@ -142,11 +131,10 @@ export function ArtifactSnapshotDialog({
 
             <section className="space-y-1 border border-border/70 bg-background/40 p-3">
               <p className="text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
-                Effective summary
+                Current summary
               </p>
               <p className="text-muted-foreground">
-                Effective current members after this snapshot:{" "}
-                {detail.snapshot.effectiveMemberCounts.currentCount}
+                Current tracked files in this artifact instance: {detail.artifactInstance.fileCount}
               </p>
             </section>
           </div>

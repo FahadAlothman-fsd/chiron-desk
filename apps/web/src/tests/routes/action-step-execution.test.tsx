@@ -229,7 +229,7 @@ function buildDetail(): any {
           actionKind: "propagation" as const,
           contextFactDefinitionId: "ctx-summary",
           contextFactKey: "summary",
-          contextFactKind: "bound_external_fact" as const,
+          contextFactKind: "bound_fact" as const,
           status: "not_started" as const,
           items: [
             {
@@ -281,7 +281,7 @@ function buildDetail(): any {
           actionKind: "propagation" as const,
           contextFactDefinitionId: "ctx-environment",
           contextFactKey: "environment",
-          contextFactKind: "definition_backed_external_fact" as const,
+          contextFactKind: "bound_fact" as const,
           status: "not_started" as const,
           items: [
             {
@@ -337,7 +337,7 @@ function buildDetail(): any {
           actionKind: "propagation" as const,
           contextFactDefinitionId: "ctx-artifact",
           contextFactKey: "artifact_ref",
-          contextFactKind: "artifact_reference_fact" as const,
+          contextFactKind: "artifact_slot_reference_fact" as const,
           status: "needs_attention" as const,
           resultSummaryJson: { summary: "Missing bound target." },
           items: [
@@ -437,42 +437,43 @@ async function renderHarness(initialDetail = buildDetail()) {
               requiresAtLeastOneSucceededAction: true,
               blockedByRunningActions: true,
             },
-            actions: currentDetail.body.actions.map((action) =>
-              action.actionId === "action-1"
-                ? {
-                    ...action,
-                    status: "succeeded",
-                    resultSummaryJson: { summary: "Propagated successfully." },
-                    items: action.items.map((item) => ({
-                      ...item,
-                      status: "succeeded",
-                      resultSummaryJson: { summary: "Summary propagated." },
-                      affectedTargets: [
-                        {
-                          targetKind: "external_fact",
-                          targetState: "exists" as const,
-                          targetId: "fact-1",
-                          label: "Existing Summary Fact",
-                        },
-                      ],
-                    })),
-                    retryAction: {
-                      kind: "retry_action_step_actions",
-                      enabled: false,
-                      reasonIfDisabled: "Only needs-attention actions are retryable.",
-                      actionId: "action-1",
-                    },
-                  }
-                : action.actionId === "action-2"
+            actions: currentDetail.body.actions.map(
+              (action: (typeof currentDetail.body.actions)[number]) =>
+                action.actionId === "action-1"
                   ? {
                       ...action,
-                      runAction: {
-                        kind: "run_action_step_actions",
-                        enabled: true,
-                        actionId: "action-2",
+                      status: "succeeded",
+                      resultSummaryJson: { summary: "Propagated successfully." },
+                      items: action.items.map((item: (typeof action.items)[number]) => ({
+                        ...item,
+                        status: "succeeded",
+                        resultSummaryJson: { summary: "Summary propagated." },
+                        affectedTargets: [
+                          {
+                            targetKind: "external_fact",
+                            targetState: "exists" as const,
+                            targetId: "fact-1",
+                            label: "Existing Summary Fact",
+                          },
+                        ],
+                      })),
+                      retryAction: {
+                        kind: "retry_action_step_actions",
+                        enabled: false,
+                        reasonIfDisabled: "Only needs-attention actions are retryable.",
+                        actionId: "action-1",
                       },
                     }
-                  : action,
+                  : action.actionId === "action-2"
+                    ? {
+                        ...action,
+                        runAction: {
+                          kind: "run_action_step_actions",
+                          enabled: true,
+                          actionId: "action-2",
+                        },
+                      }
+                    : action,
             ),
           },
         } as any;
@@ -511,33 +512,34 @@ async function renderHarness(initialDetail = buildDetail()) {
               requiresAtLeastOneSucceededAction: true,
               blockedByRunningActions: true,
             },
-            actions: currentDetail.body.actions.map((action) =>
-              action.actionId === "action-3"
-                ? {
-                    ...action,
-                    status: "succeeded",
-                    resultSummaryJson: { summary: "Artifact recreated." },
-                    items: action.items.map((item) => ({
-                      ...item,
+            actions: currentDetail.body.actions.map(
+              (action: (typeof currentDetail.body.actions)[number]) =>
+                action.actionId === "action-3"
+                  ? {
+                      ...action,
                       status: "succeeded",
-                      resultSummaryJson: { summary: "Artifact propagated." },
-                      affectedTargets: [
-                        {
-                          targetKind: "artifact",
-                          targetState: "exists" as const,
-                          targetId: "artifact-1",
-                          label: "docs/setup.md",
-                        },
-                      ],
-                    })),
-                    retryAction: {
-                      kind: "retry_action_step_actions",
-                      enabled: false,
-                      reasonIfDisabled: "Only needs-attention actions are retryable.",
-                      actionId: "action-3",
-                    },
-                  }
-                : action,
+                      resultSummaryJson: { summary: "Artifact recreated." },
+                      items: action.items.map((item: (typeof action.items)[number]) => ({
+                        ...item,
+                        status: "succeeded",
+                        resultSummaryJson: { summary: "Artifact propagated." },
+                        affectedTargets: [
+                          {
+                            targetKind: "artifact",
+                            targetState: "exists" as const,
+                            targetId: "artifact-1",
+                            label: "docs/setup.md",
+                          },
+                        ],
+                      })),
+                      retryAction: {
+                        kind: "retry_action_step_actions",
+                        enabled: false,
+                        reasonIfDisabled: "Only needs-attention actions are retryable.",
+                        actionId: "action-3",
+                      },
+                    }
+                  : action,
             ),
           },
         } as any;

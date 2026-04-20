@@ -70,11 +70,6 @@ describe("buildSidebarSections", () => {
             isActive: false,
           }),
           expect.objectContaining({
-            label: "Agents",
-            to: "/methodologies/bmad.v1/versions/mver_bmad_project_context_only_draft/agents",
-            isActive: false,
-          }),
-          expect.objectContaining({
             label: "Dependency Definitions",
             to: "/methodologies/bmad.v1/versions/mver_bmad_project_context_only_draft/dependency-definitions",
             isActive: false,

@@ -165,7 +165,7 @@ export function ProjectWorkUnitStateMachineRoute() {
             <Link
               to="/projects/$projectId/work-units/$projectWorkUnitId"
               params={{ projectId, projectWorkUnitId }}
-              search={{ q: "", hasActiveTransition: "all" }}
+              search={{ q: "" }}
               className="inline-flex text-xs font-medium uppercase tracking-[0.12em] text-primary hover:underline"
             >
               Back to overview

@@ -302,7 +302,7 @@ describe("MethodologyCommandPalette integration", () => {
     });
   });
 
-  it("routes add-agent and add-link-type actions to shells with create intents", () => {
+  it("routes add-link-type actions to shells with create intents", () => {
     render(
       <MethodologyCommandPalette
         open
@@ -311,11 +311,6 @@ describe("MethodologyCommandPalette integration", () => {
         selectedVersionId="draft-v2"
       />,
     );
-
-    fireEvent.click(screen.getByText("Add Agent"));
-    expect(navigateMock).toHaveBeenLastCalledWith({
-      href: "/methodologies/equity-core/versions/draft-v2/agents?intent=add-agent",
-    });
 
     fireEvent.click(screen.getByText("Add Link Type"));
     expect(navigateMock).toHaveBeenLastCalledWith({

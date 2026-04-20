@@ -33,7 +33,6 @@ export type MethodologyFactRow = {
   factKey: string;
   factType: FactEditorValue["factType"];
   cardinality: "one" | "many";
-  defaultValueLabel: string;
   guidanceLabel: string;
   validationLabel: string;
   validationKind: "none" | "path" | "allowed-values" | "json-schema";
@@ -111,13 +110,6 @@ function createFactInventoryColumns({
       ),
     },
     {
-      accessorKey: "defaultValueLabel",
-      header: "Default",
-      cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground">{row.original.defaultValueLabel}</span>
-      ),
-    },
-    {
       accessorKey: "guidanceLabel",
       header: "Guidance",
       cell: ({ row }) =>
@@ -191,18 +183,6 @@ function createFactInventoryColumns({
   return columns;
 }
 
-function summarizeDefaultValue(fact: FactEditorValue): string {
-  if (fact.defaultValue === undefined || fact.defaultValue === null || fact.defaultValue === "") {
-    return "-";
-  }
-
-  if (typeof fact.defaultValue === "string") {
-    return fact.defaultValue;
-  }
-
-  return JSON.stringify(fact.defaultValue);
-}
-
 function summarizeGuidance(fact: FactEditorValue): string {
   const humanGuidance = fact.guidance?.human as { markdown?: string } | undefined;
   const agentGuidance = fact.guidance?.agent as { markdown?: string; intent?: string } | undefined;
@@ -251,7 +231,6 @@ export function buildMethodologyFactRows(facts: readonly FactEditorValue[]): Met
     factKey: fact.key || "-",
     factType: fact.factType,
     cardinality: fact.cardinality ?? "one",
-    defaultValueLabel: summarizeDefaultValue(fact),
     guidanceLabel: summarizeGuidance(fact),
     validationLabel: summarizeValidation(fact),
     validationKind: getUiValidationKind(fact.validation),

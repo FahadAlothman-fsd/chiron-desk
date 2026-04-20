@@ -54,6 +54,7 @@ import type {
   WorkflowConditionOperator,
   WorkflowContextFactDefinitionItem,
   WorkflowContextFactDraft,
+  WorkflowDraftSpecSubFieldOption,
   WorkflowEditorEdge,
   WorkflowEditorPickerBadge,
   WorkflowEditorFieldDraft,
@@ -67,6 +68,12 @@ import type {
   WorkflowInvokeWorkUnitFactDefinition,
 } from "./types";
 import { STEP_TYPE_ICON_CODES, STEP_TYPE_LABELS } from "./types";
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
 
 type FormStepDialogProps = {
   open: boolean;
@@ -140,7 +147,7 @@ type BranchStepDialogProps = {
 
 type RouteDialogProps = {
   open: boolean;
-  ownerStepId?: string;
+  ownerStepId?: string | undefined;
   route: WorkflowBranchRoutePayload | null;
   availableSteps: readonly WorkflowEditorPickerOption[];
   availableContextFacts: readonly WorkflowContextFactDefinitionItem[];
@@ -221,11 +228,11 @@ type InvokeBindingDestinationOption = {
 };
 
 const CONTEXT_FACT_KIND_OPTIONS = [
-  { value: "plain_value_fact", label: "Plain Value Fact" },
-  { value: "definition_backed_external_fact", label: "Definition-Backed External Fact" },
-  { value: "bound_external_fact", label: "Bound External Fact" },
-  { value: "workflow_reference_fact", label: "Workflow Reference Fact" },
-  { value: "artifact_reference_fact", label: "Artifact Reference Fact" },
+  { value: "plain_fact", label: "Plain Fact" },
+  { value: "bound_fact", label: "Bound Fact" },
+  { value: "workflow_ref_fact", label: "Workflow Ref Fact" },
+  { value: "artifact_slot_reference_fact", label: "Artifact Slot Reference Fact" },
+  { value: "work_unit_reference_fact", label: "Work Unit Reference Fact" },
   { value: "work_unit_draft_spec_fact", label: "Work Unit Draft Spec Fact" },
 ] as const;
 
@@ -239,6 +246,7 @@ type JsonSubSchemaDraft = {
   displayName: string;
   key: string;
   valueType: (typeof JSON_SUB_SCHEMA_VALUE_TYPE_OPTIONS)[number];
+  cardinality: "one" | "many";
   stringValidationType: PlainStringValidationType;
   stringAllowedValues: string[];
   pendingStringAllowedValueTag: string;
@@ -268,9 +276,9 @@ type WorkflowContextFactDialogSnapshot = {
   };
   valueSemantics: {
     valueType: WorkflowContextFactDraft["valueType"];
-    externalFactDefinitionId: string;
+    factDefinitionId: string;
     allowedWorkflowDefinitionIds: string[];
-    artifactSlotDefinitionId: string;
+    slotDefinitionId: string;
     workUnitDefinitionId: string;
     selectedWorkUnitFactDefinitionIds: string[];
     selectedArtifactSlotDefinitionIds: string[];
@@ -317,7 +325,7 @@ function normalizeGuidance(guidance?: Partial<WorkflowEditorGuidance>): Workflow
 
 function toContextFactDraft(
   fact?: WorkflowContextFactDefinitionItem,
-  kind: WorkflowContextFactDraft["kind"] = "plain_value_fact",
+  kind: WorkflowContextFactDraft["kind"] = "plain_fact",
 ): WorkflowContextFactDraft {
   return {
     key: fact?.key ?? "",
@@ -326,15 +334,15 @@ function toContextFactDraft(
     kind: fact?.kind ?? kind,
     cardinality: fact?.cardinality ?? "one",
     guidance: normalizeGuidance(fact?.guidance),
-    valueType: fact?.valueType ?? "string",
-    externalFactDefinitionId: fact?.externalFactDefinitionId ?? "",
+    type: fact?.type ?? "string",
+    valueType: fact?.valueType ?? fact?.type ?? "string",
+    factDefinitionId: fact?.factDefinitionId ?? "",
     allowedWorkflowDefinitionIds: fact?.allowedWorkflowDefinitionIds ?? [],
-    artifactSlotDefinitionId: fact?.artifactSlotDefinitionId ?? "",
-    workUnitDefinitionId: fact?.workUnitDefinitionId ?? fact?.workUnitTypeKey ?? "",
+    slotDefinitionId: fact?.slotDefinitionId ?? "",
+    workUnitDefinitionId: fact?.workUnitDefinitionId ?? "",
     selectedWorkUnitFactDefinitionIds:
       fact?.selectedWorkUnitFactDefinitionIds ?? fact?.includedFactDefinitionIds ?? [],
     selectedArtifactSlotDefinitionIds: fact?.selectedArtifactSlotDefinitionIds ?? [],
-    workUnitTypeKey: fact?.workUnitTypeKey ?? "",
     includedFactDefinitionIds: fact?.includedFactDefinitionIds ?? [],
     validationJson: fact?.validationJson,
   };
@@ -364,10 +372,10 @@ function toWorkflowContextFactDialogSnapshot(params: {
     },
     valueSemantics: {
       valueType: params.draft.valueType,
-      externalFactDefinitionId: params.draft.externalFactDefinitionId ?? "",
+      factDefinitionId: params.draft.factDefinitionId ?? "",
       allowedWorkflowDefinitionIds: [...params.draft.allowedWorkflowDefinitionIds],
-      artifactSlotDefinitionId: params.draft.artifactSlotDefinitionId ?? "",
-      workUnitDefinitionId: params.draft.workUnitDefinitionId ?? params.draft.workUnitTypeKey ?? "",
+      slotDefinitionId: params.draft.slotDefinitionId ?? "",
+      workUnitDefinitionId: params.draft.workUnitDefinitionId ?? "",
       selectedWorkUnitFactDefinitionIds: params.draftSpecCards.map(
         (entry) => entry.factDefinitionId,
       ),
@@ -427,24 +435,19 @@ function summarizeContextFact(fact: WorkflowContextFactDraft | WorkflowContextFa
   switch (fact.kind) {
     case "plain_value_fact":
       return `${lead} · ${fact.valueType ?? "string"}`;
-    case "definition_backed_external_fact":
-    case "bound_external_fact":
-      return fact.externalFactDefinitionId?.trim()
-        ? `${lead} · ${fact.externalFactDefinitionId.trim()}`
-        : lead;
-    case "workflow_reference_fact":
+    case "bound_fact":
+      return fact.factDefinitionId?.trim() ? `${lead} · ${fact.factDefinitionId.trim()}` : lead;
+    case "workflow_ref_fact":
       return fact.allowedWorkflowDefinitionIds.length > 0
         ? `${lead} · ${fact.allowedWorkflowDefinitionIds.length} workflow${
             fact.allowedWorkflowDefinitionIds.length === 1 ? "" : "s"
           }`
         : lead;
-    case "artifact_reference_fact":
-      return fact.artifactSlotDefinitionId?.trim()
-        ? `${lead} · ${fact.artifactSlotDefinitionId.trim()}`
-        : lead;
+    case "artifact_slot_reference_fact":
+      return fact.slotDefinitionId?.trim() ? `${lead} · ${fact.slotDefinitionId.trim()}` : lead;
     case "work_unit_draft_spec_fact":
-      return fact.workUnitDefinitionId?.trim() || fact.workUnitTypeKey?.trim()
-        ? `${lead} · ${(fact.workUnitDefinitionId ?? fact.workUnitTypeKey ?? "").trim()}`
+      return fact.workUnitDefinitionId?.trim()
+        ? `${lead} · ${fact.workUnitDefinitionId.trim()}`
         : lead;
   }
 }
@@ -477,6 +480,7 @@ function createEmptyJsonSubSchemaDraft(
     displayName: "",
     key: nextKey,
     valueType: "string",
+    cardinality: "one",
     stringValidationType: "none",
     stringAllowedValues: [],
     pendingStringAllowedValueTag: "",
@@ -603,6 +607,10 @@ function toJsonSubSchemaDraftsFromValidation(validationJson: unknown): JsonSubSc
 
       const valueType =
         type === "string" || type === "number" || type === "boolean" ? type : "string";
+      const cardinality =
+        "cardinality" in field && (field as { cardinality?: unknown }).cardinality === "many"
+          ? "many"
+          : "one";
       const displayName =
         "displayName" in field ? (field as { displayName?: unknown }).displayName : undefined;
       const validation =
@@ -613,6 +621,7 @@ function toJsonSubSchemaDraftsFromValidation(validationJson: unknown): JsonSubSc
         localId: createLocalId(`json-sub-schema-${index + 1}`),
         key,
         valueType,
+        cardinality,
         displayName: typeof displayName === "string" ? displayName : "",
         stringValidationType: stringValidation.kind,
         stringAllowedValues: stringValidation.allowedValues,
@@ -716,7 +725,7 @@ function buildPlainValueValidationJson(params: {
         key,
         ...(entry.displayName.trim().length > 0 ? { displayName: entry.displayName.trim() } : {}),
         type: entry.valueType,
-        cardinality: "one" as const,
+        cardinality: entry.cardinality,
         ...(typeof buildJsonSubSchemaStringValidation(entry) === "undefined"
           ? {}
           : { validation: buildJsonSubSchemaStringValidation(entry) }),
@@ -729,7 +738,7 @@ function buildPlainValueValidationJson(params: {
         key: string;
         displayName?: string;
         type: "string" | "number" | "boolean";
-        cardinality: "one";
+        cardinality: "one" | "many";
         validation?: unknown;
       } => entry !== null,
     );
@@ -798,11 +807,15 @@ function normalizeFieldDrafts(
   step: WorkflowEditorStep | undefined,
   contextFactDefinitions: readonly WorkflowContextFactDefinitionItem[],
 ) {
+  if (!step || step.stepType !== "form") {
+    return [];
+  }
+
   const definitionsById = new Map(
     contextFactDefinitions.map((definition) => [definition.contextFactDefinitionId, definition]),
   );
 
-  return (step?.payload.fields ?? []).map((field) => {
+  return step.payload.fields.map((field) => {
     const linkedDefinition = definitionsById.get(field.contextFactDefinitionId);
 
     if (linkedDefinition) {
@@ -874,11 +887,11 @@ function toPreviewLabel(definition?: WorkflowContextFactDefinitionItem) {
       : `${definition.valueType ?? "string"} input`;
   }
 
-  if (definition.kind === "workflow_reference_fact") {
+  if (definition.kind === "workflow_ref_fact") {
     return "workflow selector";
   }
 
-  if (definition.kind === "artifact_reference_fact") {
+  if (definition.kind === "artifact_slot_reference_fact") {
     return "artifact slot picker";
   }
 
@@ -948,7 +961,7 @@ function SearchableCombobox(props: {
               {props.options.map((option) => (
                 <CommandItem
                   key={option.value}
-                  disabled={option.disabled}
+                  {...(typeof option.disabled === "boolean" ? { disabled: option.disabled } : {})}
                   value={
                     option.searchText ??
                     [
@@ -1015,25 +1028,23 @@ export function getPickerBadgeClassName(badge: WorkflowEditorPickerBadge) {
         ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200"
         : badge.tone === "cardinality"
           ? "border-border/70 bg-muted/60 text-muted-foreground"
-          : badge.tone === "external-fact"
-            ? "border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-200"
-            : badge.tone === "bound-fact"
-              ? "border-indigo-500/30 bg-indigo-500/15 text-indigo-700 dark:text-indigo-200"
-              : badge.tone === "workflow-reference"
-                ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200"
-                : badge.tone === "artifact-reference"
-                  ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200"
-                  : badge.tone === "type-string"
-                    ? "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-200"
-                    : badge.tone === "type-number"
-                      ? "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-200"
-                      : badge.tone === "type-boolean"
-                        ? "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-200"
-                        : badge.tone === "type-json"
-                          ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200"
-                          : badge.tone === "type-work-unit"
-                            ? "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-200"
-                            : "border-border/70 bg-background/70 text-muted-foreground",
+          : badge.tone === "bound-fact"
+            ? "border-indigo-500/30 bg-indigo-500/15 text-indigo-700 dark:text-indigo-200"
+            : badge.tone === "workflow-ref"
+              ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200"
+              : badge.tone === "artifact-snapshot"
+                ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200"
+                : badge.tone === "type-string"
+                  ? "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-200"
+                  : badge.tone === "type-number"
+                    ? "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-200"
+                    : badge.tone === "type-boolean"
+                      ? "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-200"
+                      : badge.tone === "type-json"
+                        ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200"
+                        : badge.tone === "type-work-unit"
+                          ? "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-200"
+                          : "border-border/70 bg-background/70 text-muted-foreground",
   );
 }
 
@@ -1254,15 +1265,14 @@ function isLiteralCapableFactDefinition(
 
 function getContextFactValueType(
   fact: WorkflowContextFactDefinitionItem,
-): WorkflowInvokeWorkUnitFactDefinition["factType"] | "artifact_reference" | null {
+): WorkflowInvokeWorkUnitFactDefinition["factType"] | "artifact_snapshot" | null {
   switch (fact.kind) {
     case "plain_value_fact":
       return fact.valueType ?? "string";
-    case "definition_backed_external_fact":
-    case "bound_external_fact":
+    case "bound_fact":
       return fact.valueType ?? null;
-    case "artifact_reference_fact":
-      return "artifact_reference";
+    case "artifact_slot_reference_fact":
+      return "artifact_snapshot";
     default:
       return null;
   }
@@ -1277,7 +1287,7 @@ function isContextFactCompatibleWithDestination(
   }
 
   if (destination.kind === "artifact_slot") {
-    return fact.kind === "artifact_reference_fact";
+    return fact.kind === "artifact_slot_reference_fact";
   }
 
   return getContextFactValueType(fact) === (destination.factType ?? null);
@@ -1412,11 +1422,11 @@ function toWorkflowInvokePayload(params: {
     guidance: normalizedGuidance,
   };
 
-  if (params.targetKind === "workflow" && params.sourceMode === "fixed_set") {
+  if (params.targetKind === "workflow" && params.sourceMode === "fixed") {
     return {
       ...base,
       targetKind: "workflow",
-      sourceMode: "fixed_set",
+      sourceMode: "fixed",
       workflowDefinitionIds: params.workflowDefinitionIds
         .map((workflowDefinitionId) => workflowDefinitionId.trim())
         .filter((workflowDefinitionId) => workflowDefinitionId.length > 0),
@@ -1427,7 +1437,7 @@ function toWorkflowInvokePayload(params: {
     return {
       ...base,
       targetKind: "workflow",
-      sourceMode: "context_fact_backed",
+      sourceMode: "fact_backed",
       contextFactDefinitionId: params.contextFactDefinitionId.trim(),
     };
   }
@@ -1473,11 +1483,11 @@ function toWorkflowInvokePayload(params: {
     }),
   );
 
-  if (params.sourceMode === "fixed_set") {
+  if (params.sourceMode === "fixed") {
     return {
       ...base,
       targetKind: "work_unit",
-      sourceMode: "fixed_set",
+      sourceMode: "fixed",
       workUnitDefinitionId: params.workUnitDefinitionId.trim(),
       bindings,
       activationTransitions,
@@ -1487,7 +1497,7 @@ function toWorkflowInvokePayload(params: {
   return {
     ...base,
     targetKind: "work_unit",
-    sourceMode: "context_fact_backed",
+    sourceMode: "fact_backed",
     contextFactDefinitionId: params.contextFactDefinitionId.trim(),
     bindings,
     activationTransitions,
@@ -1516,8 +1526,7 @@ export function InvokeStepDialog({
   const [label, setLabel] = useState("");
   const [descriptionMarkdown, setDescriptionMarkdown] = useState("");
   const [targetKind, setTargetKind] = useState<WorkflowInvokeStepPayload["targetKind"]>("workflow");
-  const [sourceMode, setSourceMode] =
-    useState<WorkflowInvokeStepPayload["sourceMode"]>("fixed_set");
+  const [sourceMode, setSourceMode] = useState<WorkflowInvokeStepPayload["sourceMode"]>("fixed");
   const [workflowDefinitionIds, setWorkflowDefinitionIds] = useState<string[]>([]);
   const [workUnitDefinitionId, setWorkUnitDefinitionId] = useState("");
   const [contextFactDefinitionId, setContextFactDefinitionId] = useState("");
@@ -1543,7 +1552,7 @@ export function InvokeStepDialog({
   const workflowReferenceFactOptions = useMemo(
     () =>
       availableContextFacts
-        .filter((fact) => fact.kind === "workflow_reference_fact")
+        .filter((fact) => fact.kind === "workflow_ref_fact")
         .map((fact) => ({
           value: fact.contextFactDefinitionId,
           label: fact.label || fact.key,
@@ -1578,7 +1587,7 @@ export function InvokeStepDialog({
   const selectedBindingWorkUnitDefinitionId =
     targetKind !== "work_unit"
       ? ""
-      : sourceMode === "fixed_set"
+      : sourceMode === "fixed"
         ? workUnitDefinitionId.trim()
         : selectedContextFact?.kind === "work_unit_draft_spec_fact"
           ? (selectedContextFact.workUnitDefinitionId?.trim() ?? "")
@@ -1637,8 +1646,7 @@ export function InvokeStepDialog({
   });
   const availableBindingDestinations = useMemo(() => {
     const selectedDraftSpecFact =
-      sourceMode === "context_fact_backed" &&
-      selectedContextFact?.kind === "work_unit_draft_spec_fact"
+      sourceMode === "fact_backed" && selectedContextFact?.kind === "work_unit_draft_spec_fact"
         ? selectedContextFact
         : null;
     const selectedFactIds = new Set(selectedDraftSpecFact?.selectedWorkUnitFactDefinitionIds ?? []);
@@ -1647,9 +1655,7 @@ export function InvokeStepDialog({
     );
 
     const factDestinations = (bindingWorkUnitFactsQuery.data ?? [])
-      .filter(
-        (definition) => sourceMode !== "context_fact_backed" || selectedFactIds.has(definition.id),
-      )
+      .filter((definition) => sourceMode !== "fact_backed" || selectedFactIds.has(definition.id))
       .map(
         (definition) =>
           ({
@@ -1666,8 +1672,7 @@ export function InvokeStepDialog({
       );
     const artifactDestinations = (bindingArtifactSlotsQuery.data ?? [])
       .filter(
-        (definition) =>
-          sourceMode !== "context_fact_backed" || selectedArtifactIds.has(definition.id),
+        (definition) => sourceMode !== "fact_backed" || selectedArtifactIds.has(definition.id),
       )
       .map(
         (definition) =>
@@ -1731,17 +1736,17 @@ export function InvokeStepDialog({
     const nextLabel = payload?.label ?? "";
     const nextDescriptionMarkdown = payload?.descriptionJson?.markdown ?? "";
     const nextTargetKind = payload?.targetKind ?? "workflow";
-    const nextSourceMode = payload?.sourceMode ?? "fixed_set";
+    const nextSourceMode = payload?.sourceMode ?? "fixed";
     const nextWorkflowDefinitionIds =
-      payload?.targetKind === "workflow" && payload.sourceMode === "fixed_set"
+      payload?.targetKind === "workflow" && payload.sourceMode === "fixed"
         ? [...payload.workflowDefinitionIds]
         : [];
     const nextWorkUnitDefinitionId =
-      payload?.targetKind === "work_unit" && payload.sourceMode === "fixed_set"
+      payload?.targetKind === "work_unit" && payload.sourceMode === "fixed"
         ? payload.workUnitDefinitionId
         : "";
     const nextContextFactDefinitionId =
-      payload?.sourceMode === "context_fact_backed" ? payload.contextFactDefinitionId : "";
+      payload?.sourceMode === "fact_backed" ? payload.contextFactDefinitionId : "";
     const nextBindings = toInvokeBindingDrafts(payload);
     const nextActivationTransitions = toInvokeActivationTransitionDrafts(payload);
     const nextGuidance = toInvokeGuidance(payload?.guidance);
@@ -1788,16 +1793,16 @@ export function InvokeStepDialog({
         const destination = bindingDestinationsByKey.get(
           `${binding.destinationKind}:${binding.destinationDefinitionId}`,
         );
-        const compatibleSourceKinds = destination
+        const compatibleSourceKinds: InvokeBindingDraft["sourceKind"][] = destination
           ? [
               "context_fact",
               ...(destination.literalAllowed ? (["literal"] as const) : []),
               "runtime",
             ]
-          : (["context_fact", "runtime"] as const);
+          : ["context_fact", "runtime"];
         const nextSourceKind = compatibleSourceKinds.includes(binding.sourceKind)
           ? binding.sourceKind
-          : compatibleSourceKinds[0];
+          : (compatibleSourceKinds[0] ?? "context_fact");
         const nextContextFactId =
           nextSourceKind === "context_fact" ? binding.contextFactDefinitionId : "";
         const nextLiteralValue = nextSourceKind === "literal" ? binding.literalValue : "";
@@ -1981,31 +1986,27 @@ export function InvokeStepDialog({
       errors.push("Invoke step key is required.");
     }
 
-    if (
-      targetKind === "workflow" &&
-      sourceMode === "fixed_set" &&
-      workflowDefinitionIds.length === 0
-    ) {
+    if (targetKind === "workflow" && sourceMode === "fixed" && workflowDefinitionIds.length === 0) {
       errors.push("Select at least one workflow for workflow-target invoke.");
     }
 
-    if (targetKind === "workflow" && sourceMode === "context_fact_backed") {
+    if (targetKind === "workflow" && sourceMode === "fact_backed") {
       if (contextFactDefinitionId.trim().length === 0) {
         errors.push("Select a workflow reference context fact.");
-      } else if (selectedContextFact?.kind !== "workflow_reference_fact") {
+      } else if (selectedContextFact?.kind !== "workflow_ref_fact") {
         errors.push("Workflow-target invoke requires a workflow reference context fact.");
       }
     }
 
     if (
       targetKind === "work_unit" &&
-      sourceMode === "fixed_set" &&
+      sourceMode === "fixed" &&
       workUnitDefinitionId.trim().length === 0
     ) {
       errors.push("Select a work unit for work-unit-target invoke.");
     }
 
-    if (targetKind === "work_unit" && sourceMode === "context_fact_backed") {
+    if (targetKind === "work_unit" && sourceMode === "fact_backed") {
       if (contextFactDefinitionId.trim().length === 0) {
         errors.push("Select a work-unit draft-spec context fact.");
       } else if (selectedContextFact?.kind !== "work_unit_draft_spec_fact") {
@@ -2318,14 +2319,14 @@ export function InvokeStepDialog({
                           <SelectValue placeholder="Select source mode" />
                         </SelectTrigger>
                         <SelectContent className="rounded-none">
-                          <SelectItem value="fixed_set">fixed_set</SelectItem>
-                          <SelectItem value="context_fact_backed">context_fact_backed</SelectItem>
+                          <SelectItem value="fixed">fixed</SelectItem>
+                          <SelectItem value="fact_backed">fact_backed</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
 
-                  {targetKind === "workflow" && sourceMode === "fixed_set" ? (
+                  {targetKind === "workflow" && sourceMode === "fixed" ? (
                     <div className="chiron-frame-flat chiron-tone-context grid gap-3 p-3">
                       <div className="grid gap-1">
                         <Label id="workflow-editor-invoke-workflow-definitions-label">
@@ -2352,7 +2353,7 @@ export function InvokeStepDialog({
                     </div>
                   ) : null}
 
-                  {targetKind === "workflow" && sourceMode === "context_fact_backed" ? (
+                  {targetKind === "workflow" && sourceMode === "fact_backed" ? (
                     <div className="chiron-frame-flat chiron-tone-context grid gap-3 p-3">
                       <div className="grid gap-1">
                         <Label id="workflow-editor-invoke-workflow-context-fact-label">
@@ -2377,7 +2378,7 @@ export function InvokeStepDialog({
                     </div>
                   ) : null}
 
-                  {targetKind === "work_unit" && sourceMode === "fixed_set" ? (
+                  {targetKind === "work_unit" && sourceMode === "fixed" ? (
                     <div className="chiron-frame-flat chiron-tone-context grid gap-3 p-3">
                       <div className="grid gap-1">
                         <Label id="workflow-editor-invoke-work-unit-label">Work Unit</Label>
@@ -2400,7 +2401,7 @@ export function InvokeStepDialog({
                     </div>
                   ) : null}
 
-                  {targetKind === "work_unit" && sourceMode === "context_fact_backed" ? (
+                  {targetKind === "work_unit" && sourceMode === "fact_backed" ? (
                     <div className="chiron-frame-flat chiron-tone-context grid gap-3 p-3">
                       <div className="grid gap-1">
                         <Label id="workflow-editor-invoke-work-unit-context-fact-label">
@@ -2500,15 +2501,16 @@ export function InvokeStepDialog({
                                   : option;
                               },
                             );
-                            const availableSourceKinds = selectedDestination
-                              ? [
-                                  "context_fact",
-                                  ...(selectedDestination.literalAllowed
-                                    ? (["literal"] as const)
-                                    : []),
-                                  "runtime",
-                                ]
-                              : (["context_fact", "runtime"] as const);
+                            const availableSourceKinds: InvokeBindingDraft["sourceKind"][] =
+                              selectedDestination
+                                ? [
+                                    "context_fact",
+                                    ...(selectedDestination.literalAllowed
+                                      ? (["literal"] as const)
+                                      : []),
+                                    "runtime",
+                                  ]
+                                : ["context_fact", "runtime"];
                             const compatibleContextFactOptions = bindingContextFactOptions.filter(
                               (option) => {
                                 const sourceFact = contextFactsById.get(option.value);
@@ -2688,65 +2690,81 @@ export function InvokeStepDialog({
 
                                   {binding.sourceKind === "literal" && selectedDestination ? (
                                     <div className="grid gap-2">
-                                      <Label
-                                        htmlFor={`workflow-editor-invoke-binding-literal-${binding.localId}`}
-                                      >
-                                        Literal Value
-                                      </Label>
-                                      {selectedDestination.factType === "boolean" ? (
-                                        <div className="flex items-center gap-3">
-                                          <Checkbox
-                                            id={`workflow-editor-invoke-binding-literal-${binding.localId}`}
-                                            checked={binding.literalValue === "true"}
-                                            onCheckedChange={(checked) =>
-                                              setBindings((previous) =>
-                                                previous.map((entry) =>
-                                                  entry.localId === binding.localId
-                                                    ? {
-                                                        ...entry,
-                                                        literalValue: checked ? "true" : "false",
-                                                      }
-                                                    : entry,
-                                                ),
-                                              )
-                                            }
-                                          />
-                                          <Label
-                                            htmlFor={`workflow-editor-invoke-binding-literal-${binding.localId}`}
-                                          >
-                                            Boolean literal
-                                          </Label>
-                                        </div>
-                                      ) : (
-                                        <Input
-                                          id={`workflow-editor-invoke-binding-literal-${binding.localId}`}
-                                          type={
-                                            selectedDestination.factType === "number"
-                                              ? "number"
-                                              : "text"
-                                          }
-                                          className="rounded-none border-border/70 bg-background/50"
-                                          value={binding.literalValue}
-                                          onChange={(event) =>
-                                            setBindings((previous) =>
-                                              previous.map((entry) =>
-                                                entry.localId === binding.localId
-                                                  ? { ...entry, literalValue: event.target.value }
-                                                  : entry,
-                                              ),
-                                            )
-                                          }
-                                          placeholder={
-                                            selectedDestination.factType === "number"
-                                              ? "42"
-                                              : "literal text"
-                                          }
-                                        />
-                                      )}
-                                      <p className="text-[0.7rem] text-muted-foreground">
-                                        Source note: literal must match destination type{" "}
-                                        {selectedDestination.factType}.
-                                      </p>
+                                      {(() => {
+                                        const selectedDestinationFactType =
+                                          selectedDestination.kind === "work_unit_fact"
+                                            ? selectedDestination.factType
+                                            : null;
+
+                                        return (
+                                          <>
+                                            <Label
+                                              htmlFor={`workflow-editor-invoke-binding-literal-${binding.localId}`}
+                                            >
+                                              Literal Value
+                                            </Label>
+                                            {selectedDestinationFactType === "boolean" ? (
+                                              <div className="flex items-center gap-3">
+                                                <Checkbox
+                                                  id={`workflow-editor-invoke-binding-literal-${binding.localId}`}
+                                                  checked={binding.literalValue === "true"}
+                                                  onCheckedChange={(checked) =>
+                                                    setBindings((previous) =>
+                                                      previous.map((entry) =>
+                                                        entry.localId === binding.localId
+                                                          ? {
+                                                              ...entry,
+                                                              literalValue: checked
+                                                                ? "true"
+                                                                : "false",
+                                                            }
+                                                          : entry,
+                                                      ),
+                                                    )
+                                                  }
+                                                />
+                                                <Label
+                                                  htmlFor={`workflow-editor-invoke-binding-literal-${binding.localId}`}
+                                                >
+                                                  Boolean literal
+                                                </Label>
+                                              </div>
+                                            ) : (
+                                              <Input
+                                                id={`workflow-editor-invoke-binding-literal-${binding.localId}`}
+                                                type={
+                                                  selectedDestinationFactType === "number"
+                                                    ? "number"
+                                                    : "text"
+                                                }
+                                                className="rounded-none border-border/70 bg-background/50"
+                                                value={binding.literalValue}
+                                                onChange={(event) =>
+                                                  setBindings((previous) =>
+                                                    previous.map((entry) =>
+                                                      entry.localId === binding.localId
+                                                        ? {
+                                                            ...entry,
+                                                            literalValue: event.target.value,
+                                                          }
+                                                        : entry,
+                                                    ),
+                                                  )
+                                                }
+                                                placeholder={
+                                                  selectedDestinationFactType === "number"
+                                                    ? "42"
+                                                    : "literal text"
+                                                }
+                                              />
+                                            )}
+                                            <p className="text-[0.7rem] text-muted-foreground">
+                                              Source note: literal must match destination type{" "}
+                                              {selectedDestinationFactType ?? "artifact"}.
+                                            </p>
+                                          </>
+                                        );
+                                      })()}
                                     </div>
                                   ) : null}
 
@@ -3076,10 +3094,11 @@ export function FormStepDialog({
       return;
     }
 
-    const nextStepKey = step?.payload.key ?? "";
-    const nextLabel = step?.payload.label ?? "";
-    const nextDescriptionMarkdown = step?.payload.descriptionJson?.markdown ?? "";
-    const nextGuidance = normalizeGuidance(step?.payload.guidance);
+    const formStep = step?.stepType === "form" ? step : undefined;
+    const nextStepKey = formStep?.payload.key ?? "";
+    const nextLabel = formStep?.payload.label ?? "";
+    const nextDescriptionMarkdown = formStep?.payload.descriptionJson?.markdown ?? "";
+    const nextGuidance = normalizeGuidance(formStep?.payload.guidance);
     const nextFieldDrafts = normalizeFieldDrafts(step, contextFactDefinitions);
 
     setStepKey(nextStepKey);
@@ -3763,9 +3782,7 @@ export function WorkflowContextFactDialog({
     useState("");
   const [draftSpecCards, setDraftSpecCards] = useState<WorkUnitDraftFactCard[]>([]);
   const selectedWorkUnitDefinitionId =
-    draft.kind === "work_unit_draft_spec_fact"
-      ? (draft.workUnitDefinitionId?.trim() ?? draft.workUnitTypeKey?.trim() ?? "")
-      : "";
+    draft.kind === "work_unit_draft_spec_fact" ? (draft.workUnitDefinitionId?.trim() ?? "") : "";
   const selectedWorkUnitFactsQuery = useQuery({
     queryKey: [
       "workflow-editor",
@@ -3817,14 +3834,14 @@ export function WorkflowContextFactDialog({
   }, [currentWorkUnitFacts, methodologyFacts]);
   const selectedExternalFact = useMemo(
     () =>
-      draft.kind === "definition_backed_external_fact" || draft.kind === "bound_external_fact"
+      draft.kind === "bound_fact"
         ? externalFactOptions.find(
             (option) =>
-              option.value === draft.externalFactDefinitionId ||
-              option.secondaryLabel === draft.externalFactDefinitionId,
+              option.value === draft.factDefinitionId ||
+              option.secondaryLabel === draft.factDefinitionId,
           )
         : undefined,
-    [draft.externalFactDefinitionId, draft.kind, externalFactOptions],
+    [draft.factDefinitionId, draft.kind, externalFactOptions],
   );
   const selectedDraftSpecFact = useMemo(
     () =>
@@ -3845,14 +3862,14 @@ export function WorkflowContextFactDialog({
   );
   const selectedArtifactSlot = useMemo(
     () =>
-      draft.kind === "artifact_reference_fact"
+      draft.kind === "artifact_slot_reference_fact"
         ? artifactSlots.find(
             (option) =>
-              option.value === draft.artifactSlotDefinitionId ||
-              option.secondaryLabel === draft.artifactSlotDefinitionId,
+              option.value === draft.slotDefinitionId ||
+              option.secondaryLabel === draft.slotDefinitionId,
           )
         : undefined,
-    [draft.kind, draft.artifactSlotDefinitionId, artifactSlots],
+    [draft.kind, draft.slotDefinitionId, artifactSlots],
   );
   const selectedWorkUnitArtifactOptionsByIdentifier = useMemo(() => {
     const optionsByIdentifier = new Map<string, WorkflowEditorPickerOption>();
@@ -3868,12 +3885,11 @@ export function WorkflowContextFactDialog({
   }, [selectedWorkUnitArtifactSlots]);
   const constrainedSourceCardinality = useMemo(() => {
     switch (draft.kind) {
-      case "definition_backed_external_fact":
-      case "bound_external_fact":
+      case "bound_fact":
         return getPickerOptionCardinality(selectedExternalFact);
       case "work_unit_draft_spec_fact":
         return getPickerOptionCardinality(selectedDraftSpecFact);
-      case "artifact_reference_fact":
+      case "artifact_slot_reference_fact":
         return getPickerOptionCardinality(selectedArtifactSlot);
       default:
         return undefined;
@@ -3906,7 +3922,8 @@ export function WorkflowContextFactDialog({
     const nextPendingAllowedValueTag = "";
     const nextAllowedValueTags: string[] = [...nextStringValidation.allowedValues];
     const nextJsonSubSchemaDrafts =
-      nextDraft.kind === "plain_value_fact" && nextDraft.valueType === "json"
+      (nextDraft.kind === "plain_fact" || nextDraft.kind === "plain_value_fact") &&
+      nextDraft.valueType === "json"
         ? (() => {
             const parsed = toJsonSubSchemaDraftsFromValidation(nextDraft.validationJson);
             return parsed.length > 0 ? parsed : [createEmptyJsonSubSchemaDraft([])];
@@ -3977,38 +3994,38 @@ export function WorkflowContextFactDialog({
   }, [open, selectedWorkUnitFacts]);
 
   useEffect(() => {
-    if (
-      !open ||
-      (draft.kind !== "definition_backed_external_fact" && draft.kind !== "bound_external_fact") ||
-      draft.externalFactDefinitionId.trim().length === 0
-    ) {
+    const selectedFactDefinitionId =
+      draft.kind === "bound_fact" ? (draft.factDefinitionId ?? "") : "";
+
+    if (!open || draft.kind !== "bound_fact" || selectedFactDefinitionId.trim().length === 0) {
       return;
     }
 
     const matchedOption = externalFactOptions.find(
       (option) =>
-        option.value === draft.externalFactDefinitionId ||
-        option.secondaryLabel === draft.externalFactDefinitionId,
+        option.value === selectedFactDefinitionId ||
+        option.secondaryLabel === selectedFactDefinitionId,
     );
-    if (!matchedOption || matchedOption.value === draft.externalFactDefinitionId) {
+    if (!matchedOption || matchedOption.value === selectedFactDefinitionId) {
       return;
     }
 
     setDraft((previous) => {
-      if (previous.externalFactDefinitionId === matchedOption.value) {
+      if ((previous.factDefinitionId ?? "") === matchedOption.value) {
         return previous;
       }
 
       return {
         ...previous,
-        externalFactDefinitionId: matchedOption.value,
-        valueType: matchedOption.valueType,
-        validationJson: matchedOption.validationJson,
+        factDefinitionId: matchedOption.value,
+        ...(matchedOption.valueType ? { valueType: matchedOption.valueType } : {}),
+        ...(typeof matchedOption.validationJson !== "undefined"
+          ? { validationJson: matchedOption.validationJson }
+          : {}),
         workUnitDefinitionId: matchedOption.workUnitDefinitionId ?? "",
-        workUnitTypeKey: matchedOption.workUnitDefinitionId ?? "",
       };
     });
-  }, [draft.externalFactDefinitionId, draft.kind, externalFactOptions, open]);
+  }, [draft.factDefinitionId, draft.kind, externalFactOptions, open]);
 
   useEffect(() => {
     if (!open || constrainedSourceCardinality !== "one" || draft.cardinality === "one") {
@@ -4124,9 +4141,14 @@ export function WorkflowContextFactDialog({
               }
 
               const nextValidationJson =
-                draft.kind === "plain_value_fact"
+                draft.kind === "plain_fact" || draft.kind === "plain_value_fact"
                   ? buildPlainValueValidationJson({
-                      valueType: draft.valueType ?? "string",
+                      valueType:
+                        draft.valueType === "number" ||
+                        draft.valueType === "boolean" ||
+                        draft.valueType === "json"
+                          ? draft.valueType
+                          : "string",
                       plainStringValidationType,
                       plainStringPathKind,
                       plainStringTrimWhitespace,
@@ -4143,19 +4165,16 @@ export function WorkflowContextFactDialog({
                 key: draft.key.trim(),
                 label: draft.label.trim(),
                 descriptionMarkdown: draft.descriptionMarkdown.trim(),
-                externalFactDefinitionId: draft.externalFactDefinitionId?.trim() ?? "",
-                artifactSlotDefinitionId: draft.artifactSlotDefinitionId?.trim() ?? "",
-                workUnitDefinitionId:
-                  draft.workUnitDefinitionId?.trim() ?? draft.workUnitTypeKey?.trim() ?? "",
-                workUnitTypeKey:
-                  draft.workUnitDefinitionId?.trim() ?? draft.workUnitTypeKey?.trim() ?? "",
+                factDefinitionId: draft.factDefinitionId?.trim() ?? "",
+                slotDefinitionId: draft.slotDefinitionId?.trim() ?? "",
+                workUnitDefinitionId: draft.workUnitDefinitionId?.trim() ?? "",
                 allowedWorkflowDefinitionIds: draft.allowedWorkflowDefinitionIds.map((entry) =>
                   entry.trim(),
                 ),
                 selectedWorkUnitFactDefinitionIds: draftSpecCards
                   .map((entry) => entry.factDefinitionId.trim())
                   .filter((entry) => entry.length > 0),
-                selectedArtifactSlotDefinitionIds: draft.selectedArtifactSlotDefinitionIds,
+                selectedArtifactSlotDefinitionIds: draft.selectedArtifactSlotDefinitionIds ?? [],
                 includedFactDefinitionIds: draftSpecCards
                   .map((entry) => entry.factDefinitionId.trim())
                   .filter((entry) => entry.length > 0),
@@ -4345,7 +4364,7 @@ export function WorkflowContextFactDialog({
                     <p className="text-xs text-muted-foreground">{summarizeContextFact(draft)}</p>
                   </div>
 
-                  {draft.kind === "plain_value_fact" ? (
+                  {draft.kind === "plain_fact" || draft.kind === "plain_value_fact" ? (
                     <div className="grid gap-4">
                       <div className="grid gap-2 lg:max-w-sm">
                         <Label htmlFor="workflow-editor-context-fact-value-type">Value Type</Label>
@@ -4707,6 +4726,39 @@ export function WorkflowContextFactDialog({
                                         </SelectContent>
                                       </Select>
                                     </div>
+                                    <div className="grid gap-2">
+                                      <Label
+                                        htmlFor={`workflow-editor-json-cardinality-${entry.localId}`}
+                                      >
+                                        Cardinality
+                                      </Label>
+                                      <Select
+                                        value={entry.cardinality}
+                                        onValueChange={(value) =>
+                                          setJsonSubSchemaDrafts((current) =>
+                                            current.map((currentEntry) =>
+                                              currentEntry.localId === entry.localId
+                                                ? {
+                                                    ...currentEntry,
+                                                    cardinality: value === "many" ? "many" : "one",
+                                                  }
+                                                : currentEntry,
+                                            ),
+                                          )
+                                        }
+                                      >
+                                        <SelectTrigger
+                                          id={`workflow-editor-json-cardinality-${entry.localId}`}
+                                          className="w-full rounded-none border-border/70 bg-background/50"
+                                        >
+                                          <SelectValue placeholder="Select cardinality" />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-none">
+                                          <SelectItem value="one">one</SelectItem>
+                                          <SelectItem value="many">many</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
 
                                     {entry.valueType === "string" ? (
                                       <div className="grid gap-3 lg:col-span-2">
@@ -5039,26 +5091,28 @@ export function WorkflowContextFactDialog({
                     </div>
                   ) : null}
 
-                  {draft.kind === "definition_backed_external_fact" ||
-                  draft.kind === "bound_external_fact" ? (
+                  {draft.kind === "bound_fact" ? (
                     <div className="grid gap-2 lg:max-w-2xl">
                       <Label id="workflow-editor-context-fact-external-definition">
-                        External Fact Definition Id
+                        Bound Fact Definition Id
                       </Label>
                       <SearchableCombobox
                         labelId="workflow-editor-context-fact-external-definition"
-                        value={draft.externalFactDefinitionId ?? ""}
+                        value={draft.factDefinitionId ?? ""}
                         onChange={(value) => {
                           const selectedOption = externalFactOptions.find(
                             (option) => option.value === value,
                           );
                           setDraft((previous) => ({
                             ...previous,
-                            externalFactDefinitionId: value,
-                            valueType: selectedOption?.valueType,
-                            validationJson: selectedOption?.validationJson,
+                            factDefinitionId: value,
+                            ...(selectedOption?.valueType
+                              ? { valueType: selectedOption.valueType }
+                              : {}),
+                            ...(typeof selectedOption?.validationJson !== "undefined"
+                              ? { validationJson: selectedOption.validationJson }
+                              : {}),
                             workUnitDefinitionId: selectedOption?.workUnitDefinitionId ?? "",
-                            workUnitTypeKey: selectedOption?.workUnitDefinitionId ?? "",
                           }));
                         }}
                         options={externalFactOptions}
@@ -5069,7 +5123,7 @@ export function WorkflowContextFactDialog({
                     </div>
                   ) : null}
 
-                  {draft.kind === "workflow_reference_fact" ? (
+                  {draft.kind === "workflow_ref_fact" ? (
                     <div className="grid gap-3">
                       <Label id="workflow-editor-context-fact-workflow-ids">
                         Allowed Workflow Definition Ids
@@ -5138,16 +5192,16 @@ export function WorkflowContextFactDialog({
                     </div>
                   ) : null}
 
-                  {draft.kind === "artifact_reference_fact" ? (
+                  {draft.kind === "artifact_slot_reference_fact" ? (
                     <div className="grid gap-2 lg:max-w-2xl">
                       <Label id="workflow-editor-context-fact-artifact-slot">
                         Artifact Slot Definition Id
                       </Label>
                       <SearchableCombobox
                         labelId="workflow-editor-context-fact-artifact-slot"
-                        value={draft.artifactSlotDefinitionId ?? ""}
+                        value={draft.slotDefinitionId ?? ""}
                         onChange={(value) =>
-                          setDraft((previous) => ({ ...previous, artifactSlotDefinitionId: value }))
+                          setDraft((previous) => ({ ...previous, slotDefinitionId: value }))
                         }
                         options={artifactSlots}
                         placeholder="Select an artifact slot"
@@ -5165,7 +5219,7 @@ export function WorkflowContextFactDialog({
                         </Label>
                         <SearchableCombobox
                           labelId="workflow-editor-context-fact-work-unit-type"
-                          value={draft.workUnitDefinitionId ?? draft.workUnitTypeKey ?? ""}
+                          value={draft.workUnitDefinitionId ?? ""}
                           onChange={(value) => {
                             setPendingIncludedFactDefinitionId("");
                             setPendingIncludedArtifactSlotDefinitionId("");
@@ -5173,7 +5227,6 @@ export function WorkflowContextFactDialog({
                             setDraft((previous) => ({
                               ...previous,
                               workUnitDefinitionId: value,
-                              workUnitTypeKey: value,
                               selectedWorkUnitFactDefinitionIds: [],
                               selectedArtifactSlotDefinitionIds: [],
                               includedFactDefinitionIds: [],
@@ -5414,41 +5467,43 @@ export function WorkflowContextFactDialog({
                             </div>
                           </div>
 
-                          {draft.selectedArtifactSlotDefinitionIds.length === 0 ? (
+                          {(draft.selectedArtifactSlotDefinitionIds ?? []).length === 0 ? (
                             <p className="text-xs text-muted-foreground">
                               No included artifact slots yet.
                             </p>
                           ) : (
                             <div className="flex flex-wrap gap-2">
-                              {draft.selectedArtifactSlotDefinitionIds.map((slotDefinitionId) => (
-                                <button
-                                  key={slotDefinitionId}
-                                  type="button"
-                                  className="chiron-frame-flat flex items-center gap-2 px-3 py-2 text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground"
-                                  onClick={() =>
-                                    setDraft((previous) => ({
-                                      ...previous,
-                                      selectedArtifactSlotDefinitionIds:
-                                        previous.selectedArtifactSlotDefinitionIds.filter(
-                                          (current) => current !== slotDefinitionId,
-                                        ),
-                                    }))
-                                  }
-                                >
-                                  <span>{slotDefinitionId}</span>
-                                  {selectedWorkUnitArtifactOptionsByIdentifier.get(slotDefinitionId)
-                                    ?.label ? (
-                                    <span>
-                                      {
-                                        selectedWorkUnitArtifactOptionsByIdentifier.get(
-                                          slotDefinitionId,
-                                        )?.label
-                                      }
-                                    </span>
-                                  ) : null}
-                                  <span className="text-foreground">×</span>
-                                </button>
-                              ))}
+                              {(draft.selectedArtifactSlotDefinitionIds ?? []).map(
+                                (slotDefinitionId) => (
+                                  <button
+                                    key={slotDefinitionId}
+                                    type="button"
+                                    className="chiron-frame-flat flex items-center gap-2 px-3 py-2 text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground"
+                                    onClick={() =>
+                                      setDraft((previous) => ({
+                                        ...previous,
+                                        selectedArtifactSlotDefinitionIds: (
+                                          previous.selectedArtifactSlotDefinitionIds ?? []
+                                        ).filter((current) => current !== slotDefinitionId),
+                                      }))
+                                    }
+                                  >
+                                    <span>{slotDefinitionId}</span>
+                                    {selectedWorkUnitArtifactOptionsByIdentifier.get(
+                                      slotDefinitionId,
+                                    )?.label ? (
+                                      <span>
+                                        {
+                                          selectedWorkUnitArtifactOptionsByIdentifier.get(
+                                            slotDefinitionId,
+                                          )?.label
+                                        }
+                                      </span>
+                                    ) : null}
+                                    <span className="text-foreground">×</span>
+                                  </button>
+                                ),
+                              )}
                             </div>
                           )}
                         </div>
@@ -5539,24 +5594,41 @@ function createEmptyBranchRouteCondition(
   };
 }
 
+function isBranchConditionOperatorKey(
+  value: string,
+): value is WorkflowBranchRouteConditionPayload["operator"] {
+  return value === "exists" || value === "equals";
+}
+
+function normalizeBranchConditionOperator(
+  value: string | null | undefined,
+): WorkflowBranchRouteConditionPayload["operator"] {
+  return value === "equals" ? "equals" : "exists";
+}
+
 function normalizeConditionSubFieldKey(value: string | null | undefined) {
   const normalized = value?.trim() ?? "";
   return normalized.length > 0 ? normalized : null;
 }
 
 function isJsonScalarFact(fact: WorkflowContextFactDefinitionItem | undefined) {
+  if (!fact) {
+    return false;
+  }
+
   return (
-    fact?.valueType === "json" &&
-    (fact.kind === "plain_value_fact" ||
-      fact.kind === "definition_backed_external_fact" ||
-      fact.kind === "bound_external_fact")
+    (fact.type ?? fact.valueType) === "json" &&
+    (fact.kind === "plain_fact" || fact.kind === "plain_value_fact" || fact.kind === "bound_fact")
   );
 }
 
 function getPlainStringValidationKind(
   fact: WorkflowContextFactDefinitionItem | undefined,
 ): "none" | "path" | "allowed-values" {
-  if (fact?.kind !== "plain_value_fact" || fact.valueType !== "string") {
+  if (
+    (fact?.kind !== "plain_fact" && fact?.kind !== "plain_value_fact") ||
+    (fact.type ?? fact.valueType) !== "string"
+  ) {
     return "none";
   }
 
@@ -5576,11 +5648,7 @@ function getPlainStringValidationKind(
 function getExternalStringValidationKind(
   fact: WorkflowContextFactDefinitionItem | undefined,
 ): "none" | "path" | "allowed-values" {
-  if (
-    !fact ||
-    (fact.kind !== "definition_backed_external_fact" && fact.kind !== "bound_external_fact") ||
-    fact.valueType !== "string"
-  ) {
+  if (!fact || fact.kind !== "bound_fact" || fact.valueType !== "string") {
     return "none";
   }
 
@@ -5597,8 +5665,15 @@ function getExternalStringValidationKind(
   return "none";
 }
 
-function getPlainJsonSubFieldOptions(fact: WorkflowContextFactDefinitionItem | undefined) {
-  if (!isJsonScalarFact(fact)) {
+function getPlainJsonSubFieldOptions(fact: WorkflowContextFactDefinitionItem | undefined): Array<{
+  value: string;
+  operandType: "string" | "number" | "boolean";
+  label: string;
+  description: string;
+  validationKind: PlainStringValidationType;
+  allowedValues: string[];
+}> {
+  if (!fact || !isJsonScalarFact(fact)) {
     return [];
   }
 
@@ -5627,7 +5702,7 @@ function getPlainJsonSubFieldOptions(fact: WorkflowContextFactDefinitionItem | u
     typeof schema === "object" && schema !== null && "properties" in schema
       ? Object.entries((schema as { properties?: Record<string, unknown> }).properties ?? {}).map(
           ([key, property]) => {
-            const record = typeof property === "object" && property !== null ? property : null;
+            const record = asRecord(property);
             return {
               key,
               type: record?.type,
@@ -5707,7 +5782,7 @@ function getPlainValueFactAllowedOperatorKeys(params: {
   operand: WorkflowConditionOperand | null;
 }) {
   const { fact, subFieldKey, operand } = params;
-  if (fact.kind !== "plain_value_fact") {
+  if (fact.kind !== "plain_fact" && fact.kind !== "plain_value_fact") {
     return null;
   }
 
@@ -5772,7 +5847,7 @@ function getExternalFactAllowedOperatorKeys(params: {
   subFieldKey: string | null;
 }) {
   const { fact, subFieldKey } = params;
-  if (fact.kind !== "definition_backed_external_fact" && fact.kind !== "bound_external_fact") {
+  if (fact.kind !== "bound_fact") {
     return null;
   }
 
@@ -5847,17 +5922,18 @@ function getExternalFactAllowedOperatorKeys(params: {
 function resolveConditionOperandForEditor(
   fact: WorkflowContextFactDefinitionItem | undefined,
   subFieldKey: string | null | undefined,
-) {
+): WorkflowConditionOperand | null {
   if (!fact) {
     return null;
   }
 
+  const factValueType = fact.type ?? fact.valueType;
+
   const scalarValueType =
-    fact.valueType === "number" || fact.valueType === "boolean" || fact.valueType === "json"
-      ? fact.valueType
-      : fact.valueType === "work_unit" ||
-          ((fact.kind === "definition_backed_external_fact" ||
-            fact.kind === "bound_external_fact") &&
+    factValueType === "number" || factValueType === "boolean" || factValueType === "json"
+      ? factValueType
+      : factValueType === "work_unit" ||
+          (fact.kind === "bound_fact" &&
             typeof fact.workUnitDefinitionId === "string" &&
             fact.workUnitDefinitionId.trim().length > 0)
         ? "work_unit"
@@ -5894,23 +5970,30 @@ function resolveConditionOperandForEditor(
   }
 
   switch (fact.kind) {
+    case "plain_fact":
     case "plain_value_fact":
       return {
-        operandType: fact.valueType === "json" ? "json_object" : (fact.valueType ?? "string"),
+        operandType: factValueType === "json" ? "json_object" : (factValueType ?? "string"),
         cardinality: fact.cardinality,
         freshnessCapable: false,
       } as const;
-    case "workflow_reference_fact":
+    case "workflow_ref_fact":
       return {
-        operandType: "workflow_reference" as const,
+        operandType: "workflow_ref" as const,
         cardinality: fact.cardinality,
         freshnessCapable: false,
       };
-    case "artifact_reference_fact":
+    case "artifact_slot_reference_fact":
       return {
-        operandType: "artifact_reference" as const,
+        operandType: "artifact_snapshot" as const,
         cardinality: fact.cardinality,
         freshnessCapable: true,
+      };
+    case "work_unit_reference_fact":
+      return {
+        operandType: "work_unit" as const,
+        cardinality: fact.cardinality,
+        freshnessCapable: false,
       };
     case "work_unit_draft_spec_fact":
       return {
@@ -5918,13 +6001,14 @@ function resolveConditionOperandForEditor(
         cardinality: fact.cardinality,
         freshnessCapable: false,
       };
-    case "definition_backed_external_fact":
-    case "bound_external_fact":
+    case "bound_fact":
       return {
         operandType: scalarValueType === "json" ? "json_object" : scalarValueType,
         cardinality: fact.cardinality,
         freshnessCapable: false,
       };
+    default:
+      return null;
   }
 }
 
@@ -6004,7 +6088,7 @@ function createDefaultComparisonJson(
     return { value: allowedValues[0] ?? "" };
   }
 
-  if (operand?.operandType === "workflow_reference" && fact?.kind === "workflow_reference_fact") {
+  if (operand?.operandType === "workflow_ref" && fact?.kind === "workflow_ref_fact") {
     return { value: fact.allowedWorkflowDefinitionIds[0] ?? "" };
   }
 
@@ -6035,7 +6119,7 @@ function getConditionAllowedValues(
 }
 
 function getConditionReferenceValues(fact: WorkflowContextFactDefinitionItem | undefined) {
-  if (fact?.kind !== "workflow_reference_fact") {
+  if (fact?.kind !== "workflow_ref_fact") {
     return [];
   }
 
@@ -6061,7 +6145,7 @@ function getConditionCurrentStateValues(
     return fact.workUnitStateOptions ?? [];
   }
 
-  if (fact.kind !== "definition_backed_external_fact" && fact.kind !== "bound_external_fact") {
+  if (fact.kind !== "bound_fact") {
     return [];
   }
 
@@ -6071,7 +6155,7 @@ function getConditionCurrentStateValues(
 function getDraftSpecSubFieldOption(
   fact: WorkflowContextFactDefinitionItem | undefined,
   subFieldKey: string | null | undefined,
-) {
+): WorkflowDraftSpecSubFieldOption | null {
   if (fact?.kind !== "work_unit_draft_spec_fact") {
     return null;
   }
@@ -6117,8 +6201,9 @@ function getConditionNoteText(params: {
       ? `Condition passes when at least one runtime value for ${targetLabel} satisfies this rule.`
       : `Condition is evaluated against the runtime value for ${targetLabel}.`;
 
-  if (fact.kind === "plain_value_fact") {
-    if (fact.valueType === "json" && !normalizedSubFieldKey) {
+  if (fact.kind === "plain_fact" || fact.kind === "plain_value_fact") {
+    const factValueType = fact.type ?? fact.valueType;
+    if (factValueType === "json" && !normalizedSubFieldKey) {
       return operator.key === "exists"
         ? `${valueScopeLead} Root JSON conditions only check whether the container value exists.`
         : "Root JSON conditions only support container-level existence. Select a JSON sub-field to compare scalar values.";
@@ -6158,8 +6243,9 @@ function getConditionNoteText(params: {
     }
   }
 
-  if (fact.kind === "definition_backed_external_fact" || fact.kind === "bound_external_fact") {
-    if (fact.valueType === "json" && !normalizedSubFieldKey) {
+  if (fact.kind === "bound_fact") {
+    const factValueType = fact.valueType;
+    if (factValueType === "json" && !normalizedSubFieldKey) {
       return operator.key === "exists"
         ? `${valueScopeLead} Root JSON conditions only check whether the container value exists.`
         : "Root JSON conditions only support container-level existence. Select a JSON sub-field to compare scalar values.";
@@ -6173,7 +6259,7 @@ function getConditionNoteText(params: {
       return `${valueScopeLead} This sub-field uses path semantics, so repository checks use normalized repo-relative paths.`;
     }
 
-    if (fact.valueType === "work_unit" && operator.key === "current_state") {
+    if (factValueType === "work_unit" && operator.key === "current_state") {
       return `${valueScopeLead} Comparison options come from the lifecycle states defined on the referenced work unit type, plus Activation for the pre-state before first activation.`;
     }
 
@@ -6181,12 +6267,12 @@ function getConditionNoteText(params: {
       return `${valueScopeLead} Paths are treated as repo-relative when checking repository existence.`;
     }
 
-    if (fact.valueType === "string" && getExternalStringValidationKind(fact) === "allowed-values") {
+    if (factValueType === "string" && getExternalStringValidationKind(fact) === "allowed-values") {
       return `${valueScopeLead} Comparison options come from the allowed values defined for the referenced external fact.`;
     }
   }
 
-  if (fact.kind === "artifact_reference_fact" && operator.key === "fresh") {
+  if (fact.kind === "artifact_slot_reference_fact" && operator.key === "fresh") {
     return "Fresh checks whether the referenced artifact was produced recently enough for the current workflow state.";
   }
 
@@ -6232,9 +6318,23 @@ function reconcileBranchConditionDraft(params: {
     params.fact,
     normalizedSubFieldKey,
   );
-  const nextOperator =
-    compatibleOperators.find((operator) => operator.key === params.condition.operator) ??
-    compatibleOperators[0];
+  const nextOperatorKey =
+    compatibleOperators.find(
+      (
+        operator,
+      ): operator is WorkflowConditionOperator & {
+        key: WorkflowBranchRouteConditionPayload["operator"];
+      } => operator.key === params.condition.operator && isBranchConditionOperatorKey(operator.key),
+    )?.key ??
+    compatibleOperators.find(
+      (
+        operator,
+      ): operator is WorkflowConditionOperator & {
+        key: WorkflowBranchRouteConditionPayload["operator"];
+      } => isBranchConditionOperatorKey(operator.key),
+    )?.key ??
+    "exists";
+  const nextOperator = compatibleOperators.find((operator) => operator.key === nextOperatorKey);
   const nextComparisonJson =
     nextOperator &&
     operand &&
@@ -6247,7 +6347,7 @@ function reconcileBranchConditionDraft(params: {
     contextFactDefinitionId:
       params.nextContextFactDefinitionId ?? params.condition.contextFactDefinitionId,
     subFieldKey: normalizedSubFieldKey,
-    operator: nextOperator?.key ?? "exists",
+    operator: nextOperatorKey,
     comparisonJson: nextComparisonJson,
   } satisfies WorkflowBranchRouteConditionPayload;
 }
@@ -6355,7 +6455,7 @@ function toWorkflowBranchStepPayload(params: {
         conditions: group.conditions.map((condition) => ({
           ...condition,
           contextFactDefinitionId: condition.contextFactDefinitionId.trim(),
-          operator: condition.operator.trim(),
+          operator: normalizeBranchConditionOperator(condition.operator.trim()),
         })),
       })),
     })),
@@ -6424,7 +6524,7 @@ function RouteModeRadioGroup(props: {
             key={option}
             className="chiron-frame-flat flex items-center gap-2 px-3 py-2 text-xs uppercase tracking-[0.12em]"
           >
-            <RadioGroupItem value={option} name={props.name} />
+            <RadioGroupItem value={option} />
             <span>{option}</span>
           </div>
         ))}
@@ -6911,7 +7011,8 @@ export function RouteDialog({
                               setDraft((previous) => ({
                                 ...previous,
                                 groups: previous.groups.filter(
-                                  (entry) => entry.groupId !== group.groupId,
+                                  (entry): entry is WorkflowBranchRouteGroupPayload =>
+                                    entry.groupId !== group.groupId,
                                 ),
                               }))
                             }
@@ -6929,10 +7030,11 @@ export function RouteDialog({
                               onChange={(value) =>
                                 setDraft((previous) => ({
                                   ...previous,
-                                  groups: previous.groups.map((entry) =>
-                                    entry.groupId === group.groupId
-                                      ? { ...entry, mode: value }
-                                      : entry,
+                                  groups: previous.groups.map(
+                                    (entry): WorkflowBranchRouteGroupPayload =>
+                                      entry.groupId === group.groupId
+                                        ? { ...entry, mode: value }
+                                        : entry,
                                   ),
                                 }))
                               }
@@ -6983,17 +7085,20 @@ export function RouteDialog({
                                         onClick={() =>
                                           setDraft((previous) => ({
                                             ...previous,
-                                            groups: previous.groups.map((entry) =>
-                                              entry.groupId === group.groupId
-                                                ? {
-                                                    ...entry,
-                                                    conditions: entry.conditions.filter(
-                                                      (candidate) =>
-                                                        candidate.conditionId !==
-                                                        condition.conditionId,
-                                                    ),
-                                                  }
-                                                : entry,
+                                            groups: previous.groups.map(
+                                              (entry): WorkflowBranchRouteGroupPayload =>
+                                                entry.groupId === group.groupId
+                                                  ? {
+                                                      ...entry,
+                                                      conditions: entry.conditions.filter(
+                                                        (
+                                                          candidate,
+                                                        ): candidate is WorkflowBranchRouteConditionPayload =>
+                                                          candidate.conditionId !==
+                                                          condition.conditionId,
+                                                      ),
+                                                    }
+                                                  : entry,
                                             ),
                                           }))
                                         }
@@ -7016,25 +7121,29 @@ export function RouteDialog({
                                             const nextFact = factsById.get(value);
                                             setDraft((previous) => ({
                                               ...previous,
-                                              groups: previous.groups.map((entry) =>
-                                                entry.groupId === group.groupId
-                                                  ? {
-                                                      ...entry,
-                                                      conditions: entry.conditions.map(
-                                                        (candidate) =>
-                                                          candidate.conditionId ===
-                                                          condition.conditionId
-                                                            ? reconcileBranchConditionDraft({
-                                                                condition: candidate,
-                                                                fact: nextFact,
-                                                                nextContextFactDefinitionId: value,
-                                                                nextSubFieldKey: null,
-                                                                conditionOperators,
-                                                              })
-                                                            : candidate,
-                                                      ),
-                                                    }
-                                                  : entry,
+                                              groups: previous.groups.map(
+                                                (entry): WorkflowBranchRouteGroupPayload =>
+                                                  entry.groupId === group.groupId
+                                                    ? {
+                                                        ...entry,
+                                                        conditions: entry.conditions.map(
+                                                          (
+                                                            candidate,
+                                                          ): WorkflowBranchRouteConditionPayload =>
+                                                            candidate.conditionId ===
+                                                            condition.conditionId
+                                                              ? reconcileBranchConditionDraft({
+                                                                  condition: candidate,
+                                                                  fact: nextFact,
+                                                                  nextContextFactDefinitionId:
+                                                                    value,
+                                                                  nextSubFieldKey: null,
+                                                                  conditionOperators,
+                                                                })
+                                                              : candidate,
+                                                        ),
+                                                      }
+                                                    : entry,
                                               ),
                                             }));
                                           }}
@@ -7060,27 +7169,30 @@ export function RouteDialog({
                                             onValueChange={(value) =>
                                               setDraft((previous) => ({
                                                 ...previous,
-                                                groups: previous.groups.map((entry) =>
-                                                  entry.groupId === group.groupId
-                                                    ? {
-                                                        ...entry,
-                                                        conditions: entry.conditions.map(
-                                                          (candidate) =>
-                                                            candidate.conditionId ===
-                                                            condition.conditionId
-                                                              ? reconcileBranchConditionDraft({
-                                                                  condition: candidate,
-                                                                  fact,
-                                                                  nextSubFieldKey:
-                                                                    value === "__root__"
-                                                                      ? null
-                                                                      : value,
-                                                                  conditionOperators,
-                                                                })
-                                                              : candidate,
-                                                        ),
-                                                      }
-                                                    : entry,
+                                                groups: previous.groups.map(
+                                                  (entry): WorkflowBranchRouteGroupPayload =>
+                                                    entry.groupId === group.groupId
+                                                      ? {
+                                                          ...entry,
+                                                          conditions: entry.conditions.map(
+                                                            (
+                                                              candidate,
+                                                            ): WorkflowBranchRouteConditionPayload =>
+                                                              candidate.conditionId ===
+                                                              condition.conditionId
+                                                                ? reconcileBranchConditionDraft({
+                                                                    condition: candidate,
+                                                                    fact,
+                                                                    nextSubFieldKey:
+                                                                      value === "__root__"
+                                                                        ? null
+                                                                        : value,
+                                                                    conditionOperators,
+                                                                  })
+                                                                : candidate,
+                                                          ),
+                                                        }
+                                                      : entry,
                                                 ),
                                               }))
                                             }
@@ -7143,35 +7255,42 @@ export function RouteDialog({
                                           onValueChange={(value) =>
                                             setDraft((previous) => ({
                                               ...previous,
-                                              groups: previous.groups.map((entry) =>
-                                                entry.groupId === group.groupId
-                                                  ? {
-                                                      ...entry,
-                                                      conditions: entry.conditions.map(
-                                                        (candidate) =>
-                                                          candidate.conditionId ===
-                                                          condition.conditionId
-                                                            ? {
-                                                                ...candidate,
-                                                                operator:
-                                                                  value ?? candidate.operator,
-                                                                comparisonJson:
-                                                                  createDefaultComparisonJson(
-                                                                    compatibleOperators.find(
-                                                                      (operator) =>
-                                                                        operator.key ===
-                                                                        (value ??
-                                                                          candidate.operator),
+                                              groups: previous.groups.map(
+                                                (entry): WorkflowBranchRouteGroupPayload =>
+                                                  entry.groupId === group.groupId
+                                                    ? {
+                                                        ...entry,
+                                                        conditions: entry.conditions.map(
+                                                          (
+                                                            candidate,
+                                                          ): WorkflowBranchRouteConditionPayload =>
+                                                            candidate.conditionId ===
+                                                            condition.conditionId
+                                                              ? {
+                                                                  ...candidate,
+                                                                  operator:
+                                                                    normalizeBranchConditionOperator(
+                                                                      value ?? candidate.operator,
                                                                     ),
-                                                                    operand,
-                                                                    fact,
-                                                                    condition.subFieldKey,
-                                                                  ),
-                                                              }
-                                                            : candidate,
-                                                      ),
-                                                    }
-                                                  : entry,
+                                                                  comparisonJson:
+                                                                    createDefaultComparisonJson(
+                                                                      compatibleOperators.find(
+                                                                        (operator) =>
+                                                                          operator.key ===
+                                                                          normalizeBranchConditionOperator(
+                                                                            value ??
+                                                                              candidate.operator,
+                                                                          ),
+                                                                      ),
+                                                                      operand,
+                                                                      fact,
+                                                                      condition.subFieldKey,
+                                                                    ),
+                                                                }
+                                                              : candidate,
+                                                        ),
+                                                      }
+                                                    : entry,
                                               ),
                                             }))
                                           }
@@ -7203,19 +7322,22 @@ export function RouteDialog({
                                           onChange={(comparisonJson) =>
                                             setDraft((previous) => ({
                                               ...previous,
-                                              groups: previous.groups.map((entry) =>
-                                                entry.groupId === group.groupId
-                                                  ? {
-                                                      ...entry,
-                                                      conditions: entry.conditions.map(
-                                                        (candidate) =>
-                                                          candidate.conditionId ===
-                                                          condition.conditionId
-                                                            ? { ...candidate, comparisonJson }
-                                                            : candidate,
-                                                      ),
-                                                    }
-                                                  : entry,
+                                              groups: previous.groups.map(
+                                                (entry): WorkflowBranchRouteGroupPayload =>
+                                                  entry.groupId === group.groupId
+                                                    ? {
+                                                        ...entry,
+                                                        conditions: entry.conditions.map(
+                                                          (
+                                                            candidate,
+                                                          ): WorkflowBranchRouteConditionPayload =>
+                                                            candidate.conditionId ===
+                                                            condition.conditionId
+                                                              ? { ...candidate, comparisonJson }
+                                                              : candidate,
+                                                        ),
+                                                      }
+                                                    : entry,
                                               ),
                                             }))
                                           }
@@ -7239,22 +7361,25 @@ export function RouteDialog({
                                           onCheckedChange={(checked) =>
                                             setDraft((previous) => ({
                                               ...previous,
-                                              groups: previous.groups.map((entry) =>
-                                                entry.groupId === group.groupId
-                                                  ? {
-                                                      ...entry,
-                                                      conditions: entry.conditions.map(
-                                                        (candidate) =>
-                                                          candidate.conditionId ===
-                                                          condition.conditionId
-                                                            ? {
-                                                                ...candidate,
-                                                                isNegated: checked === true,
-                                                              }
-                                                            : candidate,
-                                                      ),
-                                                    }
-                                                  : entry,
+                                              groups: previous.groups.map(
+                                                (entry): WorkflowBranchRouteGroupPayload =>
+                                                  entry.groupId === group.groupId
+                                                    ? {
+                                                        ...entry,
+                                                        conditions: entry.conditions.map(
+                                                          (
+                                                            candidate,
+                                                          ): WorkflowBranchRouteConditionPayload =>
+                                                            candidate.conditionId ===
+                                                            condition.conditionId
+                                                              ? {
+                                                                  ...candidate,
+                                                                  isNegated: checked === true,
+                                                                }
+                                                              : candidate,
+                                                        ),
+                                                      }
+                                                    : entry,
                                               ),
                                             }))
                                           }
@@ -7275,16 +7400,17 @@ export function RouteDialog({
                               onClick={() =>
                                 setDraft((previous) => ({
                                   ...previous,
-                                  groups: previous.groups.map((entry) =>
-                                    entry.groupId === group.groupId
-                                      ? {
-                                          ...entry,
-                                          conditions: [
-                                            ...entry.conditions,
-                                            createEmptyBranchRouteCondition(),
-                                          ],
-                                        }
-                                      : entry,
+                                  groups: previous.groups.map(
+                                    (entry): WorkflowBranchRouteGroupPayload =>
+                                      entry.groupId === group.groupId
+                                        ? {
+                                            ...entry,
+                                            conditions: [
+                                              ...entry.conditions,
+                                              createEmptyBranchRouteCondition(),
+                                            ],
+                                          }
+                                        : entry,
                                   ),
                                 }))
                               }
@@ -7404,7 +7530,7 @@ export function BranchStepDialog({
     const nextLabel = payload?.label ?? "";
     const nextDescriptionMarkdown = payload?.descriptionJson?.markdown ?? "";
     const nextDefaultTargetStepId = payload?.defaultTargetStepId ?? null;
-    const nextRoutes = payload?.routes ? structuredClone(payload.routes) : [];
+    const nextRoutes = payload?.routes ? payload.routes.map((route) => structuredClone(route)) : [];
     const nextGuidance = toBranchGuidance(payload?.guidance);
 
     setKey(nextKey);

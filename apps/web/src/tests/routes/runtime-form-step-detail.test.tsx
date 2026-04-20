@@ -123,7 +123,7 @@ function buildDetail(): any {
             required: true,
             contextFactDefinitionId: "ctx-workflow-mode",
             contextFactKey: "workflow_mode",
-            contextFactKind: "definition_backed_external_fact" as const,
+            contextFactKind: "bound_fact" as const,
             widget: {
               control: "select" as const,
               valueType: "string" as const,
@@ -159,7 +159,7 @@ function buildDetail(): any {
             required: false,
             contextFactDefinitionId: "ctx-repository-type",
             contextFactKey: "repository_type",
-            contextFactKind: "bound_external_fact" as const,
+            contextFactKind: "bound_fact" as const,
             widget: {
               control: "reference" as const,
               valueType: "string" as const,
@@ -188,7 +188,7 @@ function buildDetail(): any {
             required: false,
             contextFactDefinitionId: "ctx-project-parts",
             contextFactKey: "project_parts",
-            contextFactKind: "bound_external_fact" as const,
+            contextFactKind: "bound_fact" as const,
             widget: {
               control: "reference" as const,
               valueType: "json" as const,
@@ -217,7 +217,7 @@ function buildDetail(): any {
             required: false,
             contextFactDefinitionId: "ctx-reference-workflow",
             contextFactKey: "reference_workflow",
-            contextFactKind: "workflow_reference_fact" as const,
+            contextFactKind: "workflow_ref_fact" as const,
             widget: {
               control: "workflow-reference" as const,
               valueType: "json" as const,
@@ -233,7 +233,7 @@ function buildDetail(): any {
             required: false,
             contextFactDefinitionId: "ctx-reference-artifact",
             contextFactKey: "reference_artifact",
-            contextFactKind: "artifact_reference_fact" as const,
+            contextFactKind: "artifact_slot_reference_fact" as const,
             widget: {
               control: "artifact-reference" as const,
               valueType: "json" as const,
@@ -380,6 +380,20 @@ async function renderHarness(params?: { currentDetail?: any }) {
     }),
   );
 
+  const getAgentStepExecutionDetailQueryOptionsMock = vi.fn(
+    (_input: { input: { projectId: string; stepExecutionId: string } }) => ({
+      queryKey: ["runtime-agent-step-execution-detail", "project-1", "step-1"],
+      queryFn: async () => ({
+        shell: currentDetail.shell,
+        body: {
+          stepType: "agent" as const,
+          prompt: null,
+          transcript: [],
+        },
+      }),
+    }),
+  );
+
   const saveFormStepDraftMutationOptionsMock = vi.fn(
     (options?: { onSuccess?: () => Promise<void> | void }) => ({
       mutationFn: async (input: Record<string, any>) => {
@@ -463,6 +477,9 @@ async function renderHarness(params?: { currentDetail?: any }) {
 
   const orpc = {
     project: {
+      getAgentStepExecutionDetail: {
+        queryOptions: getAgentStepExecutionDetailQueryOptionsMock,
+      },
       getRuntimeStepExecutionDetail: {
         queryOptions: getRuntimeStepExecutionDetailQueryOptionsMock,
       },

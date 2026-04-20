@@ -69,7 +69,6 @@ type FactEditorFormValues = {
   factKey: string;
   factType: FactEditorValue["factType"];
   cardinality: "one" | "many";
-  defaultValue: string;
   description: string;
   humanMarkdown: string;
   agentMarkdown: string;
@@ -79,6 +78,8 @@ type FactEditorFormValues = {
   disallowAbsolute: boolean;
   preventTraversal: boolean;
   allowedValues: string;
+  numberMin: string;
+  numberMax: string;
 };
 
 type JsonFactValueType = "string" | "number" | "boolean";
@@ -87,7 +88,6 @@ type JsonSubKey = {
   id: string;
   displayName: string;
   key: string;
-  value: string;
   valueType: JsonFactValueType;
   cardinality: "one" | "many";
   validationType: "none" | "path" | "allowed-values";
@@ -96,6 +96,8 @@ type JsonSubKey = {
   disallowAbsolute: boolean;
   preventTraversal: boolean;
   allowedValues: string;
+  numberMin: string;
+  numberMax: string;
 };
 
 let jsonSubKeyIdSequence = 0;
@@ -147,6 +149,62 @@ function toJsonValueType(value: unknown): JsonFactValueType {
   return "string";
 }
 
+function parseNumberBoundsFromValidation(validation: FactEditorValue["validation"]): {
+  minimum?: number;
+  maximum?: number;
+} {
+  if (validation?.kind !== "json-schema") {
+    return {};
+  }
+
+  const validationRecord = validation as { schema?: unknown };
+  if (!isRecord(validationRecord.schema)) {
+    return {};
+  }
+
+  const minimum =
+    typeof validationRecord.schema.minimum === "number" &&
+    Number.isFinite(validationRecord.schema.minimum)
+      ? validationRecord.schema.minimum
+      : undefined;
+  const maximum =
+    typeof validationRecord.schema.maximum === "number" &&
+    Number.isFinite(validationRecord.schema.maximum)
+      ? validationRecord.schema.maximum
+      : undefined;
+
+  return {
+    ...(typeof minimum === "number" ? { minimum } : {}),
+    ...(typeof maximum === "number" ? { maximum } : {}),
+  };
+}
+
+function parseOptionalNumber(rawValue: string): number | undefined {
+  const trimmed = rawValue.trim();
+  if (trimmed.length === 0) {
+    return undefined;
+  }
+  const numeric = Number(trimmed);
+  return Number.isFinite(numeric) ? numeric : undefined;
+}
+
+function toOptionalNumberInput(value: unknown): string {
+  return typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+}
+
+function hasInvalidNumberRange(minRaw: string, maxRaw: string): boolean {
+  const minimum = parseOptionalNumber(minRaw);
+  const maximum = parseOptionalNumber(maxRaw);
+  return typeof minimum === "number" && typeof maximum === "number" && maximum < minimum;
+}
+
+function hasInvalidJsonSubKeyNumberRange(keys: readonly JsonSubKey[]): boolean {
+  return keys.some(
+    (entry) =>
+      entry.valueType === "number" && hasInvalidNumberRange(entry.numberMin, entry.numberMax),
+  );
+}
+
 function parseJsonSubKeys(fact: FactEditorValue): JsonSubKey[] {
   if (fact.validation?.kind !== "json-schema") {
     return [];
@@ -171,8 +229,6 @@ function parseJsonSubKeys(fact: FactEditorValue): JsonSubKey[] {
       ? pathValidation.normalization
       : {};
     const safety = isRecord(pathValidation.safety) ? pathValidation.safety : {};
-    const rawDefaultValue = propertyRecord.default;
-
     const subSchemaField = subSchemaFields.find((field: unknown) => {
       if (!isRecord(field)) {
         return false;
@@ -190,12 +246,6 @@ function parseJsonSubKeys(fact: FactEditorValue): JsonSubKey[] {
             ? propertyRecord.description
             : propertyKey,
       key: propertyKey,
-      value:
-        rawDefaultValue === undefined
-          ? ""
-          : typeof rawDefaultValue === "string"
-            ? rawDefaultValue
-            : JSON.stringify(rawDefaultValue),
       valueType: toJsonValueType(propertyRecord.type),
       cardinality: subSchemaFieldRecord.cardinality === "many" ? "many" : "one",
       validationType:
@@ -209,6 +259,8 @@ function parseJsonSubKeys(fact: FactEditorValue): JsonSubKey[] {
       disallowAbsolute: safety.disallowAbsolute !== false,
       preventTraversal: safety.preventTraversal !== false,
       allowedValues: allowedValues.join("\n"),
+      numberMin: toOptionalNumberInput(propertyRecord.minimum),
+      numberMax: toOptionalNumberInput(propertyRecord.maximum),
     };
   });
 }
@@ -228,7 +280,6 @@ function createEmptyJsonSubKey(existingKeys: readonly JsonSubKey[]): JsonSubKey 
     id: createJsonSubKeyId(),
     displayName: "",
     key,
-    value: "",
     valueType: "string",
     cardinality: "one",
     validationType: "none",
@@ -237,25 +288,9 @@ function createEmptyJsonSubKey(existingKeys: readonly JsonSubKey[]): JsonSubKey 
     disallowAbsolute: true,
     preventTraversal: true,
     allowedValues: "",
+    numberMin: "",
+    numberMax: "",
   };
-}
-
-function parseJsonSubKeyDefaultValue(entry: JsonSubKey): unknown {
-  const trimmed = entry.value.trim();
-  if (trimmed.length === 0) {
-    return undefined;
-  }
-
-  if (entry.valueType === "number") {
-    const numeric = Number(trimmed);
-    return Number.isFinite(numeric) ? numeric : trimmed;
-  }
-
-  if (entry.valueType === "boolean") {
-    return trimmed === "true";
-  }
-
-  return entry.value;
 }
 
 function jsonSubKeysToJsonSchemaValidation(
@@ -277,11 +312,6 @@ function jsonSubKeysToJsonSchemaValidation(
     const title = entry.displayName.trim();
     if (title.length > 0) {
       propertySchema.title = title;
-    }
-
-    const parsedDefault = parseJsonSubKeyDefaultValue(entry);
-    if (entry.cardinality === "one" && parsedDefault !== undefined) {
-      propertySchema.default = parsedDefault;
     }
 
     if (entry.valueType === "string") {
@@ -308,6 +338,17 @@ function jsonSubKeysToJsonSchemaValidation(
             .filter((value) => value.length > 0),
         );
       }
+    } else if (entry.valueType === "number") {
+      const minimum = parseOptionalNumber(entry.numberMin);
+      const maximum = parseOptionalNumber(entry.numberMax);
+
+      if (typeof minimum === "number") {
+        propertySchema.minimum = minimum;
+      }
+
+      if (typeof maximum === "number") {
+        propertySchema.maximum = maximum;
+      }
     }
 
     const subSchemaField: Record<string, unknown> = {
@@ -315,9 +356,6 @@ function jsonSubKeysToJsonSchemaValidation(
       type: entry.valueType,
       cardinality: entry.cardinality,
     };
-    if (entry.cardinality === "one" && parsedDefault !== undefined) {
-      subSchemaField.defaultValue = parsedDefault;
-    }
 
     properties[trimmedKey] = propertySchema;
     subSchemaFields.push(subSchemaField);
@@ -354,6 +392,7 @@ function factToFormValues(fact: FactEditorValue): FactEditorFormValues {
   const allowedValues = getAllowedValues(validation);
   const uiValidationKind = getUiValidationKind(validation);
   const validationType = uiValidationKind === "json-schema" ? "none" : uiValidationKind;
+  const numberBounds = parseNumberBoundsFromValidation(fact.validation);
 
   const factRecord = fact as unknown as Record<string, unknown>;
   const guidanceRecord = isRecord(factRecord.guidance) ? factRecord.guidance : {};
@@ -366,7 +405,6 @@ function factToFormValues(fact: FactEditorValue): FactEditorFormValues {
     factKey: fact.key,
     factType: fact.factType,
     cardinality: fact.cardinality === "many" ? "many" : "one",
-    defaultValue: fact.defaultValue === undefined ? "" : String(fact.defaultValue),
     description,
     humanMarkdown: humanGuidance,
     agentMarkdown: agentGuidance,
@@ -376,6 +414,8 @@ function factToFormValues(fact: FactEditorValue): FactEditorFormValues {
     disallowAbsolute: validation?.path?.safety?.disallowAbsolute ?? true,
     preventTraversal: validation?.path?.safety?.preventTraversal ?? true,
     allowedValues: allowedValues.join("\n"),
+    numberMin: typeof numberBounds.minimum === "number" ? String(numberBounds.minimum) : "",
+    numberMax: typeof numberBounds.maximum === "number" ? String(numberBounds.maximum) : "",
   };
 }
 
@@ -397,37 +437,6 @@ function normalizeFactType(factType: FactEditorValue["factType"]): FactEditorVal
   return "string";
 }
 
-function parseFactDefaultValue(
-  factType: FactEditorValue["factType"],
-  rawDefaultValue: string,
-): unknown {
-  if (rawDefaultValue.trim().length === 0) {
-    return undefined;
-  }
-
-  if (factType === "string") {
-    return rawDefaultValue;
-  }
-
-  if (factType === "number") {
-    const parsed = Number(rawDefaultValue);
-    return Number.isFinite(parsed) ? parsed : undefined;
-  }
-
-  if (factType === "boolean") {
-    const normalized = rawDefaultValue.trim().toLowerCase();
-    if (normalized === "true") {
-      return true;
-    }
-    if (normalized === "false") {
-      return false;
-    }
-    return undefined;
-  }
-
-  return Result.try(() => JSON.parse(rawDefaultValue)).unwrapOr(undefined);
-}
-
 function formValuesToFact(
   values: FactEditorFormValues,
   baseFact: FactEditorValue,
@@ -443,31 +452,44 @@ function formValuesToFact(
     .split(/\r?\n/g)
     .map((value) => value.trim())
     .filter((value) => value.length > 0);
-  const defaultValue = parseFactDefaultValue(factType, values.defaultValue);
+  const numberMinimum = parseOptionalNumber(values.numberMin);
+  const numberMaximum = parseOptionalNumber(values.numberMax);
 
   const validation: FactEditorValue["validation"] =
     factType === "json"
       ? jsonSubKeysToJsonSchemaValidation(jsonSubKeys)
-      : factType === "string"
-        ? values.validationType === "path"
+      : factType === "number"
+        ? typeof numberMinimum === "number" || typeof numberMaximum === "number"
           ? {
-              kind: "path",
-              path: {
-                pathKind: values.pathKind,
-                normalization: {
-                  mode: "posix",
-                  trimWhitespace: values.trimWhitespace,
-                },
-                safety: {
-                  disallowAbsolute: values.disallowAbsolute,
-                  preventTraversal: values.preventTraversal,
-                },
+              kind: "json-schema",
+              schemaDialect: "draft-2020-12",
+              schema: {
+                type: "number",
+                ...(typeof numberMinimum === "number" ? { minimum: numberMinimum } : {}),
+                ...(typeof numberMaximum === "number" ? { maximum: numberMaximum } : {}),
               },
             }
-          : values.validationType === "allowed-values" && allowedValues.length > 0
-            ? createAllowedValuesValidation(allowedValues)
-            : { kind: "none" }
-        : { kind: "none" };
+          : { kind: "none" }
+        : factType === "string"
+          ? values.validationType === "path"
+            ? {
+                kind: "path",
+                path: {
+                  pathKind: values.pathKind,
+                  normalization: {
+                    mode: "posix",
+                    trimWhitespace: values.trimWhitespace,
+                  },
+                  safety: {
+                    disallowAbsolute: values.disallowAbsolute,
+                    preventTraversal: values.preventTraversal,
+                  },
+                },
+              }
+            : values.validationType === "allowed-values" && allowedValues.length > 0
+              ? createAllowedValuesValidation(allowedValues)
+              : { kind: "none" }
+          : { kind: "none" };
 
   return {
     ...(baseFact.__uiId ? { __uiId: baseFact.__uiId } : {}),
@@ -475,7 +497,6 @@ function formValuesToFact(
     key,
     factType,
     cardinality: values.cardinality,
-    ...(defaultValue !== undefined ? { defaultValue } : {}),
     description: { markdown: description },
     guidance: {
       human: { markdown: humanMarkdown },
@@ -498,11 +519,12 @@ function factToMutationInput(fact: FactEditorValue): Record<string, unknown> {
   const agentGuidance = extractGuidanceText(guidanceRecord.agent, ["intent"]).trim();
 
   return {
+    kind: "plain_fact",
     name: fact.name,
     key: trimmedKey,
+    type: normalizedFactType,
     factType: normalizedFactType,
     cardinality: (fact as unknown as { cardinality?: "one" | "many" }).cardinality ?? "one",
-    defaultValue: fact.defaultValue,
     description: { markdown: description },
     guidance: {
       human: { markdown: humanGuidance },
@@ -584,6 +606,27 @@ function FactEditorDialog({
             if (nextFactKey.length === 0) {
               setActiveTab("contract");
               toast.error("Fact key is required");
+              return;
+            }
+
+            const nextFactType = form.getFieldValue("factType");
+            const nextNumberMin = form.getFieldValue("numberMin");
+            const nextNumberMax = form.getFieldValue("numberMax");
+            if (
+              nextFactType === "number" &&
+              hasInvalidNumberRange(
+                typeof nextNumberMin === "string" ? nextNumberMin : "",
+                typeof nextNumberMax === "string" ? nextNumberMax : "",
+              )
+            ) {
+              setActiveTab("contract");
+              toast.error("Maximum value cannot be less than minimum value.");
+              return;
+            }
+
+            if (nextFactType === "json" && hasInvalidJsonSubKeyNumberRange(jsonSubKeys)) {
+              setActiveTab("contract");
+              toast.error("JSON number field maximum value cannot be less than minimum value.");
               return;
             }
             void form.handleSubmit();
@@ -739,29 +782,7 @@ function FactEditorDialog({
                     )}
                   </form.Field>
                   <form.Subscribe selector={(state) => state.values.factType}>
-                    {(factType) =>
-                      factType !== "json" ? (
-                        <form.Field name="defaultValue">
-                          {(field) => (
-                            <div className="space-y-2">
-                              <Label
-                                htmlFor={field.name}
-                                className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
-                              >
-                                Default Value
-                              </Label>
-                              <Input
-                                id={field.name}
-                                className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em] placeholder:text-muted-foreground/50"
-                                value={field.state.value}
-                                onBlur={field.handleBlur}
-                                onChange={(e) => field.handleChange(e.target.value)}
-                              />
-                            </div>
-                          )}
-                        </form.Field>
-                      ) : null
-                    }
+                    {(factType) => (factType !== "json" ? null : null)}
                   </form.Subscribe>
                   <form.Subscribe selector={(state) => state.values.factType}>
                     {(factType) =>
@@ -912,6 +933,68 @@ function FactEditorDialog({
                             }
                           </form.Subscribe>
                         </div>
+                      ) : factType === "number" ? (
+                        <div className="col-span-2 grid gap-4 border border-border/70 p-4 md:grid-cols-2">
+                          <form.Field name="numberMin">
+                            {(field) => (
+                              <div className="space-y-2">
+                                <Label
+                                  htmlFor={field.name}
+                                  className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                                >
+                                  Minimum Value
+                                </Label>
+                                <Input
+                                  id={field.name}
+                                  type="number"
+                                  className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]"
+                                  value={field.state.value}
+                                  onBlur={field.handleBlur}
+                                  onChange={(event) => field.handleChange(event.target.value)}
+                                  placeholder="Optional"
+                                />
+                              </div>
+                            )}
+                          </form.Field>
+                          <form.Field name="numberMax">
+                            {(field) => (
+                              <div className="space-y-2">
+                                <Label
+                                  htmlFor={field.name}
+                                  className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                                >
+                                  Maximum Value
+                                </Label>
+                                <Input
+                                  id={field.name}
+                                  type="number"
+                                  className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]"
+                                  value={field.state.value}
+                                  onBlur={field.handleBlur}
+                                  onChange={(event) => field.handleChange(event.target.value)}
+                                  placeholder="Optional"
+                                />
+                              </div>
+                            )}
+                          </form.Field>
+                          <form.Subscribe
+                            selector={(state) => ({
+                              numberMin: state.values.numberMin,
+                              numberMax: state.values.numberMax,
+                            })}
+                          >
+                            {({ numberMin, numberMax }) =>
+                              hasInvalidNumberRange(numberMin, numberMax) ? (
+                                <p
+                                  data-testid="fact-number-range-error"
+                                  className="md:col-span-2 text-[10px] uppercase tracking-[0.12em] text-destructive"
+                                >
+                                  Maximum value cannot be less than minimum value.
+                                </p>
+                              ) : null
+                            }
+                          </form.Subscribe>
+                        </div>
                       ) : factType === "json" ? (
                         <div className="col-span-2 space-y-4">
                           <div className="flex items-center justify-between">
@@ -1001,76 +1084,6 @@ function FactEditorDialog({
                                       </div>
                                       <div className="space-y-2">
                                         <Label
-                                          htmlFor={`json-subkey-value-${entry.id}`}
-                                          className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
-                                        >
-                                          {entry.valueType === "boolean"
-                                            ? "Default Value"
-                                            : entry.valueType === "number"
-                                              ? "Default Value"
-                                              : "Default Value"}
-                                        </Label>
-                                        {entry.valueType === "boolean" ? (
-                                          <div className="flex items-center gap-3">
-                                            <Checkbox
-                                              id={`json-subkey-value-${entry.id}`}
-                                              checked={entry.value === "true"}
-                                              onCheckedChange={(checked) => {
-                                                setIsContractTabDirty(true);
-                                                setJsonSubKeys((current) =>
-                                                  current.map((currentEntry, currentIndex) =>
-                                                    currentIndex === index
-                                                      ? {
-                                                          ...currentEntry,
-                                                          value:
-                                                            checked === true ? "true" : "false",
-                                                        }
-                                                      : currentEntry,
-                                                  ),
-                                                );
-                                              }}
-                                            />
-                                            <span className="text-xs text-muted-foreground">
-                                              {entry.value === "true" ? "true" : "false"}
-                                            </span>
-                                          </div>
-                                        ) : entry.valueType === "number" ? (
-                                          <Input
-                                            id={`json-subkey-value-${entry.id}`}
-                                            type="number"
-                                            className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]"
-                                            value={entry.value}
-                                            onChange={(event) => {
-                                              setIsContractTabDirty(true);
-                                              setJsonSubKeys((current) =>
-                                                current.map((currentEntry, currentIndex) =>
-                                                  currentIndex === index
-                                                    ? { ...currentEntry, value: event.target.value }
-                                                    : currentEntry,
-                                                ),
-                                              );
-                                            }}
-                                          />
-                                        ) : (
-                                          <Input
-                                            id={`json-subkey-value-${entry.id}`}
-                                            className="rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]"
-                                            value={entry.value}
-                                            onChange={(event) => {
-                                              setIsContractTabDirty(true);
-                                              setJsonSubKeys((current) =>
-                                                current.map((currentEntry, currentIndex) =>
-                                                  currentIndex === index
-                                                    ? { ...currentEntry, value: event.target.value }
-                                                    : currentEntry,
-                                                ),
-                                              );
-                                            }}
-                                          />
-                                        )}
-                                      </div>
-                                      <div className="space-y-2">
-                                        <Label
                                           htmlFor={`json-subkey-type-${entry.id}`}
                                           className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
                                         >
@@ -1109,7 +1122,113 @@ function FactEditorDialog({
                                           </SelectContent>
                                         </Select>
                                       </div>
+                                      <div className="space-y-2">
+                                        <Label
+                                          htmlFor={`json-subkey-cardinality-${entry.id}`}
+                                          className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                                        >
+                                          Cardinality
+                                        </Label>
+                                        <Select
+                                          value={entry.cardinality}
+                                          onValueChange={(value) => {
+                                            setIsContractTabDirty(true);
+                                            setJsonSubKeys((current) =>
+                                              current.map((currentEntry, currentIndex) =>
+                                                currentIndex === index
+                                                  ? {
+                                                      ...currentEntry,
+                                                      cardinality: value as "one" | "many",
+                                                    }
+                                                  : currentEntry,
+                                              ),
+                                            );
+                                          }}
+                                        >
+                                          <SelectTrigger
+                                            id={`json-subkey-cardinality-${entry.id}`}
+                                            className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]"
+                                          >
+                                            <SelectValue placeholder="Select cardinality" />
+                                          </SelectTrigger>
+                                          <SelectContent className="rounded-none border-border/70 bg-background text-xs">
+                                            <SelectItem value="one">one</SelectItem>
+                                            <SelectItem value="many">many</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
                                     </div>
+
+                                    {entry.valueType === "number" ? (
+                                      <div className="space-y-4 border border-border/70 p-3">
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                          <div className="space-y-2">
+                                            <Label
+                                              htmlFor={`json-subkey-number-min-${entry.id}`}
+                                              className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                                            >
+                                              Value Minimum
+                                            </Label>
+                                            <Input
+                                              id={`json-subkey-number-min-${entry.id}`}
+                                              type="number"
+                                              className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]"
+                                              value={entry.numberMin}
+                                              onChange={(event) => {
+                                                setIsContractTabDirty(true);
+                                                setJsonSubKeys((current) =>
+                                                  current.map((currentEntry, currentIndex) =>
+                                                    currentIndex === index
+                                                      ? {
+                                                          ...currentEntry,
+                                                          numberMin: event.target.value,
+                                                        }
+                                                      : currentEntry,
+                                                  ),
+                                                );
+                                              }}
+                                              placeholder="Optional"
+                                            />
+                                          </div>
+                                          <div className="space-y-2">
+                                            <Label
+                                              htmlFor={`json-subkey-number-max-${entry.id}`}
+                                              className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+                                            >
+                                              Value Maximum
+                                            </Label>
+                                            <Input
+                                              id={`json-subkey-number-max-${entry.id}`}
+                                              type="number"
+                                              className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]"
+                                              value={entry.numberMax}
+                                              onChange={(event) => {
+                                                setIsContractTabDirty(true);
+                                                setJsonSubKeys((current) =>
+                                                  current.map((currentEntry, currentIndex) =>
+                                                    currentIndex === index
+                                                      ? {
+                                                          ...currentEntry,
+                                                          numberMax: event.target.value,
+                                                        }
+                                                      : currentEntry,
+                                                  ),
+                                                );
+                                              }}
+                                              placeholder="Optional"
+                                            />
+                                          </div>
+                                        </div>
+                                        {hasInvalidNumberRange(entry.numberMin, entry.numberMax) ? (
+                                          <p
+                                            data-testid="fact-json-number-range-error"
+                                            className="text-[10px] uppercase tracking-[0.12em] text-destructive"
+                                          >
+                                            Maximum value cannot be less than minimum value.
+                                          </p>
+                                        ) : null}
+                                      </div>
+                                    ) : null}
 
                                     {entry.valueType === "string" ? (
                                       <div className="space-y-4 border border-border/70 p-3">
@@ -1376,12 +1495,23 @@ function FactEditorDialog({
               >
                 Cancel
               </Button>
-              <form.Subscribe selector={(state) => state.values.factKey}>
-                {(factKey) => (
+              <form.Subscribe
+                selector={(state) => ({
+                  factKey: state.values.factKey,
+                  factType: state.values.factType,
+                  numberMin: state.values.numberMin,
+                  numberMax: state.values.numberMax,
+                })}
+              >
+                {({ factKey, factType, numberMin, numberMax }) => (
                   <Button
                     className="rounded-none px-8"
                     type="submit"
-                    disabled={factKey.trim().length === 0}
+                    disabled={
+                      factKey.trim().length === 0 ||
+                      (factType === "number" && hasInvalidNumberRange(numberMin, numberMax)) ||
+                      (factType === "json" && hasInvalidJsonSubKeyNumberRange(jsonSubKeys))
+                    }
                   >
                     Save
                   </Button>

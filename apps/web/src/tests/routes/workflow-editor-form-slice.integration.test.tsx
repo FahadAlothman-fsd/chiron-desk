@@ -117,6 +117,7 @@ vi.mock("@/components/ui/button", () => ({
 }));
 
 vi.mock("../../components/ui/button", () => ({
+  buttonVariants: () => "",
   Button: ({ children, ...props }: React.ComponentProps<"button">) => (
     <button {...props}>{children}</button>
   ),
@@ -262,7 +263,27 @@ vi.mock("../../features/workflow-editor/workflow-canvas", () => ({
   WorkflowCanvas: () => <div>Workflow Canvas</div>,
 }));
 
-function createEditorDefinition() {
+type TestWorkflowEditorDefinition = {
+  workflow: Record<string, unknown>;
+  steps: unknown[];
+  edges: unknown[];
+  contextFacts: Array<Record<string, unknown>>;
+  formDefinitions: unknown[];
+  agentStepDefinitions?: unknown[];
+  actionStepDefinitions?: unknown[];
+};
+
+type MethodologyFactsListResult = {
+  factDefinitions: Array<{
+    id: string;
+    key: string;
+    name: string;
+    factType: string;
+    cardinality: string;
+  }>;
+};
+
+function createEditorDefinition(): TestWorkflowEditorDefinition {
   return {
     workflow: {
       workflowDefinitionId: "wf-def-001",
@@ -314,7 +335,7 @@ function createEditorDefinition() {
         key: "supporting-workflows",
         label: "Supporting Workflows",
         descriptionJson: { markdown: "Workflow references for fan-out steps." },
-        kind: "workflow_reference_fact",
+        kind: "workflow_ref_fact",
         cardinality: "many",
         allowedWorkflowDefinitionIds: ["wf.review", "wf.dev"],
         guidanceJson: {
@@ -329,7 +350,9 @@ function createEditorDefinition() {
         descriptionJson: { markdown: "Selected deep-dive target for brainstorming follow-up." },
         kind: "work_unit_draft_spec_fact",
         cardinality: "one",
-        workUnitTypeKey: "wut-brainstorming",
+        workUnitDefinitionId: "wut-brainstorming",
+        selectedWorkUnitFactDefinitionIds: ["wuf-selected-directions"],
+        selectedArtifactSlotDefinitionIds: [],
         includedFactDefinitionIds: ["wuf-selected-directions"],
         guidanceJson: {
           human: { markdown: "Pick the brainstorming target to deepen." },
@@ -379,7 +402,7 @@ function createRouteContext(
             list: {
               queryOptions: () => ({
                 queryKey: ["methodology-facts", "v1"],
-                queryFn: async () => ({ factDefinitions: [] }),
+                queryFn: async (): Promise<MethodologyFactsListResult> => ({ factDefinitions: [] }),
               }),
             },
           },
@@ -629,11 +652,11 @@ describe("workflow editor form slice route", () => {
           workUnitTypeKey: "WU.SETUP",
           workflowDefinitionId: "wf-def-001",
           fact: expect.objectContaining({
-            kind: "plain_value_fact",
+            kind: "plain_fact",
             key: "architecture-summary",
             label: "Architecture Summary",
             cardinality: "one",
-            valueType: "string",
+            type: "string",
           }),
         }),
       );
@@ -823,8 +846,9 @@ describe("workflow editor form slice route", () => {
       expect(onSave).toHaveBeenCalledWith(
         expect.objectContaining({
           kind: "work_unit_draft_spec_fact",
-          workUnitTypeKey: "wut-brainstorming",
+          workUnitDefinitionId: "wut-brainstorming",
           includedFactDefinitionIds: ["wuf-selected-directions", "wuf-desired-outcome"],
+          selectedWorkUnitFactDefinitionIds: ["wuf-selected-directions", "wuf-desired-outcome"],
         }),
       );
     });
@@ -904,17 +928,18 @@ describe("workflow editor form slice route", () => {
       key: "method_existing_documentation_inventory",
       label: "Methodology Existing Documentation Inventory",
       descriptionMarkdown: "Reusable methodology documentation inventory.",
-      kind: "definition_backed_external_fact" as const,
+      kind: "bound_fact" as const,
       cardinality: "many" as const,
       guidance: {
         humanMarkdown: "Use the methodology inventory.",
         agentMarkdown: "Use the methodology inventory.",
       },
       valueType: "json" as const,
-      externalFactDefinitionId: "existing_documentation_inventory",
+      factDefinitionId: "existing_documentation_inventory",
       allowedWorkflowDefinitionIds: [],
-      artifactSlotDefinitionId: "",
-      workUnitTypeKey: "",
+      slotDefinitionId: "",
+      selectedWorkUnitFactDefinitionIds: [],
+      selectedArtifactSlotDefinitionIds: [],
       includedFactDefinitionIds: [],
       summary:
         "definition backed external fact · many · seed:fact-def:existing-documentation-inventory:mver_bmad_v1_draft",
@@ -940,7 +965,7 @@ describe("workflow editor form slice route", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Value Semantics/ }));
     expect(
-      screen.getByRole("combobox", { name: "External Fact Definition Id" }).textContent,
+      screen.getByRole("combobox", { name: "Bound Fact Definition Id" }).textContent,
     ).toContain("Existing Documentation Inventory");
 
     cleanup();
@@ -949,7 +974,7 @@ describe("workflow editor form slice route", () => {
       <WorkflowContextFactDialog
         open
         mode="edit"
-        fact={{ ...definitionBackedFact, kind: "bound_external_fact", key: "bound_existing_docs" }}
+        fact={{ ...definitionBackedFact, kind: "bound_fact", key: "bound_existing_docs" }}
         methodologyFacts={methodologyFacts}
         currentWorkUnitFacts={[]}
         artifactSlots={[]}
@@ -965,7 +990,7 @@ describe("workflow editor form slice route", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Value Semantics/ }));
     expect(
-      screen.getByRole("combobox", { name: "External Fact Definition Id" }).textContent,
+      screen.getByRole("combobox", { name: "Bound Fact Definition Id" }).textContent,
     ).toContain("Existing Documentation Inventory");
   });
 
@@ -979,15 +1004,18 @@ describe("workflow editor form slice route", () => {
       key: "bound_existing_docs",
       label: "Bound Methodology Existing Documentation Inventory",
       descriptionJson: { markdown: "Bound methodology documentation inventory." },
-      kind: "bound_external_fact",
+      kind: "bound_fact",
       cardinality: "many",
-      externalFactDefinitionId: "seed:fact-def:existing-documentation-inventory:mver_bmad_v1_draft",
+      factDefinitionId: "seed:fact-def:existing-documentation-inventory:mver_bmad_v1_draft",
+      selectedWorkUnitFactDefinitionIds: [],
+      selectedArtifactSlotDefinitionIds: [],
+      includedFactDefinitionIds: [],
     });
 
     const routeContext = createRouteContext(editorDefinition);
     routeContext.orpc.methodology.version.fact.list.queryOptions = () => ({
       queryKey: ["methodology-facts", "v1", "external-id-regression"],
-      queryFn: async () => ({
+      queryFn: async (): Promise<MethodologyFactsListResult> => ({
         factDefinitions: [
           {
             id: "seed:fact-def:existing-documentation-inventory:mver_bmad_v1_draft",
@@ -1021,15 +1049,15 @@ describe("workflow editor form slice route", () => {
     fireEvent.click(within(externalFactItem).getByRole("button", { name: "Edit" }));
     fireEvent.click(screen.getByRole("button", { name: /Value Semantics/ }));
 
-    fireEvent.click(screen.getByRole("combobox", { name: "External Fact Definition Id" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Bound Fact Definition Id" }));
     fireEvent.click(await screen.findByText("Communication Language"));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       const updatePayload = (updateContextFactMutationSpy.mock.calls as unknown[][]).at(-1)?.[0] as
-        | { fact?: { externalFactDefinitionId?: string } }
+        | { fact?: { factDefinitionId?: string } }
         | undefined;
-      expect(updatePayload?.fact?.externalFactDefinitionId).toBe(
+      expect(updatePayload?.fact?.factDefinitionId).toBe(
         "seed:fact-def:communication-language:mver_bmad_v1_draft",
       );
     });

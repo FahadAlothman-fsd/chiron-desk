@@ -38,6 +38,7 @@ describe("auth client runtime bridge", () => {
       },
       getRuntimeStatus: vi.fn(),
       recoverLocalServices: vi.fn(),
+      selectProjectRootDirectory: vi.fn(),
     };
 
     await import("../../lib/auth-client");

@@ -11,13 +11,15 @@ import { Textarea } from "../../../components/ui/textarea";
 
 type ObjectiveInstructionsTabProps = {
   values: WorkflowAgentStepPayload;
-  setValue: <K extends keyof WorkflowAgentStepPayload>(
-    key: K,
-    value: WorkflowAgentStepPayload[K],
-  ) => void;
+  onObjectiveChange: (value: string) => void;
+  onInstructionsChange: (value: string) => void;
 };
 
-export function ObjectiveInstructionsTab({ values, setValue }: ObjectiveInstructionsTabProps) {
+export function ObjectiveInstructionsTab({
+  values,
+  onObjectiveChange,
+  onInstructionsChange,
+}: ObjectiveInstructionsTabProps) {
   return (
     <FieldGroup>
       <Field>
@@ -27,7 +29,7 @@ export function ObjectiveInstructionsTab({ values, setValue }: ObjectiveInstruct
             id="agent-step-objective"
             rows={5}
             value={values.objective}
-            onChange={(event) => setValue("objective", event.target.value)}
+            onChange={(event) => onObjectiveChange(event.target.value)}
           />
           <FieldDescription>
             One crisp statement describing the desired outcome for the session.
@@ -42,7 +44,7 @@ export function ObjectiveInstructionsTab({ values, setValue }: ObjectiveInstruct
             id="agent-step-instructions"
             rows={12}
             value={values.instructionsMarkdown}
-            onChange={(event) => setValue("instructionsMarkdown", event.target.value)}
+            onChange={(event) => onInstructionsChange(event.target.value)}
           />
           <FieldDescription>
             Author the step-specific operating rules, guardrails, and expected execution style.

@@ -80,6 +80,7 @@ describe("dashboard runtime backend contract", () => {
       },
       getRuntimeStatus: vi.fn(),
       recoverLocalServices: vi.fn(),
+      selectProjectRootDirectory: vi.fn(),
     };
   });
 

@@ -7,10 +7,11 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
 
 import { RuntimeStartGateDialog } from "@/components/runtime/runtime-start-gate-dialog";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 const runtimeWorkUnitOverviewQueryKey = (projectId: string, projectWorkUnitId: string) =>
@@ -496,22 +497,20 @@ export function ProjectWorkUnitOverviewRoute() {
                 )}
 
                 <div>
-                  <Button
-                    asChild
-                    variant="outline"
-                    className="rounded-none uppercase tracking-[0.12em]"
+                  <Link
+                    to="/projects/$projectId/transition-executions/$transitionExecutionId"
+                    params={{
+                      projectId,
+                      transitionExecutionId: overview.activeTransition.transitionExecutionId,
+                    }}
+                    search={{ projectWorkUnitId }}
+                    className={cn(
+                      buttonVariants({ variant: "outline" }),
+                      "rounded-none uppercase tracking-[0.12em]",
+                    )}
                   >
-                    <Link
-                      to="/projects/$projectId/transition-executions/$transitionExecutionId"
-                      params={{
-                        projectId,
-                        transitionExecutionId: overview.activeTransition.transitionExecutionId,
-                      }}
-                      search={{ projectWorkUnitId }}
-                    >
-                      Open active transition detail
-                    </Link>
-                  </Button>
+                    Open active transition detail
+                  </Link>
                 </div>
               </div>
             </section>
@@ -598,25 +597,23 @@ export function ProjectWorkUnitOverviewRoute() {
                   Dependencies: in {overview.summaries.factsDependencies.inboundDependencyCount} ·
                   out {overview.summaries.factsDependencies.outboundDependencyCount}
                 </p>
-                <Button
-                  asChild
-                  variant="outline"
-                  className="rounded-none uppercase tracking-[0.12em]"
+                <Link
+                  to="/projects/$projectId/work-units/$projectWorkUnitId/facts"
+                  params={{ projectId, projectWorkUnitId }}
+                  search={{
+                    tab: "primitive",
+                    q: "",
+                    existence: "all",
+                    primitiveFactType: "all",
+                    hasActiveTransition: "all",
+                  }}
+                  className={cn(
+                    buttonVariants({ variant: "outline" }),
+                    "rounded-none uppercase tracking-[0.12em]",
+                  )}
                 >
-                  <Link
-                    to="/projects/$projectId/work-units/$projectWorkUnitId/facts"
-                    params={{ projectId, projectWorkUnitId }}
-                    search={{
-                      tab: "primitive",
-                      q: "",
-                      existence: "all",
-                      primitiveFactType: "all",
-                      hasActiveTransition: "all",
-                    }}
-                  >
-                    Open facts
-                  </Link>
-                </Button>
+                  Open facts
+                </Link>
               </CardContent>
             </Card>
 
@@ -638,19 +635,17 @@ export function ProjectWorkUnitOverviewRoute() {
                   Active transition:{" "}
                   {overview.summaries.stateMachine.hasActiveTransition ? "yes" : "no"}
                 </p>
-                <Button
-                  asChild
-                  variant="outline"
-                  className="rounded-none uppercase tracking-[0.12em]"
+                <Link
+                  to="/projects/$projectId/work-units/$projectWorkUnitId/state-machine"
+                  params={{ projectId, projectWorkUnitId }}
+                  search={{ q: "" }}
+                  className={cn(
+                    buttonVariants({ variant: "outline" }),
+                    "rounded-none uppercase tracking-[0.12em]",
+                  )}
                 >
-                  <Link
-                    to="/projects/$projectId/work-units/$projectWorkUnitId/state-machine"
-                    params={{ projectId, projectWorkUnitId }}
-                    search={{ q: "", hasActiveTransition: "all" }}
-                  >
-                    Open state machine
-                  </Link>
-                </Button>
+                  Open state machine
+                </Link>
               </CardContent>
             </Card>
 
@@ -668,33 +663,33 @@ export function ProjectWorkUnitOverviewRoute() {
                   Slots with snapshots: {overview.summaries.artifactSlots.slotsWithCurrentSnapshots}{" "}
                   / {overview.summaries.artifactSlots.slotDefinitionsTotal}
                 </p>
-                <Button
-                  asChild
-                  variant="outline"
-                  className="rounded-none uppercase tracking-[0.12em]"
+                <Link
+                  to="/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots"
+                  params={{ projectId, projectWorkUnitId }}
+                  search={{ q: "" }}
+                  className={cn(
+                    buttonVariants({ variant: "outline" }),
+                    "rounded-none uppercase tracking-[0.12em]",
+                  )}
                 >
-                  <Link
-                    to="/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots"
-                    params={{ projectId, projectWorkUnitId }}
-                    search={{ q: "", hasActiveTransition: "all" }}
-                  >
-                    Open artifact slots
-                  </Link>
-                </Button>
+                  Open artifact slots
+                </Link>
               </CardContent>
             </Card>
           </section>
 
           <section>
-            <Button asChild variant="outline" className="rounded-none uppercase tracking-[0.12em]">
-              <Link
-                to="/projects/$projectId/work-units"
-                params={{ projectId }}
-                search={{ q: "", hasActiveTransition: "all" }}
-              >
-                Back to Work Units
-              </Link>
-            </Button>
+            <Link
+              to="/projects/$projectId/work-units"
+              params={{ projectId }}
+              search={{ q: "" }}
+              className={cn(
+                buttonVariants({ variant: "outline" }),
+                "rounded-none uppercase tracking-[0.12em]",
+              )}
+            >
+              Back to Work Units
+            </Link>
           </section>
         </>
       ) : null}

@@ -41,6 +41,7 @@ import type {
   WorkflowEditorSelection,
   WorkflowEditorStep,
   WorkflowFormStepMutationHandlers,
+  WorkflowFormStepPayload,
   WorkflowInvokeArtifactSlotDefinition,
   WorkflowInvokeStepMutationHandlers,
   WorkflowInvokeStepPayload,
@@ -116,6 +117,35 @@ function updateEdgeStepKeys(
   }));
 }
 
+function replaceStepPayload(
+  steps: readonly WorkflowEditorStep[],
+  update:
+    | { stepId: string; stepType: "form"; payload: WorkflowFormStepPayload }
+    | { stepId: string; stepType: "agent"; payload: WorkflowAgentStepPayload }
+    | { stepId: string; stepType: "action"; payload: WorkflowActionStepPayload }
+    | { stepId: string; stepType: "invoke"; payload: WorkflowInvokeStepPayload }
+    | { stepId: string; stepType: "branch"; payload: WorkflowBranchStepPayload },
+): WorkflowEditorStep[] {
+  return steps.map((entry): WorkflowEditorStep => {
+    if (entry.stepId !== update.stepId || entry.stepType !== update.stepType) {
+      return entry;
+    }
+
+    switch (update.stepType) {
+      case "form":
+        return { stepId: entry.stepId, stepType: "form", payload: update.payload };
+      case "agent":
+        return { stepId: entry.stepId, stepType: "agent", payload: update.payload };
+      case "action":
+        return { stepId: entry.stepId, stepType: "action", payload: update.payload };
+      case "invoke":
+        return { stepId: entry.stepId, stepType: "invoke", payload: update.payload };
+      case "branch":
+        return { stepId: entry.stepId, stepType: "branch", payload: update.payload };
+    }
+  });
+}
+
 function updateInvokeStepContextFactReferences(
   payload: WorkflowInvokeStepPayload,
   previousContextFactDefinitionId: string,
@@ -138,7 +168,7 @@ function updateInvokeStepContextFactReferences(
       : undefined;
 
   if (
-    payload.sourceMode === "context_fact_backed" &&
+    payload.sourceMode === "fact_backed" &&
     payload.contextFactDefinitionId === previousContextFactDefinitionId
   ) {
     return payload.targetKind === "work_unit"
@@ -284,11 +314,13 @@ function stepReferencesContextFact(
       );
     case "invoke":
       return (
-        (step.payload.sourceMode === "context_fact_backed" &&
+        (step.payload.sourceMode === "fact_backed" &&
           step.payload.contextFactDefinitionId === contextFactDefinitionId) ||
         (step.payload.targetKind === "work_unit" &&
           step.payload.bindings.some(
-            (binding) => binding.contextFactDefinitionId === contextFactDefinitionId,
+            (binding) =>
+              binding.source.kind === "context_fact" &&
+              binding.source.contextFactDefinitionId === contextFactDefinitionId,
           ))
       );
     case "branch":
@@ -306,27 +338,32 @@ function stepReferencesContextFact(
 
 function summarizeContextFact(fact: WorkflowContextFactDraft | WorkflowContextFactDefinitionItem) {
   const lead = `${fact.kind.replaceAll("_", " ")} · ${fact.cardinality}`;
+  const factValueType = fact.type ?? fact.valueType ?? "string";
 
   switch (fact.kind) {
+    case "plain_fact":
     case "plain_value_fact":
-      return `${lead} · ${fact.valueType ?? "string"}`;
-    case "definition_backed_external_fact":
-    case "bound_external_fact":
-      return fact.externalFactDefinitionId?.trim()
-        ? `${lead} · ${fact.externalFactDefinitionId.trim()}`
-        : lead;
-    case "workflow_reference_fact":
+      return `${lead} · ${factValueType}`;
+    case "bound_fact":
+      return fact.factDefinitionId?.trim() ? `${lead} · ${fact.factDefinitionId.trim()}` : lead;
+    case "workflow_ref_fact":
       return fact.allowedWorkflowDefinitionIds.length > 0
         ? `${lead} · ${fact.allowedWorkflowDefinitionIds.length} workflow${
             fact.allowedWorkflowDefinitionIds.length === 1 ? "" : "s"
           }`
         : lead;
-    case "artifact_reference_fact":
-      return fact.artifactSlotDefinitionId?.trim()
-        ? `${lead} · ${fact.artifactSlotDefinitionId.trim()}`
+    case "artifact_slot_reference_fact":
+      return fact.slotDefinitionId?.trim() ? `${lead} · ${fact.slotDefinitionId.trim()}` : lead;
+    case "work_unit_reference_fact":
+      return fact.workUnitDefinitionId?.trim()
+        ? `${lead} · ${fact.workUnitDefinitionId.trim()}`
         : lead;
     case "work_unit_draft_spec_fact":
-      return fact.workUnitTypeKey?.trim() ? `${lead} · ${fact.workUnitTypeKey.trim()}` : lead;
+      return fact.workUnitDefinitionId?.trim()
+        ? `${lead} · ${fact.workUnitDefinitionId.trim()}`
+        : lead;
+    default:
+      return lead;
   }
 }
 
@@ -372,26 +409,16 @@ function getContextFactBadges(
   workUnitTypesById: ReadonlyMap<string, WorkflowEditorPickerOption>,
 ): WorkflowEditorPickerBadge[] {
   const badges: WorkflowEditorPickerBadge[] = [{ label: fact.cardinality, tone: "cardinality" }];
+  const factValueType = fact.type ?? fact.valueType ?? "string";
 
   switch (fact.kind) {
+    case "plain_fact":
     case "plain_value_fact":
-      badges.push(getValueTypeBadge(fact.valueType));
+      badges.push(getValueTypeBadge(factValueType));
       return badges;
-    case "definition_backed_external_fact": {
-      const externalFact = fact.externalFactDefinitionId
-        ? externalFactsById.get(fact.externalFactDefinitionId)
-        : undefined;
-      const externalType = getPickerOptionTypeBadge(externalFact);
-
-      badges.push({ label: "external", tone: "external-fact" });
-      if (externalType) {
-        badges.push(externalType);
-      }
-      return badges;
-    }
-    case "bound_external_fact": {
-      const externalFact = fact.externalFactDefinitionId
-        ? externalFactsById.get(fact.externalFactDefinitionId)
+    case "bound_fact": {
+      const externalFact = fact.factDefinitionId
+        ? externalFactsById.get(fact.factDefinitionId)
         : undefined;
       const externalType = getPickerOptionTypeBadge(externalFact);
 
@@ -401,37 +428,48 @@ function getContextFactBadges(
       }
       return badges;
     }
-    case "workflow_reference_fact": {
+    case "workflow_ref_fact": {
       const allowedWorkflowCount = new Set(
         fact.allowedWorkflowDefinitionIds
           .map((workflowDefinitionId) => workflowDefinitionId.trim())
           .filter((workflowDefinitionId) => workflowDefinitionId.length > 0),
       ).size;
 
-      badges.push({ label: "workflow", tone: "workflow-reference" });
+      badges.push({ label: "workflow", tone: "workflow-ref" });
       badges.push({
         label: toCountLabel(allowedWorkflowCount, "workflow"),
-        tone: "workflow-reference",
+        tone: "workflow-ref",
       });
       return badges;
     }
-    case "artifact_reference_fact": {
-      const artifactSlotKey = fact.artifactSlotDefinitionId?.trim() ?? "";
+    case "artifact_slot_reference_fact": {
+      const artifactSlotKey = fact.slotDefinitionId?.trim() ?? "";
       const artifactSlot = artifactSlotKey ? artifactSlotsById.get(artifactSlotKey) : undefined;
 
-      badges.push({ label: "artifact", tone: "artifact-reference" });
+      badges.push({ label: "artifact", tone: "artifact-snapshot" });
       if (artifactSlotKey.length > 0) {
         badges.push({
           label: artifactSlot?.label ?? artifactSlotKey,
-          tone: "artifact-reference",
+          tone: "artifact-snapshot",
         });
       }
       return badges;
     }
+    case "work_unit_reference_fact":
+      badges.push({ label: "work unit ref", tone: "type-work-unit" });
+      if (fact.workUnitDefinitionId?.trim()) {
+        const workUnitIdentifier = fact.workUnitDefinitionId.trim();
+        const workUnit = workUnitTypesById.get(workUnitIdentifier);
+        badges.push({
+          label: workUnit?.label ?? workUnitIdentifier,
+          tone: "work-unit-definition",
+        });
+      }
+      return badges;
     case "work_unit_draft_spec_fact":
       badges.push({ label: "work unit", tone: "type-work-unit" });
-      if (fact.workUnitTypeKey?.trim()) {
-        const workUnitIdentifier = fact.workUnitTypeKey.trim();
+      if (fact.workUnitDefinitionId?.trim()) {
+        const workUnitIdentifier = fact.workUnitDefinitionId.trim();
         const workUnit = workUnitTypesById.get(workUnitIdentifier);
         badges.push({
           label: workUnit?.label ?? workUnitIdentifier,
@@ -452,6 +490,8 @@ function toContextFactDefinitionItem(
       ? trimmedKey
       : previous.contextFactDefinitionId
     : trimmedKey;
+  const selectedWorkUnitFactDefinitionIds = draft.selectedWorkUnitFactDefinitionIds ?? [];
+  const selectedArtifactSlotDefinitionIds = draft.selectedArtifactSlotDefinitionIds ?? [];
 
   return {
     contextFactDefinitionId: nextId,
@@ -464,23 +504,23 @@ function toContextFactDefinitionItem(
       humanMarkdown: draft.guidance.humanMarkdown.trim(),
       agentMarkdown: draft.guidance.agentMarkdown.trim(),
     },
+    ...(draft.type ? { type: draft.type } : {}),
     ...(draft.valueType ? { valueType: draft.valueType } : {}),
-    ...(draft.externalFactDefinitionId?.trim()
-      ? { externalFactDefinitionId: draft.externalFactDefinitionId.trim() }
-      : {}),
+    ...(draft.factDefinitionId?.trim() ? { factDefinitionId: draft.factDefinitionId.trim() } : {}),
     allowedWorkflowDefinitionIds: draft.allowedWorkflowDefinitionIds,
-    ...(draft.artifactSlotDefinitionId?.trim()
-      ? { artifactSlotDefinitionId: draft.artifactSlotDefinitionId.trim() }
-      : {}),
+    ...(draft.slotDefinitionId?.trim() ? { slotDefinitionId: draft.slotDefinitionId.trim() } : {}),
     ...(draft.workUnitDefinitionId?.trim()
       ? { workUnitDefinitionId: draft.workUnitDefinitionId.trim() }
       : {}),
-    selectedWorkUnitFactDefinitionIds:
-      draft.selectedWorkUnitFactDefinitionIds.length > 0
-        ? draft.selectedWorkUnitFactDefinitionIds
-        : draft.includedFactDefinitionIds,
-    selectedArtifactSlotDefinitionIds: draft.selectedArtifactSlotDefinitionIds,
-    ...(draft.workUnitTypeKey?.trim() ? { workUnitTypeKey: draft.workUnitTypeKey.trim() } : {}),
+    ...(selectedWorkUnitFactDefinitionIds.length > 0 || draft.includedFactDefinitionIds.length > 0
+      ? {
+          selectedWorkUnitFactDefinitionIds:
+            selectedWorkUnitFactDefinitionIds.length > 0
+              ? selectedWorkUnitFactDefinitionIds
+              : draft.includedFactDefinitionIds,
+        }
+      : {}),
+    ...(selectedArtifactSlotDefinitionIds.length > 0 ? { selectedArtifactSlotDefinitionIds } : {}),
     includedFactDefinitionIds: draft.includedFactDefinitionIds,
     ...(typeof draft.validationJson === "undefined"
       ? {}
@@ -990,14 +1030,11 @@ export function WorkflowEditorShell({
           if (formDialogMode === "edit" && selectedStep?.stepType === "form") {
             const previousStepKey = selectedStep.payload.key;
             setSteps((previous) =>
-              previous.map((entry) =>
-                entry.stepId === selectedStep.stepId
-                  ? {
-                      ...entry,
-                      payload,
-                    }
-                  : entry,
-              ),
+              replaceStepPayload(previous, {
+                stepId: selectedStep.stepId,
+                stepType: "form",
+                payload,
+              }),
             );
             if (previousStepKey !== payload.key) {
               setEdges((previous) => updateEdgeStepKeys(previous, previousStepKey, payload.key));
@@ -1052,14 +1089,11 @@ export function WorkflowEditorShell({
           if (agentDialogMode === "edit" && selectedStep?.stepType === "agent") {
             const previousStepKey = selectedStep.payload.key;
             setSteps((previous) =>
-              previous.map((entry) =>
-                entry.stepId === selectedStep.stepId
-                  ? {
-                      ...entry,
-                      payload,
-                    }
-                  : entry,
-              ),
+              replaceStepPayload(previous, {
+                stepId: selectedStep.stepId,
+                stepType: "agent",
+                payload,
+              }),
             );
             if (previousStepKey !== payload.key) {
               setEdges((previous) =>
@@ -1120,14 +1154,11 @@ export function WorkflowEditorShell({
           if (actionDialogMode === "edit" && selectedStep?.stepType === "action") {
             const previousStepKey = selectedStep.payload.key;
             setSteps((previous) =>
-              previous.map((entry) =>
-                entry.stepId === selectedStep.stepId
-                  ? {
-                      ...entry,
-                      payload,
-                    }
-                  : entry,
-              ),
+              replaceStepPayload(previous, {
+                stepId: selectedStep.stepId,
+                stepType: "action",
+                payload,
+              }),
             );
             if (previousStepKey !== payload.key) {
               setEdges((previous) => updateEdgeStepKeys(previous, previousStepKey, payload.key));
@@ -1181,23 +1212,26 @@ export function WorkflowEditorShell({
         workUnitFactsQueryScope={workUnitFactsQueryScope}
         loadWorkUnitFacts={loadInvokeWorkUnitFacts}
         loadWorkUnitArtifactSlots={loadInvokeWorkUnitArtifactSlots}
-        loadWorkUnitTransitions={loadInvokeWorkUnitTransitions}
-        loadWorkUnitWorkflows={loadInvokeWorkUnitWorkflows}
-        loadTransitionBoundWorkflowKeys={loadInvokeTransitionBoundWorkflowKeys}
+        {...(loadInvokeWorkUnitTransitions
+          ? { loadWorkUnitTransitions: loadInvokeWorkUnitTransitions }
+          : {})}
+        {...(loadInvokeWorkUnitWorkflows
+          ? { loadWorkUnitWorkflows: loadInvokeWorkUnitWorkflows }
+          : {})}
+        {...(loadInvokeTransitionBoundWorkflowKeys
+          ? { loadTransitionBoundWorkflowKeys: loadInvokeTransitionBoundWorkflowKeys }
+          : {})}
         onOpenChange={setInvokeDialogOpen}
         onSave={async (payload) => {
           setStatusMessage(null);
           if (invokeDialogMode === "edit" && selectedStep?.stepType === "invoke") {
             const previousStepKey = selectedStep.payload.key;
             setSteps((previous) =>
-              previous.map((entry) =>
-                entry.stepId === selectedStep.stepId
-                  ? {
-                      ...entry,
-                      payload,
-                    }
-                  : entry,
-              ),
+              replaceStepPayload(previous, {
+                stepId: selectedStep.stepId,
+                stepType: "invoke",
+                payload,
+              }),
             );
             if (previousStepKey !== payload.key) {
               setEdges((previous) => updateEdgeStepKeys(previous, previousStepKey, payload.key));
@@ -1252,14 +1286,11 @@ export function WorkflowEditorShell({
           setStatusMessage(null);
           if (branchDialogMode === "edit" && selectedStep?.stepType === "branch") {
             const previousStepKey = selectedStep.payload.key;
-            const nextSteps = steps.map((entry) =>
-              entry.stepId === selectedStep.stepId
-                ? {
-                    ...entry,
-                    payload,
-                  }
-                : entry,
-            );
+            const nextSteps = replaceStepPayload(steps, {
+              stepId: selectedStep.stepId,
+              stepType: "branch",
+              payload,
+            });
 
             setSteps(nextSteps);
             const nextEdges = replaceBranchProjectedEdges({

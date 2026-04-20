@@ -126,13 +126,13 @@ const CONTEXT_FACTS = [
     key: "prd_artifact",
     label: "PRD Artifact",
     descriptionMarkdown: "PRD output.",
-    kind: "artifact_reference_fact",
+    kind: "artifact_slot_reference_fact",
     cardinality: "one",
     guidance: { humanMarkdown: "", agentMarkdown: "" },
     allowedWorkflowDefinitionIds: [],
     includedFactDefinitionIds: [],
     summary: "artifact reference fact · one",
-    artifactSlotDefinitionId: "ART.PRD",
+    slotDefinitionId: "ART.PRD",
   },
 ] as const;
 

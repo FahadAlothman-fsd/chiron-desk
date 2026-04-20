@@ -108,81 +108,72 @@ export function ProjectWorkUnitArtifactSlotsRoute() {
               </section>
             ) : (
               <ul className="grid gap-3 md:grid-cols-2">
-                {artifactSlots.slots.map((slotCard) => (
-                  <li key={slotCard.slotDefinition.slotDefinitionId}>
-                    <Card
-                      frame="cut"
-                      tone="runtime"
-                      className="h-full border-border/80 bg-background/40"
-                    >
-                      <CardHeader className="space-y-1">
-                        <CardDescription className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-                          {slotCard.slotDefinition.artifactKind}
-                        </CardDescription>
-                        <CardTitle className="text-base tracking-[0.02em]">
-                          {slotCard.slotDefinition.slotName ?? slotCard.slotDefinition.slotKey}
-                        </CardTitle>
-                        <p className="text-xs text-muted-foreground">
-                          {slotCard.slotDefinition.slotKey}
-                        </p>
-                      </CardHeader>
+                {artifactSlots.slots.map((slotCard) => {
+                  const currentArtifactInstance = slotCard.currentArtifactInstance;
+                  return (
+                    <li key={slotCard.slotDefinition.slotDefinitionId}>
+                      <Card
+                        frame="cut"
+                        tone="runtime"
+                        className="h-full border-border/80 bg-background/40"
+                      >
+                        <CardHeader className="space-y-1">
+                          <CardDescription className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
+                            {slotCard.slotDefinition.artifactKind}
+                          </CardDescription>
+                          <CardTitle className="text-base tracking-[0.02em]">
+                            {slotCard.slotDefinition.slotName ?? slotCard.slotDefinition.slotKey}
+                          </CardTitle>
+                          <p className="text-xs text-muted-foreground">
+                            {slotCard.slotDefinition.slotKey}
+                          </p>
+                        </CardHeader>
 
-                      <CardContent className="space-y-3 text-xs text-muted-foreground">
-                        {slotCard.currentEffectiveSnapshot.exists ? (
-                          <>
-                            <p>
-                              Current effective snapshot:{" "}
-                              {slotCard.currentEffectiveSnapshot.memberCounts.currentCount} member
-                              {slotCard.currentEffectiveSnapshot.memberCounts.currentCount === 1
-                                ? ""
-                                : "s"}
-                            </p>
-                            <p>
-                              Recorded:{" "}
-                              {formatTimestamp(slotCard.currentEffectiveSnapshot.createdAt)}
-                            </p>
-
-                            {slotCard.currentEffectiveSnapshot.previewMembers.length > 0 ? (
-                              <ul className="space-y-1">
-                                {slotCard.currentEffectiveSnapshot.previewMembers.map((member) => (
-                                  <li
-                                    key={member.artifactSnapshotFileId}
-                                    className="truncate border border-border/70 bg-background/50 px-2 py-1"
-                                  >
-                                    {member.filePath}
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : null}
-                          </>
-                        ) : (
-                          <>
-                            <p>No current effective artifact.</p>
-                            {slotCard.latestLineageHead ? (
+                        <CardContent className="space-y-3 text-xs text-muted-foreground">
+                          {currentArtifactInstance.exists ? (
+                            <>
                               <p>
-                                Latest lineage head:{" "}
-                                {formatTimestamp(slotCard.latestLineageHead.createdAt)}
+                                Current artifact instance: {currentArtifactInstance.fileCount} file
+                                {currentArtifactInstance.fileCount === 1 ? "" : "s"}
                               </p>
-                            ) : null}
-                          </>
-                        )}
+                              <p>Updated: {formatTimestamp(currentArtifactInstance.updatedAt)}</p>
 
-                        <Link
-                          to="/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots/$slotDefinitionId"
-                          params={{
-                            projectId,
-                            projectWorkUnitId,
-                            slotDefinitionId: slotCard.slotDefinition.slotDefinitionId,
-                          }}
-                          search={{ q: "", hasActiveTransition: "all" }}
-                          className="inline-flex text-xs font-medium uppercase tracking-[0.12em] text-primary hover:underline"
-                        >
-                          Open detail
-                        </Link>
-                      </CardContent>
-                    </Card>
-                  </li>
-                ))}
+                              {currentArtifactInstance.previewFiles.length > 0 ? (
+                                <ul className="space-y-1">
+                                  {currentArtifactInstance.previewFiles.map((member) => (
+                                    <li
+                                      key={member.filePath}
+                                      className="truncate border border-border/70 bg-background/50 px-2 py-1"
+                                    >
+                                      {member.filePath}
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : null}
+                            </>
+                          ) : (
+                            <>
+                              <p>No current artifact instance.</p>
+                            </>
+                          )}
+
+                          <Link
+                            to="/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots/$slotDefinitionId"
+                            params={{
+                              projectId,
+                              projectWorkUnitId,
+                              slotDefinitionId: slotCard.slotDefinition.slotDefinitionId,
+                            }}
+                            search={{ q: "" }}
+                            className="inline-flex text-xs font-medium uppercase tracking-[0.12em] text-primary hover:underline"
+                          >
+                            Open detail
+                          </Link>
+                        </CardContent>
+                      </Card>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>

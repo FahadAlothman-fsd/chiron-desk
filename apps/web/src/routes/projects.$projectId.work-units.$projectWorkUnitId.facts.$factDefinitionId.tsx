@@ -1,13 +1,16 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 
-import { buttonVariants } from "@/components/ui/button";
+import {
+  RuntimeConfirmDialog,
+  RuntimeFactValueDialog,
+  type RuntimeFactOption,
+} from "@/components/runtime/runtime-fact-dialogs";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +25,9 @@ const runtimeWorkUnitFactsQueryPrefix = (projectId: string, projectWorkUnitId: s
 
 const runtimeWorkUnitOverviewQueryKey = (projectId: string, projectWorkUnitId: string) =>
   ["runtime-work-unit-overview", projectId, projectWorkUnitId] as const;
+
+const runtimeProjectWorkUnitsQueryKey = (projectId: string) =>
+  ["runtime-work-units", projectId] as const;
 
 export const Route = createFileRoute(
   "/projects/$projectId/work-units/$projectWorkUnitId/facts/$factDefinitionId",
@@ -50,49 +56,64 @@ function formatFactValue(value: unknown): string {
   }
 }
 
-function parseJsonInput(
-  value: string,
-): { ok: true; parsed: unknown } | { ok: false; error: string } {
-  const trimmed = value.trim();
-  if (trimmed.length === 0) {
-    return { ok: false, error: "Enter a JSON value before submitting." };
+function getMutationErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.length > 0) {
+    return error.message;
   }
 
-  try {
-    return { ok: true, parsed: JSON.parse(trimmed) };
-  } catch {
-    return { ok: false, error: "Value must be valid JSON (for strings use quotes)." };
+  if (error && typeof error === "object" && "message" in error) {
+    const message = error.message;
+    if (typeof message === "string" && message.length > 0) {
+      return message;
+    }
   }
+
+  return "Unable to save the runtime fact change.";
 }
 
-function parseWorkUnitReferenceInput(
-  value: string,
-): { ok: true; referencedProjectWorkUnitId: string } | { ok: false; error: string } {
-  const trimmed = value.trim();
-  if (trimmed.length === 0) {
-    return { ok: false, error: "Enter a linked work unit id before submitting." };
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getWorkUnitOptions(value: unknown, currentProjectWorkUnitId: string): RuntimeFactOption[] {
+  if (!isRecord(value) || !Array.isArray(value.rows)) {
+    return [];
   }
 
-  return { ok: true, referencedProjectWorkUnitId: trimmed };
+  return value.rows.flatMap((row) => {
+    if (!isRecord(row) || typeof row.projectWorkUnitId !== "string") {
+      return [];
+    }
+
+    if (row.projectWorkUnitId === currentProjectWorkUnitId) {
+      return [];
+    }
+
+    const displayIdentity = isRecord(row.displayIdentity) ? row.displayIdentity : null;
+    const primaryLabel =
+      typeof displayIdentity?.primaryLabel === "string"
+        ? displayIdentity.primaryLabel
+        : row.projectWorkUnitId;
+    const secondaryLabel =
+      typeof displayIdentity?.secondaryLabel === "string" ? displayIdentity.secondaryLabel : null;
+
+    return [
+      {
+        value: row.projectWorkUnitId,
+        label: secondaryLabel ? `${primaryLabel} · ${secondaryLabel}` : primaryLabel,
+      },
+    ];
+  });
 }
 
 export function ProjectWorkUnitFactDetailRoute() {
   const { projectId, projectWorkUnitId, factDefinitionId } = Route.useParams();
   const { orpc, queryClient } = Route.useRouteContext();
 
-  const [addPrimitiveValueInput, setAddPrimitiveValueInput] = useState("");
-  const [setPrimitiveValueInput, setSetPrimitiveValueInput] = useState("");
-  const [replacePrimitiveValueByInstance, setReplacePrimitiveValueByInstance] = useState<
-    Record<string, string>
-  >({});
-
-  const [addLinkedWorkUnitInput, setAddLinkedWorkUnitInput] = useState("");
-  const [setLinkedWorkUnitInput, setSetLinkedWorkUnitInput] = useState("");
-  const [replaceLinkedWorkUnitByInstance, setReplaceLinkedWorkUnitByInstance] = useState<
-    Record<string, string>
-  >({});
-
-  const [formError, setFormError] = useState<string | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editInstanceId, setEditInstanceId] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   const workUnitFactDetailQuery = useQuery({
     ...orpc.project.getRuntimeWorkUnitFactDetail.queryOptions({
@@ -103,6 +124,15 @@ export function ProjectWorkUnitFactDetailRoute() {
       },
     }),
     queryKey: runtimeWorkUnitFactDetailQueryKey(projectId, projectWorkUnitId, factDefinitionId),
+  });
+
+  const runtimeWorkUnitsQuery = useQuery({
+    ...orpc.project.getRuntimeWorkUnits.queryOptions({
+      input: {
+        projectId,
+      },
+    }),
+    queryKey: runtimeProjectWorkUnitsQueryKey(projectId),
   });
 
   const invalidateRuntimeFactQueries = async () => {
@@ -119,33 +149,41 @@ export function ProjectWorkUnitFactDetailRoute() {
     ]);
   };
 
-  const addFactMutation = useMutation(
-    orpc.project.addRuntimeWorkUnitFactValue.mutationOptions({
+  const createFactMutation = useMutation(
+    orpc.project.createRuntimeWorkUnitFactValue.mutationOptions({
       onSuccess: async () => {
-        setAddPrimitiveValueInput("");
-        setAddLinkedWorkUnitInput("");
-        setFormError(null);
+        setCreateDialogOpen(false);
+        setMutationError(null);
         await invalidateRuntimeFactQueries();
+      },
+      onError: (error) => {
+        setMutationError(getMutationErrorMessage(error));
       },
     }),
   );
 
-  const setFactMutation = useMutation(
-    orpc.project.setRuntimeWorkUnitFactValue.mutationOptions({
+  const updateFactMutation = useMutation(
+    orpc.project.updateRuntimeWorkUnitFactValue.mutationOptions({
       onSuccess: async () => {
-        setSetPrimitiveValueInput("");
-        setSetLinkedWorkUnitInput("");
-        setFormError(null);
+        setEditInstanceId(null);
+        setMutationError(null);
         await invalidateRuntimeFactQueries();
+      },
+      onError: (error) => {
+        setMutationError(getMutationErrorMessage(error));
       },
     }),
   );
 
-  const replaceFactMutation = useMutation(
-    orpc.project.replaceRuntimeWorkUnitFactValue.mutationOptions({
+  const deleteFactMutation = useMutation(
+    orpc.project.deleteRuntimeWorkUnitFactValue.mutationOptions({
       onSuccess: async () => {
-        setFormError(null);
+        setDeleteDialogOpen(false);
+        setMutationError(null);
         await invalidateRuntimeFactQueries();
+      },
+      onError: (error) => {
+        setMutationError(getMutationErrorMessage(error));
       },
     }),
   );
@@ -164,37 +202,23 @@ export function ProjectWorkUnitFactDetailRoute() {
     ? outgoingDependencyValues.length > 0
     : (detail?.primitiveState?.exists ?? false);
 
-  const showAddControl =
+  const showCreateControl =
     detail?.actions.canAddInstance === true &&
     (detail.factDefinition.cardinality === "many" || hasCurrentValue === false);
-  const showSetControl =
+  const showUpdateControl =
     detail?.actions.canUpdateExisting === true &&
     detail.factDefinition.cardinality === "one" &&
     (isDependencyFact
       ? primaryOutgoingDependencyInstance !== null
       : primaryPrimitiveInstance !== null);
-
-  const replacePrimitiveInputs = useMemo(
-    () =>
-      primitiveValues.reduce<Record<string, string>>((acc, valueRow) => {
-        acc[valueRow.workUnitFactInstanceId] =
-          replacePrimitiveValueByInstance[valueRow.workUnitFactInstanceId] ??
-          formatFactValue(valueRow.value);
-        return acc;
-      }, {}),
-    [primitiveValues, replacePrimitiveValueByInstance],
-  );
-
-  const replaceLinkedWorkUnitInputs = useMemo(
-    () =>
-      outgoingDependencyValues.reduce<Record<string, string>>((acc, member) => {
-        acc[member.workUnitFactInstanceId] =
-          replaceLinkedWorkUnitByInstance[member.workUnitFactInstanceId] ??
-          member.counterpartProjectWorkUnitId;
-        return acc;
-      }, {}),
-    [outgoingDependencyValues, replaceLinkedWorkUnitByInstance],
-  );
+  const showDeleteControl = hasCurrentValue;
+  const editingPrimitiveInstance =
+    primitiveValues.find((valueRow) => valueRow.workUnitFactInstanceId === editInstanceId) ?? null;
+  const editingDependencyInstance =
+    outgoingDependencyValues.find(
+      (valueRow) => valueRow.workUnitFactInstanceId === editInstanceId,
+    ) ?? null;
+  const workUnitOptions = getWorkUnitOptions(runtimeWorkUnitsQuery.data, projectWorkUnitId);
 
   const backTab = isDependencyFact ? "work_units" : "primitive";
 
@@ -300,68 +324,31 @@ export function ProjectWorkUnitFactDetailRoute() {
                         className="border-border/70 bg-background/40"
                       >
                         <CardHeader className="pb-2">
-                          <CardDescription className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-                            Instance {valueRow.workUnitFactInstanceId}
-                          </CardDescription>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <CardDescription className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
+                              Instance {valueRow.workUnitFactInstanceId}
+                            </CardDescription>
+                            {detail.actions.canUpdateExisting &&
+                            detail.factDefinition.cardinality === "many" ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setMutationError(null);
+                                  setEditInstanceId(valueRow.workUnitFactInstanceId);
+                                }}
+                              >
+                                Edit instance
+                              </Button>
+                            ) : null}
+                          </div>
                           <CardTitle className="text-sm">Current value</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-3">
                           <pre className="whitespace-pre-wrap break-words border border-border/70 bg-background/60 p-2 text-xs text-muted-foreground">
                             {formatFactValue(valueRow.value)}
                           </pre>
-
-                          {detail.actions.canUpdateExisting ? (
-                            <form
-                              data-testid={`work-unit-fact-replace-form-${valueRow.workUnitFactInstanceId}`}
-                              className="space-y-2"
-                              onSubmit={async (event) => {
-                                event.preventDefault();
-                                const candidate = parseJsonInput(
-                                  replacePrimitiveInputs[valueRow.workUnitFactInstanceId] ?? "",
-                                );
-
-                                if (!candidate.ok) {
-                                  setFormError(candidate.error);
-                                  return;
-                                }
-
-                                await replaceFactMutation.mutateAsync({
-                                  projectId,
-                                  projectWorkUnitId,
-                                  factDefinitionId,
-                                  workUnitFactInstanceId: valueRow.workUnitFactInstanceId,
-                                  value: candidate.parsed,
-                                });
-                              }}
-                            >
-                              <div className="space-y-1 text-xs text-muted-foreground">
-                                <p>Value (JSON)</p>
-                                <Textarea
-                                  value={
-                                    replacePrimitiveInputs[valueRow.workUnitFactInstanceId] ?? ""
-                                  }
-                                  onChange={(event) =>
-                                    setReplacePrimitiveValueByInstance((previous) => ({
-                                      ...previous,
-                                      [valueRow.workUnitFactInstanceId]: event.target.value,
-                                    }))
-                                  }
-                                  className="min-h-24 rounded-none"
-                                  aria-label="Value (JSON)"
-                                />
-                              </div>
-
-                              <button
-                                type="submit"
-                                className={cn(
-                                  buttonVariants({ variant: "outline", size: "sm" }),
-                                  "rounded-none uppercase tracking-[0.1em]",
-                                )}
-                              >
-                                Replace value
-                              </button>
-                            </form>
-                          ) : null}
                         </CardContent>
                       </Card>
                     </li>
@@ -422,56 +409,19 @@ export function ProjectWorkUnitFactDetailRoute() {
                           Created {member.createdAt}
                         </p>
 
-                        {detail.actions.canUpdateExisting ? (
-                          <form
-                            data-testid={`work-unit-fact-replace-form-${member.workUnitFactInstanceId}`}
-                            className="space-y-2"
-                            onSubmit={async (event) => {
-                              event.preventDefault();
-                              const candidate = parseWorkUnitReferenceInput(
-                                replaceLinkedWorkUnitInputs[member.workUnitFactInstanceId] ?? "",
-                              );
-
-                              if (!candidate.ok) {
-                                setFormError(candidate.error);
-                                return;
-                              }
-
-                              await replaceFactMutation.mutateAsync({
-                                projectId,
-                                projectWorkUnitId,
-                                factDefinitionId,
-                                workUnitFactInstanceId: member.workUnitFactInstanceId,
-                                referencedProjectWorkUnitId: candidate.referencedProjectWorkUnitId,
-                              });
+                        {detail.actions.canUpdateExisting &&
+                        detail.factDefinition.cardinality === "many" ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setMutationError(null);
+                              setEditInstanceId(member.workUnitFactInstanceId);
                             }}
                           >
-                            <div className="space-y-1 text-xs text-muted-foreground">
-                              <p>Linked work unit id</p>
-                              <Input
-                                value={
-                                  replaceLinkedWorkUnitInputs[member.workUnitFactInstanceId] ?? ""
-                                }
-                                onChange={(event) =>
-                                  setReplaceLinkedWorkUnitByInstance((previous) => ({
-                                    ...previous,
-                                    [member.workUnitFactInstanceId]: event.target.value,
-                                  }))
-                                }
-                                aria-label="Linked work unit id"
-                              />
-                            </div>
-
-                            <button
-                              type="submit"
-                              className={cn(
-                                buttonVariants({ variant: "outline", size: "sm" }),
-                                "rounded-none uppercase tracking-[0.1em]",
-                              )}
-                            >
-                              Replace linked work unit
-                            </button>
-                          </form>
+                            Edit instance
+                          </Button>
                         ) : null}
                       </li>
                     ))}
@@ -512,184 +462,74 @@ export function ProjectWorkUnitFactDetailRoute() {
               Actions
             </p>
 
-            {showAddControl ? (
-              !isDependencyFact ? (
-                <form
-                  data-testid="work-unit-fact-add-form"
-                  className="space-y-2 border border-border/70 bg-background/40 p-3"
-                  onSubmit={async (event) => {
-                    event.preventDefault();
-                    const candidate = parseJsonInput(addPrimitiveValueInput);
-
-                    if (!candidate.ok) {
-                      setFormError(candidate.error);
-                      return;
-                    }
-
-                    await addFactMutation.mutateAsync({
-                      projectId,
-                      projectWorkUnitId,
-                      factDefinitionId,
-                      value: candidate.parsed,
-                    });
+            {showCreateControl ? (
+              <div className="border border-border/70 bg-background/40 p-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setMutationError(null);
+                    setCreateDialogOpen(true);
                   }}
                 >
-                  <div className="space-y-1 text-xs text-muted-foreground">
-                    <p>Value (JSON)</p>
-                    <Textarea
-                      value={addPrimitiveValueInput}
-                      onChange={(event) => setAddPrimitiveValueInput(event.target.value)}
-                      className="min-h-24 rounded-none"
-                      aria-label="Value (JSON)"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    className={cn(
-                      buttonVariants({ variant: "outline", size: "sm" }),
-                      "rounded-none uppercase tracking-[0.1em]",
-                    )}
-                  >
-                    {detail.factDefinition.cardinality === "one" ? "Set value" : "Add instance"}
-                  </button>
-                </form>
-              ) : (
-                <form
-                  data-testid="work-unit-fact-add-form"
-                  className="space-y-2 border border-border/70 bg-background/40 p-3"
-                  onSubmit={async (event) => {
-                    event.preventDefault();
-                    const candidate = parseWorkUnitReferenceInput(addLinkedWorkUnitInput);
-
-                    if (!candidate.ok) {
-                      setFormError(candidate.error);
-                      return;
-                    }
-
-                    await addFactMutation.mutateAsync({
-                      projectId,
-                      projectWorkUnitId,
-                      factDefinitionId,
-                      referencedProjectWorkUnitId: candidate.referencedProjectWorkUnitId,
-                    });
-                  }}
-                >
-                  <div className="space-y-1 text-xs text-muted-foreground">
-                    <p>Linked work unit id</p>
-                    <Input
-                      value={addLinkedWorkUnitInput}
-                      onChange={(event) => setAddLinkedWorkUnitInput(event.target.value)}
-                      aria-label="Linked work unit id"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    className={cn(
-                      buttonVariants({ variant: "outline", size: "sm" }),
-                      "rounded-none uppercase tracking-[0.1em]",
-                    )}
-                  >
-                    {detail.factDefinition.cardinality === "one"
+                  {detail.factDefinition.cardinality === "one"
+                    ? isDependencyFact
                       ? "Set linked work unit"
-                      : "Add linked work unit"}
-                  </button>
-                </form>
-              )
+                      : "Set value"
+                    : isDependencyFact
+                      ? "Add linked work unit"
+                      : "Add instance"}
+                </Button>
+              </div>
             ) : null}
 
-            {showSetControl ? (
-              !isDependencyFact ? (
-                primaryPrimitiveInstance ? (
-                  <form
-                    data-testid="work-unit-fact-set-form"
-                    className="space-y-2 border border-border/70 bg-background/40 p-3"
-                    onSubmit={async (event) => {
-                      event.preventDefault();
-                      const candidate = parseJsonInput(setPrimitiveValueInput);
-
-                      if (!candidate.ok) {
-                        setFormError(candidate.error);
-                        return;
-                      }
-
-                      await setFactMutation.mutateAsync({
-                        projectId,
-                        projectWorkUnitId,
-                        factDefinitionId,
-                        workUnitFactInstanceId: primaryPrimitiveInstance.workUnitFactInstanceId,
-                        value: candidate.parsed,
-                      });
-                    }}
-                  >
-                    <div className="space-y-1 text-xs text-muted-foreground">
-                      <p>Value (JSON)</p>
-                      <Textarea
-                        value={setPrimitiveValueInput}
-                        onChange={(event) => setSetPrimitiveValueInput(event.target.value)}
-                        className="min-h-24 rounded-none"
-                        aria-label="Value (JSON)"
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      className={cn(
-                        buttonVariants({ variant: "outline", size: "sm" }),
-                        "rounded-none uppercase tracking-[0.1em]",
-                      )}
-                    >
-                      Set value
-                    </button>
-                  </form>
-                ) : null
-              ) : primaryOutgoingDependencyInstance ? (
-                <form
-                  data-testid="work-unit-fact-set-form"
-                  className="space-y-2 border border-border/70 bg-background/40 p-3"
-                  onSubmit={async (event) => {
-                    event.preventDefault();
-                    const candidate = parseWorkUnitReferenceInput(setLinkedWorkUnitInput);
-
-                    if (!candidate.ok) {
-                      setFormError(candidate.error);
-                      return;
-                    }
-
-                    await setFactMutation.mutateAsync({
-                      projectId,
-                      projectWorkUnitId,
-                      factDefinitionId,
-                      workUnitFactInstanceId:
-                        primaryOutgoingDependencyInstance.workUnitFactInstanceId,
-                      referencedProjectWorkUnitId: candidate.referencedProjectWorkUnitId,
-                    });
+            {showUpdateControl ? (
+              <div className="border border-border/70 bg-background/40 p-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setMutationError(null);
+                    setEditInstanceId(
+                      isDependencyFact
+                        ? (primaryOutgoingDependencyInstance?.workUnitFactInstanceId ?? null)
+                        : (primaryPrimitiveInstance?.workUnitFactInstanceId ?? null),
+                    );
                   }}
                 >
-                  <div className="space-y-1 text-xs text-muted-foreground">
-                    <p>Linked work unit id</p>
-                    <Input
-                      value={setLinkedWorkUnitInput}
-                      onChange={(event) => setSetLinkedWorkUnitInput(event.target.value)}
-                      aria-label="Linked work unit id"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    className={cn(
-                      buttonVariants({ variant: "outline", size: "sm" }),
-                      "rounded-none uppercase tracking-[0.1em]",
-                    )}
-                  >
-                    Set linked work unit
-                  </button>
-                </form>
-              ) : null
+                  {isDependencyFact ? "Replace linked work unit" : "Replace value"}
+                </Button>
+              </div>
             ) : null}
 
-            {formError ? <p className="text-xs text-destructive">{formError}</p> : null}
+            {showDeleteControl ? (
+              <div className="space-y-2 border border-border/70 bg-background/40 p-3">
+                <p className="text-xs text-muted-foreground">
+                  Delete logically by writing tombstones for the current work-unit fact value set.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setMutationError(null);
+                    setDeleteDialogOpen(true);
+                  }}
+                >
+                  {isDependencyFact
+                    ? outgoingDependencyValues.length === 1
+                      ? "Delete linked work unit"
+                      : "Delete linked work units"
+                    : primitiveValues.length === 1
+                      ? "Delete current value"
+                      : "Delete current values"}
+                </Button>
+              </div>
+            ) : null}
+
+            {mutationError ? <p className="text-xs text-destructive">{mutationError}</p> : null}
           </section>
 
           <section>
@@ -711,6 +551,183 @@ export function ProjectWorkUnitFactDetailRoute() {
               Back to Work Unit Facts
             </Link>
           </section>
+
+          <RuntimeFactValueDialog
+            open={createDialogOpen}
+            onOpenChange={setCreateDialogOpen}
+            title={
+              detail.factDefinition.cardinality === "one"
+                ? isDependencyFact
+                  ? "Set linked work unit"
+                  : "Set work-unit fact value"
+                : isDependencyFact
+                  ? "Add linked work unit"
+                  : "Add work-unit fact instance"
+            }
+            description={
+              isDependencyFact
+                ? "Choose the runtime work unit reference for this fact definition."
+                : detail.factDefinition.cardinality === "one"
+                  ? "Set the current runtime value for this work-unit fact definition."
+                  : "Create a new runtime instance for this work-unit fact definition."
+            }
+            submitLabel={
+              detail.factDefinition.cardinality === "one"
+                ? isDependencyFact
+                  ? "Set linked work unit"
+                  : "Set value"
+                : isDependencyFact
+                  ? "Create link"
+                  : "Create instance"
+            }
+            editor={
+              isDependencyFact
+                ? { kind: "work_unit", options: workUnitOptions }
+                : {
+                    kind: "primitive",
+                    definition: {
+                      factType: detail.factDefinition.factType,
+                      validation: detail.factDefinition.validation,
+                    },
+                  }
+            }
+            isPending={createFactMutation.isPending}
+            errorMessage={createDialogOpen ? mutationError : null}
+            onSubmit={async (value) => {
+              if (isDependencyFact) {
+                const referencedProjectWorkUnitId =
+                  typeof value === "object" && value !== null && "projectWorkUnitId" in value
+                    ? String((value as { projectWorkUnitId: string }).projectWorkUnitId)
+                    : "";
+
+                await createFactMutation.mutateAsync({
+                  projectId,
+                  projectWorkUnitId,
+                  factDefinitionId,
+                  referencedProjectWorkUnitId,
+                });
+                return;
+              }
+
+              await createFactMutation.mutateAsync({
+                projectId,
+                projectWorkUnitId,
+                factDefinitionId,
+                value,
+              });
+            }}
+            testId="work-unit-fact-create-dialog"
+          />
+
+          {(editingPrimitiveInstance || editingDependencyInstance) && editInstanceId ? (
+            <RuntimeFactValueDialog
+              open={editInstanceId !== null}
+              onOpenChange={(open) => setEditInstanceId(open ? editInstanceId : null)}
+              title={
+                isDependencyFact
+                  ? "Replace linked work unit"
+                  : detail.factDefinition.cardinality === "one"
+                    ? "Replace work-unit fact value"
+                    : "Edit work-unit fact instance"
+              }
+              description={
+                isDependencyFact
+                  ? `Update the linked work unit for instance ${editInstanceId}.`
+                  : detail.factDefinition.cardinality === "one"
+                    ? "Replace the current runtime value for this work-unit fact definition."
+                    : `Update instance ${editInstanceId} for this work-unit fact definition.`
+              }
+              submitLabel={
+                isDependencyFact
+                  ? "Save link"
+                  : detail.factDefinition.cardinality === "one"
+                    ? "Replace value"
+                    : "Save instance"
+              }
+              editor={
+                isDependencyFact
+                  ? { kind: "work_unit", options: workUnitOptions }
+                  : {
+                      kind: "primitive",
+                      definition: {
+                        factType: detail.factDefinition.factType,
+                        validation: detail.factDefinition.validation,
+                      },
+                    }
+              }
+              initialValue={
+                isDependencyFact
+                  ? editingDependencyInstance
+                    ? { projectWorkUnitId: editingDependencyInstance.counterpartProjectWorkUnitId }
+                    : undefined
+                  : editingPrimitiveInstance?.value
+              }
+              isPending={updateFactMutation.isPending}
+              errorMessage={editInstanceId !== null ? mutationError : null}
+              onSubmit={async (value) => {
+                if (isDependencyFact && editingDependencyInstance) {
+                  const referencedProjectWorkUnitId =
+                    typeof value === "object" && value !== null && "projectWorkUnitId" in value
+                      ? String((value as { projectWorkUnitId: string }).projectWorkUnitId)
+                      : "";
+
+                  await updateFactMutation.mutateAsync({
+                    projectId,
+                    projectWorkUnitId,
+                    factDefinitionId,
+                    workUnitFactInstanceId: editingDependencyInstance.workUnitFactInstanceId,
+                    referencedProjectWorkUnitId,
+                  });
+                  return;
+                }
+
+                if (editingPrimitiveInstance) {
+                  await updateFactMutation.mutateAsync({
+                    projectId,
+                    projectWorkUnitId,
+                    factDefinitionId,
+                    workUnitFactInstanceId: editingPrimitiveInstance.workUnitFactInstanceId,
+                    value,
+                  });
+                }
+              }}
+              testId="work-unit-fact-update-dialog"
+            />
+          ) : null}
+
+          <RuntimeConfirmDialog
+            open={deleteDialogOpen}
+            onOpenChange={setDeleteDialogOpen}
+            title={
+              isDependencyFact
+                ? outgoingDependencyValues.length === 1
+                  ? "Delete linked work unit?"
+                  : "Delete linked work units?"
+                : primitiveValues.length === 1
+                  ? "Delete current work-unit fact value?"
+                  : "Delete current work-unit fact values?"
+            }
+            description="This writes logical-delete tombstones for the current runtime work-unit fact state."
+            confirmLabel={
+              isDependencyFact
+                ? outgoingDependencyValues.length === 1
+                  ? "Delete link"
+                  : "Delete links"
+                : primitiveValues.length === 1
+                  ? "Delete value"
+                  : "Delete values"
+            }
+            isPending={deleteFactMutation.isPending}
+            errorMessage={deleteDialogOpen ? mutationError : null}
+            onConfirm={async () => {
+              await deleteFactMutation.mutateAsync({
+                projectId,
+                projectWorkUnitId,
+                factDefinitionId,
+              });
+            }}
+            testId="work-unit-fact-delete-dialog"
+          />
         </>
       ) : null}
     </MethodologyWorkspaceShell>

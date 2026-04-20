@@ -8,6 +8,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 vi.mock("@/components/ui/button", () => ({
+  buttonVariants: () => "",
   Button: ({
     children,
     asChild,
@@ -80,7 +81,7 @@ describe("runtime guidance sections visuals", () => {
               workUnitTypeId: "seed:wut:brainstorming:mver_bmad_v1_active",
               workUnitTypeKey: "brainstorming",
               workUnitTypeName: "seed:wut:brainstorming:mver_bmad_v1_active",
-              currentStateLabel: null,
+              currentStateLabel: "",
             },
             summaries: {
               facts: { currentCount: 0, totalCount: 1 },

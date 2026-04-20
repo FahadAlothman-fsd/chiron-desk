@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { Result } from "better-result";
 
 export interface SSETickEvent {
   tick: number;
@@ -75,12 +74,14 @@ export function useSSE<TData = SSETickEvent, TEvent = TData>(
           return;
         }
 
-        const parsedData = Result.try({
-          try: () => JSON.parse(payload) as TData,
-          catch: () => undefined,
-        });
+        let parsedData: TData | undefined;
+        try {
+          parsedData = JSON.parse(payload) as TData;
+        } catch {
+          parsedData = undefined;
+        }
 
-        if (parsedData.isErr() || parsedData.value === undefined) {
+        if (parsedData === undefined) {
           if (eventName === "error") {
             setStatus("error");
           }
@@ -91,7 +92,7 @@ export function useSSE<TData = SSETickEvent, TEvent = TData>(
           ...previous,
           mapEventRef.current({
             event: eventName,
-            data: parsedData.value,
+            data: parsedData,
             lastEventId: rawEvent.lastEventId,
           }),
         ]);

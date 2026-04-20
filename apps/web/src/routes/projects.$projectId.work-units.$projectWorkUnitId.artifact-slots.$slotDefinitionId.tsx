@@ -3,9 +3,8 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 
-import { ArtifactSnapshotDialog } from "@/components/runtime/artifact-snapshot-dialog";
+import { ArtifactInstanceDialog } from "@/components/runtime/artifact-instance-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
 
@@ -22,14 +21,14 @@ const runtimeArtifactSnapshotDialogQueryKey = (
   projectId: string,
   projectWorkUnitId: string,
   slotDefinitionId: string,
-  projectArtifactSnapshotId: string,
+  artifactInstanceId: string,
 ) =>
   [
-    "runtime-artifact-snapshot-dialog",
+    "runtime-artifact-instance-dialog",
     projectId,
     projectWorkUnitId,
     slotDefinitionId,
-    projectArtifactSnapshotId,
+    artifactInstanceId,
   ] as const;
 
 function formatTimestamp(timestamp?: string): string {
@@ -86,7 +85,7 @@ export const Route = createFileRoute(
 export function ProjectWorkUnitArtifactSlotDetailRoute() {
   const { projectId, projectWorkUnitId, slotDefinitionId } = Route.useParams();
   const { orpc, queryClient } = Route.useRouteContext();
-  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
+  const [selectedArtifactInstanceId, setSelectedArtifactInstanceId] = useState<string | null>(null);
   const [checkResult, setCheckResult] = useState<CheckArtifactSlotCurrentStateOutput | null>(null);
   const [checkErrorMessage, setCheckErrorMessage] = useState<string | null>(null);
 
@@ -130,24 +129,25 @@ export function ProjectWorkUnitArtifactSlotDetailRoute() {
       projectId,
       projectWorkUnitId,
       slotDefinitionId,
-      selectedSnapshotId ?? "idle",
+      selectedArtifactInstanceId ?? "idle",
     ),
-    enabled: selectedSnapshotId !== null,
+    enabled: selectedArtifactInstanceId !== null,
     queryFn: async () => {
-      if (!selectedSnapshotId) {
+      if (!selectedArtifactInstanceId) {
         return null;
       }
 
-      return await orpc.project.getRuntimeArtifactSnapshotDialog.call({
+      return await orpc.project.getRuntimeArtifactInstanceDialog.call({
         projectId,
         projectWorkUnitId,
         slotDefinitionId,
-        projectArtifactSnapshotId: selectedSnapshotId,
+        artifactInstanceId: selectedArtifactInstanceId,
       });
     },
   });
 
   const artifactSlotDetail = runtimeArtifactSlotDetailQuery.data;
+  const currentArtifactInstance = artifactSlotDetail?.currentArtifactInstance ?? null;
 
   return (
     <MethodologyWorkspaceShell
@@ -216,7 +216,7 @@ export function ProjectWorkUnitArtifactSlotDetailRoute() {
           <section className="space-y-3 border border-border/80 bg-background p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-                Current effective snapshot
+                Current artifact instance
               </p>
               <Button
                 type="button"
@@ -245,13 +245,13 @@ export function ProjectWorkUnitArtifactSlotDetailRoute() {
 
             {checkResult?.result === "changed" ? (
               <p className="border border-primary/50 bg-primary/15 px-3 py-2 text-sm text-primary">
-                Current state changed and a new snapshot was recorded.
+                Current state changed and the current artifact instance was refreshed.
               </p>
             ) : null}
 
             {checkResult?.result === "unchanged" ? (
               <p className="border border-border/70 bg-background/60 px-3 py-2 text-sm text-muted-foreground">
-                Current state is unchanged from the latest effective snapshot.
+                Current state is unchanged from the current artifact instance.
               </p>
             ) : null}
 
@@ -262,30 +262,20 @@ export function ProjectWorkUnitArtifactSlotDetailRoute() {
               </p>
             ) : null}
 
-            {artifactSlotDetail.currentEffectiveSnapshot.exists ? (
+            {currentArtifactInstance?.exists ? (
               <div className="space-y-2 text-xs text-muted-foreground">
                 <p>
-                  Snapshot ID:{" "}
-                  {artifactSlotDetail.currentEffectiveSnapshot.projectArtifactSnapshotId ??
-                    "unknown"}
+                  Artifact instance ID: {currentArtifactInstance.artifactInstanceId ?? "unknown"}
                 </p>
-                <p>
-                  Recorded: {formatTimestamp(artifactSlotDetail.currentEffectiveSnapshot.createdAt)}
-                </p>
-                <p>
-                  Recorded by:{" "}
-                  {formatRecordedBy(artifactSlotDetail.currentEffectiveSnapshot.recordedBy)}
-                </p>
-                <p>
-                  Current member count:{" "}
-                  {artifactSlotDetail.currentEffectiveSnapshot.memberCounts.currentCount}
-                </p>
+                <p>Updated: {formatTimestamp(currentArtifactInstance.updatedAt)}</p>
+                <p>Recorded by: {formatRecordedBy(currentArtifactInstance.recordedBy)}</p>
+                <p>Current file count: {currentArtifactInstance.fileCount}</p>
 
-                {artifactSlotDetail.currentEffectiveSnapshot.members.length > 0 ? (
+                {currentArtifactInstance.files.length > 0 ? (
                   <ul className="space-y-1">
-                    {artifactSlotDetail.currentEffectiveSnapshot.members.map((member) => (
+                    {currentArtifactInstance.files.map((member) => (
                       <li
-                        key={member.artifactSnapshotFileId}
+                        key={member.filePath}
                         className="truncate border border-border/70 bg-background/50 px-2 py-1"
                       >
                         {member.filePath}
@@ -296,81 +286,51 @@ export function ProjectWorkUnitArtifactSlotDetailRoute() {
               </div>
             ) : (
               <div className="space-y-1 text-sm text-muted-foreground">
-                <p>No current effective artifact.</p>
-                <p>Lineage history is still available below.</p>
+                <p>No current artifact instance.</p>
+                <p>Tracked files will appear here once the slot is populated.</p>
               </div>
             )}
           </section>
 
-          <section className="space-y-3 border border-border/80 bg-background p-4">
-            <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
-              Lineage history
-            </p>
-
-            {artifactSlotDetail.lineage.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No lineage snapshots have been recorded yet.
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {artifactSlotDetail.lineage.map((snapshot) => (
-                  <li key={snapshot.projectArtifactSnapshotId}>
-                    <Card frame="flat" tone="runtime" className="border-border/70 bg-background/40">
-                      <CardHeader className="space-y-1 pb-2">
-                        <CardDescription className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-                          Snapshot {snapshot.projectArtifactSnapshotId}
-                        </CardDescription>
-                        <CardTitle className="text-sm">
-                          {formatTimestamp(snapshot.createdAt)}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2 text-xs text-muted-foreground">
-                        <p>
-                          Delta rows: {snapshot.memberCounts.deltaRowCount} · Effective count:{" "}
-                          {snapshot.memberCounts.effectiveCount}
-                        </p>
-                        <p>Recorded by: {formatRecordedBy(snapshot.recordedBy)}</p>
-
-                        {snapshot.actions?.inspectSnapshot ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="rounded-none uppercase tracking-[0.1em]"
-                            onClick={() =>
-                              setSelectedSnapshotId(
-                                snapshot.actions?.inspectSnapshot?.projectArtifactSnapshotId ??
-                                  null,
-                              )
-                            }
-                          >
-                            Inspect snapshot
-                          </Button>
-                        ) : null}
-                      </CardContent>
-                    </Card>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          {currentArtifactInstance?.exists ? (
+            <section className="space-y-3 border border-border/80 bg-background p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">
+                  Artifact instance details
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-none uppercase tracking-[0.1em]"
+                  onClick={() =>
+                    setSelectedArtifactInstanceId(
+                      currentArtifactInstance.artifactInstanceId ?? null,
+                    )
+                  }
+                >
+                  Inspect artifact instance
+                </Button>
+              </div>
+            </section>
+          ) : null}
 
           <section>
             <Link
               to="/projects/$projectId/work-units/$projectWorkUnitId/artifact-slots"
               params={{ projectId, projectWorkUnitId }}
-              search={{ q: "", hasActiveTransition: "all" }}
+              search={{ q: "" }}
               className="inline-flex text-xs font-medium uppercase tracking-[0.12em] text-primary hover:underline"
             >
               Back to Artifact Slots
             </Link>
           </section>
 
-          <ArtifactSnapshotDialog
-            open={selectedSnapshotId !== null}
+          <ArtifactInstanceDialog
+            open={selectedArtifactInstanceId !== null}
             onOpenChange={(open) => {
               if (!open) {
-                setSelectedSnapshotId(null);
+                setSelectedArtifactInstanceId(null);
               }
             }}
             detail={artifactSnapshotDialogQuery.data ?? null}

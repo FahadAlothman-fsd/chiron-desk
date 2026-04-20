@@ -3,168 +3,65 @@ import { cleanup, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { useRouteContextMock, useParamsMock, useSearchMock, useNavigateMock, navigateMock } =
-  vi.hoisted(() => ({
-    useRouteContextMock: vi.fn(),
-    useParamsMock: vi.fn(),
-    useSearchMock: vi.fn(),
-    useNavigateMock: vi.fn(),
-    navigateMock: vi.fn(),
-  }));
+const { useRouteContextMock, useParamsMock } = vi.hoisted(() => ({
+  useRouteContextMock: vi.fn(),
+  useParamsMock: vi.fn(),
+}));
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (options: Record<string, unknown>) => ({
     ...options,
     useRouteContext: useRouteContextMock,
     useParams: useParamsMock,
-    useSearch: useSearchMock,
-    useNavigate: useNavigateMock,
   }),
   Link: ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>,
 }));
 
 vi.mock("@/features/methodologies/workspace-shell", () => ({
-  MethodologyWorkspaceShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  MethodologyWorkspaceShell: ({ title, children }: { title?: string; children: ReactNode }) => (
+    <div>
+      {title ? <h1>{title}</h1> : null}
+      {children}
+    </div>
+  ),
 }));
 
 import { ProjectDashboardRoute } from "../../routes/projects.$projectId.index";
 
-function createHarness() {
+function createHarness(options?: { activeWorkflows?: Array<Record<string, unknown>> }) {
   const orpc = {
     project: {
-      getProjectDetails: {
+      getRuntimeOverview: {
         queryOptions: () => ({
-          queryKey: ["project", "details", "project-1"],
+          queryKey: ["runtime-overview", "project-1"],
           queryFn: async () => ({
-            project: {
-              id: "project-1",
-              displayName: "Aurora Orion 123",
-              createdAt: "2026-03-03T10:00:00.000Z",
-              updatedAt: "2026-03-03T12:00:00.000Z",
+            stats: {
+              factTypesWithInstances: {
+                current: 2,
+                total: 5,
+                subtitle: "Fact types already populated in runtime.",
+                target: { filters: { existence: "exists" as const } },
+              },
+              workUnitTypesWithInstances: {
+                current: 1,
+                total: 4,
+                subtitle: "Work-unit types materialized for this project.",
+              },
+              activeTransitions: {
+                count: 1,
+                subtitle: "Transitions currently in flight.",
+              },
             },
-            pin: {
-              projectId: "project-1",
-              methodologyVersionId: "v1-id",
-              methodologyKey: "spiral.v1",
-              publishedVersion: "1.0.0",
-              actorId: "operator-1",
-              timestamp: "2026-03-03T12:00:00.000Z",
-            },
-            lineage: [],
-            baselinePreview: {
-              summary: {
-                methodologyKey: "spiral.v1",
-                pinnedVersion: "1.0.0",
-                publishState: "published",
-                validationStatus: "pass",
-                setupFactsStatus:
-                  "Deferred to WU.PROJECT_CONTEXT/document-project runtime execution in Epic 3.",
+            activeWorkflows: options?.activeWorkflows ?? [
+              {
+                workflowExecutionId: "we-1",
+                workflowName: "Document project",
+                workflowKey: "document-project",
+                startedAt: "2026-03-03T12:00:00.000Z",
+                workUnit: { workUnitTypeKey: "WU.PROJECT_CONTEXT" },
+                transition: { transitionKey: "start" },
               },
-              transitionPreview: {
-                workUnitTypeKey: "WU.PROJECT_CONTEXT",
-                currentState: "__absent__",
-                transitions: [
-                  {
-                    transitionKey: "start",
-                    fromState: "__absent__",
-                    toState: "done",
-                    gateClass: "start_gate",
-                    status: "blocked",
-                    statusReasonCode: "MISSING_PREVIEW_PREREQUISITE_FACT",
-                    guidance: {
-                      intent: "Initialize project prerequisites before first handoff.",
-                    },
-                    conditionSets: [
-                      {
-                        key: "gate.activate.wu.project_context",
-                        phase: "start",
-                        mode: "all",
-                        groups: [],
-                      },
-                    ],
-                    diagnostics: [],
-                    workflows: [
-                      {
-                        workflowKey: "document-project",
-                        enabled: false,
-                        disabledReason: "Workflow runtime execution unlocks in Epic 3+",
-                        helperText: "Execution is enabled in Epic 3 after start-gate preflight.",
-                        guidance: "Collect and normalize baseline project facts before execution.",
-                      },
-                    ],
-                  },
-                  {
-                    transitionKey: "future-path",
-                    fromState: "done",
-                    toState: "verified",
-                    gateClass: "completion_gate",
-                    status: "future",
-                    statusReasonCode: "FUTURE_NOT_IN_CURRENT_CONTEXT",
-                    conditionSets: [],
-                    diagnostics: [],
-                    workflows: [],
-                  },
-                ],
-              },
-              projectionSummary: {
-                workUnits: [
-                  {
-                    workUnitTypeKey: "WU.PROJECT_CONTEXT",
-                    guidance: {
-                      intent: "Prepare project context and prerequisite facts.",
-                    },
-                  },
-                  {
-                    workUnitTypeKey: "WU.BUILD",
-                    guidance: "Produce implementation outputs after setup readiness.",
-                  },
-                ],
-                agents: [
-                  {
-                    agentTypeKey: "project-agent",
-                    guidance: "Coordinate project-level setup and handoff orchestration.",
-                  },
-                ],
-                transitions: [],
-                facts: [],
-              },
-              facts: [
-                {
-                  key: "deliveryMode",
-                  type: "string",
-                  value: null,
-                  required: true,
-                  missing: true,
-                  indicator: "blocking",
-                  sourceExecutionId: null,
-                  updatedAt: null,
-                },
-              ],
-              diagnosticsHistory: {
-                publish: [
-                  {
-                    code: "PUBLISH_CONTRACT_WARNING",
-                    scope: "publish.validation",
-                    blocking: false,
-                    required: "Published contract passes static validation",
-                    observed: "Non-blocking warning",
-                    remediation: "Review warning guidance before promotion.",
-                    timestamp: "2026-03-03T12:01:00.000Z",
-                    evidenceRef: "publish-evidence-1",
-                  },
-                ],
-                pin: [],
-                "repin-policy": [],
-              },
-              evidenceTimeline: [
-                {
-                  kind: "pin",
-                  actor: "operator-1",
-                  timestamp: "2026-03-03T12:00:00.000Z",
-                  reference: "project-pin-event:event-1",
-                },
-              ],
-            },
+            ],
           }),
         }),
       },
@@ -179,13 +76,7 @@ function createHarness() {
   });
 
   useParamsMock.mockReturnValue({ projectId: "project-1" });
-  useSearchMock.mockReturnValue({});
-  useNavigateMock.mockReturnValue(navigateMock);
-  navigateMock.mockReset();
-  useRouteContextMock.mockReturnValue({
-    orpc,
-    queryClient,
-  });
+  useRouteContextMock.mockReturnValue({ orpc, queryClient });
 
   return { queryClient };
 }
@@ -199,7 +90,7 @@ describe("project dashboard route", () => {
     cleanup();
   });
 
-  it("renders project overview, active pin summary, and pinning navigation", async () => {
+  it("renders runtime overview stat cards and guidance navigation", async () => {
     const { queryClient } = createHarness();
 
     render(
@@ -209,15 +100,18 @@ describe("project dashboard route", () => {
     );
 
     expect(await screen.findByText("Project overview")).toBeTruthy();
-    expect(await screen.findByText("Aurora Orion 123")).toBeTruthy();
-    expect(screen.getByText("Active methodology pin")).toBeTruthy();
-    expect((await screen.findAllByText("spiral.v1")).length).toBeGreaterThan(0);
+    expect(await screen.findByText("2/5")).toBeTruthy();
+    expect(screen.getByText("Runtime project overview")).toBeTruthy();
+    expect(screen.getByText("Fact types with instances")).toBeTruthy();
+    expect(screen.getByText("Work-unit types with instances")).toBeTruthy();
+    expect(screen.getByText("1/4")).toBeTruthy();
+    expect(screen.getByText("Active transitions")).toBeTruthy();
 
-    const managePinningLink = screen.getByRole("link", { name: "Open pinning workspace" });
-    expect(managePinningLink.getAttribute("href")).toBe("/projects/$projectId/pinning");
+    const guidanceLink = screen.getByRole("link", { name: /Go to Guidance/i });
+    expect(guidanceLink.getAttribute("href")).toBe("/projects/$projectId/transitions");
   });
 
-  it("retains runtime boundary copy on dashboard", async () => {
+  it("renders active workflow rows with canonical runtime identifiers", async () => {
     const { queryClient } = createHarness();
 
     render(
@@ -226,11 +120,15 @@ describe("project dashboard route", () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText("Workflow runtime execution unlocks in Epic 3+")).toBeTruthy();
+    expect(await screen.findByText("Document project")).toBeTruthy();
+    expect(screen.getByText("Active workflows")).toBeTruthy();
+    expect(
+      screen.getByText(/document-project · WU\.PROJECT_CONTEXT · transition start/i),
+    ).toBeTruthy();
   });
 
-  it("renders baseline readiness visibility on dashboard", async () => {
-    const { queryClient } = createHarness();
+  it("renders empty-state copy when no workflows are active", async () => {
+    const { queryClient } = createHarness({ activeWorkflows: [] });
 
     render(
       <QueryClientProvider client={queryClient}>
@@ -238,107 +136,6 @@ describe("project dashboard route", () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText("Baseline visibility")).toBeTruthy();
-    expect(
-      await screen.findByText("Transition readiness preview (WU.PROJECT_CONTEXT)"),
-    ).toBeTruthy();
-    expect(await screen.findByText("reason: Missing Preview Prerequisite Fact")).toBeTruthy();
-    expect(screen.queryByText("future-path")).toBeNull();
-
-    const futureToggle = screen.getByLabelText("Show future paths");
-    futureToggle.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-
-    expect(await screen.findByText("future-path")).toBeTruthy();
-    expect(screen.getByText(/Prepare project context and prerequisite facts\./)).toBeTruthy();
-    expect(
-      screen.getByText(/Initialize project prerequisites before first handoff\./),
-    ).toBeTruthy();
-    expect(
-      screen.getByText(/Collect and normalize baseline project facts before execution\./),
-    ).toBeTruthy();
-    expect(screen.getByText("PUBLISH_CONTRACT_WARNING")).toBeTruthy();
-    expect(screen.getByText("context: publish")).toBeTruthy();
-    expect(screen.getByText("blocking: no")).toBeTruthy();
-    expect(screen.getByText("required: Published contract passes static validation")).toBeTruthy();
-    expect(screen.getByText("observed: Non-blocking warning")).toBeTruthy();
-    expect(screen.getByText("remediation: Review warning guidance before promotion.")).toBeTruthy();
-    expect(screen.getByText("evidenceRef: publish-evidence-1")).toBeTruthy();
-  });
-
-  it("normalizes baseline preview facts when required is omitted by the API", async () => {
-    const routeModule = (await import("../../routes/projects.$projectId.index")) as Record<
-      string,
-      unknown
-    >;
-    const toBaselinePreview = routeModule.toBaselinePreview;
-
-    expect(typeof toBaselinePreview).toBe("function");
-
-    const preview = (toBaselinePreview as (value: unknown) => unknown)({
-      summary: {
-        methodologyKey: "spiral.v1",
-        pinnedVersion: "1.0.0",
-        publishState: "published",
-        validationStatus: "pass",
-        setupFactsStatus: "ready",
-      },
-      transitionPreview: {
-        workUnitTypeKey: "WU.PROJECT_CONTEXT",
-        currentState: "__absent__",
-        transitions: [],
-      },
-      projectionSummary: {
-        workUnits: [],
-        agents: [],
-        transitions: [],
-        facts: [
-          {
-            workUnitTypeKey: "__PROJECT__",
-            key: "deliveryMode",
-            type: "string",
-            defaultValue: null,
-          },
-        ],
-      },
-      facts: [
-        {
-          key: "deliveryMode",
-          type: "string",
-          value: null,
-          missing: true,
-          indicator: "blocking",
-          sourceExecutionId: null,
-          updatedAt: null,
-        },
-      ],
-      diagnosticsHistory: {},
-      evidenceTimeline: [],
-    }) as {
-      projectionSummary?: { facts: Array<{ required: boolean }> };
-      facts: Array<{ required: boolean }>;
-    } | null;
-
-    expect(preview).not.toBeNull();
-    expect(preview?.facts[0]?.required).toBe(false);
-    expect(preview?.projectionSummary?.facts[0]?.required).toBe(false);
-  });
-
-  it("keeps transition workflow controls focusable with aria-disabled rationale", async () => {
-    const { queryClient } = createHarness();
-
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ProjectDashboardRoute />
-      </QueryClientProvider>,
-    );
-
-    const action = await screen.findByRole("button", { name: "Execute (Epic 3+)" });
-    action.focus();
-
-    expect(action).toBe(document.activeElement);
-    expect(action.getAttribute("aria-disabled")).toBe("true");
-    expect(
-      screen.getAllByText("Workflow runtime execution unlocks in Epic 3+").length,
-    ).toBeGreaterThan(0);
+    expect(await screen.findByText("No active workflows right now.")).toBeTruthy();
   });
 });

@@ -350,14 +350,26 @@ async function renderWorkflowDetailRoute(detail: WorkflowDetail) {
 
   const orpc = {
     project: {
+      createRuntimeWorkflowContextFactValue: {
+        mutationOptions: vi.fn(() => ({ mutationFn: async () => ({ affectedCount: 1 }) })),
+      },
+      deleteRuntimeWorkflowContextFactValue: {
+        mutationOptions: vi.fn(() => ({ mutationFn: async () => ({ affectedCount: 1 }) })),
+      },
       getRuntimeWorkflowExecutionDetail: {
         queryOptions: getRuntimeWorkflowExecutionDetailQueryOptionsMock,
+      },
+      removeRuntimeWorkflowContextFactValue: {
+        mutationOptions: vi.fn(() => ({ mutationFn: async () => ({ affectedCount: 1 }) })),
       },
       retrySameWorkflowExecution: {
         mutationOptions: retrySameWorkflowMutationOptionsMock,
       },
       completeWorkflowExecution: {
         mutationOptions: completeWorkflowExecutionMutationOptionsMock,
+      },
+      updateRuntimeWorkflowContextFactValue: {
+        mutationOptions: vi.fn(() => ({ mutationFn: async () => ({ affectedCount: 1 }) })),
       },
       activateWorkflowStepExecution: {
         mutationOptions: activateWorkflowStepExecutionMutationOptionsMock,
@@ -428,7 +440,7 @@ describe("runtime workflow execution detail route", () => {
     expect(markup).toContain("Workflow step surface");
     expect(markup).toContain("Entry step pending activation");
     expect(markup).toContain("Activate entry step");
-    expect(markup).toContain("Workflow context facts");
+    expect(markup).toContain("Workflow context manual CRUD");
     expect(markup).toContain("Workflow Mode");
     expect(markup).toContain("Project Summary");
     expect(markup).toContain("Project Parts");
@@ -436,6 +448,7 @@ describe("runtime workflow execution detail route", () => {
     expect(markup).toContain("1 instance");
     expect(markup).toContain("2 instances");
     expect(markup).toContain("View instances");
+    expect(markup).toContain("Context fact contract metadata is unavailable");
     expect(markup).not.toContain("Save draft");
     expect(markup).not.toContain("Submit");
     expect(markup).not.toContain("Replace value");
@@ -572,14 +585,26 @@ describe("runtime workflow execution detail route", () => {
 
       const orpc = {
         project: {
+          createRuntimeWorkflowContextFactValue: {
+            mutationOptions: vi.fn(() => ({ mutationFn: async () => ({ affectedCount: 1 }) })),
+          },
+          deleteRuntimeWorkflowContextFactValue: {
+            mutationOptions: vi.fn(() => ({ mutationFn: async () => ({ affectedCount: 1 }) })),
+          },
           getRuntimeWorkflowExecutionDetail: {
             queryOptions: getRuntimeWorkflowExecutionDetailQueryOptionsMock,
+          },
+          removeRuntimeWorkflowContextFactValue: {
+            mutationOptions: vi.fn(() => ({ mutationFn: async () => ({ affectedCount: 1 }) })),
           },
           retrySameWorkflowExecution: {
             mutationOptions: retrySameWorkflowMutationOptionsMock,
           },
           completeWorkflowExecution: {
             mutationOptions: completeWorkflowExecutionMutationOptionsMock,
+          },
+          updateRuntimeWorkflowContextFactValue: {
+            mutationOptions: vi.fn(() => ({ mutationFn: async () => ({ affectedCount: 1 }) })),
           },
           activateWorkflowStepExecution: {
             mutationOptions: activateWorkflowStepExecutionMutationOptionsMock,

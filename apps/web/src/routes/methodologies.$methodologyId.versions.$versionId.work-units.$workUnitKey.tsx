@@ -529,22 +529,41 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                         schema: rawValidation.schema,
                       }
                     : ({ kind: "none" } as const);
-            const apiFact = {
-              name: fact.name,
-              key: fact.key ?? "",
-              factType: fact.factType === "work unit" ? "work_unit" : fact.factType,
-              cardinality: fact.cardinality,
-              defaultValue: fact.defaultValue,
-              guidance:
-                humanGuidance.length > 0 || agentGuidance.length > 0
-                  ? {
-                      human: { markdown: humanGuidance },
-                      agent: { markdown: agentGuidance },
-                    }
-                  : undefined,
-              description: { markdown: description },
-              validation: apiValidation,
-            };
+            const apiFact =
+              fact.factType === "work unit"
+                ? {
+                    kind: "work_unit_reference_fact" as const,
+                    name: fact.name,
+                    key: fact.key ?? "",
+                    factType: "work_unit" as const,
+                    cardinality: fact.cardinality,
+                    guidance:
+                      humanGuidance.length > 0 || agentGuidance.length > 0
+                        ? {
+                            human: { markdown: humanGuidance },
+                            agent: { markdown: agentGuidance },
+                          }
+                        : undefined,
+                    description: { markdown: description },
+                    validation: apiValidation,
+                  }
+                : {
+                    kind: "plain_fact" as const,
+                    name: fact.name,
+                    key: fact.key ?? "",
+                    type: fact.factType as "string" | "number" | "boolean" | "json",
+                    factType: fact.factType as "string" | "number" | "boolean" | "json",
+                    cardinality: fact.cardinality,
+                    guidance:
+                      humanGuidance.length > 0 || agentGuidance.length > 0
+                        ? {
+                            human: { markdown: humanGuidance },
+                            agent: { markdown: agentGuidance },
+                          }
+                        : undefined,
+                    description: { markdown: description },
+                    validation: apiValidation,
+                  };
             await createWorkUnitFactMutation.mutateAsync({
               versionId,
               workUnitTypeKey: workUnitKey,
@@ -597,22 +616,41 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                         schema: rawValidation.schema,
                       }
                     : ({ kind: "none" } as const);
-            const apiFact = {
-              name: fact.name,
-              key: fact.key ?? "",
-              factType: fact.factType === "work unit" ? "work_unit" : fact.factType,
-              cardinality: fact.cardinality,
-              defaultValue: fact.defaultValue,
-              guidance:
-                humanGuidance.length > 0 || agentGuidance.length > 0
-                  ? {
-                      human: { markdown: humanGuidance },
-                      agent: { markdown: agentGuidance },
-                    }
-                  : undefined,
-              description: { markdown: description },
-              validation: apiValidation,
-            };
+            const apiFact =
+              fact.factType === "work unit"
+                ? {
+                    kind: "work_unit_reference_fact" as const,
+                    name: fact.name,
+                    key: fact.key ?? "",
+                    factType: "work_unit" as const,
+                    cardinality: fact.cardinality,
+                    guidance:
+                      humanGuidance.length > 0 || agentGuidance.length > 0
+                        ? {
+                            human: { markdown: humanGuidance },
+                            agent: { markdown: agentGuidance },
+                          }
+                        : undefined,
+                    description: { markdown: description },
+                    validation: apiValidation,
+                  }
+                : {
+                    kind: "plain_fact" as const,
+                    name: fact.name,
+                    key: fact.key ?? "",
+                    type: fact.factType as "string" | "number" | "boolean" | "json",
+                    factType: fact.factType as "string" | "number" | "boolean" | "json",
+                    cardinality: fact.cardinality,
+                    guidance:
+                      humanGuidance.length > 0 || agentGuidance.length > 0
+                        ? {
+                            human: { markdown: humanGuidance },
+                            agent: { markdown: agentGuidance },
+                          }
+                        : undefined,
+                    description: { markdown: description },
+                    validation: apiValidation,
+                  };
             await updateWorkUnitFactMutation.mutateAsync({
               versionId,
               workUnitTypeKey: workUnitKey,
@@ -745,7 +783,19 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
               displayName?: string;
             }[]
           }
-          facts={(Array.isArray(selectedWorkUnit?.factSchemas) ? selectedWorkUnit.factSchemas : [])
+          facts={(Array.isArray(
+            (
+              draftQuery.data as
+                | {
+                    factDefinitions?: ReadonlyArray<unknown>;
+                  }
+                | undefined
+            )?.factDefinitions,
+          )
+            ? ((draftQuery.data as { factDefinitions?: ReadonlyArray<unknown> }).factDefinitions ??
+              [])
+            : []
+          )
             .filter(
               (
                 fact,
@@ -766,25 +816,51 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
               ...(typeof fact.name === "string" ? { name: fact.name } : {}),
               ...(fact.factType ? { factType: fact.factType } : {}),
             }))}
-          dependencyDefinitions={dependencyDefinitions
+          currentWorkUnitFacts={(Array.isArray(selectedWorkUnit?.factSchemas)
+            ? selectedWorkUnit.factSchemas
+            : []
+          )
             .filter(
-              (entry): entry is { key: string; name?: string } =>
-                typeof entry.key === "string" && entry.key.trim().length > 0,
+              (
+                fact,
+              ): fact is {
+                key: string;
+                name?: string;
+                factType?: "string" | "number" | "boolean" | "json" | "work_unit";
+              } => {
+                if (!fact || typeof fact !== "object") {
+                  return false;
+                }
+                const value = fact as { key?: unknown };
+                return typeof value.key === "string" && value.key.trim().length > 0;
+              },
             )
-            .map((entry) => ({
-              key: entry.key,
-              ...(entry.name ? { name: entry.name } : {}),
+            .map((fact) => ({
+              key: fact.key,
+              ...(typeof fact.name === "string" ? { name: fact.name } : {}),
+              ...(fact.factType ? { factType: fact.factType } : {}),
             }))}
-          workUnits={workUnitTypes
+          artifactSlots={(Array.isArray(artifactSlotsQuery.data)
+            ? artifactSlotsQuery.data
+            : (selectedWorkUnit?.artifactSlots ?? [])
+          )
             .filter(
-              (workUnit): workUnit is { key: string; displayName?: string } =>
-                typeof workUnit.key === "string" && workUnit.key.trim().length > 0,
+              (
+                slot,
+              ): slot is {
+                key: string;
+                displayName?: string;
+              } => {
+                if (!slot || typeof slot !== "object") {
+                  return false;
+                }
+                const value = slot as { key?: unknown };
+                return typeof value.key === "string" && value.key.trim().length > 0;
+              },
             )
-            .map((workUnit) => ({
-              key: workUnit.key,
-              ...(typeof workUnit.displayName === "string"
-                ? { displayName: workUnit.displayName }
-                : {}),
+            .map((slot) => ({
+              key: slot.key,
+              ...(typeof slot.displayName === "string" ? { displayName: slot.displayName } : {}),
             }))}
           transitionWorkflowBindings={
             (

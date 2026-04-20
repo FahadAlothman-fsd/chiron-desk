@@ -76,12 +76,7 @@ type FactOption = {
   factType?: "string" | "number" | "boolean" | "json" | "work_unit";
 };
 
-type DependencyOption = {
-  key: string;
-  name?: string;
-};
-
-type WorkUnitTypeOption = {
+type ArtifactSlotOption = {
   key: string;
   displayName?: string;
 };
@@ -92,8 +87,8 @@ type StateMachineTabProps = {
   conditionSets: readonly TransitionConditionSet[];
   workflows?: readonly WorkflowOption[];
   facts?: readonly FactOption[];
-  dependencyDefinitions?: readonly DependencyOption[];
-  workUnits?: readonly WorkUnitTypeOption[];
+  currentWorkUnitFacts?: readonly FactOption[];
+  artifactSlots?: readonly ArtifactSlotOption[];
   transitionWorkflowBindings?: Record<string, readonly string[] | undefined>;
   onSaveStates?: (states: LifecycleState[]) => Promise<void>;
   onSaveTransitions?: (transitions: LifecycleTransition[]) => Promise<void>;
@@ -147,7 +142,8 @@ const absentFromStateLabel = "Activate Work Unit";
 const absentFromStateSubtitle = "For activating a work unit from an absent state.";
 
 type FactConditionOperator = "exists" | "equals";
-type WorkUnitConditionOperator = "exists" | "state_is";
+type WorkUnitFactConditionOperator = "exists" | "equals";
+type ArtifactConditionOperator = "exists" | "stale" | "fresh";
 
 type FactConditionConfig = {
   factKey: string;
@@ -155,11 +151,15 @@ type FactConditionConfig = {
   value?: string;
 };
 
-type WorkUnitConditionConfig = {
-  dependencyKey: string;
-  operator: WorkUnitConditionOperator;
-  workUnitKey?: string;
-  stateKey?: string;
+type WorkUnitFactConditionConfig = {
+  factKey: string;
+  operator: WorkUnitFactConditionOperator;
+  value?: string;
+};
+
+type ArtifactConditionConfig = {
+  slotKey: string;
+  operator: ArtifactConditionOperator;
 };
 
 const factConditionOperatorOptions: Array<{ value: FactConditionOperator; label: string }> = [
@@ -167,12 +167,21 @@ const factConditionOperatorOptions: Array<{ value: FactConditionOperator; label:
   { value: "equals", label: "equals" },
 ];
 
-const workUnitConditionOperatorOptions: Array<{
-  value: WorkUnitConditionOperator;
+const workUnitFactConditionOperatorOptions: Array<{
+  value: WorkUnitFactConditionOperator;
   label: string;
 }> = [
   { value: "exists", label: "exists" },
-  { value: "state_is", label: "state_is" },
+  { value: "equals", label: "equals" },
+];
+
+const artifactConditionOperatorOptions: Array<{
+  value: ArtifactConditionOperator;
+  label: string;
+}> = [
+  { value: "exists", label: "exists" },
+  { value: "stale", label: "stale" },
+  { value: "fresh", label: "fresh" },
 ];
 
 function normalizeFactConditionConfig(config: unknown): FactConditionConfig {
@@ -193,23 +202,46 @@ function normalizeFactConditionConfig(config: unknown): FactConditionConfig {
   };
 }
 
-function normalizeWorkUnitConditionConfig(config: unknown): WorkUnitConditionConfig {
+function normalizeWorkUnitFactConditionConfig(config: unknown): WorkUnitFactConditionConfig {
   if (!config || typeof config !== "object") {
-    return { dependencyKey: "", operator: "exists" };
+    return { factKey: "", operator: "exists" };
   }
 
   const value = config as {
+    factKey?: unknown;
     dependencyKey?: unknown;
     operator?: unknown;
-    workUnitKey?: unknown;
-    stateKey?: unknown;
+    value?: unknown;
   };
 
   return {
-    dependencyKey: typeof value.dependencyKey === "string" ? value.dependencyKey : "",
-    operator: value.operator === "state_is" ? "state_is" : "exists",
-    ...(typeof value.workUnitKey === "string" ? { workUnitKey: value.workUnitKey } : {}),
-    ...(typeof value.stateKey === "string" ? { stateKey: value.stateKey } : {}),
+    factKey:
+      typeof value.factKey === "string"
+        ? value.factKey
+        : typeof value.dependencyKey === "string"
+          ? value.dependencyKey
+          : "",
+    operator: value.operator === "equals" ? "equals" : "exists",
+    ...(typeof value.value === "string" ? { value: value.value } : {}),
+  };
+}
+
+function normalizeArtifactConditionConfig(config: unknown): ArtifactConditionConfig {
+  if (!config || typeof config !== "object") {
+    return { slotKey: "", operator: "exists" };
+  }
+
+  const value = config as {
+    slotKey?: unknown;
+    operator?: unknown;
+  };
+
+  return {
+    slotKey: typeof value.slotKey === "string" ? value.slotKey : "",
+    operator:
+      value.operator === "stale" || value.operator === "fresh" || value.operator === "exists"
+        ? value.operator
+        : "exists",
   };
 }
 
@@ -302,8 +334,8 @@ export function StateMachineTab({
   conditionSets,
   workflows,
   facts = [],
-  dependencyDefinitions = [],
-  workUnits = [],
+  currentWorkUnitFacts = [],
+  artifactSlots = [],
   transitionWorkflowBindings,
   onSaveStates,
   onSaveTransitions,
@@ -679,24 +711,35 @@ export function StateMachineTab({
     [facts],
   );
 
-  const dependencySelectionOptions = useMemo(
+  const workUnitFactSelectionOptions = useMemo(
     () =>
-      dependencyDefinitions
+      currentWorkUnitFacts
         .filter(
-          (entry): entry is { key: string; name?: string } =>
-            typeof entry.key === "string" && entry.key.trim().length > 0,
+          (
+            fact,
+          ): fact is {
+            key: string;
+            name?: string;
+            factType?: "string" | "number" | "boolean" | "json" | "work_unit";
+          } => typeof fact.key === "string" && fact.key.trim().length > 0,
         )
-        .map((entry) => ({
-          value: entry.key,
-          label: entry.key,
-          ...(entry.name ? { subtitle: entry.name } : {}),
+        .map((fact) => ({
+          value: fact.key,
+          label: fact.key,
+          ...(() => {
+            const subtitle =
+              (fact.name?.trim().length ?? 0) > 0
+                ? `${fact.name} ${fact.factType ? `(${fact.factType})` : ""}`
+                : fact.factType;
+            return subtitle ? { subtitle } : {};
+          })(),
         })),
-    [dependencyDefinitions],
+    [currentWorkUnitFacts],
   );
 
-  const workUnitSelectionOptions = useMemo(
+  const artifactSlotSelectionOptions = useMemo(
     () =>
-      workUnits
+      artifactSlots
         .filter(
           (entry): entry is { key: string; displayName?: string } =>
             typeof entry.key === "string" && entry.key.trim().length > 0,
@@ -706,17 +749,7 @@ export function StateMachineTab({
           label: entry.key,
           ...(entry.displayName ? { subtitle: entry.displayName } : {}),
         })),
-    [workUnits],
-  );
-
-  const stateSelectionOptions = useMemo(
-    () =>
-      statesDraft.map((state) => ({
-        value: state.key,
-        label: state.key,
-        ...(state.displayName ? { subtitle: state.displayName } : {}),
-      })),
-    [statesDraft],
+    [artifactSlots],
   );
 
   const updateGroupEditorCondition = (conditionIndex: number, next: TransitionCondition) => {
@@ -732,7 +765,7 @@ export function StateMachineTab({
     );
   };
 
-  const addGroupCondition = (kind: "fact" | "work_unit") => {
+  const addGroupCondition = (kind: "fact" | "work_unit_fact" | "artifact") => {
     setGroupEditor((previous) =>
       previous
         ? {
@@ -745,7 +778,9 @@ export function StateMachineTab({
                 config:
                   kind === "fact"
                     ? { factKey: "", operator: "exists" }
-                    : { dependencyKey: "", operator: "exists" },
+                    : kind === "work_unit_fact"
+                      ? { factKey: "", operator: "exists" }
+                      : { slotKey: "", operator: "exists" },
               },
             ],
           }
@@ -844,54 +879,36 @@ export function StateMachineTab({
       );
     }
 
-    if (condition.kind === "work_unit") {
-      const config = normalizeWorkUnitConditionConfig(condition.config);
+    if (condition.kind === "work_unit_fact" || condition.kind === "work_unit") {
+      const config = normalizeWorkUnitFactConditionConfig(condition.config);
       return (
         <div key={testId} data-testid={testId} className="chiron-frame-flat grid gap-3 p-3">
           <div className="flex items-center justify-between gap-2 text-xs uppercase tracking-[0.12em] text-muted-foreground">
-            <span>Work Unit Condition</span>
+            <span>Work Unit Fact Condition</span>
             <span className="text-[0.68rem] normal-case tracking-normal text-foreground/90">
-              {config.dependencyKey || "Select dependency"}
-              {config.workUnitKey ? ` • ${config.workUnitKey}` : ""}
+              {config.factKey || "Select fact"}
               {` • ${config.operator}`}
-              {config.operator === "state_is" && config.stateKey ? ` ${config.stateKey}` : ""}
+              {config.operator === "equals" && config.value?.trim().length
+                ? ` ${config.value}`
+                : ""}
             </span>
           </div>
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-3">
             <ConditionComboboxField
-              label="Dependency"
-              placeholder="Select dependency"
-              searchPlaceholder="Search dependencies..."
-              emptyText="No dependencies found."
-              value={config.dependencyKey}
-              options={dependencySelectionOptions}
-              onSelect={(dependencyKey) => {
+              label="Fact"
+              placeholder="Select fact"
+              searchPlaceholder="Search work-unit facts..."
+              emptyText="No work-unit facts found."
+              value={config.factKey}
+              options={workUnitFactSelectionOptions}
+              onSelect={(factKey) => {
                 onChange({
                   ...condition,
-                  kind: "work_unit",
+                  kind: "work_unit_fact",
                   required: condition.required ?? true,
                   config: {
                     ...config,
-                    dependencyKey,
-                  },
-                });
-              }}
-            />
-            <ConditionComboboxField
-              label="Work Unit"
-              placeholder="Select work unit"
-              searchPlaceholder="Search work units..."
-              emptyText="No work units found."
-              value={config.workUnitKey ?? ""}
-              options={workUnitSelectionOptions}
-              onSelect={(workUnitKey) => {
-                onChange({
-                  ...condition,
-                  kind: "work_unit",
-                  required: condition.required ?? true,
-                  config: {
-                    ...config,
-                    workUnitKey,
+                    factKey,
                   },
                 });
               }}
@@ -903,10 +920,10 @@ export function StateMachineTab({
                 className="h-9 w-full rounded-none border border-input bg-background px-2 text-xs"
                 value={config.operator}
                 onChange={(event) => {
-                  const operator = event.target.value === "state_is" ? "state_is" : "exists";
+                  const operator = event.target.value === "equals" ? "equals" : "exists";
                   onChange({
                     ...condition,
-                    kind: "work_unit",
+                    kind: "work_unit_fact",
                     required: condition.required ?? true,
                     config: {
                       ...config,
@@ -915,34 +932,99 @@ export function StateMachineTab({
                   });
                 }}
               >
-                {workUnitConditionOperatorOptions.map((option) => (
+                {workUnitFactConditionOperatorOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
                 ))}
               </select>
             </div>
-            {config.operator === "state_is" ? (
-              <ConditionComboboxField
-                label="State"
-                placeholder="Select state"
-                searchPlaceholder="Search states..."
-                emptyText="No states found."
-                value={config.stateKey ?? ""}
-                options={stateSelectionOptions}
-                onSelect={(stateKey) => {
+            {config.operator === "equals" ? (
+              <div className="space-y-2">
+                <Label htmlFor={`${testId}-value`}>Value</Label>
+                <Input
+                  id={`${testId}-value`}
+                  className="rounded-none"
+                  value={config.value ?? ""}
+                  onChange={(event) => {
+                    onChange({
+                      ...condition,
+                      kind: "work_unit_fact",
+                      required: condition.required ?? true,
+                      config: {
+                        ...config,
+                        value: event.target.value,
+                      },
+                    });
+                  }}
+                />
+              </div>
+            ) : null}
+          </div>
+        </div>
+      );
+    }
+
+    if (condition.kind === "artifact") {
+      const config = normalizeArtifactConditionConfig(condition.config);
+      return (
+        <div key={testId} data-testid={testId} className="chiron-frame-flat grid gap-3 p-3">
+          <div className="flex items-center justify-between gap-2 text-xs uppercase tracking-[0.12em] text-muted-foreground">
+            <span>Artifact Condition</span>
+            <span className="text-[0.68rem] normal-case tracking-normal text-foreground/90">
+              {config.slotKey || "Select artifact slot"}
+              {` • ${config.operator}`}
+            </span>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <ConditionComboboxField
+              label="Artifact Slot"
+              placeholder="Select artifact slot"
+              searchPlaceholder="Search artifact slots..."
+              emptyText="No artifact slots found."
+              value={config.slotKey}
+              options={artifactSlotSelectionOptions}
+              onSelect={(slotKey) => {
+                onChange({
+                  ...condition,
+                  kind: "artifact",
+                  required: condition.required ?? true,
+                  config: {
+                    ...config,
+                    slotKey,
+                  },
+                });
+              }}
+            />
+            <div className="space-y-2">
+              <Label htmlFor={`${testId}-operator`}>Operator</Label>
+              <select
+                id={`${testId}-operator`}
+                className="h-9 w-full rounded-none border border-input bg-background px-2 text-xs"
+                value={config.operator}
+                onChange={(event) => {
+                  const operator =
+                    event.target.value === "stale" || event.target.value === "fresh"
+                      ? event.target.value
+                      : "exists";
                   onChange({
                     ...condition,
-                    kind: "work_unit",
+                    kind: "artifact",
                     required: condition.required ?? true,
                     config: {
                       ...config,
-                      stateKey,
+                      operator,
                     },
                   });
                 }}
-              />
-            ) : null}
+              >
+                {artifactConditionOperatorOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       );
@@ -965,11 +1047,16 @@ export function StateMachineTab({
         : `${config.factKey || "(fact)"} ${config.operator}`;
     }
 
-    if (condition.kind === "work_unit") {
-      const config = normalizeWorkUnitConditionConfig(condition.config);
-      return config.operator === "state_is" && config.stateKey
-        ? `${config.dependencyKey || "(dependency)"} ${config.operator} ${config.stateKey}`
-        : `${config.dependencyKey || "(dependency)"} ${config.operator}`;
+    if (condition.kind === "work_unit_fact" || condition.kind === "work_unit") {
+      const config = normalizeWorkUnitFactConditionConfig(condition.config);
+      return config.operator === "equals" && config.value?.trim().length
+        ? `${config.factKey || "(work-unit fact)"} ${config.operator} ${config.value}`
+        : `${config.factKey || "(work-unit fact)"} ${config.operator}`;
+    }
+
+    if (condition.kind === "artifact") {
+      const config = normalizeArtifactConditionConfig(condition.config);
+      return `${config.slotKey || "(artifact slot)"} ${config.operator}`;
     }
 
     return condition.kind;
@@ -1949,15 +2036,23 @@ export function StateMachineTab({
                   className="rounded-none"
                   onClick={() => addGroupCondition("fact")}
                 >
-                  Add Fact Condition
+                  Add Project Fact Condition
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   className="rounded-none"
-                  onClick={() => addGroupCondition("work_unit")}
+                  onClick={() => addGroupCondition("work_unit_fact")}
                 >
-                  Add Work Unit Condition
+                  Add Work Unit Fact Condition
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-none"
+                  onClick={() => addGroupCondition("artifact")}
+                >
+                  Add Artifact Condition
                 </Button>
               </div>
               <div className="grid gap-3">

@@ -28,6 +28,9 @@ vi.mock("@/features/methodologies/workspace-shell", () => ({
 }));
 
 vi.mock("@/components/ui/button", () => ({
+  Button: ({ children, ...props }: React.ComponentProps<"button">) => (
+    <button {...props}>{children}</button>
+  ),
   buttonVariants: () => "",
 }));
 
@@ -69,20 +72,17 @@ import { ProjectFactsRoute } from "../../routes/projects.$projectId.facts";
 import { ProjectFactDetailRoute } from "../../routes/projects.$projectId.facts.$factDefinitionId.tsx";
 
 function createHarness() {
-  const addRuntimeProjectFactValueMutationOptionsMock = vi.fn(() => ({
+  const createRuntimeProjectFactValueMutationOptionsMock = vi.fn(() => ({
     mutationFn: vi.fn(async () => ({ projectFactInstanceId: "pfi-new" })),
   }));
-  const setRuntimeProjectFactValueMutationOptionsMock = vi.fn(() => ({
+  const updateRuntimeProjectFactValueMutationOptionsMock = vi.fn(() => ({
     mutationFn: vi.fn(async () => ({
       projectFactInstanceId: "pfi-set",
       supersededProjectFactInstanceId: "pfi-1",
     })),
   }));
-  const replaceRuntimeProjectFactValueMutationOptionsMock = vi.fn(() => ({
-    mutationFn: vi.fn(async () => ({
-      projectFactInstanceId: "pfi-replaced",
-      supersededProjectFactInstanceId: "pfi-1",
-    })),
+  const deleteRuntimeProjectFactValueMutationOptionsMock = vi.fn(() => ({
+    mutationFn: vi.fn(async () => ({ affectedCount: 1, affectedInstanceIds: ["pfi-deleted"] })),
   }));
 
   const orpc = {
@@ -130,7 +130,7 @@ function createHarness() {
               currentCount: 1,
               values: [
                 {
-                  projectFactInstanceId: "pfi-1",
+                  instanceId: "pfi-1",
                   value: "incremental",
                   createdAt: "2026-03-28T12:00:00.000Z",
                 },
@@ -144,14 +144,14 @@ function createHarness() {
           }),
         })),
       },
-      addRuntimeProjectFactValue: {
-        mutationOptions: addRuntimeProjectFactValueMutationOptionsMock,
+      createRuntimeProjectFactValue: {
+        mutationOptions: createRuntimeProjectFactValueMutationOptionsMock,
       },
-      setRuntimeProjectFactValue: {
-        mutationOptions: setRuntimeProjectFactValueMutationOptionsMock,
+      updateRuntimeProjectFactValue: {
+        mutationOptions: updateRuntimeProjectFactValueMutationOptionsMock,
       },
-      replaceRuntimeProjectFactValue: {
-        mutationOptions: replaceRuntimeProjectFactValueMutationOptionsMock,
+      deleteRuntimeProjectFactValue: {
+        mutationOptions: deleteRuntimeProjectFactValueMutationOptionsMock,
       },
     },
   };
@@ -175,9 +175,9 @@ function createHarness() {
   return {
     queryClient,
     orpc,
-    addRuntimeProjectFactValueMutationOptionsMock,
-    setRuntimeProjectFactValueMutationOptionsMock,
-    replaceRuntimeProjectFactValueMutationOptionsMock,
+    createRuntimeProjectFactValueMutationOptionsMock,
+    updateRuntimeProjectFactValueMutationOptionsMock,
+    deleteRuntimeProjectFactValueMutationOptionsMock,
   };
 }
 
@@ -190,9 +190,9 @@ describe("runtime project facts routes", () => {
     const {
       queryClient,
       orpc,
-      addRuntimeProjectFactValueMutationOptionsMock,
-      setRuntimeProjectFactValueMutationOptionsMock,
-      replaceRuntimeProjectFactValueMutationOptionsMock,
+      createRuntimeProjectFactValueMutationOptionsMock,
+      updateRuntimeProjectFactValueMutationOptionsMock,
+      deleteRuntimeProjectFactValueMutationOptionsMock,
     } = createHarness();
 
     await queryClient.prefetchQuery(
@@ -212,18 +212,18 @@ describe("runtime project facts routes", () => {
     expect(markup).toContain("Add value");
     expect(markup).toContain('href="/projects/$projectId/facts/$factDefinitionId"');
 
-    expect(addRuntimeProjectFactValueMutationOptionsMock).not.toHaveBeenCalled();
-    expect(setRuntimeProjectFactValueMutationOptionsMock).not.toHaveBeenCalled();
-    expect(replaceRuntimeProjectFactValueMutationOptionsMock).not.toHaveBeenCalled();
+    expect(createRuntimeProjectFactValueMutationOptionsMock).not.toHaveBeenCalled();
+    expect(updateRuntimeProjectFactValueMutationOptionsMock).not.toHaveBeenCalled();
+    expect(deleteRuntimeProjectFactValueMutationOptionsMock).not.toHaveBeenCalled();
   });
 
-  it("wires add, set, and replace controls only to runtime fact mutation procedures", async () => {
+  it("wires create, update, and delete controls only to runtime fact mutation procedures", async () => {
     const {
       queryClient,
       orpc,
-      addRuntimeProjectFactValueMutationOptionsMock,
-      setRuntimeProjectFactValueMutationOptionsMock,
-      replaceRuntimeProjectFactValueMutationOptionsMock,
+      createRuntimeProjectFactValueMutationOptionsMock,
+      updateRuntimeProjectFactValueMutationOptionsMock,
+      deleteRuntimeProjectFactValueMutationOptionsMock,
     } = createHarness();
 
     await queryClient.prefetchQuery(
@@ -238,13 +238,14 @@ describe("runtime project facts routes", () => {
       </QueryClientProvider>,
     );
 
-    expect(markup).toContain("Manual authoring (project facts only)");
-    expect(markup).toContain("Slice-1 scope");
-    expect(markup).toContain("project-fact-add-form");
-    expect(markup).toContain("project-fact-replace-form-pfi-1");
+    expect(markup).toContain("Manual runtime CRUD");
+    expect(markup).toContain("Dialogs are the canonical manual CRUD surface here.");
+    expect(markup).toContain("Add instance");
+    expect(markup).toContain("Edit instance");
+    expect(markup).toContain("Delete current value");
 
-    expect(addRuntimeProjectFactValueMutationOptionsMock).toHaveBeenCalledTimes(1);
-    expect(setRuntimeProjectFactValueMutationOptionsMock).toHaveBeenCalledTimes(1);
-    expect(replaceRuntimeProjectFactValueMutationOptionsMock).toHaveBeenCalledTimes(1);
+    expect(createRuntimeProjectFactValueMutationOptionsMock).toHaveBeenCalledTimes(1);
+    expect(updateRuntimeProjectFactValueMutationOptionsMock).toHaveBeenCalledTimes(1);
+    expect(deleteRuntimeProjectFactValueMutationOptionsMock).toHaveBeenCalledTimes(1);
   });
 });

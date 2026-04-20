@@ -175,7 +175,7 @@ function buildDetail(): any {
     body: {
       stepType: "invoke" as const,
       targetKind: "work_unit" as const,
-      sourceMode: "context_fact_backed" as const,
+      sourceMode: "fact_backed" as const,
       sourceContextFactDefinitionId:
         "seed:l3-setup-invoke:setup:mver_bmad_v1_active:fact:research-draft-specs",
       sourceContextFactKey: "cf_research_draft_specs",
@@ -240,6 +240,7 @@ function buildDetail(): any {
               invokeWorkUnitTargetExecutionId: "invoke-work-unit-row-1",
             },
           },
+          bindingPreview: [],
         },
         {
           workUnitLabel: "Story: Payments",
@@ -267,6 +268,7 @@ function buildDetail(): any {
               invokeWorkUnitTargetExecutionId: "invoke-work-unit-row-2",
             },
           },
+          bindingPreview: [],
         },
         {
           workUnitLabel: "Story: Search",
@@ -314,6 +316,7 @@ function buildDetail(): any {
               },
             },
           },
+          bindingPreview: [],
         },
       ],
       completionSummary: {
@@ -559,7 +562,7 @@ describe("runtime invoke step detail route", () => {
     expect(screen.getByText("Invoke targets, completion rule & propagation preview")).toBeTruthy();
     expect(screen.getByText("Target kind")).toBeTruthy();
     expect(screen.getAllByText("Work unit").length).toBeGreaterThan(0);
-    expect(screen.getByText("Context-fact backed")).toBeTruthy();
+    expect(screen.getByText("Fact backed")).toBeTruthy();
     expect(
       screen.getByText(
         "Bound context fact: cf_research_draft_specs · seed:l3-setup-invoke:setup:mver_bmad_v1_active:fact:research-draft-specs",
@@ -619,7 +622,7 @@ describe("runtime invoke step detail route", () => {
     await waitFor(() => expect(harness.detailQueryCalls()).toBeGreaterThan(1));
 
     await user.selectOptions(screen.getByRole("combobox"), "workflow-primary-2");
-    await user.click(screen.getAllByRole("button", { name: "Start work unit" })[1]);
+    await user.click(screen.getAllByRole("button", { name: "Start work unit" }).at(1)!);
 
     await waitFor(() => expect(harness.startWorkUnitCalls).toHaveLength(1));
     expect(harness.startWorkUnitCalls[0]).toMatchObject({
@@ -670,7 +673,7 @@ describe("runtime invoke step detail route", () => {
     });
 
     const startButtons = screen.getAllByRole("button", { name: "Start work unit" });
-    const blockedStartButton = startButtons[0];
+    const blockedStartButton = startButtons.at(0)!;
     expect(blockedStartButton).toHaveProperty("disabled", true);
     expect(screen.queryByRole("button", { name: "Complete Step" })).toBeNull();
     expect(screen.getAllByText("No invoke targets resolved").length).toBeGreaterThan(0);

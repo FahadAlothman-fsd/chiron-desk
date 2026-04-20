@@ -52,8 +52,8 @@ function buildMethodologyVersionSectionHref({
 }: {
   methodologyId: string;
   versionId: string;
-  section: "facts" | "work-units" | "agents" | "dependency-definitions";
-  intent?: "add-fact" | "add-work-unit" | "add-agent" | "add-link-type";
+  section: "facts" | "work-units" | "dependency-definitions";
+  intent?: "add-fact" | "add-work-unit" | "add-link-type";
 }) {
   const pathname = `/methodologies/${encodeURIComponent(methodologyId)}/versions/${encodeURIComponent(versionId)}/${section}`;
 
@@ -380,23 +380,6 @@ export function MethodologyCommandPalette({
                                 );
                                 return;
                               }
-                              case METHODOLOGY_COMMAND_IDS.NAV_AGENTS: {
-                                const methodologyKey = command.targetMethodologyKey;
-                                const targetVersionId = command.targetVersionId;
-                                if (!methodologyKey || !targetVersionId) {
-                                  return;
-                                }
-                                navigateAndClose(command.id, () =>
-                                  navigate({
-                                    to: "/methodologies/$methodologyId/versions/$versionId/agents",
-                                    params: {
-                                      methodologyId: methodologyKey,
-                                      versionId: targetVersionId,
-                                    },
-                                  }),
-                                );
-                                return;
-                              }
                               case METHODOLOGY_COMMAND_IDS.NAV_DEPENDENCY_DEFINITIONS: {
                                 const methodologyKey = command.targetMethodologyKey;
                                 const targetVersionId = command.targetVersionId;
@@ -464,24 +447,6 @@ export function MethodologyCommandPalette({
                                       versionId: targetVersionId,
                                       section: "work-units",
                                       intent: "add-work-unit",
-                                    }),
-                                  }),
-                                );
-                                return;
-                              }
-                              case METHODOLOGY_COMMAND_IDS.CREATE_AGENT: {
-                                const methodologyKey = command.targetMethodologyKey;
-                                const targetVersionId = command.targetVersionId;
-                                if (!methodologyKey || !targetVersionId) {
-                                  return;
-                                }
-                                navigateAndClose(command.id, () =>
-                                  navigate({
-                                    href: buildMethodologyVersionSectionHref({
-                                      methodologyId: methodologyKey,
-                                      versionId: targetVersionId,
-                                      section: "agents",
-                                      intent: "add-agent",
                                     }),
                                   }),
                                 );

@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { useRouteContextMock, useParamsMock, useSearchMock } = vi.hoisted(() => ({
+const { useNavigateMock, useRouteContextMock, useParamsMock, useSearchMock } = vi.hoisted(() => ({
+  useNavigateMock: vi.fn(),
   useRouteContextMock: vi.fn(),
   useParamsMock: vi.fn(),
   useSearchMock: vi.fn(),
@@ -12,6 +13,7 @@ const { useRouteContextMock, useParamsMock, useSearchMock } = vi.hoisted(() => (
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (options: Record<string, unknown>) => ({
     ...options,
+    useNavigate: () => useNavigateMock,
     useRouteContext: useRouteContextMock,
     useParams: useParamsMock,
     useSearch: useSearchMock,
@@ -44,10 +46,7 @@ import {
   TransitionExecutionShellRoute,
   runtimeTransitionExecutionShellQueryKey,
 } from "../../routes/projects.$projectId.transition-executions.$transitionExecutionId";
-import {
-  WorkflowExecutionShellRoute,
-  runtimeWorkflowExecutionShellQueryKey,
-} from "../../routes/projects.$projectId.workflow-executions.$workflowExecutionId";
+import { WorkflowExecutionShellRoute } from "../../routes/projects.$projectId.workflow-executions.$workflowExecutionId";
 
 function buildRouteContext() {
   const getRuntimeGuidanceActiveQueryOptionsMock = vi.fn(
@@ -121,6 +120,47 @@ function buildRouteContext() {
           status: "active",
           startedAt: "2026-03-28T12:00:00.000Z",
         },
+        transitionDefinition: {
+          transitionId: "tr_story_start",
+          transitionKey: "TR.STORY.START",
+          transitionName: "Start story",
+          fromStateKey: "draft",
+          fromStateLabel: "Draft",
+          toStateLabel: "In Progress",
+          completionConditionSets: [],
+          boundWorkflows: [
+            {
+              workflowId: "wf_story_start_primary",
+              workflowKey: "WF.STORY.START.PRIMARY",
+              workflowName: "Start story workflow",
+            },
+          ],
+        },
+        completionGate: {
+          panelState: "workflow_running",
+          lastEvaluatedAt: "2026-03-28T12:01:00.000Z",
+          completedAt: undefined,
+          firstBlockingReason: undefined,
+          evaluationTree: {
+            conditions: [],
+            groups: [],
+          },
+          actions: {},
+        },
+        currentPrimaryWorkflow: {
+          workflowExecutionId: "we_story_start_primary_001",
+          workflowId: "wf_story_start_primary",
+          workflowKey: "WF.STORY.START.PRIMARY",
+          workflowName: "Start story workflow",
+          status: "active",
+          startedAt: "2026-03-28T12:00:00.000Z",
+        },
+        startGate: {
+          startedAt: "2026-03-28T12:00:00.000Z",
+          note: "Transition started from guidance.",
+        },
+        primaryAttemptHistory: [],
+        supportingWorkflows: [],
       }),
     }),
   );
@@ -156,6 +196,24 @@ function buildRouteContext() {
   return {
     orpc: {
       project: {
+        activateWorkflowStepExecution: {
+          mutationOptions: () => ({ mutationFn: vi.fn() }),
+        },
+        choosePrimaryWorkflowForTransitionExecution: {
+          mutationOptions: () => ({ mutationFn: vi.fn() }),
+        },
+        completeTransitionExecution: {
+          mutationOptions: () => ({ mutationFn: vi.fn() }),
+        },
+        completeWorkflowExecution: {
+          mutationOptions: () => ({ mutationFn: vi.fn() }),
+        },
+        createRuntimeWorkflowContextFactValue: {
+          mutationOptions: () => ({ mutationFn: vi.fn() }),
+        },
+        deleteRuntimeWorkflowContextFactValue: {
+          mutationOptions: () => ({ mutationFn: vi.fn() }),
+        },
         getRuntimeGuidanceActive: {
           queryOptions: getRuntimeGuidanceActiveQueryOptionsMock,
         },
@@ -164,6 +222,15 @@ function buildRouteContext() {
         },
         getRuntimeWorkflowExecutionDetail: {
           queryOptions: getRuntimeWorkflowExecutionDetailQueryOptionsMock,
+        },
+        removeRuntimeWorkflowContextFactValue: {
+          mutationOptions: () => ({ mutationFn: vi.fn() }),
+        },
+        retrySameWorkflowExecution: {
+          mutationOptions: () => ({ mutationFn: vi.fn() }),
+        },
+        updateRuntimeWorkflowContextFactValue: {
+          mutationOptions: () => ({ mutationFn: vi.fn() }),
         },
       },
     },
@@ -243,7 +310,7 @@ describe("runtime execution route shells", () => {
   });
 
   it("renders workflow shell loader boundary and workflow navigation target", () => {
-    const { orpc } = buildRouteContext();
+    const { orpc, getRuntimeWorkflowExecutionDetailQueryOptionsMock } = buildRouteContext();
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false, gcTime: 0 },
@@ -265,12 +332,13 @@ describe("runtime execution route shells", () => {
     );
 
     expect(markup).toContain("Workflow execution");
-    expect(markup).toContain("Loading workflow execution context");
-    expect(markup).toContain('href="/projects/$projectId/workflows"');
-    expect(markup).toContain('href="/projects/$projectId/transitions"');
+    expect(markup).toContain("Loading workflow execution detail…");
     expect(markup).toContain("runtime-workflow-execution-shell-boundary");
-    expect(markup).toContain(
-      runtimeWorkflowExecutionShellQueryKey("project-1", "we_story_start_primary_001").join(","),
-    );
+    expect(getRuntimeWorkflowExecutionDetailQueryOptionsMock).toHaveBeenCalledWith({
+      input: {
+        projectId: "project-1",
+        workflowExecutionId: "we_story_start_primary_001",
+      },
+    });
   });
 });

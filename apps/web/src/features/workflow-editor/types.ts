@@ -61,8 +61,8 @@ export type WorkflowConditionOperand = {
     | "number"
     | "boolean"
     | "work_unit"
-    | "workflow_reference"
-    | "artifact_reference"
+    | "workflow_ref"
+    | "artifact_snapshot"
     | "json_object";
   cardinality: "one" | "many";
   freshnessCapable: boolean;
@@ -101,24 +101,24 @@ type WorkflowInvokeStepShared = {
 export type WorkflowInvokeStepPayload =
   | (WorkflowInvokeStepShared & {
       targetKind: "workflow";
-      sourceMode: "fixed_set";
+      sourceMode: "fixed";
       workflowDefinitionIds: string[];
     })
   | (WorkflowInvokeStepShared & {
       targetKind: "workflow";
-      sourceMode: "context_fact_backed";
+      sourceMode: "fact_backed";
       contextFactDefinitionId: string;
     })
   | (WorkflowInvokeStepShared & {
       targetKind: "work_unit";
-      sourceMode: "fixed_set";
+      sourceMode: "fixed";
       workUnitDefinitionId: string;
       bindings: InvokeBindingPayload[];
       activationTransitions: InvokeActivationTransitionPayload[];
     })
   | (WorkflowInvokeStepShared & {
       targetKind: "work_unit";
-      sourceMode: "context_fact_backed";
+      sourceMode: "fact_backed";
       contextFactDefinitionId: string;
       bindings: InvokeBindingPayload[];
       activationTransitions: InvokeActivationTransitionPayload[];
@@ -245,7 +245,7 @@ export type WorkflowEditorStep =
     }
   | {
       stepId: string;
-      stepType: Exclude<WorkflowEditorStepType, "form" | "agent" | "invoke" | "branch">;
+      stepType: Exclude<WorkflowEditorStepType, "form" | "agent" | "action" | "invoke" | "branch">;
       payload: WorkflowFormStepPayload;
     };
 
@@ -284,10 +284,9 @@ export type WorkflowEditorPickerBadge = {
     | "source-methodology"
     | "source-current-work-unit"
     | "cardinality"
-    | "external-fact"
     | "bound-fact"
-    | "workflow-reference"
-    | "artifact-reference"
+    | "workflow-ref"
+    | "artifact-snapshot"
     | "type-string"
     | "type-number"
     | "type-boolean"
@@ -307,18 +306,20 @@ export type WorkflowContextFactDraft = {
   kind: WorkflowContextFactKind;
   cardinality: WorkflowContextFactCardinality;
   guidance: WorkflowEditorGuidance;
+  type?: WorkflowContextFactValueType;
   valueType?: WorkflowContextFactValueType;
+  factDefinitionId?: string;
   externalFactDefinitionId?: string;
   workUnitStateOptions?: readonly WorkflowEditorPickerOption[];
-  allowedWorkflowDefinitionIds: string[];
+  allowedWorkflowDefinitionIds: readonly string[];
+  slotDefinitionId?: string;
   artifactSlotDefinitionId?: string;
   workUnitDefinitionId?: string;
-  selectedWorkUnitFactDefinitionIds: string[];
-  selectedArtifactSlotDefinitionIds: string[];
-  validationJson?: unknown;
-  // Legacy compatibility fields (to be removed after migration)
   workUnitTypeKey?: string;
-  includedFactDefinitionIds: string[];
+  selectedWorkUnitFactDefinitionIds: readonly string[];
+  selectedArtifactSlotDefinitionIds: readonly string[];
+  validationJson?: unknown;
+  includedFactDefinitionIds: readonly string[];
 };
 
 export type WorkflowContextFactDefinitionItem = {
@@ -329,19 +330,21 @@ export type WorkflowContextFactDefinitionItem = {
   kind: WorkflowContextFactKind;
   cardinality: WorkflowContextFactCardinality;
   guidance: WorkflowEditorGuidance;
+  type?: WorkflowContextFactValueType;
   valueType?: WorkflowContextFactValueType;
+  factDefinitionId?: string;
   externalFactDefinitionId?: string;
   workUnitStateOptions?: readonly WorkflowEditorPickerOption[];
-  allowedWorkflowDefinitionIds: string[];
+  allowedWorkflowDefinitionIds: readonly string[];
+  slotDefinitionId?: string;
   artifactSlotDefinitionId?: string;
   workUnitDefinitionId?: string;
-  selectedWorkUnitFactDefinitionIds: string[];
-  selectedArtifactSlotDefinitionIds: string[];
-  validationJson?: unknown;
-  // Legacy compatibility fields (to be removed after migration)
   workUnitTypeKey?: string;
+  selectedWorkUnitFactDefinitionIds?: readonly string[];
+  selectedArtifactSlotDefinitionIds?: readonly string[];
+  validationJson?: unknown;
   draftSpecSubFieldOptions?: readonly WorkflowDraftSpecSubFieldOption[];
-  includedFactDefinitionIds: string[];
+  includedFactDefinitionIds: readonly string[];
   summary: string;
 };
 

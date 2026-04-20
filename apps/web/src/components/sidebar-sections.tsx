@@ -124,14 +124,6 @@ export function buildSidebarSections(
             ),
           },
           {
-            label: "Agents",
-            to: `/methodologies/${methodologyId}/versions/${methodologyVersionId}/agents`,
-            icon: <WrenchIcon className="size-4" />,
-            isActive: pathname.startsWith(
-              `/methodologies/${methodologyId}/versions/${methodologyVersionId}/agents`,
-            ),
-          },
-          {
             label: "Dependency Definitions",
             to: `/methodologies/${methodologyId}/versions/${methodologyVersionId}/dependency-definitions`,
             icon: <PackageIcon className="size-4" />,

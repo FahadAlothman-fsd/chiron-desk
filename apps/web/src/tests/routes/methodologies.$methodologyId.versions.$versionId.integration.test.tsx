@@ -183,24 +183,20 @@ describe("methodology workspace entry route", () => {
 
     expect(screen.getByText("Work Units")).toBeTruthy();
     expect(screen.getByText("Facts")).toBeTruthy();
-    expect(screen.getByText("Agents")).toBeTruthy();
     expect(screen.getByText("Link Types")).toBeTruthy();
 
     expect(screen.getByText(/Open Work Units/i)).toBeTruthy();
     expect(screen.getByText(/Add Work Unit/i)).toBeTruthy();
     expect(screen.getByText(/Open Facts/i)).toBeTruthy();
     expect(screen.getByText(/Add Fact/i)).toBeTruthy();
-    expect(screen.getByText(/Open Agents/i)).toBeTruthy();
-    expect(screen.getByText(/Add Agent/i)).toBeTruthy();
     expect(screen.getByText(/Open Link Types/i)).toBeTruthy();
+    expect(screen.getByText(/Add Link Type/i)).toBeTruthy();
     expect(screen.getByText(/Add Link Type/i)).toBeTruthy();
 
     expect(screen.getByText(/G W/i)).toBeTruthy();
     expect(screen.getByText(/C W/i)).toBeTruthy();
     expect(screen.getByText(/G F/i)).toBeTruthy();
     expect(screen.getByText(/C F/i)).toBeTruthy();
-    expect(screen.getByText(/G A/i)).toBeTruthy();
-    expect(screen.getByText(/C A/i)).toBeTruthy();
     expect(screen.getByText(/G L/i)).toBeTruthy();
     expect(screen.getByText(/C L/i)).toBeTruthy();
 
@@ -208,12 +204,11 @@ describe("methodology workspace entry route", () => {
     expect(screen.getByText("3 transitions")).toBeTruthy();
     expect(screen.getByText("2 workflows")).toBeTruthy();
     expect(screen.getByText("1 methodology fact")).toBeTruthy();
-    expect(screen.getByText("3 agent definitions")).toBeTruthy();
     expect(screen.getByText("2 link types")).toBeTruthy();
     expect(screen.getByText("3 active bindings")).toBeTruthy();
-    expect(screen.getAllByTestId("surface-card-separator")).toHaveLength(4);
-    expect(screen.getAllByTestId("surface-card-footer")).toHaveLength(4);
-    expect(screen.getAllByTestId("surface-card-corner")).toHaveLength(16);
+    expect(screen.getAllByTestId("surface-card-separator")).toHaveLength(3);
+    expect(screen.getAllByTestId("surface-card-footer")).toHaveLength(3);
+    expect(screen.getAllByTestId("surface-card-corner")).toHaveLength(12);
     expect(screen.queryByText("Workspace body")).toBeNull();
   });
 });
