@@ -1,6 +1,7 @@
 import { reset as drizzleReset } from "drizzle-seed";
 import { inArray, sql } from "drizzle-orm";
 import { Console, Effect } from "effect";
+import { inspect } from "node:util";
 
 import { auth } from "@chiron/auth";
 import { db, schema } from "@chiron/db";
@@ -8,6 +9,7 @@ import {
   METHODOLOGY_CANONICAL_TABLE_SEED_ORDER,
   methodologyCanonicalTableSeedRows,
 } from "./seed/methodology/index.ts";
+import { SeedLogger, joinSummary, pluralize } from "./seed/seed-logger.ts";
 import {
   runtimeMethodologyWorkflowActionStepActionItemSeedRows,
   runtimeMethodologyWorkflowActionStepActionSeedRows,
@@ -66,7 +68,7 @@ const tryDb = (operation, run) =>
 
 const upsertMethodologyDefinitions = (plan) => {
   if (plan.methodologyDefinitions.length === 0) {
-    return Effect.void;
+    return Effect.succeed(0);
   }
 
   return tryDb("upsert_methodology_definitions", () =>
@@ -81,12 +83,12 @@ const upsertMethodologyDefinitions = (plan) => {
           updatedAt: sql`CURRENT_TIMESTAMP`,
         },
       }),
-  ).pipe(Effect.asVoid);
+  ).pipe(Effect.as(plan.methodologyDefinitions.length));
 };
 
 const upsertMethodologyVersions = (plan) => {
   if (plan.methodologyVersions.length === 0) {
-    return Effect.void;
+    return Effect.succeed(0);
   }
 
   return tryDb("upsert_methodology_versions", () =>
@@ -99,12 +101,12 @@ const upsertMethodologyVersions = (plan) => {
           id: sql`excluded.id`,
           status: sql`excluded.status`,
           displayName: sql`excluded.display_name`,
-          definitionExtensions: sql`json('{}')`,
+          definitionExtensions: {},
           retiredAt: sql`excluded.retired_at`,
           updatedAt: sql`CURRENT_TIMESTAMP`,
         },
       }),
-  ).pipe(Effect.asVoid);
+  ).pipe(Effect.as(plan.methodologyVersions.length));
 };
 
 const CANONICAL_TABLES = {
@@ -231,6 +233,9 @@ export const RUNTIME_FIXTURE_TABLE_INSERTIONS = [
 const seedCanonicalMethodologyTables = (plan) =>
   Effect.gen(function* () {
     const versionIds = plan.methodologyVersions.map((version) => version.id);
+    let clearedTables = 0;
+    let seededTables = 0;
+    let insertedRows = 0;
 
     yield* Effect.forEach(
       [...METHODOLOGY_CANONICAL_TABLE_SEED_ORDER].reverse(),
@@ -238,7 +243,13 @@ const seedCanonicalMethodologyTables = (plan) =>
         tryDb(`clear_${tableName}`, () => {
           const table = CANONICAL_TABLES[tableName];
           return db.delete(table).where(inArray(table.methodologyVersionId, versionIds));
-        }).pipe(Effect.asVoid),
+        }).pipe(
+          Effect.tap(() => {
+            clearedTables += 1;
+            return SeedLogger.tableCleared(tableName);
+          }),
+          Effect.asVoid,
+        ),
       { discard: true },
     );
 
@@ -254,12 +265,29 @@ const seedCanonicalMethodologyTables = (plan) =>
           return Effect.void;
         }
 
-        return tryDb(`insert_${tableName}`, () => db.insert(table).values(rows)).pipe(
-          Effect.asVoid,
+        return Effect.forEach(
+          rows,
+          (row, index) =>
+            tryDb(`insert_${tableName}_${index}`, () => db.insert(table).values(row)).pipe(
+              Effect.asVoid,
+            ),
+          { discard: true },
+        ).pipe(
+          Effect.tap(() => {
+            seededTables += 1;
+            insertedRows += rows.length;
+            return SeedLogger.tableSeeded(tableName, rows.length);
+          }),
         );
       },
       { discard: true },
     );
+
+    return {
+      clearedTables,
+      seededTables,
+      insertedRows,
+    };
   });
 
 const seedRuntimeWorkflowFixtures = (plan) =>
@@ -280,9 +308,16 @@ const seedRuntimeWorkflowFixtures = (plan) =>
     const runtimeDraftSpecs = runtimeMethodologyWorkflowContextFactDraftSpecSeedRows.filter((row) =>
       runtimeContextFacts.some((contextFact) => contextFact.id === row.contextFactDefinitionId),
     );
+    let fixtureTablesSeeded = 0;
+    let fixtureRowsInserted = 0;
+    let workflowMetadataPatched = 0;
 
     if (workflowMetadataPatches.length === 0) {
-      return;
+      return {
+        fixtureTablesSeeded,
+        fixtureRowsInserted,
+        workflowMetadataPatched,
+      };
     }
 
     const workflowIds = workflowMetadataPatches.map((patch) => patch.workflowId);
@@ -530,7 +565,15 @@ const seedRuntimeWorkflowFixtures = (plan) =>
         continue;
       }
 
-      yield* tryDb(`insert_${rowsKey}`, () => db.insert(table).values(rows)).pipe(Effect.asVoid);
+      yield* Effect.forEach(
+        rows,
+        (row, index) =>
+          tryDb(`insert_${rowsKey}_${index}`, () => db.insert(table).values(row)).pipe(Effect.asVoid),
+        { discard: true },
+      );
+      fixtureTablesSeeded += 1;
+      fixtureRowsInserted += rows.length;
+      yield* SeedLogger.fixtureSeeded(rowsKey, rows.length);
     }
 
     for (const patch of workflowMetadataPatches) {
@@ -552,13 +595,21 @@ const seedRuntimeWorkflowFixtures = (plan) =>
           .set({ metadataJson: nextMetadata })
           .where(sql`${schema.methodologyWorkflows.id} = ${patch.workflowId}`);
       }).pipe(Effect.asVoid);
+      workflowMetadataPatched += 1;
+      yield* SeedLogger.metadataPatched(patch.workflowId);
     }
+
+    return {
+      fixtureTablesSeeded,
+      fixtureRowsInserted,
+      workflowMetadataPatched,
+    };
   });
 
 const seedUsers = (plan) =>
   Effect.gen(function* () {
     if (plan.users.length === 0) {
-      return;
+      return { created: 0, skipped: 0 };
     }
 
     const existingUsers = yield* tryDb("load_existing_seed_users", () =>
@@ -574,14 +625,15 @@ const seedUsers = (plan) =>
     );
 
     const existingEmails = new Set(existingUsers.map((user) => user.email.toLowerCase()));
+    let created = 0;
+    let skipped = 0;
 
     yield* Effect.forEach(
       plan.users,
       (seededUser) => {
         if (existingEmails.has(seededUser.email.toLowerCase())) {
-          return Console.log(
-            `Seed user '${seededUser.email}' already exists. Keep using --reset for deterministic password state.`,
-          );
+          skipped += 1;
+          return SeedLogger.userSkipped(seededUser.email);
         }
 
         return Effect.tryPromise({
@@ -605,58 +657,164 @@ const seedUsers = (plan) =>
               );
             }
 
-            return Console.log(`Created seed user '${seededUser.email}'.`);
+            created += 1;
+            return SeedLogger.userCreated(seededUser.email);
           }),
         );
       },
       { discard: true },
     );
+
+    return { created, skipped };
   });
 
 if (import.meta.main) {
   const options = parseArgs(process.argv.slice(2));
+  const seedStartedAt = Date.now();
+  const dotenvPath = process.env.DOTENV_CONFIG_PATH;
 
   const program = Effect.gen(function* () {
     const plan = BASELINE_MANUAL_SEED_PLAN;
 
+    yield* SeedLogger.banner({
+      reset: options.reset,
+      dotenvPath,
+      planName: "Manual baseline seed",
+    });
+    yield* SeedLogger.planSummary({
+      methodologyDefinitions: plan.methodologyDefinitions.length,
+      methodologyVersions: plan.methodologyVersions.length,
+      users: plan.users.length,
+      canonicalTables: METHODOLOGY_CANONICAL_TABLE_SEED_ORDER.length,
+      runtimeFixtureTables: RUNTIME_FIXTURE_TABLE_INSERTIONS.length,
+    });
+
     if (options.reset) {
+      const resetPhase = yield* SeedLogger.phaseStart("Reset database", "drizzle-seed reset");
       yield* Effect.tryPromise({
         try: () => drizzleReset(db, schema),
         catch: (cause) => manualSeedDbError("reset_database", cause),
       });
-      yield* Console.log("Database reset complete.");
+      yield* SeedLogger.phaseDone(resetPhase, "database reset complete");
     }
 
-    yield* upsertMethodologyDefinitions(plan);
-    yield* upsertMethodologyVersions(plan);
-    yield* seedCanonicalMethodologyTables(plan);
-    yield* seedRuntimeWorkflowFixtures(plan);
-    yield* seedUsers(plan);
+    const methodologyDefinitionsPhase = yield* SeedLogger.phaseStart(
+      "Upsert methodology definitions",
+    );
+    const methodologyDefinitions = yield* upsertMethodologyDefinitions(plan);
+    yield* SeedLogger.phaseDone(
+      methodologyDefinitionsPhase,
+      pluralize(methodologyDefinitions, "definition"),
+    );
 
-    yield* Console.log("Manual baseline seed applied successfully.");
-    if (plan.users.length > 0) {
-      yield* Console.log(
-        `Seed login: ${plan.users[0].email} / ${plan.users[0].password} (deterministic with --reset).`,
-      );
-    }
+    const methodologyVersionsPhase = yield* SeedLogger.phaseStart("Upsert methodology versions");
+    const methodologyVersions = yield* upsertMethodologyVersions(plan);
+    yield* SeedLogger.phaseDone(
+      methodologyVersionsPhase,
+      pluralize(methodologyVersions, "version"),
+    );
+
+    const canonicalPhase = yield* SeedLogger.phaseStart(
+      "Seed canonical methodology tables",
+      `${METHODOLOGY_CANONICAL_TABLE_SEED_ORDER.length} tables`,
+    );
+    const canonicalSummary = yield* seedCanonicalMethodologyTables(plan);
+    yield* SeedLogger.phaseDone(
+      canonicalPhase,
+      joinSummary([
+        pluralize(canonicalSummary.clearedTables, "table cleared", "tables cleared"),
+        pluralize(canonicalSummary.seededTables, "table seeded", "tables seeded"),
+        pluralize(canonicalSummary.insertedRows, "row"),
+      ]),
+    );
+
+    const fixturesPhase = yield* SeedLogger.phaseStart(
+      "Seed runtime workflow fixtures",
+      `${RUNTIME_FIXTURE_TABLE_INSERTIONS.length} fixture tables`,
+    );
+    const runtimeFixtureSummary = yield* seedRuntimeWorkflowFixtures(plan);
+    yield* SeedLogger.phaseDone(
+      fixturesPhase,
+      joinSummary([
+        pluralize(runtimeFixtureSummary.fixtureTablesSeeded, "fixture table"),
+        pluralize(runtimeFixtureSummary.fixtureRowsInserted, "fixture row"),
+        pluralize(runtimeFixtureSummary.workflowMetadataPatched, "metadata patch", "metadata patches"),
+      ]),
+    );
+
+    const usersPhase = yield* SeedLogger.phaseStart(
+      "Create seed users",
+      pluralize(plan.users.length, "user"),
+    );
+    const userSummary = yield* seedUsers(plan);
+    yield* SeedLogger.phaseDone(
+      usersPhase,
+      joinSummary([
+        pluralize(userSummary.created, "created user", "created users"),
+        userSummary.skipped > 0
+          ? pluralize(userSummary.skipped, "existing user skipped", "existing users skipped")
+          : null,
+      ]),
+    );
+
+    yield* SeedLogger.summary(
+      {
+        resetApplied: options.reset,
+        methodologyDefinitions,
+        methodologyVersions,
+        canonicalTablesCleared: canonicalSummary.clearedTables,
+        canonicalTablesSeeded: canonicalSummary.seededTables,
+        canonicalRowsInserted: canonicalSummary.insertedRows,
+        runtimeFixtureTablesSeeded: runtimeFixtureSummary.fixtureTablesSeeded,
+        runtimeFixtureRowsInserted: runtimeFixtureSummary.fixtureRowsInserted,
+        workflowMetadataPatched: runtimeFixtureSummary.workflowMetadataPatched,
+        usersCreated: userSummary.created,
+        usersSkipped: userSummary.skipped,
+      },
+      seedStartedAt,
+      plan.users.length > 0
+        ? `${plan.users[0].email} / ${plan.users[0].password}${
+            options.reset ? " (deterministic with --reset)" : ""
+          }`
+        : undefined,
+    );
   }).pipe(
     Effect.as(0),
     Effect.catchAll((error) => {
       const errorType = classifySeedError(error);
 
       if (errorType === "missing_tables") {
-        return Console.error(
-          "Seed skipped: database schema is missing. Run `bun run db:push` first.",
-        ).pipe(Effect.as(1));
+        return SeedLogger.missingSchema().pipe(Effect.as(1));
       }
 
       if (shouldSkipSeedError(error, options.reset)) {
-        return Console.warn("Seed data already exists. Continuing without changes.").pipe(
-          Effect.as(0),
-        );
+        return SeedLogger.alreadySeeded().pipe(Effect.as(0));
       }
 
-      return Console.error(`Manual seed failed with an unexpected error: ${String(error)}`).pipe(
+      const nestedCause =
+        error && typeof error === "object" && "cause" in error ? error.cause : undefined;
+      const nestedCauseMessage =
+        nestedCause && typeof nestedCause === "object" && "message" in nestedCause
+          ? nestedCause.message
+          : undefined;
+      const nestedNestedCause =
+        nestedCause && typeof nestedCause === "object" && "cause" in nestedCause
+          ? nestedCause.cause
+          : undefined;
+      const nestedNestedCauseMessage =
+        nestedNestedCause && typeof nestedNestedCause === "object" && "message" in nestedNestedCause
+          ? nestedNestedCause.message
+          : undefined;
+
+      return SeedLogger.unexpectedError(
+        [
+          `Manual seed failed with an unexpected error: ${inspect(error, { depth: 8, colors: false })}`,
+          nestedCauseMessage ? `cause.message: ${nestedCauseMessage}` : null,
+          nestedNestedCauseMessage ? `cause.cause.message: ${nestedNestedCauseMessage}` : null,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      ).pipe(
         Effect.as(1),
       );
     }),

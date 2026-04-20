@@ -52,7 +52,7 @@ export type MethodologyWorkflowInvokeTransitionSeedRow =
 export type Slice1FixtureOnlyFactExample = {
   readonly factKey: string;
   readonly seedSource: "work_unit_fact_definition" | "methodology_fact_definition";
-  readonly workflowContextFactKind: "definition_backed_external_fact" | "bound_external_fact";
+  readonly workflowContextFactKind: "bound_fact" | "bound_fact";
   readonly permanence: "fixture_only";
 };
 
@@ -68,7 +68,7 @@ export const slice1FixtureOnlyFactExamples = {
     (factKey): Slice1FixtureOnlyFactExample => ({
       factKey,
       seedSource: "work_unit_fact_definition",
-      workflowContextFactKind: "definition_backed_external_fact",
+      workflowContextFactKind: "bound_fact",
       permanence: "fixture_only",
     }),
   ),
@@ -76,7 +76,7 @@ export const slice1FixtureOnlyFactExamples = {
     (factKey): Slice1FixtureOnlyFactExample => ({
       factKey,
       seedSource: "methodology_fact_definition",
-      workflowContextFactKind: "bound_external_fact",
+      workflowContextFactKind: "bound_fact",
       permanence: "fixture_only",
     }),
   ),
@@ -134,7 +134,7 @@ function buildSlice1DemoFixtureSeedRows(methodologyVersionId: string): Slice1Dem
         id: `${baseId}:ctx:project-type`,
         workflowId: setupWorkflowId,
         factKey: "project_type",
-        factKind: "definition_backed_external_fact",
+        factKind: "bound_fact",
         label: "Project Type",
         descriptionJson: { markdown: "Select whether this is a greenfield or brownfield project." },
         cardinality: "one",
@@ -147,7 +147,7 @@ function buildSlice1DemoFixtureSeedRows(methodologyVersionId: string): Slice1Dem
         id: `${baseId}:ctx:project-name`,
         workflowId: setupWorkflowId,
         factKey: "project_name",
-        factKind: "plain_value_fact",
+        factKind: "plain_fact",
         label: "Project Name",
         descriptionJson: { markdown: "The canonical name for this project." },
         cardinality: "one",
@@ -160,7 +160,7 @@ function buildSlice1DemoFixtureSeedRows(methodologyVersionId: string): Slice1Dem
         id: `${baseId}:ctx:requires-brainstorming`,
         workflowId: setupWorkflowId,
         factKey: "requires_brainstorming",
-        factKind: "plain_value_fact",
+        factKind: "plain_fact",
         label: "Requires Brainstorming",
         descriptionJson: {
           markdown: "Recommendation for whether a brainstorming session is needed.",
@@ -175,7 +175,7 @@ function buildSlice1DemoFixtureSeedRows(methodologyVersionId: string): Slice1Dem
         id: `${baseId}:ctx:requires-product-brief`,
         workflowId: setupWorkflowId,
         factKey: "requires_product_brief",
-        factKind: "plain_value_fact",
+        factKind: "plain_fact",
         label: "Requires Product Brief",
         descriptionJson: {
           markdown: "Recommendation for whether a formal product brief is needed.",
@@ -190,7 +190,7 @@ function buildSlice1DemoFixtureSeedRows(methodologyVersionId: string): Slice1Dem
         id: `${baseId}:ctx:project-overview-artifact`,
         workflowId: setupWorkflowId,
         factKey: "PROJECT_OVERVIEW",
-        factKind: "artifact_reference_fact",
+        factKind: "artifact_slot_reference_fact",
         label: "Project Overview Artifact",
         descriptionJson: {
           markdown: "Reference the PROJECT_OVERVIEW artifact slot from this workflow.",
@@ -206,24 +206,24 @@ function buildSlice1DemoFixtureSeedRows(methodologyVersionId: string): Slice1Dem
       {
         id: `${baseId}:ctx-payload:project-name`,
         contextFactDefinitionId: `${baseId}:ctx:project-name`,
-        valueType: "string",
+        type: "string",
       },
       {
         id: `${baseId}:ctx-payload:requires-brainstorming`,
         contextFactDefinitionId: `${baseId}:ctx:requires-brainstorming`,
-        valueType: "json",
+        type: "json",
       },
       {
         id: `${baseId}:ctx-payload:requires-product-brief`,
         contextFactDefinitionId: `${baseId}:ctx:requires-product-brief`,
-        valueType: "json",
+        type: "json",
       },
     ] satisfies readonly MethodologyWorkflowContextFactPlainValueSeedRow[],
     methodologyWorkflowContextFactExternalBindings: [
       {
         id: `${baseId}:ctx-payload:project-type`,
         contextFactDefinitionId: `${baseId}:ctx:project-type`,
-        provider: "definition_backed_external_fact",
+        provider: "bound_fact",
         bindingKey: "project_kind",
       },
     ] satisfies readonly MethodologyWorkflowContextFactExternalBindingSeedRow[],
@@ -233,7 +233,7 @@ function buildSlice1DemoFixtureSeedRows(methodologyVersionId: string): Slice1Dem
       {
         id: `${baseId}:ctx-payload:project-overview-artifact`,
         contextFactDefinitionId: `${baseId}:ctx:project-overview-artifact`,
-        artifactSlotKey: "PROJECT_OVERVIEW",
+        slotDefinitionId: "PROJECT_OVERVIEW",
       },
     ] satisfies readonly MethodologyWorkflowContextFactArtifactReferenceSeedRow[],
     methodologyWorkflowContextFactDraftSpecs:
@@ -338,7 +338,7 @@ function buildSlice1DemoFixtureSeedRows(methodologyVersionId: string): Slice1Dem
         agentStepId: synthesizeStepId,
         writeItemId: "project_name",
         contextFactDefinitionId: `${baseId}:ctx:project-name`,
-        contextFactKind: "plain_value_fact",
+        contextFactKind: "plain_fact",
         label: "Project Name",
         sortOrder: 100,
       },
@@ -347,7 +347,7 @@ function buildSlice1DemoFixtureSeedRows(methodologyVersionId: string): Slice1Dem
         agentStepId: synthesizeStepId,
         writeItemId: "requires_brainstorming",
         contextFactDefinitionId: `${baseId}:ctx:requires-brainstorming`,
-        contextFactKind: "plain_value_fact",
+        contextFactKind: "plain_fact",
         label: "Requires Brainstorming",
         sortOrder: 200,
       },
@@ -356,7 +356,7 @@ function buildSlice1DemoFixtureSeedRows(methodologyVersionId: string): Slice1Dem
         agentStepId: synthesizeStepId,
         writeItemId: "requires_product_brief",
         contextFactDefinitionId: `${baseId}:ctx:requires-product-brief`,
-        contextFactKind: "plain_value_fact",
+        contextFactKind: "plain_fact",
         label: "Requires Product Brief",
         sortOrder: 300,
       },
@@ -365,7 +365,7 @@ function buildSlice1DemoFixtureSeedRows(methodologyVersionId: string): Slice1Dem
         agentStepId: synthesizeStepId,
         writeItemId: "PROJECT_OVERVIEW",
         contextFactDefinitionId: `${baseId}:ctx:project-overview-artifact`,
-        contextFactKind: "artifact_reference_fact",
+        contextFactKind: "artifact_slot_reference_fact",
         label: "Project Overview Artifact",
         sortOrder: 400,
       },

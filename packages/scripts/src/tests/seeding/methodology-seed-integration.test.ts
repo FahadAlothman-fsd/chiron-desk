@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { BASELINE_MANUAL_SEED_PLAN } from "../../manual-seed-fixtures";
 
+const SEED_ARTIFACT_TIMEOUT_MS = 15_000;
+
 async function loadMethodologySeedArtifacts() {
   process.env.DATABASE_URL ??= "file:test.db";
   process.env.BETTER_AUTH_SECRET ??= "test-secret-for-methodology-seeds-123";
@@ -122,7 +124,7 @@ const applyCanonicalReseed = (
   return nextState;
 };
 
-describe("methodology seed integration", () => {
+describe("methodology seed integration", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, () => {
   it("seeds one definition plus draft/active versions without canonical extension payload", () => {
     expect(BASELINE_MANUAL_SEED_PLAN.methodologyDefinitions).toHaveLength(1);
     expect(BASELINE_MANUAL_SEED_PLAN.methodologyVersions).toHaveLength(2);

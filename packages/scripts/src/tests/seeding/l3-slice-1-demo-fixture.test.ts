@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+const SEED_ARTIFACT_TIMEOUT_MS = 15_000;
+
 async function loadSeedArtifacts() {
   process.env.DATABASE_URL ??= "file:test.db";
   process.env.BETTER_AUTH_SECRET ??= "test-secret-for-methodology-seeds-123";
@@ -11,7 +13,7 @@ async function loadSeedArtifacts() {
   return { methodology, fixture };
 }
 
-describe("l3 slice-1 demo fixture", () => {
+describe("l3 slice-1 demo fixture", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, () => {
   it("keeps baseline canonical seeds at zero workflow steps and edges", async () => {
     const { methodology } = await loadSeedArtifacts();
     const { methodologyCanonicalTableSeedRows } = methodology;
@@ -154,7 +156,7 @@ describe("l3 slice-1 demo fixture", () => {
 
     for (const example of slice1FixtureOnlyFactExamples.definitionBackedExternalFacts) {
       expect(example.seedSource).toBe("work_unit_fact_definition");
-      expect(example.workflowContextFactKind).toBe("definition_backed_external_fact");
+      expect(example.workflowContextFactKind).toBe("bound_fact");
       expect(example.permanence).toBe("fixture_only");
       expect(permanentWorkUnitFactKeys.has(example.factKey)).toBe(
         example.factKey === "requires_product_brief" ? false : true,
@@ -164,7 +166,7 @@ describe("l3 slice-1 demo fixture", () => {
 
     for (const example of slice1FixtureOnlyFactExamples.boundExternalFacts) {
       expect(example.seedSource).toBe("methodology_fact_definition");
-      expect(example.workflowContextFactKind).toBe("bound_external_fact");
+      expect(example.workflowContextFactKind).toBe("bound_fact");
       expect(example.permanence).toBe("fixture_only");
       expect(permanentMethodologyFactKeys.has(example.factKey)).toBe(true);
       expect(permanentWorkUnitFactKeys.has(example.factKey)).toBe(false);

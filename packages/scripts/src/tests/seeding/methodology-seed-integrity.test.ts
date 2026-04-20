@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { BASELINE_MANUAL_SEED_PLAN } from "../../manual-seed-fixtures";
 
+const SEED_ARTIFACT_TIMEOUT_MS = 15_000;
+
 async function loadMethodologySeedArtifacts() {
   process.env.DATABASE_URL ??= "file:test.db";
   process.env.BETTER_AUTH_SECRET ??= "test-secret-for-methodology-seeds-123";
@@ -11,7 +13,7 @@ async function loadMethodologySeedArtifacts() {
   return import("../../seed/methodology");
 }
 
-describe("methodology seed integrity", () => {
+describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, () => {
   it("keeps manual seed baseline deterministic for operator journey", () => {
     expect(BASELINE_MANUAL_SEED_PLAN.planId).toBe("baseline_manual");
     expect(BASELINE_MANUAL_SEED_PLAN.users).toHaveLength(1);

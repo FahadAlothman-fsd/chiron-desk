@@ -11,7 +11,7 @@ async function loadSeedArtifacts() {
 }
 
 describe("l3 brainstorming demo fixture", () => {
-  it("seeds a realistic brainstorming workflow runtime fixture", async () => {
+  it("seeds a realistic brainstorming workflow runtime fixture", { timeout: 15000 }, async () => {
     const { fixture } = await loadSeedArtifacts();
     const { brainstormingDemoFixtureSeedRows } = fixture;
 

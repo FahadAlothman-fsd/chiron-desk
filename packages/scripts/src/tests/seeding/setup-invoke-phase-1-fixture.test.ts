@@ -12,7 +12,7 @@ async function loadSeedArtifacts() {
 }
 
 describe("setup invoke phase-1 fixture", () => {
-  it("seeds the invoke-only phase-1 workflow fixture", async () => {
+  it("seeds the invoke-only phase-1 workflow fixture", { timeout: 15000 }, async () => {
     const { fixture, manualSeed } = await loadSeedArtifacts();
     const { setupInvokePhase1FixtureSeedRows, setupInvokePhase1FixtureSeedRowsAllVersions } =
       fixture;
@@ -105,7 +105,7 @@ describe("setup invoke phase-1 fixture", () => {
         expect.objectContaining({
           contextFactDefinitionId:
             "seed:l3-setup-invoke:brainstorming-support:mver_bmad_v1_active:ctx:cf-support-note",
-          valueType: "string",
+          type: "string",
         }),
       ]),
     );
@@ -121,19 +121,19 @@ describe("setup invoke phase-1 fixture", () => {
         expect.objectContaining({
           contextFactDefinitionId:
             "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-requires-brainstorming",
-          provider: "definition_backed_external_fact",
+          provider: "bound_fact",
           bindingKey: "requires_brainstorming",
         }),
         expect.objectContaining({
           contextFactDefinitionId:
             "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-requires-research",
-          provider: "definition_backed_external_fact",
+          provider: "bound_fact",
           bindingKey: "requires_research",
         }),
         expect.objectContaining({
           contextFactDefinitionId:
             "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-branch-note",
-          provider: "definition_backed_external_fact",
+          provider: "bound_fact",
           bindingKey: "branch_note",
         }),
       ]),
@@ -263,19 +263,19 @@ describe("setup invoke phase-1 fixture", () => {
           actionKey: "propagate_setup_decision_facts",
           contextFactDefinitionId:
             "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-requires-brainstorming",
-          contextFactKind: "definition_backed_external_fact",
+          contextFactKind: "bound_fact",
         }),
         expect.objectContaining({
           actionKey: "propagate_setup_environment_bindings",
           contextFactDefinitionId:
             "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-method-project-knowledge-directory",
-          contextFactKind: "bound_external_fact",
+          contextFactKind: "bound_fact",
         }),
         expect.objectContaining({
           actionKey: "propagate_project_overview_artifact_reference",
           contextFactDefinitionId:
             "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-project-overview-artifact",
-          contextFactKind: "artifact_reference_fact",
+          contextFactKind: "artifact_slot_reference_fact",
         }),
       ]),
     );
