@@ -4,6 +4,7 @@ import { Effect, Layer } from "effect";
 
 import {
   FormStepDefinitionService,
+  MethodologyRepository,
   WorkflowContextFactDefinitionService,
   WorkflowEditorDefinitionService,
   WorkflowService,
@@ -55,14 +56,14 @@ function makeServiceLayer() {
           contextFacts: [
             {
               contextFactDefinitionId: "ctx-summary",
-              kind: "plain_value_fact",
+              kind: "plain_fact",
               key: "summary",
               cardinality: "one",
               guidance: {
                 human: { markdown: "Capture the reusable summary." },
                 agent: { markdown: "Preserve the authored summary." },
               },
-              valueType: "string",
+              type: "string",
             },
           ],
           formDefinitions: [
@@ -90,6 +91,43 @@ function makeServiceLayer() {
           ],
         }),
     }),
+    Layer.succeed(MethodologyRepository, {
+      findVersionById: () =>
+        Effect.succeed({
+          id: "ver-1",
+          methodologyId: "meth-1",
+          version: "draft",
+          status: "draft",
+          displayName: "Draft",
+          definitionExtensions: null,
+          createdAt: new Date(0),
+          retiredAt: null,
+        }),
+      getWorkflowEditorDefinition: () =>
+        Effect.succeed({
+          workflow: {
+            workflowDefinitionId: "wf-1",
+            key: "wu.setup",
+            displayName: "Setup",
+            descriptionJson: { markdown: "Setup" },
+          },
+          steps: [
+            {
+              stepId: "step-a",
+              stepType: "form",
+              payload: { key: "step-a", fields: [] },
+            },
+            {
+              stepId: "step-b",
+              stepType: "form",
+              payload: { key: "step-b", fields: [] },
+            },
+          ],
+          edges: [],
+          contextFacts: [],
+          formDefinitions: [],
+        }),
+    } as any),
     Layer.succeed(WorkflowService, {
       listWorkUnitWorkflows: () =>
         Effect.succeed([
@@ -190,28 +228,28 @@ function makeServiceLayer() {
         Effect.succeed([
           {
             contextFactDefinitionId: "ctx-summary",
-            kind: "plain_value_fact",
+            kind: "plain_fact",
             key: "summary",
             cardinality: "one",
             guidance: {
               human: { markdown: "Capture the reusable summary." },
               agent: { markdown: "Preserve the authored summary." },
             },
-            valueType: "string",
+            type: "string",
           },
         ]),
       create: () =>
         Effect.succeed({
           contextFactDefinitionId: "ctx-fact-b",
-          kind: "plain_value_fact",
+          kind: "plain_fact",
           key: "fact.b",
           cardinality: "one",
-          valueType: "string",
+          type: "string",
         }),
       update: () =>
         Effect.succeed({
           contextFactDefinitionId: "ctx-fact-c",
-          kind: "workflow_reference_fact",
+          kind: "workflow_ref_fact",
           key: "fact.c",
           cardinality: "many",
           allowedWorkflowDefinitionIds: ["wf.review"],
@@ -326,14 +364,14 @@ describe("l3 slice-1 methodology router", () => {
     expect(editor.contextFacts).toEqual([
       {
         contextFactDefinitionId: "ctx-summary",
-        kind: "plain_value_fact",
+        kind: "plain_fact",
         key: "summary",
         cardinality: "one",
         guidance: {
           human: { markdown: "Capture the reusable summary." },
           agent: { markdown: "Preserve the authored summary." },
         },
-        valueType: "string",
+        type: "string",
       },
     ]);
     expect(editor.formDefinitions).toEqual([
@@ -367,14 +405,14 @@ describe("l3 slice-1 methodology router", () => {
     expect(facts).toEqual([
       {
         contextFactDefinitionId: "ctx-summary",
-        kind: "plain_value_fact",
+        kind: "plain_fact",
         key: "summary",
         cardinality: "one",
         guidance: {
           human: { markdown: "Capture the reusable summary." },
           agent: { markdown: "Preserve the authored summary." },
         },
-        valueType: "string",
+        type: "string",
       },
     ]);
   });

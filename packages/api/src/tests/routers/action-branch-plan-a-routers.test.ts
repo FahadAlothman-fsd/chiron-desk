@@ -53,7 +53,7 @@ const actionPayload: ActionStepPayload = {
       sortOrder: 100,
       actionKind: "propagation",
       contextFactDefinitionId: "ctx-project-context",
-      contextFactKind: "definition_backed_external_fact",
+      contextFactKind: "bound_fact",
       items: [
         {
           itemId: "item-1",
@@ -91,20 +91,20 @@ function makeServiceLayer() {
       Effect.succeed([
         {
           contextFactDefinitionId: "ctx-project-context",
-          kind: "definition_backed_external_fact",
+          kind: "bound_fact",
           key: "project_context",
           label: "Project Context",
           cardinality: "one",
-          externalFactDefinitionId: "EXT.PROJECT_CONTEXT",
-          valueType: "json",
+          factDefinitionId: "EXT.PROJECT_CONTEXT",
+          type: "json",
         },
         {
           contextFactDefinitionId: "ctx-artifact",
-          kind: "artifact_reference_fact",
+          kind: "artifact_slot_reference_fact",
           key: "artifact",
           label: "Artifact",
           cardinality: "one",
-          artifactSlotDefinitionId: "ART.PRD",
+          slotDefinitionId: "ART.PRD",
         },
       ]),
     getWorkflowEditorDefinition: () =>
@@ -229,7 +229,18 @@ describe("action methodology router", () => {
     expect(fetched).toMatchObject({ stepId: "step-action-created", stepType: "action" });
     expect(updated.payload.label).toBe("Sync Context v2");
     expect(updated.payload.executionMode).toBe("parallel");
-    expect(createdPayloads).toEqual([actionPayload]);
+    expect(createdPayloads).toEqual([
+      expect.objectContaining({
+        key: "sync-context",
+        executionMode: "sequential",
+        actions: [
+          expect.objectContaining({
+            actionId: "action-1",
+            contextFactKind: "bound_fact",
+          }),
+        ],
+      }),
+    ]);
     expect(updatedPayloads).toEqual([
       expect.objectContaining({ label: "Sync Context v2", executionMode: "parallel" }),
     ]);

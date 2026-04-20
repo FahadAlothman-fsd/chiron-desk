@@ -3,6 +3,7 @@ import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 
 import {
+  RuntimeManualFactCrudService,
   RuntimeFactService,
   TransitionExecutionCommandService,
   WorkflowExecutionCommandService,
@@ -45,12 +46,12 @@ function makeServiceLayer() {
     complete: 0,
     choosePrimary: 0,
     retry: 0,
-    addProject: 0,
-    setProject: 0,
-    replaceProject: 0,
-    addWorkUnit: 0,
-    setWorkUnit: 0,
-    replaceWorkUnit: 0,
+    createProject: 0,
+    updateProject: 0,
+    deleteProject: 0,
+    createWorkUnit: 0,
+    updateWorkUnit: 0,
+    deleteWorkUnit: 0,
   };
 
   const transitionCommands: TransitionExecutionCommandService["Type"] = {
@@ -155,44 +156,74 @@ function makeServiceLayer() {
           canRemoveExisting: false as const,
         },
       }),
-    addRuntimeProjectFactValue: () => {
-      calls.addProject += 1;
-      return Effect.succeed({ projectFactInstanceId: "pf-1" });
-    },
-    setRuntimeProjectFactValue: () => {
-      calls.setProject += 1;
-      return Effect.succeed({
-        projectFactInstanceId: "pf-2",
-        supersededProjectFactInstanceId: "pf-1",
-      });
-    },
-    replaceRuntimeProjectFactValue: () => {
-      calls.replaceProject += 1;
-      return Effect.succeed({
-        projectFactInstanceId: "pf-3",
-        supersededProjectFactInstanceId: "pf-2",
-      });
-    },
-    addRuntimeWorkUnitFactValue: () => {
-      calls.addWorkUnit += 1;
-      return Effect.succeed({ workUnitFactInstanceId: "wf-1" });
-    },
-    setRuntimeWorkUnitFactValue: () => {
-      calls.setWorkUnit += 1;
-      return Effect.succeed({
-        workUnitFactInstanceId: "wf-2",
-        supersededWorkUnitFactInstanceId: "wf-1",
-      });
-    },
-    replaceRuntimeWorkUnitFactValue: () => {
-      calls.replaceWorkUnit += 1;
-      return Effect.succeed({
-        workUnitFactInstanceId: "wf-3",
-        supersededWorkUnitFactInstanceId: "wf-2",
-      });
-    },
   } satisfies RuntimeFactService["Type"] &
     Record<string, (...args: any[]) => Effect.Effect<unknown>>;
+
+  const runtimeManualFactCrudService: RuntimeManualFactCrudService["Type"] = {
+    apply: (request) => {
+      if (request.scope === "project") {
+        switch (request.payload.verb) {
+          case "create":
+            calls.createProject += 1;
+            return Effect.succeed({
+              scope: "project",
+              factDefinitionId: request.factDefinitionId,
+              verb: request.payload.verb,
+              affectedCount: 1,
+              affectedInstanceIds: ["pf-1"],
+            });
+          case "update":
+            calls.updateProject += 1;
+            return Effect.succeed({
+              scope: "project",
+              factDefinitionId: request.factDefinitionId,
+              verb: request.payload.verb,
+              affectedCount: 1,
+              affectedInstanceIds: [request.payload.instanceId],
+            });
+          case "delete":
+            calls.deleteProject += 1;
+            return Effect.succeed({
+              scope: "project",
+              factDefinitionId: request.factDefinitionId,
+              verb: request.payload.verb,
+              affectedCount: 1,
+              affectedInstanceIds: ["pf-deleted"],
+            });
+        }
+      }
+
+      switch (request.payload.verb) {
+        case "create":
+          calls.createWorkUnit += 1;
+          return Effect.succeed({
+            scope: "work_unit",
+            factDefinitionId: request.factDefinitionId,
+            verb: request.payload.verb,
+            affectedCount: 1,
+            affectedInstanceIds: ["wf-1"],
+          });
+        case "update":
+          calls.updateWorkUnit += 1;
+          return Effect.succeed({
+            scope: "work_unit",
+            factDefinitionId: request.factDefinitionId,
+            verb: request.payload.verb,
+            affectedCount: 1,
+            affectedInstanceIds: [request.payload.instanceId],
+          });
+        case "delete":
+          calls.deleteWorkUnit += 1;
+          return Effect.succeed({
+            scope: "work_unit",
+            factDefinitionId: request.factDefinitionId,
+            verb: request.payload.verb,
+            affectedCount: 1,
+            affectedInstanceIds: ["wf-deleted"],
+          });
+      }
+    },
+  };
 
   return {
     calls,
@@ -200,6 +231,7 @@ function makeServiceLayer() {
       Layer.succeed(TransitionExecutionCommandService, transitionCommands),
       Layer.succeed(WorkflowExecutionCommandService, workflowCommands),
       Layer.succeed(RuntimeFactService, factService),
+      Layer.succeed(RuntimeManualFactCrudService, runtimeManualFactCrudService),
     ),
   };
 }
@@ -277,32 +309,32 @@ describe("project runtime router mutations", () => {
     expect(testLayer.calls.retry).toBe(1);
   });
 
-  it("delegates project/work-unit fact mutations exactly once", async () => {
+  it("delegates project/work-unit CRUD mutations exactly once", async () => {
     const testLayer = makeServiceLayer();
     const router = createProjectRuntimeRouter(testLayer.layer);
 
     await call(
-      router.addRuntimeProjectFactValue,
+      router.createRuntimeProjectFactValue,
       { projectId: "p", factDefinitionId: "fd", value: "v" },
       AUTHENTICATED_CTX,
     );
     await call(
-      router.setRuntimeProjectFactValue,
+      router.updateRuntimeProjectFactValue,
       { projectId: "p", factDefinitionId: "fd", projectFactInstanceId: "pf-1", value: "v2" },
       AUTHENTICATED_CTX,
     );
     await call(
-      router.replaceRuntimeProjectFactValue,
-      { projectId: "p", factDefinitionId: "fd", projectFactInstanceId: "pf-2", value: "v3" },
+      router.deleteRuntimeProjectFactValue,
+      { projectId: "p", factDefinitionId: "fd" },
       AUTHENTICATED_CTX,
     );
     await call(
-      router.addRuntimeWorkUnitFactValue,
+      router.createRuntimeWorkUnitFactValue,
       { projectId: "p", projectWorkUnitId: "wu", factDefinitionId: "fd", value: "x" },
       AUTHENTICATED_CTX,
     );
     await call(
-      router.setRuntimeWorkUnitFactValue,
+      router.updateRuntimeWorkUnitFactValue,
       {
         projectId: "p",
         projectWorkUnitId: "wu",
@@ -313,22 +345,20 @@ describe("project runtime router mutations", () => {
       AUTHENTICATED_CTX,
     );
     await call(
-      router.replaceRuntimeWorkUnitFactValue,
+      router.deleteRuntimeWorkUnitFactValue,
       {
         projectId: "p",
         projectWorkUnitId: "wu",
         factDefinitionId: "fd",
-        workUnitFactInstanceId: "wf-2",
-        value: "z",
       },
       AUTHENTICATED_CTX,
     );
 
-    expect(testLayer.calls.addProject).toBe(1);
-    expect(testLayer.calls.setProject).toBe(1);
-    expect(testLayer.calls.replaceProject).toBe(1);
-    expect(testLayer.calls.addWorkUnit).toBe(1);
-    expect(testLayer.calls.setWorkUnit).toBe(1);
-    expect(testLayer.calls.replaceWorkUnit).toBe(1);
+    expect(testLayer.calls.createProject).toBe(1);
+    expect(testLayer.calls.updateProject).toBe(1);
+    expect(testLayer.calls.deleteProject).toBe(1);
+    expect(testLayer.calls.createWorkUnit).toBe(1);
+    expect(testLayer.calls.updateWorkUnit).toBe(1);
+    expect(testLayer.calls.deleteWorkUnit).toBe(1);
   });
 });

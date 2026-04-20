@@ -90,7 +90,7 @@ const basePayload = {
     {
       writeItemId: "write-artifact",
       contextFactDefinitionId: "fact-artifact",
-      contextFactKind: "artifact_reference_fact",
+      contextFactKind: "artifact_slot_reference_fact",
       order: 100,
       requirementContextFactDefinitionIds: ["fact-summary"],
     },
@@ -136,19 +136,19 @@ function makeServiceLayer() {
         contextFacts: [
           {
             contextFactDefinitionId: "fact-summary",
-            kind: "plain_value_fact",
+            kind: "plain_fact",
             key: "summary",
             label: "Summary",
             cardinality: "one",
-            valueType: "string",
+            type: "string",
           },
           {
             contextFactDefinitionId: "fact-artifact",
-            kind: "artifact_reference_fact",
+            kind: "artifact_slot_reference_fact",
             key: "prd_artifact",
             label: "PRD Artifact",
             cardinality: "one",
-            artifactSlotDefinitionId: "ART.PRD",
+            slotDefinitionId: "ART.PRD",
           },
         ],
         formDefinitions: [],
@@ -167,19 +167,19 @@ function makeServiceLayer() {
       Effect.succeed([
         {
           contextFactDefinitionId: "fact-summary",
-          kind: "plain_value_fact",
+          kind: "plain_fact",
           key: "summary",
           label: "Summary",
           cardinality: "one",
-          valueType: "string",
+          type: "string",
         },
         {
           contextFactDefinitionId: "fact-artifact",
-          kind: "artifact_reference_fact",
+          kind: "artifact_slot_reference_fact",
           key: "prd_artifact",
           label: "PRD Artifact",
           cardinality: "one",
-          artifactSlotDefinitionId: "ART.PRD",
+          slotDefinitionId: "ART.PRD",
         },
       ]),
     createAgentStepDefinition: (input: { payload: unknown }) =>

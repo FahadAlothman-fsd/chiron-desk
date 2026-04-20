@@ -102,10 +102,10 @@ function makeRuntimeLayer() {
                 required: true,
                 contextFactDefinitionId: "ctx-initiative-name",
                 contextFactKey: "initiative_name",
-                contextFactKind: "plain_value_fact",
+                contextFactKind: "plain_fact",
                 widget: {
                   control: "text",
-                  valueType: "string",
+                  type: "string",
                   cardinality: "one",
                   renderedMultiplicity: "one",
                 },

@@ -40,6 +40,7 @@ import {
   RuntimeArtifactService,
   RuntimeFactService,
   RuntimeGuidanceService,
+  RuntimeManualFactCrudService,
   RuntimeOverviewService,
   RuntimeWorkflowIndexService,
   RuntimeWorkUnitService,
@@ -112,11 +113,11 @@ const getRuntimeArtifactSlotDetailInput = z.object({
   slotDefinitionId: z.string().min(1),
 });
 
-const getRuntimeArtifactSnapshotDialogInput = z.object({
+const getRuntimeArtifactInstanceDialogInput = z.object({
   projectId: z.string().min(1),
   projectWorkUnitId: z.string().min(1),
   slotDefinitionId: z.string().min(1),
-  projectArtifactSnapshotId: z.string().min(1),
+  artifactInstanceId: z.string().min(1),
 });
 
 const streamRuntimeGuidanceCandidatesInput = z.object({
@@ -383,39 +384,94 @@ const checkArtifactSlotCurrentStateInput = z.object({
   slotDefinitionId: z.string().min(1),
 });
 
-const addRuntimeProjectFactValueInput = z.object({
+const createRuntimeProjectFactValueInput = z.object({
   projectId: z.string().min(1),
   factDefinitionId: z.string().min(1),
   value: z.unknown(),
 });
 
-const setRuntimeProjectFactValueInput = z.object({
+const updateRuntimeProjectFactValueInput = z.object({
   projectId: z.string().min(1),
   factDefinitionId: z.string().min(1),
   projectFactInstanceId: z.string().min(1),
   value: z.unknown(),
 });
 
-const replaceRuntimeProjectFactValueInput = setRuntimeProjectFactValueInput;
+const deleteRuntimeProjectFactValueInput = z.object({
+  projectId: z.string().min(1),
+  factDefinitionId: z.string().min(1),
+});
 
-const addRuntimeWorkUnitFactValueInput = z.object({
+const createRuntimeWorkUnitFactValueInput = z
+  .object({
+    projectId: z.string().min(1),
+    projectWorkUnitId: z.string().min(1),
+    factDefinitionId: z.string().min(1),
+    value: z.unknown().optional(),
+    referencedProjectWorkUnitId: z.string().min(1).optional(),
+  })
+  .refine((value) => value.value !== undefined || value.referencedProjectWorkUnitId !== undefined, {
+    message: "Provide a fact value or referenced project work unit id.",
+  });
+
+const updateRuntimeWorkUnitFactValueInput = z
+  .object({
+    projectId: z.string().min(1),
+    projectWorkUnitId: z.string().min(1),
+    factDefinitionId: z.string().min(1),
+    workUnitFactInstanceId: z.string().min(1),
+    value: z.unknown().optional(),
+    referencedProjectWorkUnitId: z.string().min(1).optional(),
+  })
+  .refine((value) => value.value !== undefined || value.referencedProjectWorkUnitId !== undefined, {
+    message: "Provide a fact value or referenced project work unit id.",
+  });
+
+const deleteRuntimeWorkUnitFactValueInput = z.object({
   projectId: z.string().min(1),
   projectWorkUnitId: z.string().min(1),
   factDefinitionId: z.string().min(1),
-  value: z.unknown().optional(),
-  referencedProjectWorkUnitId: z.string().min(1).optional(),
 });
 
-const setRuntimeWorkUnitFactValueInput = z.object({
+const createRuntimeWorkflowContextFactValueInput = z.object({
   projectId: z.string().min(1),
-  projectWorkUnitId: z.string().min(1),
-  factDefinitionId: z.string().min(1),
-  workUnitFactInstanceId: z.string().min(1),
-  value: z.unknown().optional(),
-  referencedProjectWorkUnitId: z.string().min(1).optional(),
+  workflowExecutionId: z.string().min(1),
+  contextFactDefinitionId: z.string().min(1),
+  value: z.unknown(),
+  sourceStepExecutionId: z.string().min(1).optional(),
 });
 
-const replaceRuntimeWorkUnitFactValueInput = setRuntimeWorkUnitFactValueInput;
+const updateRuntimeWorkflowContextFactValueInput = z.object({
+  projectId: z.string().min(1),
+  workflowExecutionId: z.string().min(1),
+  contextFactDefinitionId: z.string().min(1),
+  instanceId: z.string().min(1),
+  value: z.unknown(),
+  sourceStepExecutionId: z.string().min(1).optional(),
+});
+
+const removeRuntimeWorkflowContextFactValueInput = z.object({
+  projectId: z.string().min(1),
+  workflowExecutionId: z.string().min(1),
+  contextFactDefinitionId: z.string().min(1),
+  instanceId: z.string().min(1),
+  sourceStepExecutionId: z.string().min(1).optional(),
+});
+
+const deleteRuntimeWorkflowContextFactValueInput = z.object({
+  projectId: z.string().min(1),
+  workflowExecutionId: z.string().min(1),
+  contextFactDefinitionId: z.string().min(1),
+  sourceStepExecutionId: z.string().min(1).optional(),
+});
+
+const toWorkUnitCrudValue = (input: {
+  readonly value?: unknown | undefined;
+  readonly referencedProjectWorkUnitId?: string | undefined;
+}) =>
+  input.referencedProjectWorkUnitId !== undefined
+    ? { projectWorkUnitId: input.referencedProjectWorkUnitId }
+    : input.value;
 
 function mapEffectError(err: unknown): never {
   const tag =
@@ -450,6 +506,9 @@ function mapEffectError(err: unknown): never {
       throw new ORPCError("INTERNAL_SERVER_ERROR", {
         message: `Repository operation failed: ${message}`,
       });
+    case "RuntimeFactValidationError":
+    case "RuntimeFactCrudError":
+      throw new ORPCError("BAD_REQUEST", { message });
     case "AgentStepStateTransitionError":
       if (message.includes("session was lost") || message.includes("Start or retry the session")) {
         throw new ORPCError("CONFLICT", { message });
@@ -631,14 +690,14 @@ export function createProjectRuntimeRouter(
         ),
       ),
 
-    getRuntimeArtifactSnapshotDialog: publicProcedure
-      .input(getRuntimeArtifactSnapshotDialogInput)
+    getRuntimeArtifactInstanceDialog: publicProcedure
+      .input(getRuntimeArtifactInstanceDialogInput)
       .handler(async ({ input }) =>
         runEffect(
           serviceLayer,
           Effect.gen(function* () {
             const runtimeArtifactService = yield* RuntimeArtifactService;
-            return yield* runtimeArtifactService.getArtifactSnapshotDialog(input);
+            return yield* runtimeArtifactService.getArtifactInstanceDialog(input);
           }),
         ),
       ),
@@ -1122,98 +1181,222 @@ export function createProjectRuntimeRouter(
         ),
       ),
 
-    addRuntimeProjectFactValue: protectedProcedure
-      .input(addRuntimeProjectFactValueInput)
-      .handler(async ({ input }) =>
+    createRuntimeProjectFactValue: protectedProcedure
+      .input(createRuntimeProjectFactValueInput)
+      .handler(async ({ input, context }) =>
         runEffect(
           serviceLayer,
           Effect.gen(function* () {
-            const runtimeFactService = (yield* RuntimeFactService) as RuntimeFactService["Type"] & {
-              readonly addRuntimeProjectFactValue: (
-                request: typeof input,
-              ) => Effect.Effect<unknown>;
-            };
-            return yield* runtimeFactService.addRuntimeProjectFactValue(input);
+            const runtimeManualFactCrudService = yield* RuntimeManualFactCrudService;
+            return yield* runtimeManualFactCrudService.apply({
+              scope: "project",
+              projectId: input.projectId,
+              factDefinitionId: input.factDefinitionId,
+              payload: { verb: "create", value: input.value },
+              authoredByUserId: context.session.user.id,
+            });
           }),
         ),
       ),
 
-    setRuntimeProjectFactValue: protectedProcedure
-      .input(setRuntimeProjectFactValueInput)
-      .handler(async ({ input }) =>
+    updateRuntimeProjectFactValue: protectedProcedure
+      .input(updateRuntimeProjectFactValueInput)
+      .handler(async ({ input, context }) =>
         runEffect(
           serviceLayer,
           Effect.gen(function* () {
-            const runtimeFactService = (yield* RuntimeFactService) as RuntimeFactService["Type"] & {
-              readonly setRuntimeProjectFactValue: (
-                request: typeof input,
-              ) => Effect.Effect<unknown>;
-            };
-            return yield* runtimeFactService.setRuntimeProjectFactValue(input);
+            const runtimeManualFactCrudService = yield* RuntimeManualFactCrudService;
+            return yield* runtimeManualFactCrudService.apply({
+              scope: "project",
+              projectId: input.projectId,
+              factDefinitionId: input.factDefinitionId,
+              payload: {
+                verb: "update",
+                instanceId: input.projectFactInstanceId,
+                value: input.value,
+              },
+              authoredByUserId: context.session.user.id,
+            });
           }),
         ),
       ),
 
-    replaceRuntimeProjectFactValue: protectedProcedure
-      .input(replaceRuntimeProjectFactValueInput)
-      .handler(async ({ input }) =>
+    deleteRuntimeProjectFactValue: protectedProcedure
+      .input(deleteRuntimeProjectFactValueInput)
+      .handler(async ({ input, context }) =>
         runEffect(
           serviceLayer,
           Effect.gen(function* () {
-            const runtimeFactService = (yield* RuntimeFactService) as RuntimeFactService["Type"] & {
-              readonly replaceRuntimeProjectFactValue: (
-                request: typeof input,
-              ) => Effect.Effect<unknown>;
-            };
-            return yield* runtimeFactService.replaceRuntimeProjectFactValue(input);
+            const runtimeManualFactCrudService = yield* RuntimeManualFactCrudService;
+            return yield* runtimeManualFactCrudService.apply({
+              scope: "project",
+              projectId: input.projectId,
+              factDefinitionId: input.factDefinitionId,
+              payload: { verb: "delete" },
+              authoredByUserId: context.session.user.id,
+            });
           }),
         ),
       ),
 
-    addRuntimeWorkUnitFactValue: protectedProcedure
-      .input(addRuntimeWorkUnitFactValueInput)
-      .handler(async ({ input }) =>
+    createRuntimeWorkUnitFactValue: protectedProcedure
+      .input(createRuntimeWorkUnitFactValueInput)
+      .handler(async ({ input, context }) =>
         runEffect(
           serviceLayer,
           Effect.gen(function* () {
-            const runtimeFactService = (yield* RuntimeFactService) as RuntimeFactService["Type"] & {
-              readonly addRuntimeWorkUnitFactValue: (
-                request: typeof input,
-              ) => Effect.Effect<unknown>;
-            };
-            return yield* runtimeFactService.addRuntimeWorkUnitFactValue(input);
+            const runtimeManualFactCrudService = yield* RuntimeManualFactCrudService;
+            return yield* runtimeManualFactCrudService.apply({
+              scope: "work_unit",
+              projectWorkUnitId: input.projectWorkUnitId,
+              factDefinitionId: input.factDefinitionId,
+              payload: {
+                verb: "create",
+                value: toWorkUnitCrudValue({
+                  ...(input.value !== undefined ? { value: input.value } : {}),
+                  ...(input.referencedProjectWorkUnitId !== undefined
+                    ? { referencedProjectWorkUnitId: input.referencedProjectWorkUnitId }
+                    : {}),
+                }),
+              },
+              authoredByUserId: context.session.user.id,
+            });
           }),
         ),
       ),
 
-    setRuntimeWorkUnitFactValue: protectedProcedure
-      .input(setRuntimeWorkUnitFactValueInput)
-      .handler(async ({ input }) =>
+    updateRuntimeWorkUnitFactValue: protectedProcedure
+      .input(updateRuntimeWorkUnitFactValueInput)
+      .handler(async ({ input, context }) =>
         runEffect(
           serviceLayer,
           Effect.gen(function* () {
-            const runtimeFactService = (yield* RuntimeFactService) as RuntimeFactService["Type"] & {
-              readonly setRuntimeWorkUnitFactValue: (
-                request: typeof input,
-              ) => Effect.Effect<unknown>;
-            };
-            return yield* runtimeFactService.setRuntimeWorkUnitFactValue(input);
+            const runtimeManualFactCrudService = yield* RuntimeManualFactCrudService;
+            return yield* runtimeManualFactCrudService.apply({
+              scope: "work_unit",
+              projectWorkUnitId: input.projectWorkUnitId,
+              factDefinitionId: input.factDefinitionId,
+              payload: {
+                verb: "update",
+                instanceId: input.workUnitFactInstanceId,
+                value: toWorkUnitCrudValue({
+                  ...(input.value !== undefined ? { value: input.value } : {}),
+                  ...(input.referencedProjectWorkUnitId !== undefined
+                    ? { referencedProjectWorkUnitId: input.referencedProjectWorkUnitId }
+                    : {}),
+                }),
+              },
+              authoredByUserId: context.session.user.id,
+            });
           }),
         ),
       ),
 
-    replaceRuntimeWorkUnitFactValue: protectedProcedure
-      .input(replaceRuntimeWorkUnitFactValueInput)
+    deleteRuntimeWorkUnitFactValue: protectedProcedure
+      .input(deleteRuntimeWorkUnitFactValueInput)
+      .handler(async ({ input, context }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const runtimeManualFactCrudService = yield* RuntimeManualFactCrudService;
+            return yield* runtimeManualFactCrudService.apply({
+              scope: "work_unit",
+              projectWorkUnitId: input.projectWorkUnitId,
+              factDefinitionId: input.factDefinitionId,
+              payload: { verb: "delete" },
+              authoredByUserId: context.session.user.id,
+            });
+          }),
+        ),
+      ),
+
+    createRuntimeWorkflowContextFactValue: protectedProcedure
+      .input(createRuntimeWorkflowContextFactValueInput)
       .handler(async ({ input }) =>
         runEffect(
           serviceLayer,
           Effect.gen(function* () {
-            const runtimeFactService = (yield* RuntimeFactService) as RuntimeFactService["Type"] & {
-              readonly replaceRuntimeWorkUnitFactValue: (
-                request: typeof input,
-              ) => Effect.Effect<unknown>;
-            };
-            return yield* runtimeFactService.replaceRuntimeWorkUnitFactValue(input);
+            const runtimeManualFactCrudService = yield* RuntimeManualFactCrudService;
+            return yield* runtimeManualFactCrudService.apply({
+              scope: "workflow_context",
+              projectId: input.projectId,
+              workflowExecutionId: input.workflowExecutionId,
+              contextFactDefinitionId: input.contextFactDefinitionId,
+              payload: { verb: "create", value: input.value },
+              ...(input.sourceStepExecutionId
+                ? { sourceStepExecutionId: input.sourceStepExecutionId }
+                : {}),
+            });
+          }),
+        ),
+      ),
+
+    updateRuntimeWorkflowContextFactValue: protectedProcedure
+      .input(updateRuntimeWorkflowContextFactValueInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const runtimeManualFactCrudService = yield* RuntimeManualFactCrudService;
+            return yield* runtimeManualFactCrudService.apply({
+              scope: "workflow_context",
+              projectId: input.projectId,
+              workflowExecutionId: input.workflowExecutionId,
+              contextFactDefinitionId: input.contextFactDefinitionId,
+              payload: {
+                verb: "update",
+                instanceId: input.instanceId,
+                value: input.value,
+              },
+              ...(input.sourceStepExecutionId
+                ? { sourceStepExecutionId: input.sourceStepExecutionId }
+                : {}),
+            });
+          }),
+        ),
+      ),
+
+    removeRuntimeWorkflowContextFactValue: protectedProcedure
+      .input(removeRuntimeWorkflowContextFactValueInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const runtimeManualFactCrudService = yield* RuntimeManualFactCrudService;
+            return yield* runtimeManualFactCrudService.apply({
+              scope: "workflow_context",
+              projectId: input.projectId,
+              workflowExecutionId: input.workflowExecutionId,
+              contextFactDefinitionId: input.contextFactDefinitionId,
+              payload: {
+                verb: "remove",
+                instanceId: input.instanceId,
+              },
+              ...(input.sourceStepExecutionId
+                ? { sourceStepExecutionId: input.sourceStepExecutionId }
+                : {}),
+            });
+          }),
+        ),
+      ),
+
+    deleteRuntimeWorkflowContextFactValue: protectedProcedure
+      .input(deleteRuntimeWorkflowContextFactValueInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const runtimeManualFactCrudService = yield* RuntimeManualFactCrudService;
+            return yield* runtimeManualFactCrudService.apply({
+              scope: "workflow_context",
+              projectId: input.projectId,
+              workflowExecutionId: input.workflowExecutionId,
+              contextFactDefinitionId: input.contextFactDefinitionId,
+              payload: { verb: "delete" },
+              ...(input.sourceStepExecutionId
+                ? { sourceStepExecutionId: input.sourceStepExecutionId }
+                : {}),
+            });
           }),
         ),
       ),

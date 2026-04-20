@@ -72,7 +72,7 @@ describe("l3 slice-1 deferred surfaces architecture", () => {
         payload: {
           key: "invoke-story",
           targetKind: "workflow",
-          sourceMode: "fixed_set",
+          sourceMode: "fixed",
           workflowDefinitionIds: ["wf-story"],
         },
       }),
@@ -180,16 +180,16 @@ describe("l3 slice-1 deferred surfaces architecture", () => {
       "apps/web/src/routes/projects.$projectId.step-executions.$stepExecutionId.tsx",
     );
 
-    expect(projectFactDetailSource).toContain("Manual authoring (project facts only)");
-    expect(projectFactDetailSource).toContain("addRuntimeProjectFactValue");
-    expect(projectFactDetailSource).toContain("setRuntimeProjectFactValue");
-    expect(projectFactDetailSource).toContain("replaceRuntimeProjectFactValue");
+    expect(projectFactDetailSource).toContain("Manual runtime CRUD");
+    expect(projectFactDetailSource).toContain("createRuntimeProjectFactValue");
+    expect(projectFactDetailSource).toContain("updateRuntimeProjectFactValue");
+    expect(projectFactDetailSource).toContain("deleteRuntimeProjectFactValue");
 
     for (const otherSource of [workflowExecutionSource, stepExecutionSource]) {
-      expect(otherSource).not.toContain("addRuntimeProjectFactValue");
-      expect(otherSource).not.toContain("setRuntimeProjectFactValue");
-      expect(otherSource).not.toContain("replaceRuntimeProjectFactValue");
-      expect(otherSource).not.toContain("Manual authoring (project facts only)");
+      expect(otherSource).not.toContain("createRuntimeProjectFactValue");
+      expect(otherSource).not.toContain("updateRuntimeProjectFactValue");
+      expect(otherSource).not.toContain("deleteRuntimeProjectFactValue");
+      expect(otherSource).not.toContain("Manual runtime CRUD");
     }
   });
 });

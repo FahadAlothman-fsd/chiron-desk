@@ -214,15 +214,14 @@ function makeRuntimeLayer(
                 slotName: "Design Doc",
                 artifactKind: "single_file" as const,
               },
-              currentEffectiveSnapshot: {
+              currentArtifactInstance: {
                 exists: false,
-                memberCounts: { currentCount: 0 },
-                members: [],
+                fileCount: 0,
+                files: [],
               },
-              lineage: [],
             } as any)),
       ),
-      getArtifactSnapshotDialog: vi.fn(() =>
+      getArtifactInstanceDialog: vi.fn(() =>
         Effect.succeed({
           workUnit: {
             projectWorkUnitId: "wu-1",
@@ -236,11 +235,12 @@ function makeRuntimeLayer(
             slotName: "Design Doc",
             artifactKind: "single_file" as const,
           },
-          snapshot: {
-            projectArtifactSnapshotId: "snapshot-1",
-            createdAt: "2026-01-01T00:00:00.000Z",
-            deltaMembers: [],
-            effectiveMemberCounts: { currentCount: 0 },
+          artifactInstance: {
+            exists: true,
+            artifactInstanceId: "artifact-instance-1",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+            fileCount: 0,
+            files: [],
           },
         } as any),
       ),

@@ -144,7 +144,7 @@ const workflowContextFactSchema: z.ZodType<WorkflowContextFactDtoContract> = z.d
   "kind",
   [
     z.object({
-      kind: z.literal("plain_value_fact"),
+      kind: z.literal("plain_fact"),
       contextFactDefinitionId: z.string().min(1).optional(),
       key: z.string().min(1),
       label: z.string().optional(),
@@ -152,10 +152,10 @@ const workflowContextFactSchema: z.ZodType<WorkflowContextFactDtoContract> = z.d
       guidance: workflowMetadataSchema.shape.guidance,
       validationJson: z.unknown().optional(),
       cardinality: z.enum(["one", "many"]),
-      valueType: z.enum(["string", "number", "boolean", "json"]),
+      type: z.enum(["string", "number", "boolean", "json"]),
     }),
     z.object({
-      kind: z.literal("definition_backed_external_fact"),
+      kind: z.literal("bound_fact"),
       contextFactDefinitionId: z.string().min(1).optional(),
       key: z.string().min(1),
       label: z.string().optional(),
@@ -163,25 +163,12 @@ const workflowContextFactSchema: z.ZodType<WorkflowContextFactDtoContract> = z.d
       guidance: workflowMetadataSchema.shape.guidance,
       validationJson: z.unknown().optional(),
       cardinality: z.enum(["one", "many"]),
-      externalFactDefinitionId: z.string().min(1),
+      factDefinitionId: z.string().min(1),
       valueType: z.enum(["string", "number", "boolean", "json", "work_unit"]).optional(),
       workUnitDefinitionId: z.string().min(1).optional(),
     }),
     z.object({
-      kind: z.literal("bound_external_fact"),
-      contextFactDefinitionId: z.string().min(1).optional(),
-      key: z.string().min(1),
-      label: z.string().optional(),
-      descriptionJson: z.object({ markdown: z.string() }).optional(),
-      guidance: workflowMetadataSchema.shape.guidance,
-      validationJson: z.unknown().optional(),
-      cardinality: z.enum(["one", "many"]),
-      externalFactDefinitionId: z.string().min(1),
-      valueType: z.enum(["string", "number", "boolean", "json", "work_unit"]).optional(),
-      workUnitDefinitionId: z.string().min(1).optional(),
-    }),
-    z.object({
-      kind: z.literal("workflow_reference_fact"),
+      kind: z.literal("workflow_ref_fact"),
       contextFactDefinitionId: z.string().min(1).optional(),
       key: z.string().min(1),
       label: z.string().optional(),
@@ -192,7 +179,7 @@ const workflowContextFactSchema: z.ZodType<WorkflowContextFactDtoContract> = z.d
       allowedWorkflowDefinitionIds: z.array(z.string().min(1)),
     }),
     z.object({
-      kind: z.literal("artifact_reference_fact"),
+      kind: z.literal("artifact_slot_reference_fact"),
       contextFactDefinitionId: z.string().min(1).optional(),
       key: z.string().min(1),
       label: z.string().optional(),
@@ -200,7 +187,18 @@ const workflowContextFactSchema: z.ZodType<WorkflowContextFactDtoContract> = z.d
       guidance: workflowMetadataSchema.shape.guidance,
       validationJson: z.unknown().optional(),
       cardinality: z.enum(["one", "many"]),
-      artifactSlotDefinitionId: z.string().min(1),
+      slotDefinitionId: z.string().min(1),
+    }),
+    z.object({
+      kind: z.literal("work_unit_reference_fact"),
+      contextFactDefinitionId: z.string().min(1).optional(),
+      key: z.string().min(1),
+      label: z.string().optional(),
+      descriptionJson: z.object({ markdown: z.string() }).optional(),
+      guidance: workflowMetadataSchema.shape.guidance,
+      cardinality: z.enum(["one", "many"]),
+      linkTypeDefinitionId: z.string().min(1).optional(),
+      targetWorkUnitDefinitionId: z.string().min(1).optional(),
     }),
     z.object({
       kind: z.literal("work_unit_draft_spec_fact"),
@@ -219,13 +217,65 @@ const workflowContextFactSchema: z.ZodType<WorkflowContextFactDtoContract> = z.d
 );
 
 const workflowContextFactKindValueSchema = z.enum([
-  "plain_value_fact",
-  "definition_backed_external_fact",
-  "bound_external_fact",
-  "workflow_reference_fact",
-  "artifact_reference_fact",
+  "plain_fact",
+  "bound_fact",
+  "workflow_ref_fact",
+  "artifact_slot_reference_fact",
+  "work_unit_reference_fact",
   "work_unit_draft_spec_fact",
 ]);
+
+function flattenScopedTransitionWorkflowBindings(
+  value: unknown,
+): Record<string, readonly string[]> {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+
+  const record = value as Record<string, unknown>;
+  const entries = Object.entries(record);
+  if (entries.length === 0) {
+    return {};
+  }
+
+  const firstValue = entries[0]?.[1];
+  if (Array.isArray(firstValue)) {
+    return Object.fromEntries(
+      entries.map(([transitionKey, workflowKeys]) => [
+        transitionKey,
+        Array.isArray(workflowKeys)
+          ? workflowKeys.filter(
+              (workflowKey): workflowKey is string => typeof workflowKey === "string",
+            )
+          : [],
+      ]),
+    );
+  }
+
+  const flattened = new Map<string, string[]>();
+  for (const transitionBindings of Object.values(record)) {
+    if (!transitionBindings || typeof transitionBindings !== "object") {
+      continue;
+    }
+
+    for (const [transitionKey, workflowKeys] of Object.entries(
+      transitionBindings as Record<string, unknown>,
+    )) {
+      const current = flattened.get(transitionKey) ?? [];
+      const next = Array.isArray(workflowKeys)
+        ? workflowKeys.filter(
+            (workflowKey): workflowKey is string => typeof workflowKey === "string",
+          )
+        : [];
+      flattened.set(
+        transitionKey,
+        [...new Set([...current, ...next])].sort((a, b) => a.localeCompare(b)),
+      );
+    }
+  }
+
+  return Object.fromEntries([...flattened.entries()].sort((a, b) => a[0].localeCompare(b[0])));
+}
 
 const formStepPayloadSchema: z.ZodType<FormStepPayloadContract> = z.object({
   key: z.string().min(1),
@@ -298,21 +348,21 @@ const invokeStepPayloadSchema: z.ZodType<InvokeStepPayloadContract> = z.union([
   invokePayloadMetadataSchema
     .extend({
       targetKind: z.literal("workflow"),
-      sourceMode: z.literal("fixed_set"),
+      sourceMode: z.literal("fixed"),
       workflowDefinitionIds: z.array(z.string().min(1)),
     })
     .strict(),
   invokePayloadMetadataSchema
     .extend({
       targetKind: z.literal("workflow"),
-      sourceMode: z.literal("context_fact_backed"),
+      sourceMode: z.literal("fact_backed"),
       contextFactDefinitionId: z.string().min(1),
     })
     .strict(),
   invokePayloadMetadataSchema
     .extend({
       targetKind: z.literal("work_unit"),
-      sourceMode: z.literal("fixed_set"),
+      sourceMode: z.literal("fixed"),
       workUnitDefinitionId: z.string().min(1),
       bindings: z.array(invokeBindingSchema),
       activationTransitions: z.array(invokeActivationTransitionSchema),
@@ -321,7 +371,7 @@ const invokeStepPayloadSchema: z.ZodType<InvokeStepPayloadContract> = z.union([
   invokePayloadMetadataSchema
     .extend({
       targetKind: z.literal("work_unit"),
-      sourceMode: z.literal("context_fact_backed"),
+      sourceMode: z.literal("fact_backed"),
       contextFactDefinitionId: z.string().min(1),
       bindings: z.array(invokeBindingSchema),
       activationTransitions: z.array(invokeActivationTransitionSchema),
@@ -383,11 +433,7 @@ const actionStepActionPayloadSchema = z
     sortOrder: z.number(),
     actionKind: z.literal("propagation"),
     contextFactDefinitionId: z.string().min(1),
-    contextFactKind: z.enum([
-      "definition_backed_external_fact",
-      "bound_external_fact",
-      "artifact_reference_fact",
-    ]),
+    contextFactKind: z.enum(["bound_fact", "artifact_slot_reference_fact"]),
     items: z.array(actionPropagationItemPayloadSchema),
   })
   .strict()
@@ -793,25 +839,14 @@ const markdownContentSchema = z.object({ markdown: z.string() });
 const factValueTypeSchema = z.enum(["string", "number", "boolean", "json", "work_unit"]);
 const jsonSubSchemaFieldTypeSchema = z.enum(["string", "number", "boolean"]);
 const factCardinalitySchema = z.enum(["one", "many"]);
-const jsonSubSchemaFieldSchema = z.union([
-  z.object({
-    key: z.string().min(1),
-    type: jsonSubSchemaFieldTypeSchema,
-    cardinality: factCardinalitySchema,
-    description: markdownContentSchema.optional(),
-    guidance: factGuidanceSchema,
-    validation: z.unknown().optional(),
-  }),
-  z.object({
-    key: z.string().min(1),
-    type: jsonSubSchemaFieldTypeSchema,
-    cardinality: z.literal("one"),
-    defaultValue: z.unknown().optional(),
-    description: markdownContentSchema.optional(),
-    guidance: factGuidanceSchema,
-    validation: z.unknown().optional(),
-  }),
-]);
+const jsonSubSchemaFieldSchema = z.object({
+  key: z.string().min(1),
+  type: jsonSubSchemaFieldTypeSchema,
+  cardinality: factCardinalitySchema,
+  description: markdownContentSchema.optional(),
+  guidance: factGuidanceSchema,
+  validation: z.unknown().optional(),
+});
 const jsonSubSchemaSchema = z.object({
   type: z.literal("object"),
   fields: z.array(jsonSubSchemaFieldSchema),
@@ -855,16 +890,37 @@ const factValidationSchema = z
   ])
   .default({ kind: "none" });
 
-const variableDefinitionSchema = z.object({
+const plainVariableDefinitionSchema = z.object({
+  kind: z.literal("plain_fact").default("plain_fact"),
   name: z.string().optional(),
   key: z.string().min(1),
+  type: z.enum(["string", "number", "boolean", "json"]).optional(),
   factType: factValueTypeSchema,
   cardinality: factCardinalitySchema.optional(),
   defaultValue: z.unknown().optional(),
-  description: markdownContentSchema.optional(),
+  description: z.union([z.string(), markdownContentSchema]).optional(),
   guidance: factGuidanceSchema,
   validation: factValidationSchema,
 });
+
+const workUnitReferenceVariableDefinitionSchema = z.object({
+  kind: z.literal("work_unit_reference_fact"),
+  name: z.string().optional(),
+  key: z.string().min(1),
+  factType: z.literal("work_unit"),
+  linkTypeDefinitionId: z.string().min(1).optional(),
+  targetWorkUnitDefinitionId: z.string().min(1).optional(),
+  cardinality: factCardinalitySchema.optional(),
+  defaultValue: z.unknown().optional(),
+  description: z.union([z.string(), markdownContentSchema]).optional(),
+  guidance: factGuidanceSchema,
+  validation: factValidationSchema,
+});
+
+const variableDefinitionSchema = z.discriminatedUnion("kind", [
+  plainVariableDefinitionSchema,
+  workUnitReferenceVariableDefinitionSchema,
+]);
 
 const linkTypeDefinitionSchema = z
   .object({
@@ -1129,15 +1185,33 @@ const listWorkUnitTransitionConditionSetsInput = z.object({
   transitionKey: z.string().min(1),
 });
 
-const factSchemaDefinition = z.object({
+const plainFactSchemaDefinition = z.object({
+  kind: z.literal("plain_fact").default("plain_fact"),
   name: z.string().optional(),
   key: z.string().min(1),
+  type: z.enum(["string", "number", "boolean", "json"]).optional(),
   factType: z.enum(["string", "number", "boolean", "json", "work_unit"]),
-  defaultValue: z.unknown().optional(),
   description: z.string().optional(),
   guidance: factGuidanceSchema,
   validation: factValidationSchema,
 });
+
+const workUnitReferenceFactSchemaDefinition = z.object({
+  kind: z.literal("work_unit_reference_fact"),
+  name: z.string().optional(),
+  key: z.string().min(1),
+  factType: z.literal("work_unit"),
+  linkTypeDefinitionId: z.string().min(1).optional(),
+  targetWorkUnitDefinitionId: z.string().min(1).optional(),
+  description: z.string().optional(),
+  guidance: factGuidanceSchema,
+  validation: factValidationSchema,
+});
+
+const factSchemaDefinition = z.discriminatedUnion("kind", [
+  plainFactSchemaDefinition,
+  workUnitReferenceFactSchemaDefinition,
+]);
 
 const workUnitTypeSchema = z.object({
   key: z.string().min(1),
@@ -2070,6 +2144,9 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
             : [];
           return {
             ...snapshotRecord,
+            transitionWorkflowBindings: flattenScopedTransitionWorkflowBindings(
+              snapshotRecord.transitionWorkflowBindings,
+            ),
             agentTypes,
           };
         }),
@@ -3242,15 +3319,31 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           });
         }
 
-        const mappedFact: FactSchema = {
+        const plainFactFields = input.fact as { type?: "string" | "number" | "boolean" | "json" };
+        const mappedFactBase: FactSchema = {
+          kind: input.fact.kind,
           key: input.fact.key,
           name: input.fact.name,
+          ...(plainFactFields.type ? { type: plainFactFields.type } : {}),
           factType: input.fact.factType,
           cardinality: input.fact.cardinality,
           defaultValue: input.fact.defaultValue,
           description: input.fact.description,
           guidance: input.fact.guidance,
           validation: input.fact.validation,
+        };
+        const workUnitReferenceFields = input.fact as {
+          linkTypeDefinitionId?: string;
+          targetWorkUnitDefinitionId?: string;
+        };
+        const mappedFact: FactSchema = {
+          ...mappedFactBase,
+          ...(workUnitReferenceFields.linkTypeDefinitionId
+            ? { linkTypeDefinitionId: workUnitReferenceFields.linkTypeDefinitionId }
+            : {}),
+          ...(workUnitReferenceFields.targetWorkUnitDefinitionId
+            ? { targetWorkUnitDefinitionId: workUnitReferenceFields.targetWorkUnitDefinitionId }
+            : {}),
         };
 
         const nextFacts: readonly FactSchema[] = [...currentFacts, mappedFact];
@@ -3306,15 +3399,31 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           });
         }
 
-        const mappedFact: FactSchema = {
+        const plainFactFields = input.fact as { type?: "string" | "number" | "boolean" | "json" };
+        const mappedFactBase: FactSchema = {
+          kind: input.fact.kind,
           key: input.fact.key,
           name: input.fact.name,
+          ...(plainFactFields.type ? { type: plainFactFields.type } : {}),
           factType: input.fact.factType,
           cardinality: input.fact.cardinality,
           defaultValue: input.fact.defaultValue,
           description: input.fact.description,
           guidance: input.fact.guidance,
           validation: input.fact.validation,
+        };
+        const workUnitReferenceFields = input.fact as {
+          linkTypeDefinitionId?: string;
+          targetWorkUnitDefinitionId?: string;
+        };
+        const mappedFact: FactSchema = {
+          ...mappedFactBase,
+          ...(workUnitReferenceFields.linkTypeDefinitionId
+            ? { linkTypeDefinitionId: workUnitReferenceFields.linkTypeDefinitionId }
+            : {}),
+          ...(workUnitReferenceFields.targetWorkUnitDefinitionId
+            ? { targetWorkUnitDefinitionId: workUnitReferenceFields.targetWorkUnitDefinitionId }
+            : {}),
         };
 
         const nextFacts: readonly FactSchema[] = currentFacts.map((fact) =>
@@ -4176,12 +4285,6 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
         create: router.createFact,
         update: router.updateFact,
         delete: router.deleteFact,
-      },
-      agent: {
-        list: router.listAgentDefinitions,
-        create: router.createAgent,
-        update: router.updateAgent,
-        delete: router.deleteAgent,
       },
       dependencyDefinition: {
         list: router.listDependencyDefinitions,

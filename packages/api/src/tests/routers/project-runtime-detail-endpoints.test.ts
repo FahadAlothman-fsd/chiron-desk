@@ -141,23 +141,23 @@ function makeServiceLayer() {
       Effect.succeed({
         workUnit: {} as any,
         slotDefinition: {} as any,
-        currentEffectiveSnapshot: { exists: false, memberCounts: { currentCount: 0 }, members: [] },
-        lineage: [],
+        currentArtifactInstance: { exists: false, fileCount: 0, files: [] },
       }),
-    getArtifactSnapshotDialog: () =>
+    getArtifactInstanceDialog: () =>
       Effect.succeed({
         workUnit: {} as any,
         slotDefinition: {} as any,
-        snapshot: {
-          projectArtifactSnapshotId: "snap-1",
-          createdAt: new Date(0).toISOString(),
-          deltaMembers: [],
-          effectiveMemberCounts: { currentCount: 0 },
+        artifactInstance: {
+          exists: true,
+          artifactInstanceId: "artifact-instance-1",
+          updatedAt: new Date(0).toISOString(),
+          fileCount: 0,
+          files: [],
         },
       }),
     checkArtifactSlotCurrentState: () => {
       calls.artifactState += 1;
-      return Effect.succeed({ result: "unchanged", currentEffectiveSnapshotExists: true });
+      return Effect.succeed({ result: "unchanged", currentArtifactInstanceExists: true });
     },
   };
 

@@ -29,6 +29,55 @@ const getProjectDetailsInput = z.object({
 
 const runtimeDeferredReason = "Workflow runtime execution unlocks in Epic 3+" as const;
 
+const flattenScopedTransitionWorkflowBindings = (
+  value: unknown,
+): Record<string, readonly string[]> => {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+
+  const record = value as Record<string, unknown>;
+  const entries = Object.entries(record);
+  if (entries.length === 0) {
+    return {};
+  }
+
+  const firstValue = entries[0]?.[1];
+  if (Array.isArray(firstValue)) {
+    return Object.fromEntries(
+      entries.map(([transitionKey, workflowKeys]) => [
+        transitionKey,
+        Array.isArray(workflowKeys)
+          ? workflowKeys.filter(
+              (workflowKey): workflowKey is string => typeof workflowKey === "string",
+            )
+          : [],
+      ]),
+    );
+  }
+
+  const flattened = new Map<string, string[]>();
+  for (const transitionBindings of Object.values(record)) {
+    if (!transitionBindings || typeof transitionBindings !== "object") {
+      continue;
+    }
+
+    for (const [transitionKey, workflowKeys] of Object.entries(
+      transitionBindings as Record<string, unknown>,
+    )) {
+      const current = flattened.get(transitionKey) ?? [];
+      const next = Array.isArray(workflowKeys)
+        ? workflowKeys.filter(
+            (workflowKey): workflowKey is string => typeof workflowKey === "string",
+          )
+        : [];
+      flattened.set(transitionKey, [...new Set([...current, ...next])]);
+    }
+  }
+
+  return Object.fromEntries(flattened.entries());
+};
+
 function toValidationStatus(
   summary: { valid: boolean; diagnostics: ReadonlyArray<{ blocking: boolean }> } | null,
 ): "pass" | "warn" | "fail" | "unknown" {
@@ -233,7 +282,9 @@ export function createProjectRouter(
       const mapped = toProjectionTransition(transition);
       return mapped ? [mapped] : [];
     }),
-    transitionWorkflowBindings: snapshot.transitionWorkflowBindings,
+    transitionWorkflowBindings: flattenScopedTransitionWorkflowBindings(
+      snapshot.transitionWorkflowBindings,
+    ),
     ...(snapshot.guidance ? { guidance: snapshot.guidance } : {}),
     factDefinitions: snapshot.factDefinitions,
   });

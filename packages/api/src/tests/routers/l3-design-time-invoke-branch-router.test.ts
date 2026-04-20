@@ -37,7 +37,7 @@ const invokePayload: InvokeStepPayload = {
   key: "invoke-story-work",
   label: "Invoke story work",
   targetKind: "work_unit",
-  sourceMode: "fixed_set",
+  sourceMode: "fixed",
   workUnitDefinitionId: "wut-story",
   bindings: [
     {
@@ -131,11 +131,11 @@ function makeServiceLayer() {
       Effect.succeed([
         {
           contextFactDefinitionId: "ctx-summary",
-          kind: "plain_value_fact",
+          kind: "plain_fact",
           key: "summary",
           label: "Summary",
           cardinality: "one",
-          valueType: "string",
+          type: "string",
         },
         {
           contextFactDefinitionId: "ctx-story-draft",
@@ -208,7 +208,7 @@ function makeServiceLayer() {
             payload: {
               key: "route-a-step",
               targetKind: "workflow",
-              sourceMode: "fixed_set",
+              sourceMode: "fixed",
               workflowDefinitionIds: ["wf-story"],
             },
           },
@@ -222,11 +222,11 @@ function makeServiceLayer() {
         contextFacts: [
           {
             contextFactDefinitionId: "ctx-summary",
-            kind: "plain_value_fact",
+            kind: "plain_fact",
             key: "summary",
             label: "Summary",
             cardinality: "one",
-            valueType: "string",
+            type: "string",
           },
         ],
         formDefinitions: [],
@@ -321,9 +321,9 @@ describe("l3 design-time invoke branch router invoke procedures", () => {
     );
 
     expect(created.stepId).toBe("step-invoke-1");
-    expect(created.payload).toEqual(invokePayload);
+    expect(created.payload).toEqual({ ...invokePayload, sourceMode: "fixed" });
     expect(updated.payload.label).toBe("Invoke story work v2");
-    expect(createdPayloads).toEqual([invokePayload]);
+    expect(createdPayloads).toEqual([{ ...invokePayload, sourceMode: "fixed" }]);
     expect(updatedPayloads).toEqual([
       expect.objectContaining({ label: "Invoke story work v2", activationTransitions: [] }),
     ]);
@@ -344,7 +344,7 @@ describe("l3 design-time invoke branch router invoke procedures", () => {
           payload: {
             key: "invoke-workflows",
             targetKind: "workflow",
-            sourceMode: "fixed_set",
+            sourceMode: "fixed",
             workflowDefinitionIds: ["wf-story"],
             bindings: [
               {

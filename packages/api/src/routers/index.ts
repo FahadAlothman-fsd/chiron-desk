@@ -71,15 +71,15 @@ export function createAppRouter(
     | EligibilityService
     | ProjectContextService
   >;
-  const runtimeServiceLayer = Layer.provide(
-    Layer.mergeAll(WorkflowEngineRuntimeLive, WorkflowEngineRuntimeStepServicesLive),
-    Layer.mergeAll(
-      runtimeRepoLayer,
-      repoLayer,
-      lifecycleRepoLayer,
-      projectContextRepoLayer,
-      OpencodeHarnessServiceLive,
-    ),
+  const runtimeServiceLayer = Layer.mergeAll(
+    runtimeRepoLayer,
+    repoLayer,
+    lifecycleRepoLayer,
+    projectContextRepoLayer,
+    OpencodeHarnessServiceLive,
+  ).pipe(
+    Layer.provideMerge(WorkflowEngineRuntimeLive),
+    Layer.provideMerge(WorkflowEngineRuntimeStepServicesLive),
   ) as Layer.Layer<any>;
   const runtimeQueryServiceLayer = Layer.provide(
     WorkflowEngineRuntimeLive,

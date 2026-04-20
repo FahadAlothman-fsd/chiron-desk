@@ -1761,10 +1761,7 @@ describe("methodology router", () => {
       expect(versionRouter.fact?.create).toBeDefined();
       expect(versionRouter.fact?.update).toBeDefined();
       expect(versionRouter.fact?.delete).toBeDefined();
-      expect(versionRouter.agent?.list).toBeDefined();
-      expect(versionRouter.agent?.create).toBeDefined();
-      expect(versionRouter.agent?.update).toBeDefined();
-      expect(versionRouter.agent?.delete).toBeDefined();
+      expect(versionRouter.agent).toBeUndefined();
       expect(versionRouter.dependencyDefinition?.list).toBeDefined();
       expect(versionRouter.dependencyDefinition?.create).toBeDefined();
       expect(versionRouter.dependencyDefinition?.update).toBeDefined();
@@ -3311,9 +3308,11 @@ describe("methodology router", () => {
         {
           versionId: created.version.id,
           fact: {
+            kind: "plain_fact",
             key: "customer_name",
             name: "Customer Name",
-            factType: "work_unit",
+            type: "string",
+            factType: "string",
             description: "Customer-facing name",
           },
         },
@@ -3331,7 +3330,8 @@ describe("methodology router", () => {
           expect.objectContaining({
             key: "customer_name",
             name: "Customer Name",
-            factType: "work_unit",
+            kind: "plain_fact",
+            factType: "string",
           }),
         ]),
       );
@@ -3342,9 +3342,11 @@ describe("methodology router", () => {
           versionId: created.version.id,
           factKey: "customer_name",
           fact: {
+            kind: "plain_fact",
             key: "customer_name",
             name: "Legal Customer Name",
-            factType: "work_unit",
+            type: "string",
+            factType: "string",
             description: "Legal customer name",
           },
         },
@@ -3362,7 +3364,8 @@ describe("methodology router", () => {
           expect.objectContaining({
             key: "customer_name",
             name: "Legal Customer Name",
-            factType: "work_unit",
+            kind: "plain_fact",
+            factType: "string",
           }),
         ]),
       );
@@ -3424,8 +3427,10 @@ describe("methodology router", () => {
           versionId: created.version.id,
           workUnitTypeKey: "task",
           fact: {
+            kind: "plain_fact",
             key: "task_owner",
             name: "Task Owner",
+            type: "string",
             factType: "string",
             cardinality: "many",
           },
@@ -3448,6 +3453,7 @@ describe("methodology router", () => {
           expect.objectContaining({
             key: "task_owner",
             name: "Task Owner",
+            kind: "plain_fact",
             factType: "string",
             cardinality: "many",
           }),
@@ -3458,10 +3464,113 @@ describe("methodology router", () => {
         expect.arrayContaining([expect.objectContaining({ key: "task_owner" })]),
       );
     });
+
+    it("round-trips work-unit JSON subfield number minimum/maximum through create and list", async () => {
+      const router = createMethodologyRouter(
+        makeServiceLayer(),
+      ) as typeof createMethodologyRouter extends (...args: any[]) => infer T
+        ? T & {
+            version?: {
+              workUnit?: {
+                fact?: {
+                  list?: unknown;
+                  create?: unknown;
+                };
+              };
+            };
+          }
+        : never;
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "work-unit-fact-json-number-roundtrip-method",
+          displayName: "Work Unit Fact JSON Number Roundtrip Method",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await call(
+        router.version?.workUnit?.fact?.create as unknown as Parameters<typeof call>[0],
+        {
+          versionId: created.version.id,
+          workUnitTypeKey: "task",
+          fact: {
+            kind: "plain_fact",
+            key: "task_scorecard",
+            name: "Task Scorecard",
+            type: "json",
+            factType: "json",
+            cardinality: "one",
+            validation: {
+              kind: "json-schema",
+              schemaDialect: "draft-2020-12",
+              schema: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  score: {
+                    type: "number",
+                    minimum: 2,
+                    maximum: 9,
+                  },
+                },
+              },
+              subSchema: {
+                type: "object",
+                fields: [
+                  {
+                    key: "score",
+                    type: "number",
+                    cardinality: "one",
+                  },
+                ],
+              },
+            },
+          },
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const projection = await call(
+        router.version?.workUnit?.fact?.list as unknown as Parameters<typeof call>[0],
+        { versionId: created.version.id },
+        PUBLIC_CTX,
+      );
+
+      const taskWorkUnit = (
+        projection.workUnitTypes as Array<{ key: string; factSchemas?: unknown[] }>
+      ).find((workUnit) => workUnit.key === "task");
+
+      expect(taskWorkUnit?.factSchemas).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: "task_scorecard",
+            factType: "json",
+            validation: expect.objectContaining({
+              kind: "json-schema",
+              schema: expect.objectContaining({
+                properties: expect.objectContaining({
+                  score: expect.objectContaining({
+                    type: "number",
+                    minimum: 2,
+                    maximum: 9,
+                  }),
+                }),
+              }),
+            }),
+          }),
+        ]),
+      );
+    });
   });
 
   describe("version.agent routes", () => {
-    it("creates, updates, and deletes agent definitions through version.agent CRUD", async () => {
+    it("does not expose methodology-defined agent CRUD routes anymore", async () => {
       const router = createMethodologyRouter(
         makeServiceLayer(),
       ) as typeof createMethodologyRouter extends (...args: any[]) => infer T
@@ -3477,98 +3586,7 @@ describe("methodology router", () => {
           }
         : never;
 
-      const created = await call(
-        router.version.create,
-        {
-          methodologyKey: "agent-crud-method",
-          displayName: "Agent CRUD Method",
-          version: "0.1.0-draft",
-          workUnitTypes: VALID_DEFINITION.workUnitTypes,
-          transitions: VALID_DEFINITION.transitions,
-          agentTypes: VALID_DEFINITION.agentTypes,
-        },
-        AUTHENTICATED_CTX,
-      );
-
-      await call(
-        router.version?.agent?.create as unknown as Parameters<typeof call>[0],
-        {
-          versionId: created.version.id,
-          agent: {
-            key: "reviewer",
-            displayName: "Reviewer",
-            description: "Reviews outputs",
-            promptTemplate: { markdown: "Thorough reviewer" },
-          },
-        },
-        AUTHENTICATED_CTX,
-      );
-
-      const afterCreate = await call(
-        router.version?.agent?.list as unknown as Parameters<typeof call>[0],
-        { versionId: created.version.id },
-        PUBLIC_CTX,
-      );
-
-      expect(afterCreate.agentTypes).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            key: "reviewer",
-            displayName: "Reviewer",
-            promptTemplate: { markdown: "Thorough reviewer" },
-          }),
-        ]),
-      );
-
-      await call(
-        router.version?.agent?.update as unknown as Parameters<typeof call>[0],
-        {
-          versionId: created.version.id,
-          agentKey: "reviewer",
-          agent: {
-            key: "reviewer",
-            displayName: "Senior Reviewer",
-            description: "Reviews outputs carefully",
-            promptTemplate: { markdown: "Senior reviewer" },
-          },
-        },
-        AUTHENTICATED_CTX,
-      );
-
-      const afterUpdate = await call(
-        router.version?.agent?.list as unknown as Parameters<typeof call>[0],
-        { versionId: created.version.id },
-        PUBLIC_CTX,
-      );
-
-      expect(afterUpdate.agentTypes).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            key: "reviewer",
-            displayName: "Senior Reviewer",
-            promptTemplate: { markdown: "Senior reviewer" },
-          }),
-        ]),
-      );
-
-      await call(
-        router.version?.agent?.delete as unknown as Parameters<typeof call>[0],
-        {
-          versionId: created.version.id,
-          agentKey: "reviewer",
-        },
-        AUTHENTICATED_CTX,
-      );
-
-      const afterDelete = await call(
-        router.version?.agent?.list as unknown as Parameters<typeof call>[0],
-        { versionId: created.version.id },
-        PUBLIC_CTX,
-      );
-
-      expect(afterDelete.agentTypes ?? []).not.toEqual(
-        expect.arrayContaining([expect.objectContaining({ key: "reviewer" })]),
-      );
+      expect(router.version?.agent).toBeUndefined();
     });
   });
 
@@ -4015,8 +4033,8 @@ describe("methodology router", () => {
         ),
       );
 
-      await expect(
-        call(
+      try {
+        await call(
           router.version.workUnit.create,
           {
             versionId: "version-duplicate-create",
@@ -4025,28 +4043,34 @@ describe("methodology router", () => {
             },
           },
           AUTHENTICATED_CTX,
-        ),
-      ).rejects.toMatchObject({
-        code: "CONFLICT",
-        message: "Work-unit lifecycle validation failed",
-        data: {
-          validation: {
-            valid: false,
-            diagnostics: [
-              expect.objectContaining({
-                code: "DUPLICATE_WORK_UNIT_KEY",
-                message: "Duplicate work-unit key",
-                scope: "workUnitTypes[1].key",
-              }),
-            ],
-          },
-          firstDiagnostic: expect.objectContaining({
+        );
+        throw new Error("expected work-unit create to fail");
+      } catch (error) {
+        const err = error as {
+          code?: string;
+          message?: string;
+          data?: {
+            validation?: {
+              valid?: boolean;
+              diagnostics?: Array<Record<string, unknown>>;
+            };
+            firstDiagnostic?: Record<string, unknown>;
+          };
+        };
+        expect(err.code).toBe("CONFLICT");
+        expect(err.message).toBe("Work-unit lifecycle validation failed");
+        expect(err.data?.validation?.valid).toBe(false);
+        expect(err.data?.validation?.diagnostics?.[0]).toMatchObject({
+          code: "DUPLICATE_WORK_UNIT_KEY",
+          scope: "workUnitTypes[1].key",
+        });
+        expect(err.data?.firstDiagnostic).toEqual(
+          expect.objectContaining({
             code: "DUPLICATE_WORK_UNIT_KEY",
-            message: "Duplicate work-unit key",
             scope: "workUnitTypes[1].key",
           }),
-        },
-      });
+        );
+      }
     });
 
     it("returns BAD_REQUEST when work-unit update returns invalid diagnostics envelope", async () => {
@@ -4085,8 +4109,8 @@ describe("methodology router", () => {
         ),
       );
 
-      await expect(
-        call(
+      try {
+        await call(
           router.version.workUnit.updateMeta,
           {
             versionId: "version-invalid-update",
@@ -4096,26 +4120,32 @@ describe("methodology router", () => {
             },
           },
           AUTHENTICATED_CTX,
-        ),
-      ).rejects.toMatchObject({
-        code: "BAD_REQUEST",
-        message: "Work-unit lifecycle validation failed",
-        data: {
-          validation: {
-            valid: false,
-            diagnostics: [
-              expect.objectContaining({
-                code: "MISSING_LIFECYCLE_TRANSITION_TARGET",
-                message: "Missing lifecycle transition target",
-              }),
-            ],
-          },
-          firstDiagnostic: expect.objectContaining({
+        );
+        throw new Error("expected work-unit update to fail");
+      } catch (error) {
+        const err = error as {
+          code?: string;
+          message?: string;
+          data?: {
+            validation?: {
+              valid?: boolean;
+              diagnostics?: Array<Record<string, unknown>>;
+            };
+            firstDiagnostic?: Record<string, unknown>;
+          };
+        };
+        expect(err.code).toBe("BAD_REQUEST");
+        expect(err.message).toBe("Work-unit lifecycle validation failed");
+        expect(err.data?.validation?.valid).toBe(false);
+        expect(err.data?.validation?.diagnostics?.[0]).toMatchObject({
+          code: "MISSING_LIFECYCLE_TRANSITION_TARGET",
+        });
+        expect(err.data?.firstDiagnostic).toEqual(
+          expect.objectContaining({
             code: "MISSING_LIFECYCLE_TRANSITION_TARGET",
-            message: "Missing lifecycle transition target",
           }),
-        },
-      });
+        );
+      }
     });
 
     it("preserves work unit guidance through version.workUnit create and updateMeta", async () => {

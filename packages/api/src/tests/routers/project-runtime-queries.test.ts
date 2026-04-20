@@ -245,12 +245,11 @@ function makeHarness() {
       slotName: "Design Doc",
       artifactKind: "single_file" as const,
     },
-    currentEffectiveSnapshot: {
+    currentArtifactInstance: {
       exists: false,
-      memberCounts: { currentCount: 0 },
-      members: [],
+      fileCount: 0,
+      files: [],
     },
-    lineage: [],
   };
 
   const artifactSnapshotDialogOutput = {
@@ -266,11 +265,12 @@ function makeHarness() {
       slotName: "Design Doc",
       artifactKind: "single_file" as const,
     },
-    snapshot: {
-      projectArtifactSnapshotId: "snapshot-1",
-      createdAt: "2026-01-01T00:00:00.000Z",
-      deltaMembers: [],
-      effectiveMemberCounts: { currentCount: 0 },
+    artifactInstance: {
+      exists: true,
+      artifactInstanceId: "artifact-instance-1",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      fileCount: 0,
+      files: [],
     },
   };
 
@@ -343,7 +343,7 @@ function makeHarness() {
     Layer.succeed(RuntimeArtifactService, {
       getArtifactSlots: artifactSlots,
       getArtifactSlotDetail: artifactSlotDetail,
-      getArtifactSnapshotDialog: artifactSnapshotDialog,
+      getArtifactInstanceDialog: artifactSnapshotDialog,
       checkArtifactSlotCurrentState: vi.fn(),
     } as any),
     Layer.succeed(RuntimeWorkflowIndexService, {
@@ -417,7 +417,7 @@ describe("project runtime query router", () => {
     expect(router.getRuntimeWorkUnitFactDetail).toBeDefined();
     expect(router.getRuntimeArtifactSlots).toBeDefined();
     expect(router.getRuntimeArtifactSlotDetail).toBeDefined();
-    expect(router.getRuntimeArtifactSnapshotDialog).toBeDefined();
+    expect(router.getRuntimeArtifactInstanceDialog).toBeDefined();
     expect(router.getRuntimeActiveWorkflows).toBeDefined();
   });
 
@@ -526,17 +526,17 @@ describe("project runtime query router", () => {
     expectOnlyCalled(mocks, "artifactSlotDetail", input);
   });
 
-  it("routes getRuntimeArtifactSnapshotDialog through RuntimeArtifactService", async () => {
+  it("routes getRuntimeArtifactInstanceDialog through RuntimeArtifactService", async () => {
     const { router, mocks, outputs } = makeHarness();
     const input = {
       projectId: "project-1",
       projectWorkUnitId: "wu-1",
       slotDefinitionId: "slot-1",
-      projectArtifactSnapshotId: "snapshot-1",
+      artifactInstanceId: "artifact-instance-1",
     };
 
     await expect(
-      call((router as any).getRuntimeArtifactSnapshotDialog, input, PUBLIC_CTX),
+      call((router as any).getRuntimeArtifactInstanceDialog, input, PUBLIC_CTX),
     ).resolves.toEqual(outputs.artifactSnapshotDialogOutput);
     expectOnlyCalled(mocks, "artifactSnapshotDialog", input);
   });
