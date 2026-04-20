@@ -139,6 +139,12 @@ const SCHEMA_SQL = [
     context_fact_definition_id TEXT NOT NULL,
     artifact_slot_key TEXT NOT NULL
   )`,
+  `CREATE TABLE methodology_workflow_context_fact_work_unit_refs (
+    id TEXT PRIMARY KEY,
+    context_fact_definition_id TEXT NOT NULL,
+    link_type_definition_id TEXT,
+    target_work_unit_definition_id TEXT
+  )`,
   `CREATE TABLE methodology_workflow_context_fact_draft_specs (
     id TEXT PRIMARY KEY,
     context_fact_definition_id TEXT NOT NULL,
@@ -307,9 +313,9 @@ describe("l3 design-time invoke/branch methodology repository", () => {
       INSERT INTO methodology_workflow_context_fact_definitions (
         id, workflow_definition_id, fact_key, fact_kind, label, cardinality
       ) VALUES
-        ('ctx-status', 'workflow-1', 'status', 'plain_value_fact', 'Status', 'one'),
-        ('ctx-summary', 'workflow-1', 'summary', 'plain_value_fact', 'Summary', 'one'),
-        ('ctx-artifact', 'workflow-1', 'prd_artifact', 'artifact_reference_fact', 'PRD artifact', 'many')
+        ('ctx-status', 'workflow-1', 'status', 'plain_fact', 'Status', 'one'),
+        ('ctx-summary', 'workflow-1', 'summary', 'plain_fact', 'Summary', 'one'),
+      ('ctx-artifact', 'workflow-1', 'prd_artifact', 'artifact_slot_reference_fact', 'PRD artifact', 'many')
     `);
     await client.execute(`
       INSERT INTO methodology_workflow_context_fact_plain_values (id, context_fact_definition_id, value_type, validation_json)
@@ -363,7 +369,7 @@ describe("l3 design-time invoke/branch methodology repository", () => {
           label: "Invoke story work",
           descriptionJson: { markdown: "Invoke a story workflow" },
           targetKind: "work_unit",
-          sourceMode: "fixed_set",
+          sourceMode: "fixed",
           workUnitDefinitionId: "wut-story",
           bindings: [
             {
@@ -411,7 +417,7 @@ describe("l3 design-time invoke/branch methodology repository", () => {
           key: "invoke-story-work-v2",
           label: "Invoke story work v2",
           targetKind: "work_unit",
-          sourceMode: "fixed_set",
+          sourceMode: "fixed",
           workUnitDefinitionId: "wut-story",
           bindings: [
             {
@@ -445,7 +451,10 @@ describe("l3 design-time invoke/branch methodology repository", () => {
       }),
     );
 
-    expect(loaded).toEqual({ stepId: created.stepId, payload: updated.payload });
+    expect(loaded).toEqual({
+      stepId: created.stepId,
+      payload: { ...updated.payload, sourceMode: "fixed" },
+    });
   });
 
   it("persists branch steps with routes/groups/conditions and deletes omitted child rows", async () => {

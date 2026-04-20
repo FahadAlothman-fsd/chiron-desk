@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { Effect, Layer } from "effect";
 import {
@@ -14,8 +14,8 @@ import {
 } from "@chiron/workflow-engine";
 import { projects } from "../schema/project";
 import {
-  artifactSnapshotFiles,
-  projectArtifactSnapshots,
+  projectArtifactInstanceFiles,
+  projectArtifactInstances,
   projectWorkUnits,
 } from "../schema/runtime";
 
@@ -30,7 +30,7 @@ function dbEffect<A>(operation: string, fn: () => Promise<A>): Effect.Effect<A, 
   });
 }
 
-function toSnapshotRow(row: typeof projectArtifactSnapshots.$inferSelect): ArtifactSnapshotRow {
+function toSnapshotRow(row: typeof projectArtifactInstances.$inferSelect): ArtifactSnapshotRow {
   return {
     id: row.id,
     projectWorkUnitId: row.projectWorkUnitId,
@@ -38,103 +38,21 @@ function toSnapshotRow(row: typeof projectArtifactSnapshots.$inferSelect): Artif
     recordedByTransitionExecutionId: row.recordedByTransitionExecutionId,
     recordedByWorkflowExecutionId: row.recordedByWorkflowExecutionId,
     recordedByUserId: row.recordedByUserId,
-    supersededByProjectArtifactSnapshotId: row.supersededByProjectArtifactSnapshotId,
     createdAt: row.createdAt,
+    supersededByProjectArtifactSnapshotId: null,
   };
 }
 
-function toFileRow(row: typeof artifactSnapshotFiles.$inferSelect): ArtifactSnapshotFileRow {
+function toFileRow(row: typeof projectArtifactInstanceFiles.$inferSelect): ArtifactSnapshotFileRow {
   return {
     id: row.id,
-    artifactSnapshotId: row.artifactSnapshotId,
+    artifactSnapshotId: row.artifactInstanceId,
     filePath: row.filePath,
-    memberStatus: row.memberStatus,
+    memberStatus: "present",
     gitCommitHash: row.gitCommitHash,
     gitBlobHash: row.gitBlobHash,
     gitCommitTitle: row.gitCommitTitle,
     gitCommitBody: row.gitCommitBody,
-  };
-}
-
-function selectHeadSnapshot(
-  snapshots: readonly (typeof projectArtifactSnapshots.$inferSelect)[],
-): typeof projectArtifactSnapshots.$inferSelect | null {
-  const heads = snapshots.filter(
-    (snapshot) => snapshot.supersededByProjectArtifactSnapshotId === null,
-  );
-  if (heads.length === 0) {
-    return null;
-  }
-
-  heads.sort((a, b) => {
-    const byTimestamp = b.createdAt.getTime() - a.createdAt.getTime();
-    return byTimestamp !== 0 ? byTimestamp : b.id.localeCompare(a.id);
-  });
-
-  return heads[0] ?? null;
-}
-
-function buildLineageFromHead(
-  head: typeof projectArtifactSnapshots.$inferSelect,
-  snapshots: readonly (typeof projectArtifactSnapshots.$inferSelect)[],
-): readonly (typeof projectArtifactSnapshots.$inferSelect)[] {
-  const parentByChildId = new Map<string, typeof projectArtifactSnapshots.$inferSelect>();
-  for (const row of snapshots) {
-    if (row.supersededByProjectArtifactSnapshotId) {
-      parentByChildId.set(row.supersededByProjectArtifactSnapshotId, row);
-    }
-  }
-
-  const lineage: (typeof projectArtifactSnapshots.$inferSelect)[] = [head];
-  let cursor = head;
-
-  while (true) {
-    const parent = parentByChildId.get(cursor.id);
-    if (!parent) {
-      break;
-    }
-
-    lineage.push(parent);
-    cursor = parent;
-  }
-
-  return lineage;
-}
-
-function resolveEffectiveMembers(
-  lineage: readonly (typeof projectArtifactSnapshots.$inferSelect)[],
-  filesBySnapshotId: ReadonlyMap<string, readonly (typeof artifactSnapshotFiles.$inferSelect)[]>,
-): {
-  currentMembers: readonly ArtifactSnapshotFileRow[];
-  effectiveMembersBySnapshotId: ReadonlyMap<string, readonly ArtifactSnapshotFileRow[]>;
-} {
-  const effectiveMembersBySnapshotId = new Map<string, readonly ArtifactSnapshotFileRow[]>();
-  const currentMembersByPath = new Map<string, ArtifactSnapshotFileRow>();
-  const oldestToNewest = [...lineage].reverse();
-
-  for (const snapshot of oldestToNewest) {
-    const deltaRows = filesBySnapshotId.get(snapshot.id) ?? [];
-    for (const deltaRow of deltaRows) {
-      if (deltaRow.memberStatus === "removed") {
-        currentMembersByPath.delete(deltaRow.filePath);
-      } else {
-        currentMembersByPath.set(deltaRow.filePath, toFileRow(deltaRow));
-      }
-    }
-
-    const effectiveMembers = [...currentMembersByPath.values()].sort((a, b) =>
-      a.filePath.localeCompare(b.filePath),
-    );
-    effectiveMembersBySnapshotId.set(snapshot.id, effectiveMembers);
-  }
-
-  const currentMembers = [...currentMembersByPath.values()].sort((a, b) =>
-    a.filePath.localeCompare(b.filePath),
-  );
-
-  return {
-    currentMembers,
-    effectiveMembersBySnapshotId,
   };
 }
 
@@ -146,19 +64,19 @@ async function resolveSlotState(
   currentState: ArtifactCurrentState;
   lineageEntries: readonly ArtifactLineageEntry[];
 }> {
-  const snapshots = await db
+  const artifactInstances = await db
     .select()
-    .from(projectArtifactSnapshots)
+    .from(projectArtifactInstances)
     .where(
       and(
-        eq(projectArtifactSnapshots.projectWorkUnitId, projectWorkUnitId),
-        eq(projectArtifactSnapshots.slotDefinitionId, slotDefinitionId),
+        eq(projectArtifactInstances.projectWorkUnitId, projectWorkUnitId),
+        eq(projectArtifactInstances.slotDefinitionId, slotDefinitionId),
       ),
     )
-    .orderBy(desc(projectArtifactSnapshots.createdAt), desc(projectArtifactSnapshots.id));
+    .limit(1);
 
-  const head = selectHeadSnapshot(snapshots);
-  if (!head) {
+  const currentInstance = artifactInstances[0];
+  if (!currentInstance) {
     return {
       currentState: {
         exists: false,
@@ -169,36 +87,28 @@ async function resolveSlotState(
     };
   }
 
-  const lineage = buildLineageFromHead(head, snapshots);
-  const lineageIds = lineage.map((snapshot) => snapshot.id);
-
-  const deltaRows = await db
+  const fileRows = await db
     .select()
-    .from(artifactSnapshotFiles)
-    .where(inArray(artifactSnapshotFiles.artifactSnapshotId, lineageIds));
-  const filesBySnapshotId = new Map<string, (typeof artifactSnapshotFiles.$inferSelect)[]>();
-  for (const row of deltaRows) {
-    const existing = filesBySnapshotId.get(row.artifactSnapshotId) ?? [];
-    existing.push(row);
-    filesBySnapshotId.set(row.artifactSnapshotId, existing);
-  }
+    .from(projectArtifactInstanceFiles)
+    .where(eq(projectArtifactInstanceFiles.artifactInstanceId, currentInstance.id));
 
-  const { currentMembers, effectiveMembersBySnapshotId } = resolveEffectiveMembers(
-    lineage,
-    filesBySnapshotId,
-  );
+  const currentMembers = fileRows
+    .map(toFileRow)
+    .sort((a, b) => a.filePath.localeCompare(b.filePath));
   const exists = currentMembers.length > 0;
 
-  const lineageEntries: ArtifactLineageEntry[] = lineage.map((snapshotRow) => ({
-    snapshot: toSnapshotRow(snapshotRow),
-    deltaMembers: (filesBySnapshotId.get(snapshotRow.id) ?? []).map(toFileRow),
-    effectiveMembers: effectiveMembersBySnapshotId.get(snapshotRow.id) ?? [],
-  }));
+  const lineageEntries: ArtifactLineageEntry[] = [
+    {
+      snapshot: toSnapshotRow(currentInstance),
+      deltaMembers: currentMembers,
+      effectiveMembers: currentMembers,
+    },
+  ];
 
   return {
     currentState: {
       exists,
-      snapshot: toSnapshotRow(head),
+      snapshot: toSnapshotRow(currentInstance),
       members: exists ? currentMembers : [],
     },
     lineageEntries,
@@ -248,30 +158,44 @@ export function createArtifactRepoLayer(db: DB): Layer.Layer<ArtifactRepository>
     createSnapshot: (params) =>
       dbEffect("runtime.artifacts.createSnapshot", async () => {
         return db.transaction(async (tx) => {
-          const inserted = await tx
-            .insert(projectArtifactSnapshots)
-            .values({
-              projectWorkUnitId: params.projectWorkUnitId,
-              slotDefinitionId: params.slotDefinitionId,
-              recordedByTransitionExecutionId: params.recordedByTransitionExecutionId ?? null,
-              recordedByWorkflowExecutionId: params.recordedByWorkflowExecutionId ?? null,
-              recordedByUserId: params.recordedByUserId ?? null,
-              supersededByProjectArtifactSnapshotId: null,
-            })
-            .returning();
+          const existing = await tx
+            .select()
+            .from(projectArtifactInstances)
+            .where(
+              and(
+                eq(projectArtifactInstances.projectWorkUnitId, params.projectWorkUnitId),
+                eq(projectArtifactInstances.slotDefinitionId, params.slotDefinitionId),
+              ),
+            )
+            .limit(1);
 
-          const row = inserted[0];
-          if (!row) {
-            throw new Error("Failed to create artifact snapshot");
-          }
+          const row = existing[0]
+            ? (
+                await tx
+                  .update(projectArtifactInstances)
+                  .set({
+                    recordedByTransitionExecutionId: params.recordedByTransitionExecutionId ?? null,
+                    recordedByWorkflowExecutionId: params.recordedByWorkflowExecutionId ?? null,
+                    recordedByUserId: params.recordedByUserId ?? null,
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(projectArtifactInstances.id, existing[0].id))
+                  .returning()
+              )[0]
+            : (
+                await tx
+                  .insert(projectArtifactInstances)
+                  .values({
+                    projectWorkUnitId: params.projectWorkUnitId,
+                    slotDefinitionId: params.slotDefinitionId,
+                    recordedByTransitionExecutionId: params.recordedByTransitionExecutionId ?? null,
+                    recordedByWorkflowExecutionId: params.recordedByWorkflowExecutionId ?? null,
+                    recordedByUserId: params.recordedByUserId ?? null,
+                  })
+                  .returning()
+              )[0];
 
-          if (params.supersededByProjectArtifactSnapshotId) {
-            await tx
-              .update(projectArtifactSnapshots)
-              .set({ supersededByProjectArtifactSnapshotId: row.id })
-              .where(eq(projectArtifactSnapshots.id, params.supersededByProjectArtifactSnapshotId));
-          }
-
+          if (!row) throw new Error("Failed to create artifact instance");
           return toSnapshotRow(row);
         });
       }),
@@ -282,22 +206,57 @@ export function createArtifactRepoLayer(db: DB): Layer.Layer<ArtifactRepository>
           return [];
         }
 
-        const inserted = await db
-          .insert(artifactSnapshotFiles)
-          .values(
-            files.map((file) => ({
-              artifactSnapshotId,
-              filePath: file.filePath,
-              memberStatus: file.memberStatus,
-              gitCommitHash: file.gitCommitHash ?? null,
-              gitBlobHash: file.gitBlobHash ?? null,
-              gitCommitTitle: file.gitCommitTitle ?? null,
-              gitCommitBody: file.gitCommitBody ?? null,
-            })),
-          )
-          .returning();
+        return db.transaction(async (tx) => {
+          for (const file of files) {
+            const existing = await tx
+              .select()
+              .from(projectArtifactInstanceFiles)
+              .where(
+                and(
+                  eq(projectArtifactInstanceFiles.artifactInstanceId, artifactSnapshotId),
+                  eq(projectArtifactInstanceFiles.filePath, file.filePath),
+                ),
+              )
+              .limit(1);
 
-        return inserted.map(toFileRow);
+            if (file.memberStatus === "removed") {
+              if (existing[0]) {
+                await tx
+                  .delete(projectArtifactInstanceFiles)
+                  .where(eq(projectArtifactInstanceFiles.id, existing[0].id));
+              }
+              continue;
+            }
+
+            if (existing[0]) {
+              await tx
+                .update(projectArtifactInstanceFiles)
+                .set({
+                  gitCommitHash: file.gitCommitHash ?? null,
+                  gitBlobHash: file.gitBlobHash ?? null,
+                  gitCommitTitle: file.gitCommitTitle ?? null,
+                  gitCommitBody: file.gitCommitBody ?? null,
+                  updatedAt: new Date(),
+                })
+                .where(eq(projectArtifactInstanceFiles.id, existing[0].id));
+            } else {
+              await tx.insert(projectArtifactInstanceFiles).values({
+                artifactInstanceId: artifactSnapshotId,
+                filePath: file.filePath,
+                gitCommitHash: file.gitCommitHash ?? null,
+                gitBlobHash: file.gitBlobHash ?? null,
+                gitCommitTitle: file.gitCommitTitle ?? null,
+                gitCommitBody: file.gitCommitBody ?? null,
+              });
+            }
+          }
+
+          const rows = await tx
+            .select()
+            .from(projectArtifactInstanceFiles)
+            .where(eq(projectArtifactInstanceFiles.artifactInstanceId, artifactSnapshotId));
+          return rows.map(toFileRow);
+        });
       }),
 
     getCurrentSnapshotBySlot: ({ projectWorkUnitId, slotDefinitionId }) =>
@@ -387,20 +346,15 @@ export async function findActiveArtifactConditionPrerequisites(
 > {
   const snapshotRows = await db
     .select({
-      projectWorkUnitId: projectArtifactSnapshots.projectWorkUnitId,
-      slotDefinitionId: projectArtifactSnapshots.slotDefinitionId,
+      projectWorkUnitId: projectArtifactInstances.projectWorkUnitId,
+      slotDefinitionId: projectArtifactInstances.slotDefinitionId,
     })
-    .from(projectArtifactSnapshots)
+    .from(projectArtifactInstances)
     .innerJoin(
       projectWorkUnits,
-      eq(projectWorkUnits.id, projectArtifactSnapshots.projectWorkUnitId),
+      eq(projectWorkUnits.id, projectArtifactInstances.projectWorkUnitId),
     )
-    .where(
-      and(
-        eq(projectWorkUnits.projectId, params.projectId),
-        isNull(projectArtifactSnapshots.supersededByProjectArtifactSnapshotId),
-      ),
-    );
+    .where(eq(projectWorkUnits.projectId, params.projectId));
 
   const uniquePairs = new Map<string, { projectWorkUnitId: string; slotDefinitionId: string }>();
   for (const row of snapshotRows) {

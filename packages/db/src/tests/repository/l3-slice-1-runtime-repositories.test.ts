@@ -84,6 +84,7 @@ const SCHEMA_SQL = [
     id TEXT PRIMARY KEY,
     workflow_execution_id TEXT NOT NULL,
     context_fact_definition_id TEXT NOT NULL,
+    instance_id TEXT NOT NULL,
     instance_order INTEGER NOT NULL,
     value_json TEXT,
     source_step_execution_id TEXT,
@@ -126,8 +127,8 @@ describe("l3 slice-1 runtime repositories", () => {
       INSERT INTO methodology_workflow_context_fact_definitions (
         id, workflow_definition_id, fact_key, fact_kind, label, description_json, cardinality, guidance_json, created_at, updated_at
       ) VALUES
-        ('ctx-initiative-name', 'workflow-1', 'initiative_name', 'plain_value_fact', 'Initiative Name', NULL, 'one', NULL, strftime('%s','now') * 1000, strftime('%s','now') * 1000),
-        ('ctx-objectives', 'workflow-1', 'objectives', 'plain_value_fact', 'Objectives', NULL, 'many', NULL, strftime('%s','now') * 1000, strftime('%s','now') * 1000)
+        ('ctx-initiative-name', 'workflow-1', 'initiative_name', 'plain_fact', 'Initiative Name', NULL, 'one', NULL, strftime('%s','now') * 1000, strftime('%s','now') * 1000),
+        ('ctx-objectives', 'workflow-1', 'objectives', 'plain_fact', 'Objectives', NULL, 'many', NULL, strftime('%s','now') * 1000, strftime('%s','now') * 1000)
     `);
     await client.execute(`
       INSERT INTO transition_executions (id, project_work_unit_id, transition_id, status, started_at)

@@ -61,7 +61,7 @@ const SCHEMA_SQL = [
     FOREIGN KEY (context_fact_definition_id) REFERENCES methodology_workflow_context_fact_definitions(id) ON DELETE CASCADE,
     CONSTRAINT methodology_workflow_action_step_actions_kind_check CHECK (action_kind = 'propagation'),
     CONSTRAINT methodology_workflow_action_step_actions_fact_kind_check CHECK (
-      context_fact_kind in ('definition_backed_external_fact', 'bound_external_fact', 'artifact_reference_fact')
+      context_fact_kind in ('bound_fact', 'artifact_slot_reference_fact')
     ),
     UNIQUE(action_step_id, action_id)
   )`,
@@ -156,8 +156,8 @@ describe("l3 plan a action/branch schema", () => {
       INSERT INTO methodology_workflow_context_fact_definitions (
         id, workflow_definition_id, fact_key, fact_kind, cardinality
       ) VALUES
-        ('ctx-external', 'workflow-1', 'external_status', 'definition_backed_external_fact', 'one'),
-        ('ctx-artifact', 'workflow-1', 'prd_artifact', 'artifact_reference_fact', 'many')
+        ('ctx-external', 'workflow-1', 'external_status', 'bound_fact', 'one'),
+        ('ctx-artifact', 'workflow-1', 'prd_artifact', 'artifact_slot_reference_fact', 'many')
     `);
   });
 
@@ -242,7 +242,7 @@ describe("l3 plan a action/branch schema", () => {
           10,
           'materialize_directory',
           'ctx-artifact',
-          'artifact_reference_fact'
+          'artifact_slot_reference_fact'
         )
       `),
     );
@@ -259,7 +259,7 @@ describe("l3 plan a action/branch schema", () => {
           10,
           'propagation',
           'ctx-artifact',
-          'plain_value_fact'
+          'plain_fact'
         )
       `),
     );
@@ -275,7 +275,7 @@ describe("l3 plan a action/branch schema", () => {
         10,
         'propagation',
         'ctx-artifact',
-        'artifact_reference_fact'
+        'artifact_slot_reference_fact'
       )
     `);
 

@@ -9,6 +9,12 @@ import {
   WORKFLOW_CONTEXT_FACT_KINDS,
 } from "@chiron/contracts";
 
+const WORKFLOW_CONTEXT_FACT_DB_ENUM = [
+  ...WORKFLOW_CONTEXT_FACT_KINDS,
+  "plain_value_fact",
+  "artifact_slot_reference_fact",
+] as const;
+
 import {
   methodologyArtifactSlotDefinitions,
   methodologyWorkflowContextFactDefinitions,
@@ -38,6 +44,9 @@ export const projectWorkUnits = sqliteTable(
     workUnitTypeId: text("work_unit_type_id")
       .notNull()
       .references(() => methodologyWorkUnitTypes.id, { onDelete: "restrict" }),
+    workUnitKey: text("work_unit_key").notNull(),
+    instanceNumber: integer("instance_number").notNull(),
+    displayName: text("display_name"),
     currentStateId: text("current_state_id").references(() => workUnitLifecycleStates.id, {
       onDelete: "restrict",
     }),
@@ -49,6 +58,12 @@ export const projectWorkUnits = sqliteTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
+    uniqueIndex("project_work_units_project_key_idx").on(table.projectId, table.workUnitKey),
+    uniqueIndex("project_work_units_project_type_instance_idx").on(
+      table.projectId,
+      table.workUnitTypeId,
+      table.instanceNumber,
+    ),
     index("project_work_units_project_idx").on(table.projectId, table.createdAt, table.id),
     index("project_work_units_type_idx").on(table.workUnitTypeId),
     index("project_work_units_current_state_idx").on(table.currentStateId),
@@ -142,7 +157,9 @@ export const projectFactInstances = sqliteTable(
       .notNull()
       .references(() => methodologyFactDefinitions.id, { onDelete: "restrict" }),
     valueJson: text("value_json", { mode: "json" }),
-    status: text("status", { enum: ["active", "superseded", "parent_superseded"] }).notNull(),
+    status: text("status", {
+      enum: ["active", "superseded", "parent_superseded", "deleted"],
+    }).notNull(),
     supersededByFactInstanceId: text("superseded_by_fact_instance_id").references(
       (): AnySQLiteColumn => projectFactInstances.id,
       { onDelete: "set null" },
@@ -185,7 +202,9 @@ export const workUnitFactInstances = sqliteTable(
       () => projectWorkUnits.id,
       { onDelete: "set null" },
     ),
-    status: text("status", { enum: ["active", "superseded", "parent_superseded"] }).notNull(),
+    status: text("status", {
+      enum: ["active", "superseded", "parent_superseded", "deleted"],
+    }).notNull(),
     supersededByFactInstanceId: text("superseded_by_fact_instance_id").references(
       (): AnySQLiteColumn => workUnitFactInstances.id,
       { onDelete: "set null" },
@@ -216,8 +235,8 @@ export const workUnitFactInstances = sqliteTable(
   ],
 );
 
-export const projectArtifactSnapshots = sqliteTable(
-  "project_artifact_snapshots",
+export const projectArtifactInstances = sqliteTable(
+  "project_artifact_instances",
   {
     id: text("id")
       .primaryKey()
@@ -237,48 +256,61 @@ export const projectArtifactSnapshots = sqliteTable(
       { onDelete: "set null" },
     ),
     recordedByUserId: text("recorded_by_user_id"),
-    supersededByProjectArtifactSnapshotId: text(
-      "superseded_by_project_artifact_snapshot_id",
-    ).references((): AnySQLiteColumn => projectArtifactSnapshots.id, { onDelete: "set null" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(timestampDefault),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(timestampDefault)
+      .$onUpdate(() => new Date()),
   },
   (table) => [
-    index("project_artifact_snapshots_work_unit_idx").on(
+    uniqueIndex("project_artifact_instances_work_unit_slot_idx").on(
+      table.projectWorkUnitId,
+      table.slotDefinitionId,
+    ),
+    index("project_artifact_instances_work_unit_idx").on(
       table.projectWorkUnitId,
       table.createdAt,
       table.id,
     ),
-    index("project_artifact_snapshots_slot_idx").on(table.slotDefinitionId),
-    index("project_artifact_snapshots_transition_idx").on(table.recordedByTransitionExecutionId),
-    index("project_artifact_snapshots_workflow_idx").on(table.recordedByWorkflowExecutionId),
-    index("project_artifact_snapshots_superseded_by_idx").on(
-      table.supersededByProjectArtifactSnapshotId,
-    ),
+    index("project_artifact_instances_slot_idx").on(table.slotDefinitionId),
+    index("project_artifact_instances_transition_idx").on(table.recordedByTransitionExecutionId),
+    index("project_artifact_instances_workflow_idx").on(table.recordedByWorkflowExecutionId),
   ],
 );
 
-export const artifactSnapshotFiles = sqliteTable(
-  "artifact_snapshot_files",
+// Deprecated compatibility export while Wave 2 cutover propagates.
+export const projectArtifactSnapshots = projectArtifactInstances;
+
+export const projectArtifactInstanceFiles = sqliteTable(
+  "project_artifact_instance_files",
   {
     id: text("id")
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
-    artifactSnapshotId: text("artifact_snapshot_id")
+    artifactInstanceId: text("artifact_instance_id")
       .notNull()
-      .references(() => projectArtifactSnapshots.id, { onDelete: "cascade" }),
+      .references(() => projectArtifactInstances.id, { onDelete: "cascade" }),
     filePath: text("file_path").notNull(),
-    memberStatus: text("member_status", { enum: ["present", "removed"] }).notNull(),
     gitCommitHash: text("git_commit_hash"),
     gitBlobHash: text("git_blob_hash"),
     gitCommitTitle: text("git_commit_title"),
     gitCommitBody: text("git_commit_body"),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(timestampDefault)
+      .$onUpdate(() => new Date()),
   },
   (table) => [
-    index("artifact_snapshot_files_snapshot_idx").on(table.artifactSnapshotId),
-    index("artifact_snapshot_files_snapshot_path_idx").on(table.artifactSnapshotId, table.filePath),
-    index("artifact_snapshot_files_member_status_idx").on(table.memberStatus),
+    index("project_artifact_instance_files_instance_idx").on(table.artifactInstanceId),
+    uniqueIndex("project_artifact_instance_files_instance_path_idx").on(
+      table.artifactInstanceId,
+      table.filePath,
+    ),
   ],
 );
+
+// Deprecated compatibility export while Wave 2 cutover propagates.
+export const artifactSnapshotFiles = projectArtifactInstanceFiles;
 
 export const stepExecutions = sqliteTable(
   "step_executions",
@@ -400,6 +432,7 @@ export const invokeWorkUnitTargetExecution = sqliteTable(
       onDelete: "set null",
     }),
     resolutionOrder: integer("resolution_order"),
+    frozenDraftTemplateJson: text("frozen_draft_template_json", { mode: "json" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(timestampDefault),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .notNull()
@@ -455,8 +488,8 @@ export const invokeWorkUnitCreatedFactInstance = sqliteTable(
   ],
 );
 
-export const invokeWorkUnitCreatedArtifactSnapshot = sqliteTable(
-  "invoke_work_unit_created_artifact_snapshot",
+export const invokeWorkUnitCreatedArtifactInstance = sqliteTable(
+  "invoke_work_unit_created_artifact_instance",
   {
     id: text("id")
       .primaryKey()
@@ -467,21 +500,24 @@ export const invokeWorkUnitCreatedArtifactSnapshot = sqliteTable(
     artifactSlotDefinitionId: text("artifact_slot_definition_id")
       .notNull()
       .references(() => methodologyArtifactSlotDefinitions.id, { onDelete: "restrict" }),
-    artifactSnapshotId: text("artifact_snapshot_id")
+    artifactInstanceId: text("artifact_instance_id")
       .notNull()
-      .references(() => projectArtifactSnapshots.id, { onDelete: "cascade" }),
+      .references(() => projectArtifactInstances.id, { onDelete: "cascade" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(timestampDefault),
   },
   (table) => [
-    index("invoke_work_unit_created_artifact_snapshot_target_idx").on(
+    index("invoke_work_unit_created_artifact_instance_target_idx").on(
       table.invokeWorkUnitTargetExecutionId,
       table.createdAt,
       table.id,
     ),
-    index("invoke_work_unit_created_artifact_snapshot_slot_idx").on(table.artifactSlotDefinitionId),
-    index("invoke_work_unit_created_artifact_snapshot_snapshot_idx").on(table.artifactSnapshotId),
+    index("invoke_work_unit_created_artifact_instance_slot_idx").on(table.artifactSlotDefinitionId),
+    index("invoke_work_unit_created_artifact_instance_instance_idx").on(table.artifactInstanceId),
   ],
 );
+
+// Deprecated compatibility export while Wave 2 cutover propagates.
+export const invokeWorkUnitCreatedArtifactSnapshot = invokeWorkUnitCreatedArtifactInstance;
 
 export const formStepExecutionState = sqliteTable(
   "form_step_execution_state",
@@ -565,7 +601,7 @@ export const agentStepExecutionAppliedWrites = sqliteTable(
       .references(() => stepExecutions.id, { onDelete: "cascade" }),
     writeItemId: text("write_item_id").notNull(),
     contextFactDefinitionId: text("context_fact_definition_id").notNull(),
-    contextFactKind: text("context_fact_kind", { enum: WORKFLOW_CONTEXT_FACT_KINDS }).notNull(),
+    contextFactKind: text("context_fact_kind", { enum: WORKFLOW_CONTEXT_FACT_DB_ENUM }).notNull(),
     instanceOrder: integer("instance_order").notNull(),
     appliedValueJson: text("applied_value_json", { mode: "json" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(timestampDefault),
@@ -744,6 +780,9 @@ export const workflowExecutionContextFacts = sqliteTable(
     contextFactDefinitionId: text("context_fact_definition_id")
       .notNull()
       .references(() => methodologyWorkflowContextFactDefinitions.id, { onDelete: "restrict" }),
+    instanceId: text("instance_id")
+      .notNull()
+      .$defaultFn(() => crypto.randomUUID()),
     instanceOrder: integer("instance_order").notNull(),
     valueJson: text("value_json", { mode: "json" }),
     sourceStepExecutionId: text("source_step_execution_id").references(() => stepExecutions.id, {
@@ -757,11 +796,54 @@ export const workflowExecutionContextFacts = sqliteTable(
   },
   (table) => [
     index("workflow_execution_context_facts_workflow_idx").on(table.workflowExecutionId),
+    uniqueIndex("workflow_execution_context_facts_definition_instance_id_idx").on(
+      table.workflowExecutionId,
+      table.contextFactDefinitionId,
+      table.instanceId,
+    ),
     uniqueIndex("workflow_execution_context_facts_definition_instance_idx").on(
       table.workflowExecutionId,
       table.contextFactDefinitionId,
       table.instanceOrder,
     ),
     index("workflow_execution_context_facts_source_step_idx").on(table.sourceStepExecutionId),
+  ],
+);
+
+export const workflowExecutionContextFactRecords = sqliteTable(
+  "workflow_execution_context_fact_records",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    workflowExecutionId: text("workflow_execution_id")
+      .notNull()
+      .references(() => workflowExecutions.id, { onDelete: "cascade" }),
+    contextFactDefinitionId: text("context_fact_definition_id")
+      .notNull()
+      .references(() => methodologyWorkflowContextFactDefinitions.id, { onDelete: "restrict" }),
+    instanceId: text("instance_id"),
+    verb: text("verb", { enum: ["create", "update", "remove", "delete"] }).notNull(),
+    valueJson: text("value_json", { mode: "json" }),
+    sourceStepExecutionId: text("source_step_execution_id").references(() => stepExecutions.id, {
+      onDelete: "set null",
+    }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(timestampDefault),
+  },
+  (table) => [
+    index("workflow_execution_context_fact_records_workflow_idx").on(
+      table.workflowExecutionId,
+      table.createdAt,
+      table.id,
+    ),
+    index("workflow_execution_context_fact_records_definition_idx").on(
+      table.contextFactDefinitionId,
+      table.createdAt,
+      table.id,
+    ),
+    index("workflow_execution_context_fact_records_instance_idx").on(table.instanceId),
+    index("workflow_execution_context_fact_records_source_step_idx").on(
+      table.sourceStepExecutionId,
+    ),
   ],
 );

@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { Effect, Layer } from "effect";
 import {
@@ -20,6 +20,7 @@ import {
   type UpdateInvokeWorkflowTargetExecutionStartParams,
 } from "@chiron/workflow-engine";
 
+import { methodologyWorkUnitTypes } from "../schema/methodology";
 import {
   invokeStepExecutionState,
   invokeWorkUnitCreatedArtifactSnapshot,
@@ -86,6 +87,7 @@ function toInvokeWorkUnitTargetExecutionRow(
     workflowDefinitionId: row.workflowDefinitionId,
     workflowExecutionId: row.workflowExecutionId,
     resolutionOrder: row.resolutionOrder,
+    frozenDraftTemplateJson: row.frozenDraftTemplateJson,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -110,7 +112,7 @@ function toInvokeWorkUnitCreatedArtifactSnapshotRow(
     id: row.id,
     invokeWorkUnitTargetExecutionId: row.invokeWorkUnitTargetExecutionId,
     artifactSlotDefinitionId: row.artifactSlotDefinitionId,
-    artifactSnapshotId: row.artifactSnapshotId,
+    artifactSnapshotId: row.artifactInstanceId,
     createdAt: row.createdAt,
   };
 }
@@ -323,6 +325,7 @@ export function createInvokeExecutionRepoLayer(db: DB): Layer.Layer<InvokeExecut
             workflowDefinitionId: params.workflowDefinitionId ?? null,
             workflowExecutionId: params.workflowExecutionId ?? null,
             resolutionOrder: params.resolutionOrder ?? null,
+            frozenDraftTemplateJson: params.frozenDraftTemplateJson ?? null,
           })
           .returning();
 
@@ -345,6 +348,7 @@ export function createInvokeExecutionRepoLayer(db: DB): Layer.Layer<InvokeExecut
             transitionExecutionId: params.transitionExecutionId,
             workflowDefinitionId: params.workflowDefinitionId,
             workflowExecutionId: params.workflowExecutionId,
+            frozenDraftTemplateJson: params.frozenDraftTemplateJson ?? null,
           })
           .where(eq(invokeWorkUnitTargetExecution.id, params.invokeWorkUnitTargetExecutionId))
           .returning();
@@ -389,16 +393,46 @@ export function createInvokeExecutionRepoLayer(db: DB): Layer.Layer<InvokeExecut
           }
 
           const workUnitRows = await tx
+            .select({
+              key: methodologyWorkUnitTypes.key,
+            })
+            .from(methodologyWorkUnitTypes)
+            .where(eq(methodologyWorkUnitTypes.id, params.workUnitDefinitionId))
+            .limit(1);
+
+          const workUnitType = workUnitRows[0];
+          if (!workUnitType) {
+            throw new Error("Failed to resolve invoked project work unit type");
+          }
+
+          const existingRows = await tx
+            .select({ instanceNumber: projectWorkUnits.instanceNumber })
+            .from(projectWorkUnits)
+            .where(
+              and(
+                eq(projectWorkUnits.projectId, params.projectId),
+                eq(projectWorkUnits.workUnitTypeId, params.workUnitDefinitionId),
+              ),
+            )
+            .orderBy(desc(projectWorkUnits.instanceNumber), desc(projectWorkUnits.id))
+            .limit(1);
+
+          const nextInstanceNumber = (existingRows[0]?.instanceNumber ?? 0) + 1;
+
+          const insertedWorkUnitRows = await tx
             .insert(projectWorkUnits)
             .values({
               projectId: params.projectId,
               workUnitTypeId: params.workUnitDefinitionId,
+              workUnitKey: `${workUnitType.key}-${nextInstanceNumber}`,
+              instanceNumber: nextInstanceNumber,
+              displayName: null,
               currentStateId: null,
               activeTransitionExecutionId: null,
             })
             .returning();
 
-          const projectWorkUnit = workUnitRows[0];
+          const projectWorkUnit = insertedWorkUnitRows[0];
           if (!projectWorkUnit) {
             throw new Error("Failed to create invoked project work unit");
           }
@@ -507,9 +541,8 @@ export function createInvokeExecutionRepoLayer(db: DB): Layer.Layer<InvokeExecut
           if (artifactRows.length > 0) {
             const artifactFileRows = artifactRows.flatMap((row, index) =>
               (params.initialArtifactSlotDefinitions[index]?.files ?? []).map((file) => ({
-                artifactSnapshotId: row.id,
+                artifactInstanceId: row.id,
                 filePath: file.filePath,
-                memberStatus: file.memberStatus,
                 gitCommitHash: null,
                 gitBlobHash: null,
               })),
@@ -524,7 +557,7 @@ export function createInvokeExecutionRepoLayer(db: DB): Layer.Layer<InvokeExecut
                 invokeWorkUnitTargetExecutionId: target.id,
                 artifactSlotDefinitionId:
                   params.initialArtifactSlotDefinitions[index]!.artifactSlotDefinitionId,
-                artifactSnapshotId: row.id,
+                artifactInstanceId: row.id,
               })),
             );
           }
@@ -536,6 +569,7 @@ export function createInvokeExecutionRepoLayer(db: DB): Layer.Layer<InvokeExecut
               transitionExecutionId: transitionExecution.id,
               workflowDefinitionId: params.workflowDefinitionId,
               workflowExecutionId: workflowExecution.id,
+              frozenDraftTemplateJson: params.frozenDraftTemplateJson ?? null,
             })
             .where(eq(invokeWorkUnitTargetExecution.id, target.id));
 
@@ -617,7 +651,7 @@ export function createInvokeExecutionRepoLayer(db: DB): Layer.Layer<InvokeExecut
           .values({
             invokeWorkUnitTargetExecutionId: params.invokeWorkUnitTargetExecutionId,
             artifactSlotDefinitionId: params.artifactSlotDefinitionId,
-            artifactSnapshotId: params.artifactSnapshotId,
+            artifactInstanceId: params.artifactSnapshotId,
           })
           .returning();
 

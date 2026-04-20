@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { projects } from "../../schema/project";
 import {
-  artifactSnapshotFiles,
-  projectArtifactSnapshots,
+  projectArtifactInstanceFiles,
+  projectArtifactInstances,
   projectFactInstances,
   projectWorkUnits,
   transitionExecutions,
@@ -22,8 +22,8 @@ describe("runtime schema lock", () => {
     expect(workflowExecutions).toBeDefined();
     expect(projectFactInstances).toBeDefined();
     expect(workUnitFactInstances).toBeDefined();
-    expect(projectArtifactSnapshots).toBeDefined();
-    expect(artifactSnapshotFiles).toBeDefined();
+    expect(projectArtifactInstances).toBeDefined();
+    expect(projectArtifactInstanceFiles).toBeDefined();
 
     expect(
       ({ stepExecutions: undefined } as unknown as Record<string, unknown>).stepExecutions,
@@ -83,21 +83,21 @@ describe("runtime schema lock", () => {
     expect(workUnitFactInstances.createdAt).toBeDefined();
   });
 
-  it("locks artifact snapshot parent/member fields", () => {
-    expect(projectArtifactSnapshots.projectWorkUnitId).toBeDefined();
-    expect(projectArtifactSnapshots.slotDefinitionId).toBeDefined();
-    expect(projectArtifactSnapshots.recordedByTransitionExecutionId).toBeDefined();
-    expect(projectArtifactSnapshots.recordedByWorkflowExecutionId).toBeDefined();
-    expect(projectArtifactSnapshots.recordedByUserId).toBeDefined();
-    expect(projectArtifactSnapshots.supersededByProjectArtifactSnapshotId).toBeDefined();
-    expect(projectArtifactSnapshots.createdAt).toBeDefined();
+  it("locks current artifact instance and tracked file fields", () => {
+    expect(projectArtifactInstances.projectWorkUnitId).toBeDefined();
+    expect(projectArtifactInstances.slotDefinitionId).toBeDefined();
+    expect(projectArtifactInstances.recordedByTransitionExecutionId).toBeDefined();
+    expect(projectArtifactInstances.recordedByWorkflowExecutionId).toBeDefined();
+    expect(projectArtifactInstances.recordedByUserId).toBeDefined();
+    expect(projectArtifactInstances.createdAt).toBeDefined();
+    expect(projectArtifactInstances.updatedAt).toBeDefined();
 
-    expect(artifactSnapshotFiles.artifactSnapshotId).toBeDefined();
-    expect(artifactSnapshotFiles.filePath).toBeDefined();
-    expect(artifactSnapshotFiles.memberStatus).toBeDefined();
-    expect(artifactSnapshotFiles.gitCommitHash).toBeDefined();
-    expect(artifactSnapshotFiles.gitBlobHash).toBeDefined();
-    expect(artifactSnapshotFiles.gitCommitTitle).toBeDefined();
-    expect(artifactSnapshotFiles.gitCommitBody).toBeDefined();
+    expect(projectArtifactInstanceFiles.artifactInstanceId).toBeDefined();
+    expect(projectArtifactInstanceFiles.filePath).toBeDefined();
+    expect(projectArtifactInstanceFiles.gitCommitHash).toBeDefined();
+    expect(projectArtifactInstanceFiles.gitBlobHash).toBeDefined();
+    expect(projectArtifactInstanceFiles.gitCommitTitle).toBeDefined();
+    expect(projectArtifactInstanceFiles.gitCommitBody).toBeDefined();
+    expect(projectArtifactInstanceFiles.updatedAt).toBeDefined();
   });
 });

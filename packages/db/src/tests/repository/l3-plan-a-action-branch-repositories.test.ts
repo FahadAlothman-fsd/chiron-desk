@@ -88,6 +88,12 @@ const SCHEMA_SQL = [
     context_fact_definition_id TEXT NOT NULL,
     workflow_definition_id TEXT NOT NULL
   )`,
+  `CREATE TABLE methodology_workflow_context_fact_work_unit_refs (
+    id TEXT PRIMARY KEY,
+    context_fact_definition_id TEXT NOT NULL,
+    link_type_definition_id TEXT,
+    target_work_unit_definition_id TEXT
+  )`,
   `CREATE TABLE methodology_workflow_context_fact_draft_specs (
     id TEXT PRIMARY KEY,
     context_fact_definition_id TEXT NOT NULL,
@@ -182,19 +188,19 @@ describe("l3 plan a action/branch methodology repository", () => {
       INSERT INTO methodology_workflow_context_fact_definitions (
         id, workflow_definition_id, fact_key, fact_kind, label, cardinality
       ) VALUES
-        ('ctx-def-backed', 'workflow-1', 'external_status', 'definition_backed_external_fact', 'External status', 'one'),
-        ('ctx-def-backed-2', 'workflow-1', 'external_status_secondary', 'definition_backed_external_fact', 'External status secondary', 'one'),
-        ('ctx-bound', 'workflow-1', 'bound_status', 'bound_external_fact', 'Bound status', 'one'),
-        ('ctx-artifact', 'workflow-1', 'prd_artifact', 'artifact_reference_fact', 'PRD artifact', 'many'),
-        ('ctx-plain', 'workflow-1', 'summary', 'plain_value_fact', 'Summary', 'one')
+        ('ctx-def-backed', 'workflow-1', 'external_status', 'bound_fact', 'External status', 'one'),
+        ('ctx-def-backed-2', 'workflow-1', 'external_status_secondary', 'bound_fact', 'External status secondary', 'one'),
+        ('ctx-bound', 'workflow-1', 'bound_status', 'bound_fact', 'Bound status', 'one'),
+        ('ctx-artifact', 'workflow-1', 'prd_artifact', 'artifact_slot_reference_fact', 'PRD artifact', 'many'),
+        ('ctx-plain', 'workflow-1', 'summary', 'plain_fact', 'Summary', 'one')
     `);
     await client.execute(`
       INSERT INTO methodology_workflow_context_fact_external_bindings (
         id, context_fact_definition_id, provider, binding_key
       ) VALUES
-        ('binding-def-backed', 'ctx-def-backed', 'test', 'external-status'),
-        ('binding-def-backed-2', 'ctx-def-backed-2', 'test', 'external-status-secondary'),
-        ('binding-bound', 'ctx-bound', 'test', 'bound-status')
+        ('binding-def-backed', 'ctx-def-backed', 'bound_fact', 'external-status'),
+        ('binding-def-backed-2', 'ctx-def-backed-2', 'bound_fact', 'external-status-secondary'),
+        ('binding-bound', 'ctx-bound', 'bound_fact', 'bound-status')
     `);
     await client.execute(`
       INSERT INTO methodology_workflow_context_fact_artifact_refs (
@@ -252,7 +258,7 @@ describe("l3 plan a action/branch methodology repository", () => {
               sortOrder: 10,
               actionKind: "propagation",
               contextFactDefinitionId: "ctx-def-backed",
-              contextFactKind: "definition_backed_external_fact",
+              contextFactKind: "bound_fact",
               items: [
                 {
                   itemId: "item-1",
@@ -277,7 +283,7 @@ describe("l3 plan a action/branch methodology repository", () => {
               sortOrder: 20,
               actionKind: "propagation",
               contextFactDefinitionId: "ctx-artifact",
-              contextFactKind: "artifact_reference_fact",
+              contextFactKind: "artifact_slot_reference_fact",
               items: [
                 {
                   itemId: "item-3",
@@ -336,7 +342,7 @@ describe("l3 plan a action/branch methodology repository", () => {
               sortOrder: 30,
               actionKind: "propagation",
               contextFactDefinitionId: "ctx-def-backed",
-              contextFactKind: "definition_backed_external_fact",
+              contextFactKind: "bound_fact",
               items: [
                 {
                   itemId: "item-1",
@@ -361,7 +367,7 @@ describe("l3 plan a action/branch methodology repository", () => {
               sortOrder: 40,
               actionKind: "propagation",
               contextFactDefinitionId: "ctx-bound",
-              contextFactKind: "bound_external_fact",
+              contextFactKind: "bound_fact",
               items: [
                 {
                   itemId: "item-5",
@@ -422,7 +428,7 @@ describe("l3 plan a action/branch methodology repository", () => {
             sortOrder: 30,
             actionKind: "propagation",
             contextFactDefinitionId: "ctx-def-backed",
-            contextFactKind: "definition_backed_external_fact",
+            contextFactKind: "bound_fact",
             items: [
               {
                 itemId: "item-1",
@@ -447,7 +453,7 @@ describe("l3 plan a action/branch methodology repository", () => {
             sortOrder: 40,
             actionKind: "propagation",
             contextFactDefinitionId: "ctx-bound",
-            contextFactKind: "bound_external_fact",
+            contextFactKind: "bound_fact",
             items: [
               {
                 itemId: "item-5",
@@ -523,7 +529,7 @@ describe("l3 plan a action/branch methodology repository", () => {
                 sortOrder: 10,
                 actionKind: "propagation",
                 contextFactDefinitionId: "ctx-plain",
-                contextFactKind: "artifact_reference_fact",
+                contextFactKind: "artifact_slot_reference_fact",
                 items: [{ itemId: "item-invalid", itemKey: "summary", sortOrder: 10 }],
               },
             ],
@@ -535,7 +541,7 @@ describe("l3 plan a action/branch methodology repository", () => {
     expect(invalidKindResult._tag).toBe("Left");
     if (invalidKindResult._tag === "Left") {
       expect(String((invalidKindResult.left as { cause: unknown }).cause)).toContain(
-        "cannot target workflow context fact 'ctx-plain' of kind 'plain_value_fact'",
+        "cannot target workflow context fact 'ctx-plain' of kind 'plain_fact'",
       );
     }
   });

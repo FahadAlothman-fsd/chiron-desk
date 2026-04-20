@@ -36,7 +36,10 @@ function toRow(
     serverInstanceId: row.serverInstanceId,
     serverBaseUrl: row.serverBaseUrl,
     selectedAgentKey: row.selectedAgentKey,
-    selectedModelJson: row.selectedModelJson,
+    selectedModelJson:
+      row.selectedModelJson && typeof row.selectedModelJson === "object"
+        ? (row.selectedModelJson as AgentStepExecutionHarnessBindingRow["selectedModelJson"])
+        : null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

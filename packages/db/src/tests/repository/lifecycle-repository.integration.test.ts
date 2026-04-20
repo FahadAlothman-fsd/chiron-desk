@@ -85,6 +85,7 @@ const SCHEMA_SQL = [
     transition_key TEXT NOT NULL,
     from_state_id TEXT,
     to_state_id TEXT,
+    description_json TEXT,
     guidance_json TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,

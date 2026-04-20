@@ -301,25 +301,25 @@ const SCHEMA_SQL = [
     authored_by_user_id TEXT,
     created_at INTEGER NOT NULL
   )`,
-  `CREATE TABLE project_artifact_snapshots (
+  `CREATE TABLE project_artifact_instances (
     id TEXT PRIMARY KEY,
     project_work_unit_id TEXT NOT NULL,
     slot_definition_id TEXT NOT NULL,
     recorded_by_transition_execution_id TEXT,
     recorded_by_workflow_execution_id TEXT,
     recorded_by_user_id TEXT,
-    superseded_by_project_artifact_snapshot_id TEXT,
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
   )`,
-  `CREATE TABLE artifact_snapshot_files (
+  `CREATE TABLE project_artifact_instance_files (
     id TEXT PRIMARY KEY,
-    artifact_snapshot_id TEXT NOT NULL,
+    artifact_instance_id TEXT NOT NULL,
     file_path TEXT NOT NULL,
-    member_status TEXT NOT NULL,
     git_commit_hash TEXT,
     git_blob_hash TEXT,
     git_commit_title TEXT,
-    git_commit_body TEXT
+    git_commit_body TEXT,
+    updated_at INTEGER NOT NULL
   )`,
 ];
 
@@ -645,6 +645,12 @@ describe("methodology repository integration", () => {
                 additionalProperties: false,
                 properties: {
                   doc_type: { type: "string", title: "doc_type" },
+                  confidence_score: {
+                    type: "number",
+                    title: "confidence_score",
+                    minimum: 1,
+                    maximum: 10,
+                  },
                   path: {
                     type: "string",
                     title: "path",
@@ -676,11 +682,24 @@ describe("methodology repository integration", () => {
         fields: expect.arrayContaining([
           expect.objectContaining({ key: "doc_type", type: "string" }),
           expect.objectContaining({
+            key: "confidence_score",
+            type: "number",
+          }),
+          expect.objectContaining({
             key: "path",
             type: "string",
             validation: expect.objectContaining({ kind: "path" }),
           }),
         ]),
+      },
+      schema: {
+        properties: expect.objectContaining({
+          confidence_score: expect.objectContaining({
+            type: "number",
+            minimum: 1,
+            maximum: 10,
+          }),
+        }),
       },
     });
   });

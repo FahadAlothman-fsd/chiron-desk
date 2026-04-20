@@ -4,11 +4,14 @@ import { Effect, Layer } from "effect";
 import {
   RepositoryError,
   WorkUnitFactRepository,
+  type DeleteWorkUnitFactInstanceParams,
+  type UpdateWorkUnitFactInstanceParams,
   type WorkUnitFactInstanceRow,
 } from "@chiron/workflow-engine";
 import { workUnitFactInstances } from "../schema/runtime";
 
 type DB = LibSQLDatabase<Record<string, unknown>>;
+type DBLike = Pick<DB, "select" | "insert" | "update">;
 
 function dbEffect<A>(operation: string, fn: () => Promise<A>): Effect.Effect<A, RepositoryError> {
   return Effect.tryPromise({
@@ -31,6 +34,70 @@ function toRow(row: typeof workUnitFactInstances.$inferSelect): WorkUnitFactInst
     authoredByUserId: row.authoredByUserId,
     createdAt: row.createdAt,
   };
+}
+
+async function getFactRowById(db: DBLike, workUnitFactInstanceId: string) {
+  const rows = await db
+    .select()
+    .from(workUnitFactInstances)
+    .where(eq(workUnitFactInstances.id, workUnitFactInstanceId))
+    .limit(1);
+
+  return rows[0] ?? null;
+}
+
+async function insertWorkUnitFactRow(
+  db: DBLike,
+  params: {
+    projectWorkUnitId: string;
+    factDefinitionId: string;
+    valueJson?: unknown;
+    referencedProjectWorkUnitId?: string | null;
+    status: WorkUnitFactInstanceRow["status"];
+    producedByTransitionExecutionId?: string | null;
+    producedByWorkflowExecutionId?: string | null;
+    authoredByUserId?: string | null;
+  },
+) {
+  const inserted = await db
+    .insert(workUnitFactInstances)
+    .values({
+      projectWorkUnitId: params.projectWorkUnitId,
+      factDefinitionId: params.factDefinitionId,
+      valueJson:
+        params.referencedProjectWorkUnitId === undefined ||
+        params.referencedProjectWorkUnitId === null
+          ? (params.valueJson ?? null)
+          : null,
+      referencedProjectWorkUnitId: params.referencedProjectWorkUnitId ?? null,
+      status: params.status,
+      supersededByFactInstanceId: null,
+      producedByTransitionExecutionId: params.producedByTransitionExecutionId ?? null,
+      producedByWorkflowExecutionId: params.producedByWorkflowExecutionId ?? null,
+      authoredByUserId: params.authoredByUserId ?? null,
+    })
+    .returning();
+
+  const row = inserted[0];
+  if (!row) {
+    throw new Error("Failed to create work-unit fact instance");
+  }
+
+  return row;
+}
+
+async function supersedeWorkUnitFactRow(
+  db: DBLike,
+  workUnitFactInstanceId: string,
+  supersededByWorkUnitFactInstanceId: string,
+) {
+  await db
+    .update(workUnitFactInstances)
+    .set({
+      status: "superseded",
+      supersededByFactInstanceId: supersededByWorkUnitFactInstanceId,
+    })
+    .where(eq(workUnitFactInstances.id, workUnitFactInstanceId));
 }
 
 const ACTIVE_CURRENT_FACT_FILTER = and(
@@ -108,13 +175,71 @@ export function createWorkUnitFactRepoLayer(db: DB): Layer.Layer<WorkUnitFactRep
 
     supersedeFactInstance: ({ workUnitFactInstanceId, supersededByWorkUnitFactInstanceId }) =>
       dbEffect("runtime.workUnitFacts.supersedeFactInstance", async () => {
-        await db
-          .update(workUnitFactInstances)
-          .set({
-            status: "superseded",
-            supersededByFactInstanceId: supersededByWorkUnitFactInstanceId,
-          })
-          .where(eq(workUnitFactInstances.id, workUnitFactInstanceId));
+        await supersedeWorkUnitFactRow(
+          db,
+          workUnitFactInstanceId,
+          supersededByWorkUnitFactInstanceId,
+        );
+      }),
+
+    updateFactInstance: (params: UpdateWorkUnitFactInstanceParams) =>
+      dbEffect("runtime.workUnitFacts.updateFactInstance", async () => {
+        return db.transaction(async (tx) => {
+          const existing = await getFactRowById(tx, params.workUnitFactInstanceId);
+          if (!existing) {
+            return null;
+          }
+
+          const updated = await insertWorkUnitFactRow(tx, {
+            projectWorkUnitId: existing.projectWorkUnitId,
+            factDefinitionId: existing.factDefinitionId,
+            ...(params.valueJson !== undefined ? { valueJson: params.valueJson } : {}),
+            ...(params.referencedProjectWorkUnitId !== undefined
+              ? { referencedProjectWorkUnitId: params.referencedProjectWorkUnitId }
+              : {}),
+            status: "active",
+            ...(params.producedByTransitionExecutionId !== undefined
+              ? { producedByTransitionExecutionId: params.producedByTransitionExecutionId }
+              : {}),
+            ...(params.producedByWorkflowExecutionId !== undefined
+              ? { producedByWorkflowExecutionId: params.producedByWorkflowExecutionId }
+              : {}),
+            ...(params.authoredByUserId !== undefined
+              ? { authoredByUserId: params.authoredByUserId }
+              : {}),
+          });
+
+          await supersedeWorkUnitFactRow(tx, existing.id, updated.id);
+          return toRow(updated);
+        });
+      }),
+
+    logicallyDeleteFactInstance: (params: DeleteWorkUnitFactInstanceParams) =>
+      dbEffect("runtime.workUnitFacts.logicallyDeleteFactInstance", async () => {
+        return db.transaction(async (tx) => {
+          const existing = await getFactRowById(tx, params.workUnitFactInstanceId);
+          if (!existing) {
+            return null;
+          }
+
+          const tombstone = await insertWorkUnitFactRow(tx, {
+            projectWorkUnitId: existing.projectWorkUnitId,
+            factDefinitionId: existing.factDefinitionId,
+            status: "deleted",
+            ...(params.producedByTransitionExecutionId !== undefined
+              ? { producedByTransitionExecutionId: params.producedByTransitionExecutionId }
+              : {}),
+            ...(params.producedByWorkflowExecutionId !== undefined
+              ? { producedByWorkflowExecutionId: params.producedByWorkflowExecutionId }
+              : {}),
+            ...(params.authoredByUserId !== undefined
+              ? { authoredByUserId: params.authoredByUserId }
+              : {}),
+          });
+
+          await supersedeWorkUnitFactRow(tx, existing.id, tombstone.id);
+          return toRow(tombstone);
+        });
       }),
   });
 }

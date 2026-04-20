@@ -84,7 +84,8 @@ const SCHEMA_SQL = [
   `CREATE TABLE methodology_workflow_context_fact_work_unit_refs (
     id TEXT PRIMARY KEY,
     context_fact_definition_id TEXT NOT NULL,
-    work_unit_type_key TEXT NOT NULL
+    link_type_definition_id TEXT,
+    target_work_unit_definition_id TEXT
   )`,
   `CREATE TABLE methodology_workflow_context_fact_artifact_refs (
     id TEXT PRIMARY KEY,
@@ -154,7 +155,7 @@ describe("methodology repository context-fact list", () => {
   it("returns persisted plain_value context facts", async () => {
     await client.execute(`
       INSERT INTO methodology_workflow_context_fact_definitions (id, workflow_definition_id, fact_key, fact_kind, cardinality)
-      VALUES ('ctx-1', 'wf-1', 'initiative_name', 'plain_value_fact', 'one')
+      VALUES ('ctx-1', 'wf-1', 'initiative_name', 'plain_fact', 'one')
     `);
     await client.execute(`
       INSERT INTO methodology_workflow_context_fact_plain_values (id, context_fact_definition_id, value_type, validation_json)
@@ -170,11 +171,11 @@ describe("methodology repository context-fact list", () => {
 
     expect(facts).toEqual([
       {
-        kind: "plain_value_fact",
+        kind: "plain_fact",
         contextFactDefinitionId: "ctx-1",
         key: "initiative_name",
         cardinality: "one",
-        valueType: "string",
+        type: "string",
       },
     ]);
   });
@@ -182,7 +183,7 @@ describe("methodology repository context-fact list", () => {
   it("returns persisted plain_value validationJson", async () => {
     await client.execute(`
       INSERT INTO methodology_workflow_context_fact_definitions (id, workflow_definition_id, fact_key, fact_kind, cardinality)
-      VALUES ('ctx-json', 'wf-1', 'json_plain', 'plain_value_fact', 'one')
+      VALUES ('ctx-json', 'wf-1', 'json_plain', 'plain_fact', 'one')
     `);
     await client.execute(`
       INSERT INTO methodology_workflow_context_fact_plain_values (id, context_fact_definition_id, value_type, validation_json)
@@ -204,10 +205,10 @@ describe("methodology repository context-fact list", () => {
     expect(facts).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          kind: "plain_value_fact",
+          kind: "plain_fact",
           key: "json_plain",
           cardinality: "one",
-          valueType: "json",
+          type: "json",
           validationJson: expect.objectContaining({
             kind: "json-schema",
             subSchema: expect.objectContaining({
@@ -227,10 +228,10 @@ describe("methodology repository context-fact list", () => {
         versionId: "ver-1",
         workflowDefinitionId: "wf-1",
         fact: {
-          kind: "plain_value_fact",
+          kind: "plain_fact",
           key: "json_round_trip",
           cardinality: "one",
-          valueType: "json",
+          type: "json",
           validationJson: {
             kind: "json-schema",
             subSchema: {
@@ -248,10 +249,10 @@ describe("methodology repository context-fact list", () => {
         workflowDefinitionId: "wf-1",
         contextFactDefinitionId: created.contextFactDefinitionId,
         fact: {
-          kind: "plain_value_fact",
+          kind: "plain_fact",
           key: "json_round_trip",
           cardinality: "one",
-          valueType: "json",
+          type: "json",
           validationJson: {
             kind: "json-schema",
             subSchema: {
@@ -276,10 +277,10 @@ describe("methodology repository context-fact list", () => {
     expect(facts).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          kind: "plain_value_fact",
+          kind: "plain_fact",
           contextFactDefinitionId: created.contextFactDefinitionId,
           key: "json_round_trip",
-          valueType: "json",
+          type: "json",
           validationJson: expect.objectContaining({
             kind: "json-schema",
             subSchema: expect.objectContaining({
@@ -323,11 +324,11 @@ describe("methodology repository context-fact list", () => {
     `);
     await client.execute(`
       INSERT INTO methodology_workflow_context_fact_definitions (id, workflow_definition_id, fact_key, fact_kind, cardinality)
-      VALUES ('ctx-external-work-unit', 'wf-1', 'current_story', 'definition_backed_external_fact', 'one')
+      VALUES ('ctx-external-work-unit', 'wf-1', 'current_story', 'bound_fact', 'one')
     `);
     await client.execute(`
       INSERT INTO methodology_workflow_context_fact_external_bindings (id, context_fact_definition_id, provider, binding_key)
-      VALUES ('ctx-external-binding', 'ctx-external-work-unit', 'definition_backed_external_fact', 'ext-current-story')
+      VALUES ('ctx-external-binding', 'ctx-external-work-unit', 'bound_fact', 'ext-current-story')
     `);
 
     const facts = await runRepo((repo) =>
@@ -340,11 +341,11 @@ describe("methodology repository context-fact list", () => {
     expect(facts).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          kind: "definition_backed_external_fact",
+          kind: "bound_fact",
           contextFactDefinitionId: "ctx-external-work-unit",
           key: "current_story",
           cardinality: "one",
-          externalFactDefinitionId: "ext-current-story",
+          factDefinitionId: "ext-current-story",
           valueType: "work_unit",
           workUnitDefinitionId: "wut-story",
         }),

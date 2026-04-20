@@ -93,6 +93,10 @@ export const methodologyFactDefinitions = sqliteTable(
   },
   (table) => [
     uniqueIndex("methodology_fact_defs_vid_key_idx").on(table.methodologyVersionId, table.key),
+    check(
+      "methodology_fact_defs_value_type_check",
+      sql`${table.valueType} in ('string', 'number', 'boolean', 'json')`,
+    ),
   ],
 );
 
@@ -275,6 +279,37 @@ export const workUnitFactDefinitions = sqliteTable(
       table.key,
     ),
     index("methodology_fs_vid_wut_idx").on(table.methodologyVersionId, table.workUnitTypeId),
+    check(
+      "work_unit_fact_defs_fact_type_check",
+      sql`${table.factType} in ('string', 'number', 'boolean', 'json', 'work_unit', 'work_unit_reference')`,
+    ),
+  ],
+);
+
+export const workUnitFactReferenceDefinitions = sqliteTable(
+  "work_unit_fact_reference_definitions",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    workUnitFactDefinitionId: text("work_unit_fact_definition_id")
+      .notNull()
+      .references(() => workUnitFactDefinitions.id, { onDelete: "cascade" }),
+    linkTypeDefinitionId: text("link_type_definition_id").references(
+      () => methodologyLinkTypeDefinitions.id,
+      {
+        onDelete: "set null",
+      },
+    ),
+    targetWorkUnitDefinitionId: text("target_work_unit_definition_id").references(
+      () => methodologyWorkUnitTypes.id,
+      { onDelete: "set null" },
+    ),
+  },
+  (table) => [
+    uniqueIndex("work_unit_fact_reference_definitions_fact_idx").on(table.workUnitFactDefinitionId),
+    index("work_unit_fact_reference_definitions_link_idx").on(table.linkTypeDefinitionId),
+    index("work_unit_fact_reference_definitions_target_idx").on(table.targetWorkUnitDefinitionId),
   ],
 );
 
@@ -650,7 +685,7 @@ export const methodologyWorkflowActionStepActions = sqliteTable(
     ),
     check(
       "methodology_workflow_action_step_actions_fact_kind_check",
-      sql`${table.contextFactKind} in ('definition_backed_external_fact', 'bound_external_fact', 'artifact_reference_fact')`,
+      sql`${table.contextFactKind} in ('bound_fact', 'artifact_slot_reference_fact')`,
     ),
   ],
 );
@@ -983,6 +1018,10 @@ export const methodologyWorkflowContextFactDefinitions = sqliteTable(
       table.workflowId,
       table.factKind,
     ),
+    check(
+      "methodology_workflow_context_fact_defs_kind_check",
+      sql`${table.factKind} in ('plain_fact', 'plain_value_fact', 'bound_fact', 'workflow_ref_fact', 'artifact_slot_reference_fact', 'work_unit_reference_fact', 'work_unit_draft_spec_fact')`,
+    ),
   ],
 );
 
@@ -995,7 +1034,7 @@ export const methodologyWorkflowContextFactPlainValues = sqliteTable(
     contextFactDefinitionId: text("context_fact_definition_id")
       .notNull()
       .references(() => methodologyWorkflowContextFactDefinitions.id, { onDelete: "cascade" }),
-    valueType: text("value_type").notNull(),
+    type: text("value_type").notNull(),
     validationJson: text("validation_json", { mode: "json" }),
   },
   (table) => [uniqueIndex("methodology_wf_ctx_plain_def_idx").on(table.contextFactDefinitionId)],
@@ -1047,10 +1086,37 @@ export const methodologyWorkflowContextFactArtifactReferences = sqliteTable(
     contextFactDefinitionId: text("context_fact_definition_id")
       .notNull()
       .references(() => methodologyWorkflowContextFactDefinitions.id, { onDelete: "cascade" }),
-    artifactSlotKey: text("artifact_slot_key").notNull(),
+    slotDefinitionId: text("artifact_slot_key").notNull(),
   },
   (table) => [
     uniqueIndex("methodology_wf_ctx_artifact_ref_def_idx").on(table.contextFactDefinitionId),
+  ],
+);
+
+export const methodologyWorkflowContextFactWorkUnitReferences = sqliteTable(
+  "methodology_workflow_context_fact_work_unit_refs",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    contextFactDefinitionId: text("context_fact_definition_id")
+      .notNull()
+      .references(() => methodologyWorkflowContextFactDefinitions.id, { onDelete: "cascade" }),
+    linkTypeDefinitionId: text("link_type_definition_id").references(
+      () => methodologyLinkTypeDefinitions.id,
+      {
+        onDelete: "set null",
+      },
+    ),
+    targetWorkUnitDefinitionId: text("target_work_unit_definition_id").references(
+      () => methodologyWorkUnitTypes.id,
+      { onDelete: "set null" },
+    ),
+  },
+  (table) => [
+    uniqueIndex("methodology_wf_ctx_work_unit_ref_def_idx").on(table.contextFactDefinitionId),
+    index("methodology_wf_ctx_work_unit_ref_link_idx").on(table.linkTypeDefinitionId),
+    index("methodology_wf_ctx_work_unit_ref_target_idx").on(table.targetWorkUnitDefinitionId),
   ],
 );
 

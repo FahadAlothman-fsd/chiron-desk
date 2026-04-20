@@ -109,6 +109,12 @@ const SCHEMA_SQL = [
     context_fact_definition_id TEXT NOT NULL,
     artifact_slot_key TEXT NOT NULL
   )`,
+  `CREATE TABLE methodology_workflow_context_fact_work_unit_refs (
+    id TEXT PRIMARY KEY,
+    context_fact_definition_id TEXT NOT NULL,
+    link_type_definition_id TEXT,
+    target_work_unit_definition_id TEXT
+  )`,
   `CREATE TABLE methodology_workflow_context_fact_draft_specs (
     id TEXT PRIMARY KEY,
     context_fact_definition_id TEXT NOT NULL,
@@ -175,7 +181,7 @@ describe("l3 slice-1 methodology repository", () => {
           versionId: "version-1",
           workflowDefinitionId: "workflow-1",
           fact: {
-            kind: "plain_value_fact",
+            kind: "plain_fact",
             contextFactDefinitionId: "ctx-summary",
             key: "summary",
             label: "Summary",
@@ -185,34 +191,34 @@ describe("l3 slice-1 methodology repository", () => {
               agent: { markdown: "Preserve the authored summary." },
             },
             cardinality: "one",
-            valueType: "string",
+            type: "string",
           },
         });
         yield* repo.createWorkflowContextFactByDefinitionId({
           versionId: "version-1",
           workflowDefinitionId: "workflow-1",
           fact: {
-            kind: "definition_backed_external_fact",
+            kind: "bound_fact",
             key: "repository_root",
             cardinality: "one",
-            externalFactDefinitionId: "ext-root",
+            factDefinitionId: "ext-root",
           },
         });
         yield* repo.createWorkflowContextFactByDefinitionId({
           versionId: "version-1",
           workflowDefinitionId: "workflow-1",
           fact: {
-            kind: "bound_external_fact",
+            kind: "bound_fact",
             key: "repository_type",
             cardinality: "one",
-            externalFactDefinitionId: "ext-type",
+            factDefinitionId: "ext-type",
           },
         });
         yield* repo.createWorkflowContextFactByDefinitionId({
           versionId: "version-1",
           workflowDefinitionId: "workflow-1",
           fact: {
-            kind: "workflow_reference_fact",
+            kind: "workflow_ref_fact",
             contextFactDefinitionId: "ctx-supporting-workflows",
             key: "supporting_workflows",
             cardinality: "many",
@@ -223,10 +229,10 @@ describe("l3 slice-1 methodology repository", () => {
           versionId: "version-1",
           workflowDefinitionId: "workflow-1",
           fact: {
-            kind: "artifact_reference_fact",
+            kind: "artifact_slot_reference_fact",
             key: "prd_artifact",
             cardinality: "many",
-            artifactSlotDefinitionId: "ART.PRD",
+            slotDefinitionId: "ART.PRD",
           },
         });
         yield* repo.createWorkflowContextFactByDefinitionId({
@@ -256,16 +262,16 @@ describe("l3 slice-1 methodology repository", () => {
 
         expect(facts.map((fact) => fact.kind).sort()).toEqual(
           [
-            "artifact_reference_fact",
-            "bound_external_fact",
-            "definition_backed_external_fact",
-            "plain_value_fact",
-            "workflow_reference_fact",
+            "artifact_slot_reference_fact",
+            "bound_fact",
+            "bound_fact",
+            "plain_fact",
+            "workflow_ref_fact",
             "work_unit_draft_spec_fact",
           ].sort(),
         );
         expect(facts).toContainEqual({
-          kind: "plain_value_fact",
+          kind: "plain_fact",
           contextFactDefinitionId: expect.any(String),
           key: "summary",
           label: "Summary",
@@ -275,10 +281,10 @@ describe("l3 slice-1 methodology repository", () => {
             agent: { markdown: "Preserve the authored summary." },
           },
           cardinality: "one",
-          valueType: "string",
+          type: "string",
         });
         expect(facts).toContainEqual({
-          kind: "workflow_reference_fact",
+          kind: "workflow_ref_fact",
           contextFactDefinitionId: expect.any(String),
           key: "supporting_workflows",
           cardinality: "many",
@@ -351,7 +357,7 @@ describe("l3 slice-1 methodology repository", () => {
 
         expect(editor.contextFacts.map((fact) => fact.key)).toContain("summary");
         expect(editor.contextFacts).toContainEqual({
-          kind: "plain_value_fact",
+          kind: "plain_fact",
           contextFactDefinitionId: expect.any(String),
           key: "summary",
           label: "Summary",
@@ -361,7 +367,7 @@ describe("l3 slice-1 methodology repository", () => {
             agent: { markdown: "Preserve the authored summary." },
           },
           cardinality: "one",
-          valueType: "string",
+          type: "string",
         });
         expect(editor.formDefinitions).toEqual([
           {
@@ -452,11 +458,11 @@ describe("l3 slice-1 methodology repository", () => {
           versionId: "version-1",
           workflowDefinitionId: "workflow-1",
           fact: {
-            kind: "plain_value_fact",
+            kind: "plain_fact",
             contextFactDefinitionId: "ctx-summary",
             key: "summary",
             cardinality: "one",
-            valueType: "string",
+            type: "string",
           },
         });
 

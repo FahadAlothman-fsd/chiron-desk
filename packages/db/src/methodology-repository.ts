@@ -86,6 +86,7 @@ import {
   methodologyWorkflowContextFactDraftSpecSelections,
   methodologyWorkflowContextFactDraftSpecs,
   methodologyWorkflowContextFactExternalBindings,
+  methodologyWorkflowContextFactWorkUnitReferences,
   methodologyWorkflowInvokeBindings,
   methodologyWorkflowInvokeSteps,
   methodologyWorkflowInvokeTransitions,
@@ -262,6 +263,17 @@ function buildFactIdentifierMap(facts: readonly WorkflowContextFactDto[]) {
   return factByIdentifier;
 }
 
+function normalizeLegacyInvokeSourceMode(mode: string): "fixed" | "fact_backed" | typeof mode {
+  switch (mode) {
+    case "fixed_set":
+      return "fixed";
+    case "fact_select":
+      return "fact_backed";
+    default:
+      return mode;
+  }
+}
+
 async function validateDraftSpecSelections(
   db: DB | TransactionClient,
   workUnitDefinitionId: string,
@@ -339,12 +351,16 @@ function deriveStoredFieldValueType(fact: WorkflowContextFactDto | undefined): s
   }
 
   switch (fact.kind) {
+    case "plain_fact":
+      return fact.type;
     case "plain_value_fact":
       return fact.valueType;
-    case "definition_backed_external_fact":
-    case "bound_external_fact":
-    case "workflow_reference_fact":
-    case "artifact_reference_fact":
+    case "work_unit_reference_fact":
+      return "work_unit";
+    case "bound_fact":
+    case "workflow_ref_fact":
+    case "artifact_slot_reference_fact":
+    case "artifact_slot_reference_fact":
     case "work_unit_draft_spec_fact":
       return "json";
   }
@@ -919,6 +935,12 @@ async function deleteContextFactSubtypeRows(
     .where(
       eq(methodologyWorkflowContextFactArtifactReferences.contextFactDefinitionId, definitionId),
     );
+
+  await tx
+    .delete(methodologyWorkflowContextFactWorkUnitReferences)
+    .where(
+      eq(methodologyWorkflowContextFactWorkUnitReferences.contextFactDefinitionId, definitionId),
+    );
 }
 
 async function insertContextFactSubtypeRow(
@@ -927,22 +949,22 @@ async function insertContextFactSubtypeRow(
   fact: WorkflowContextFactDto,
 ): Promise<void> {
   switch (fact.kind) {
+    case "plain_fact":
     case "plain_value_fact":
       await tx.insert(methodologyWorkflowContextFactPlainValues).values({
         contextFactDefinitionId: definitionId,
-        valueType: fact.valueType,
+        type: "type" in fact ? fact.type : fact.valueType,
         validationJson: fact.validationJson ?? null,
       });
       return;
-    case "definition_backed_external_fact":
-    case "bound_external_fact":
+    case "bound_fact":
       await tx.insert(methodologyWorkflowContextFactExternalBindings).values({
         contextFactDefinitionId: definitionId,
-        provider: fact.kind,
-        bindingKey: fact.externalFactDefinitionId,
+        provider: "bound_fact",
+        bindingKey: fact.factDefinitionId,
       });
       return;
-    case "workflow_reference_fact":
+    case "workflow_ref_fact":
       // Insert multiple rows - one for each allowed workflow
       if (fact.allowedWorkflowDefinitionIds.length > 0) {
         await tx.insert(methodologyWorkflowContextFactWorkflowReferences).values(
@@ -953,10 +975,20 @@ async function insertContextFactSubtypeRow(
         );
       }
       return;
-    case "artifact_reference_fact":
+    case "work_unit_reference_fact":
+      await tx.insert(methodologyWorkflowContextFactWorkUnitReferences).values({
+        contextFactDefinitionId: definitionId,
+        ...(fact.linkTypeDefinitionId ? { linkTypeDefinitionId: fact.linkTypeDefinitionId } : {}),
+        ...(fact.targetWorkUnitDefinitionId
+          ? { targetWorkUnitDefinitionId: fact.targetWorkUnitDefinitionId }
+          : {}),
+      });
+      return;
+    case "artifact_slot_reference_fact":
+    case "artifact_slot_reference_fact":
       await tx.insert(methodologyWorkflowContextFactArtifactReferences).values({
         contextFactDefinitionId: definitionId,
-        artifactSlotKey: fact.artifactSlotDefinitionId,
+        slotDefinitionId: fact.slotDefinitionId,
       });
       return;
     case "work_unit_draft_spec_fact": {
@@ -1035,6 +1067,7 @@ async function readWorkflowContextFacts(
     externalBindingRows,
     workflowReferenceRows,
     artifactReferenceRows,
+    workUnitReferenceRows,
     draftSpecRows,
     methodologyFactRows,
     workUnitFactRows,
@@ -1069,6 +1102,15 @@ async function readWorkflowContextFacts(
       .where(
         inArray(
           methodologyWorkflowContextFactArtifactReferences.contextFactDefinitionId,
+          definitionIds,
+        ),
+      ),
+    db
+      .select()
+      .from(methodologyWorkflowContextFactWorkUnitReferences)
+      .where(
+        inArray(
+          methodologyWorkflowContextFactWorkUnitReferences.contextFactDefinitionId,
           definitionIds,
         ),
       ),
@@ -1126,6 +1168,9 @@ async function readWorkflowContextFacts(
   const artifactReferenceByDefinitionId = new Map(
     artifactReferenceRows.map((row) => [row.contextFactDefinitionId, row]),
   );
+  const workUnitReferenceByDefinitionId = new Map(
+    workUnitReferenceRows.map((row) => [row.contextFactDefinitionId, row]),
+  );
   const draftSpecByDefinitionId = new Map(
     draftSpecRows.map((row) => [row.contextFactDefinitionId, row]),
   );
@@ -1162,6 +1207,23 @@ async function readWorkflowContextFacts(
     };
 
     switch (definition.factKind) {
+      case "plain_fact": {
+        const row = plainByDefinitionId.get(definition.id);
+        if (!row) {
+          throw new Error(`Missing plain_fact payload for '${definition.factKey}'`);
+        }
+
+        return {
+          kind: "plain_fact",
+          key: definition.factKey,
+          ...metadata,
+          cardinality: definition.cardinality as "one" | "many",
+          type: row.type as Extract<FactValueType, "string" | "number" | "boolean" | "json">,
+          ...(typeof row.validationJson === "undefined" || row.validationJson === null
+            ? {}
+            : { validationJson: row.validationJson }),
+        };
+      }
       case "plain_value_fact": {
         const row = plainByDefinitionId.get(definition.id);
         if (!row) {
@@ -1173,17 +1235,13 @@ async function readWorkflowContextFacts(
           key: definition.factKey,
           ...metadata,
           cardinality: definition.cardinality as "one" | "many",
-          valueType: row.valueType as Extract<
-            FactValueType,
-            "string" | "number" | "boolean" | "json"
-          >,
+          valueType: row.type as Extract<FactValueType, "string" | "number" | "boolean" | "json">,
           ...(typeof row.validationJson === "undefined" || row.validationJson === null
             ? {}
             : { validationJson: row.validationJson }),
         };
       }
-      case "definition_backed_external_fact":
-      case "bound_external_fact": {
+      case "bound_fact": {
         const row = externalByDefinitionId.get(definition.id);
         if (!row) {
           throw new Error(`Missing external fact payload for '${definition.factKey}'`);
@@ -1204,7 +1262,7 @@ async function readWorkflowContextFacts(
           key: definition.factKey,
           ...metadata,
           cardinality: definition.cardinality as "one" | "many",
-          externalFactDefinitionId: row.bindingKey,
+          factDefinitionId: row.bindingKey,
           ...(valueType ? { valueType } : {}),
           ...(externalDefinition?.workUnitTypeId
             ? { workUnitDefinitionId: externalDefinition.workUnitTypeId }
@@ -1214,7 +1272,7 @@ async function readWorkflowContextFacts(
             : {}),
         };
       }
-      case "workflow_reference_fact": {
+      case "workflow_ref_fact": {
         const rows = workflowReferenceRows.filter(
           (row) => row.contextFactDefinitionId === definition.id,
         );
@@ -1225,25 +1283,43 @@ async function readWorkflowContextFacts(
         const allowedWorkflowDefinitionIds = rows.map((row) => row.workflowDefinitionId);
 
         return {
-          kind: "workflow_reference_fact",
+          kind: "workflow_ref_fact",
           key: definition.factKey,
           ...metadata,
           cardinality: definition.cardinality as "one" | "many",
           allowedWorkflowDefinitionIds,
         };
       }
-      case "artifact_reference_fact": {
+      case "work_unit_reference_fact": {
+        const row = workUnitReferenceByDefinitionId.get(definition.id);
+        if (!row) {
+          throw new Error(`Missing work-unit reference payload for '${definition.factKey}'`);
+        }
+
+        return {
+          kind: "work_unit_reference_fact",
+          key: definition.factKey,
+          ...metadata,
+          cardinality: definition.cardinality as "one" | "many",
+          ...(row.linkTypeDefinitionId ? { linkTypeDefinitionId: row.linkTypeDefinitionId } : {}),
+          ...(row.targetWorkUnitDefinitionId
+            ? { targetWorkUnitDefinitionId: row.targetWorkUnitDefinitionId }
+            : {}),
+        };
+      }
+      case "artifact_slot_reference_fact":
+      case "artifact_slot_reference_fact": {
         const row = artifactReferenceByDefinitionId.get(definition.id);
         if (!row) {
           throw new Error(`Missing artifact reference payload for '${definition.factKey}'`);
         }
 
         return {
-          kind: "artifact_reference_fact",
+          kind: definition.factKind,
           key: definition.factKey,
           ...metadata,
           cardinality: definition.cardinality as "one" | "many",
-          artifactSlotDefinitionId: row.artifactSlotKey,
+          slotDefinitionId: row.slotDefinitionId,
         };
       }
       case "work_unit_draft_spec_fact": {
@@ -1592,11 +1668,7 @@ function normalizeActionStepPayload(
       });
     }
 
-    if (
-      fact.kind !== "definition_backed_external_fact" &&
-      fact.kind !== "bound_external_fact" &&
-      fact.kind !== "artifact_reference_fact"
-    ) {
+    if (fact.kind !== "bound_fact" && fact.kind !== "artifact_slot_reference_fact") {
       throw new RepositoryError({
         operation: "methodology.actionStep.normalizeActionStepPayload",
         cause: new Error(
@@ -1676,9 +1748,8 @@ function normalizeActionStepPayload(
 
         if (
           targetFact &&
-          targetFact.kind !== "definition_backed_external_fact" &&
-          targetFact.kind !== "bound_external_fact" &&
-          targetFact.kind !== "artifact_reference_fact"
+          targetFact.kind !== "bound_fact" &&
+          targetFact.kind !== "artifact_slot_reference_fact"
         ) {
           throw new RepositoryError({
             operation: "methodology.actionStep.normalizeActionStepPayload",
@@ -1972,6 +2043,7 @@ function buildInvokePayload(
   bindings: readonly InvokeBindingRow[],
   transitions: readonly InvokeTransitionRow[],
 ): InvokeStepPayload {
+  const normalizedSourceMode = normalizeLegacyInvokeSourceMode(invokeStep.sourceMode);
   const payloadBase = {
     key: step.key,
     ...(step.displayName ? { label: step.displayName } : {}),
@@ -1989,11 +2061,11 @@ function buildInvokePayload(
       : {}),
   };
 
-  if (invokeStep.targetKind === "workflow" && invokeStep.sourceMode === "fixed_set") {
+  if (invokeStep.targetKind === "workflow" && normalizedSourceMode === "fixed") {
     return {
       ...payloadBase,
       targetKind: "workflow",
-      sourceMode: "fixed_set",
+      sourceMode: "fixed",
       workflowDefinitionIds: Array.isArray(invokeStep.workflowDefinitionIds)
         ? invokeStep.workflowDefinitionIds.filter(
             (value): value is string => typeof value === "string",
@@ -2002,7 +2074,7 @@ function buildInvokePayload(
     };
   }
 
-  if (invokeStep.targetKind === "workflow" && invokeStep.sourceMode === "context_fact_backed") {
+  if (invokeStep.targetKind === "workflow" && normalizedSourceMode === "fact_backed") {
     if (!invokeStep.contextFactDefinitionId) {
       throw new Error(`Invoke step '${step.id}' is missing context-fact source`);
     }
@@ -2010,7 +2082,7 @@ function buildInvokePayload(
     return {
       ...payloadBase,
       targetKind: "workflow",
-      sourceMode: "context_fact_backed",
+      sourceMode: "fact_backed",
       contextFactDefinitionId: invokeStep.contextFactDefinitionId,
     };
   }
@@ -2066,7 +2138,7 @@ function buildInvokePayload(
     })),
   };
 
-  if (invokeStep.targetKind === "work_unit" && invokeStep.sourceMode === "fixed_set") {
+  if (invokeStep.targetKind === "work_unit" && normalizedSourceMode === "fixed") {
     if (!invokeStep.workUnitDefinitionId) {
       throw new Error(`Invoke step '${step.id}' is missing work-unit target`);
     }
@@ -2074,7 +2146,7 @@ function buildInvokePayload(
     return {
       ...workUnitPayloadBase,
       targetKind: "work_unit",
-      sourceMode: "fixed_set",
+      sourceMode: "fixed",
       workUnitDefinitionId: invokeStep.workUnitDefinitionId,
     };
   }
@@ -2086,7 +2158,7 @@ function buildInvokePayload(
   return {
     ...workUnitPayloadBase,
     targetKind: "work_unit",
-    sourceMode: "context_fact_backed",
+    sourceMode: "fact_backed",
     contextFactDefinitionId: invokeStep.contextFactDefinitionId,
   };
 }
@@ -2097,39 +2169,37 @@ async function syncInvokeStepDefinition(
   stepId: string,
   payload: InvokeStepPayload,
 ): Promise<void> {
+  const normalizedSourceMode = normalizeLegacyInvokeSourceMode(payload.sourceMode);
+  const workflowDefinitionIds =
+    payload.targetKind === "workflow" && payload.sourceMode === "fixed"
+      ? payload.workflowDefinitionIds
+      : null;
+  const workUnitDefinitionId =
+    payload.targetKind === "work_unit" && payload.sourceMode === "fixed"
+      ? payload.workUnitDefinitionId
+      : null;
+  const contextFactDefinitionId =
+    payload.sourceMode === "fact_backed" ? payload.contextFactDefinitionId : null;
+
   await tx
     .insert(methodologyWorkflowInvokeSteps)
     .values({
       stepId,
       targetKind: payload.targetKind,
-      sourceMode: payload.sourceMode,
-      workflowDefinitionIds:
-        payload.targetKind === "workflow" && payload.sourceMode === "fixed_set"
-          ? payload.workflowDefinitionIds
-          : null,
-      workUnitDefinitionId:
-        payload.targetKind === "work_unit" && payload.sourceMode === "fixed_set"
-          ? payload.workUnitDefinitionId
-          : null,
-      contextFactDefinitionId:
-        payload.sourceMode === "context_fact_backed" ? payload.contextFactDefinitionId : null,
+      sourceMode: normalizedSourceMode,
+      workflowDefinitionIds,
+      workUnitDefinitionId,
+      contextFactDefinitionId,
       configJson: null,
     })
     .onConflictDoUpdate({
       target: methodologyWorkflowInvokeSteps.stepId,
       set: {
         targetKind: payload.targetKind,
-        sourceMode: payload.sourceMode,
-        workflowDefinitionIds:
-          payload.targetKind === "workflow" && payload.sourceMode === "fixed_set"
-            ? payload.workflowDefinitionIds
-            : null,
-        workUnitDefinitionId:
-          payload.targetKind === "work_unit" && payload.sourceMode === "fixed_set"
-            ? payload.workUnitDefinitionId
-            : null,
-        contextFactDefinitionId:
-          payload.sourceMode === "context_fact_backed" ? payload.contextFactDefinitionId : null,
+        sourceMode: normalizedSourceMode,
+        workflowDefinitionIds,
+        workUnitDefinitionId,
+        contextFactDefinitionId,
         configJson: null,
       },
     });
@@ -2296,8 +2366,7 @@ async function validateInvokeActivationTransitionIds(
       ),
     );
 
-  const targetWorkUnitTypeId =
-    payload.sourceMode === "fixed_set" ? payload.workUnitDefinitionId : null;
+  const targetWorkUnitTypeId = payload.sourceMode === "fixed" ? payload.workUnitDefinitionId : null;
 
   const transitionById = new Map(transitionRows.map((row) => [row.id, row]));
 

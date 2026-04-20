@@ -86,6 +86,12 @@ const SCHEMA_SQL = [
     context_fact_definition_id TEXT NOT NULL,
     artifact_slot_key TEXT NOT NULL
   )`,
+  `CREATE TABLE methodology_workflow_context_fact_work_unit_refs (
+    id TEXT PRIMARY KEY,
+    context_fact_definition_id TEXT NOT NULL,
+    link_type_definition_id TEXT,
+    target_work_unit_definition_id TEXT
+  )`,
   `CREATE TABLE methodology_workflow_context_fact_draft_specs (
     id TEXT PRIMARY KEY,
     context_fact_definition_id TEXT NOT NULL,
@@ -173,9 +179,9 @@ describe("l3 agent-step design repository", () => {
       INSERT INTO methodology_workflow_context_fact_definitions (
         id, workflow_definition_id, fact_key, fact_kind, label, cardinality
       ) VALUES
-        ('ctx-project-context', 'workflow-1', 'project_context', 'plain_value_fact', 'Project context', 'one'),
-        ('ctx-prd-artifact', 'workflow-1', 'prd_artifact', 'artifact_reference_fact', 'PRD artifact', 'many'),
-        ('ctx-review-notes', 'workflow-1', 'review_notes', 'plain_value_fact', 'Review notes', 'many')
+        ('ctx-project-context', 'workflow-1', 'project_context', 'plain_fact', 'Project context', 'one'),
+      ('ctx-prd-artifact', 'workflow-1', 'prd_artifact', 'artifact_slot_reference_fact', 'PRD artifact', 'many'),
+        ('ctx-review-notes', 'workflow-1', 'review_notes', 'plain_fact', 'Review notes', 'many')
     `);
     await client.execute(`
       INSERT INTO methodology_workflow_context_fact_plain_values (id, context_fact_definition_id, value_type, validation_json)
@@ -231,7 +237,7 @@ describe("l3 agent-step design repository", () => {
             {
               writeItemId: "write-prd",
               contextFactDefinitionId: "ctx-prd-artifact",
-              contextFactKind: "artifact_reference_fact",
+              contextFactKind: "artifact_slot_reference_fact",
               label: "PRD artifact",
               order: 10,
               requirementContextFactDefinitionIds: ["ctx-project-context"],
@@ -261,7 +267,7 @@ describe("l3 agent-step design repository", () => {
       {
         writeItemId: "write-prd",
         contextFactDefinitionId: "ctx-prd-artifact",
-        contextFactKind: "artifact_reference_fact",
+        contextFactKind: "artifact_slot_reference_fact",
         label: "PRD artifact",
         order: 10,
         requirementContextFactDefinitionIds: ["ctx-project-context"],
@@ -276,7 +282,7 @@ describe("l3 agent-step design repository", () => {
     );
 
     expect(listedAfterCreate).toEqual([
-      {
+      expect.objectContaining({
         stepId: created.stepId,
         payload: expect.objectContaining({
           key: "draft-prd",
@@ -291,7 +297,7 @@ describe("l3 agent-step design repository", () => {
             {
               writeItemId: "write-prd",
               contextFactDefinitionId: "ctx-prd-artifact",
-              contextFactKind: "artifact_reference_fact",
+              contextFactKind: "artifact_slot_reference_fact",
               label: "PRD artifact",
               order: 10,
               requirementContextFactDefinitionIds: ["ctx-project-context"],
@@ -299,7 +305,7 @@ describe("l3 agent-step design repository", () => {
           ],
           completionRequirements: [{ contextFactDefinitionId: "ctx-prd-artifact" }],
         }),
-      },
+      }),
     ]);
 
     expect(await getCount("methodology_workflow_agent_steps")).toBe(1);
@@ -339,7 +345,7 @@ describe("l3 agent-step design repository", () => {
             {
               writeItemId: "write-prd",
               contextFactDefinitionId: "ctx-prd-artifact",
-              contextFactKind: "artifact_reference_fact",
+              contextFactKind: "artifact_slot_reference_fact",
               label: "Updated PRD artifact",
               order: 20,
               requirementContextFactDefinitionIds: ["ctx-review-notes"],
@@ -425,14 +431,14 @@ describe("l3 agent-step design repository", () => {
               {
                 writeItemId: "write-prd-a",
                 contextFactDefinitionId: "ctx-prd-artifact",
-                contextFactKind: "artifact_reference_fact",
+                contextFactKind: "artifact_slot_reference_fact",
                 order: 10,
                 requirementContextFactDefinitionIds: [],
               },
               {
                 writeItemId: "write-prd-b",
                 contextFactDefinitionId: "ctx-prd-artifact",
-                contextFactKind: "artifact_reference_fact",
+                contextFactKind: "artifact_slot_reference_fact",
                 order: 20,
                 requirementContextFactDefinitionIds: [],
               },
@@ -467,7 +473,7 @@ describe("l3 agent-step design repository", () => {
               {
                 writeItemId: "write-prd",
                 contextFactDefinitionId: "ctx-prd-artifact",
-                contextFactKind: "artifact_reference_fact",
+                contextFactKind: "artifact_slot_reference_fact",
                 order: 10,
                 requirementContextFactDefinitionIds: ["ctx-prd-artifact"],
               },

@@ -54,24 +54,29 @@ describe("l3 slice-1 schema", () => {
     expect(methodologySchema.methodologyWorkflowContextFactDefinitions.guidanceJson).toBeDefined();
   });
 
-  it("supports exactly the six active workflow context-fact kinds", () => {
+  it("supports the canonical workflow context-fact kinds", () => {
     expect(WORKFLOW_CONTEXT_FACT_KINDS).toHaveLength(6);
     expect(WORKFLOW_CONTEXT_FACT_KINDS).toEqual([
-      "plain_value_fact",
-      "definition_backed_external_fact",
-      "bound_external_fact",
-      "workflow_reference_fact",
-      "artifact_reference_fact",
+      "plain_fact",
+      "bound_fact",
+      "workflow_ref_fact",
+      "artifact_slot_reference_fact",
+      "work_unit_reference_fact",
       "work_unit_draft_spec_fact",
     ]);
 
     expect(methodologySchema.methodologyWorkflowContextFactPlainValues).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowContextFactPlainValues.type).toBeDefined();
     expect(
       methodologySchema.methodologyWorkflowContextFactPlainValues.validationJson,
     ).toBeDefined();
     expect(methodologySchema.methodologyWorkflowContextFactExternalBindings).toBeDefined();
     expect(methodologySchema.methodologyWorkflowContextFactWorkflowReferences).toBeDefined();
     expect(methodologySchema.methodologyWorkflowContextFactArtifactReferences).toBeDefined();
+    expect(
+      methodologySchema.methodologyWorkflowContextFactArtifactReferences.slotDefinitionId,
+    ).toBeDefined();
+    expect(methodologySchema.methodologyWorkflowContextFactWorkUnitReferences).toBeDefined();
     expect(methodologySchema.methodologyWorkflowContextFactDraftSpecs).toBeDefined();
     expect(methodologySchema.methodologyWorkflowContextFactDraftSpecFields).toBeDefined();
     expect(
@@ -89,8 +94,7 @@ describe("l3 slice-1 schema", () => {
     expect(
       "descriptionJson" in methodologySchema.methodologyWorkflowContextFactDraftSpecFields,
     ).toBe(false);
-    expect("methodologyWorkflowContextFactWorkUnitReferences" in methodologySchema).toBe(false);
-    expect(WORKFLOW_CONTEXT_FACT_KINDS).not.toContain("work_unit_reference_fact");
+    expect(WORKFLOW_CONTEXT_FACT_KINDS).toContain("work_unit_reference_fact");
   });
 
   it("stores latest-only form payload state per step execution", () => {

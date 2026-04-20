@@ -192,7 +192,7 @@ describe("l3 agent-step runtime repositories", () => {
           stepExecutionId: "step-exec-1",
           writeItemId: "write-project-summary",
           contextFactDefinitionId: "ctx-project-summary",
-          contextFactKind: "plain_value_fact",
+          contextFactKind: "plain_fact",
           instanceOrder: 0,
           appliedValueJson: { markdown: "Drafted summary" },
         });
@@ -201,7 +201,7 @@ describe("l3 agent-step runtime repositories", () => {
           stepExecutionId: "step-exec-1",
           writeItemId: "write-review-notes",
           contextFactDefinitionId: "ctx-review-notes",
-          contextFactKind: "plain_value_fact",
+          contextFactKind: "plain_fact",
           instanceOrder: 1,
           appliedValueJson: "Needs one more pass",
         });
@@ -210,7 +210,7 @@ describe("l3 agent-step runtime repositories", () => {
           stepExecutionId: "step-exec-2",
           writeItemId: "write-other-step",
           contextFactDefinitionId: "ctx-other",
-          contextFactKind: "plain_value_fact",
+          contextFactKind: "plain_fact",
           instanceOrder: 0,
           appliedValueJson: "Other step value",
         });

@@ -270,9 +270,9 @@ describe("l3 design-time invoke + branch schema", () => {
       INSERT INTO methodology_workflow_context_fact_definitions (
         id, workflow_definition_id, fact_key, fact_kind, cardinality
       ) VALUES
-        ('ctx-selected-workflows', 'workflow-1', 'selected_workflows', 'workflow_reference_fact', 'many'),
+        ('ctx-selected-workflows', 'workflow-1', 'selected_workflows', 'workflow_ref_fact', 'many'),
         ('ctx-story-draft', 'workflow-1', 'story_draft', 'work_unit_draft_spec_fact', 'one'),
-        ('ctx-branch-input', 'workflow-1', 'branch_input', 'plain_value_fact', 'one')
+        ('ctx-branch-input', 'workflow-1', 'branch_input', 'plain_fact', 'one')
     `);
   });
 

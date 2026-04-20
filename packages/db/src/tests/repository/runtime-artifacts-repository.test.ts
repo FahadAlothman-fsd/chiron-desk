@@ -86,30 +86,33 @@ const SCHEMA_SQL = [
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
     work_unit_type_id TEXT NOT NULL,
+    work_unit_key TEXT NOT NULL,
+    instance_number INTEGER NOT NULL,
+    display_name TEXT,
     current_state_id TEXT NOT NULL,
     active_transition_execution_id TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   )`,
-  `CREATE TABLE project_artifact_snapshots (
+  `CREATE TABLE project_artifact_instances (
     id TEXT PRIMARY KEY,
     project_work_unit_id TEXT NOT NULL,
     slot_definition_id TEXT NOT NULL,
     recorded_by_transition_execution_id TEXT,
     recorded_by_workflow_execution_id TEXT,
     recorded_by_user_id TEXT,
-    superseded_by_project_artifact_snapshot_id TEXT,
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
   )`,
-  `CREATE TABLE artifact_snapshot_files (
+  `CREATE TABLE project_artifact_instance_files (
     id TEXT PRIMARY KEY,
-    artifact_snapshot_id TEXT NOT NULL,
+    artifact_instance_id TEXT NOT NULL,
     file_path TEXT NOT NULL,
-    member_status TEXT NOT NULL,
     git_commit_hash TEXT,
     git_blob_hash TEXT,
     git_commit_title TEXT,
-    git_commit_body TEXT
+    git_commit_body TEXT,
+    updated_at INTEGER NOT NULL
   )`,
 ];
 
@@ -162,7 +165,7 @@ describe("runtime artifact repository", () => {
       }).pipe(Effect.provide(runtimeLayer())),
     );
 
-  it("reconstructs lineage current-state and returns exists=false for zero live members", async () => {
+  it("tracks current artifact instance state and returns exists=false for zero live members", async () => {
     const workUnit = await runProjectWorkUnitRepo((repo) =>
       repo.createProjectWorkUnit({
         projectId: "project-1",
@@ -192,7 +195,6 @@ describe("runtime artifact repository", () => {
       repo.createSnapshot({
         projectWorkUnitId: workUnit.id,
         slotDefinitionId: "slot-1",
-        supersededByProjectArtifactSnapshotId: snapshot1.id,
       }),
     );
 
@@ -210,7 +212,6 @@ describe("runtime artifact repository", () => {
       repo.createSnapshot({
         projectWorkUnitId: workUnit.id,
         slotDefinitionId: "slot-1",
-        supersededByProjectArtifactSnapshotId: snapshot2.id,
       }),
     );
 
@@ -231,7 +232,7 @@ describe("runtime artifact repository", () => {
       }),
     );
 
-    expect(current.snapshot?.id).toBe(snapshot3.id);
+    expect(current.snapshot?.id).toBe(snapshot1.id);
     expect(current.exists).toBe(false);
     expect(current.members).toEqual([]);
 
@@ -242,10 +243,8 @@ describe("runtime artifact repository", () => {
       }),
     );
 
-    expect(lineage).toHaveLength(3);
-    expect(lineage[0]?.snapshot.id).toBe(snapshot3.id);
-    expect(lineage[1]?.snapshot.id).toBe(snapshot2.id);
-    expect(lineage[2]?.snapshot.id).toBe(snapshot1.id);
+    expect(lineage).toHaveLength(1);
+    expect(lineage[0]?.snapshot.id).toBe(snapshot1.id);
   });
 
   it("reports fresh then stale against project_root_path git context", async () => {
@@ -304,7 +303,6 @@ describe("runtime artifact repository", () => {
         files: [
           {
             filePath: "artifact.txt",
-            memberStatus: "present",
             gitCommitHash,
             gitBlobHash: gitBlobHash ?? null,
           },
@@ -352,7 +350,7 @@ describe("runtime artifact repository", () => {
     await runArtifactRepo((repo) =>
       repo.addSnapshotFiles({
         artifactSnapshotId: snapshot.id,
-        files: [{ filePath: "artifact.txt", memberStatus: "present", gitCommitHash: "abc123" }],
+        files: [{ filePath: "artifact.txt", gitCommitHash: "abc123" }],
       }),
     );
 

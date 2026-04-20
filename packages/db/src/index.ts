@@ -21,6 +21,7 @@ export { createWorkflowExecutionRepoLayer } from "./runtime-repositories/workflo
 export { createExecutionReadRepoLayer } from "./runtime-repositories/execution-read-repository";
 export { createProjectFactRepoLayer } from "./runtime-repositories/project-fact-repository";
 export { createWorkUnitFactRepoLayer } from "./runtime-repositories/work-unit-fact-repository";
+export { createWorkflowContextFactRepoLayer as createRuntimeWorkflowContextFactRepoLayer } from "./runtime-repositories/workflow-context-fact-repository";
 export {
   createArtifactRepoLayer,
   findActiveArtifactConditionPrerequisites,

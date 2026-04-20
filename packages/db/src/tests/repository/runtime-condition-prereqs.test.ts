@@ -86,30 +86,33 @@ const SCHEMA_SQL = [
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
     work_unit_type_id TEXT NOT NULL,
+    work_unit_key TEXT NOT NULL,
+    instance_number INTEGER NOT NULL,
+    display_name TEXT,
     current_state_id TEXT NOT NULL,
     active_transition_execution_id TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   )`,
-  `CREATE TABLE project_artifact_snapshots (
+  `CREATE TABLE project_artifact_instances (
     id TEXT PRIMARY KEY,
     project_work_unit_id TEXT NOT NULL,
     slot_definition_id TEXT NOT NULL,
     recorded_by_transition_execution_id TEXT,
     recorded_by_workflow_execution_id TEXT,
     recorded_by_user_id TEXT,
-    superseded_by_project_artifact_snapshot_id TEXT,
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
   )`,
-  `CREATE TABLE artifact_snapshot_files (
+  `CREATE TABLE project_artifact_instance_files (
     id TEXT PRIMARY KEY,
-    artifact_snapshot_id TEXT NOT NULL,
+    artifact_instance_id TEXT NOT NULL,
     file_path TEXT NOT NULL,
-    member_status TEXT NOT NULL,
     git_commit_hash TEXT,
     git_blob_hash TEXT,
     git_commit_title TEXT,
-    git_commit_body TEXT
+    git_commit_body TEXT,
+    updated_at INTEGER NOT NULL
   )`,
 ];
 
@@ -158,7 +161,7 @@ describe("runtime condition prerequisites", () => {
       }).pipe(Effect.provide(runtimeLayer())),
     );
 
-  it("computes artifact existence prerequisites from latest lineage heads", async () => {
+  it("computes artifact existence prerequisites from current artifact instances", async () => {
     const project1WorkUnit = await runProjectWorkUnitRepo((repo) =>
       repo.createProjectWorkUnit({
         projectId: "project-1",
@@ -180,7 +183,7 @@ describe("runtime condition prerequisites", () => {
     await runArtifactRepo((repo) =>
       repo.addSnapshotFiles({
         artifactSnapshotId: project1Existing.id,
-        files: [{ filePath: "docs/one.md", memberStatus: "present" }],
+        files: [{ filePath: "docs/one.md" }],
       }),
     );
 
@@ -190,14 +193,13 @@ describe("runtime condition prerequisites", () => {
     await runArtifactRepo((repo) =>
       repo.addSnapshotFiles({
         artifactSnapshotId: project1BaseRemoved.id,
-        files: [{ filePath: "docs/two.md", memberStatus: "present" }],
+        files: [{ filePath: "docs/two.md" }],
       }),
     );
     const project1RemovedHead = await runArtifactRepo((repo) =>
       repo.createSnapshot({
         projectWorkUnitId: project1WorkUnit.id,
         slotDefinitionId: "slot-2",
-        supersededByProjectArtifactSnapshotId: project1BaseRemoved.id,
       }),
     );
     await runArtifactRepo((repo) =>
@@ -213,7 +215,7 @@ describe("runtime condition prerequisites", () => {
     await runArtifactRepo((repo) =>
       repo.addSnapshotFiles({
         artifactSnapshotId: project2Existing.id,
-        files: [{ filePath: "docs/other.md", memberStatus: "present" }],
+        files: [{ filePath: "docs/other.md" }],
       }),
     );
 

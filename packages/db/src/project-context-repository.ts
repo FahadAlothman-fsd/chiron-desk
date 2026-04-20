@@ -176,7 +176,7 @@ async function hasRuntimeExecutionHistory(
     .from(artifactSnapshotFiles)
     .innerJoin(
       projectArtifactSnapshots,
-      eq(projectArtifactSnapshots.id, artifactSnapshotFiles.artifactSnapshotId),
+      eq(projectArtifactSnapshots.id, artifactSnapshotFiles.artifactInstanceId),
     )
     .innerJoin(
       projectWorkUnits,

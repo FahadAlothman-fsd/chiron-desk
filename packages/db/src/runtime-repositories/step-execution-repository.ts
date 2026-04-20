@@ -71,6 +71,7 @@ function toContextFactRow(
     id: row.id,
     workflowExecutionId: row.workflowExecutionId,
     contextFactDefinitionId: row.contextFactDefinitionId,
+    instanceId: row.instanceId,
     instanceOrder: row.instanceOrder,
     valueJson: row.valueJson,
     sourceStepExecutionId: row.sourceStepExecutionId,
@@ -290,6 +291,7 @@ export function createStepExecutionRepoLayer(db: DB): Layer.Layer<StepExecutionR
               params.currentValues.map((value) => ({
                 workflowExecutionId: params.workflowExecutionId,
                 contextFactDefinitionId: value.contextFactDefinitionId,
+                instanceId: crypto.randomUUID(),
                 instanceOrder: value.instanceOrder,
                 valueJson: value.valueJson,
                 sourceStepExecutionId: params.sourceStepExecutionId,

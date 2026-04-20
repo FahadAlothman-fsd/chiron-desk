@@ -112,7 +112,7 @@ describe("l3 runtime invoke schema", () => {
     expect(getTableName(workflowExecutionFk?.reference().foreignTable)).toBe("workflow_executions");
   });
 
-  it("adds mapping rows for created fact instances and artifact snapshots", () => {
+  it("adds mapping rows for created fact instances and artifact instances", () => {
     expect(
       runtimeSchema.invokeWorkUnitCreatedFactInstance.invokeWorkUnitTargetExecutionId,
     ).toBeDefined();
@@ -126,7 +126,7 @@ describe("l3 runtime invoke schema", () => {
     expect(
       runtimeSchema.invokeWorkUnitCreatedArtifactSnapshot.artifactSlotDefinitionId,
     ).toBeDefined();
-    expect(runtimeSchema.invokeWorkUnitCreatedArtifactSnapshot.artifactSnapshotId).toBeDefined();
+    expect(runtimeSchema.invokeWorkUnitCreatedArtifactSnapshot.artifactInstanceId).toBeDefined();
     expect(runtimeSchema.invokeWorkUnitCreatedArtifactSnapshot.createdAt).toBeDefined();
 
     const factTargetFk = getInlineForeignKey(runtimeSchema.invokeWorkUnitCreatedFactInstance, 0);
@@ -162,7 +162,7 @@ describe("l3 runtime invoke schema", () => {
       "methodology_artifact_slot_definitions",
     );
     expect(getTableName(artifactSnapshotFk?.reference().foreignTable)).toBe(
-      "project_artifact_snapshots",
+      "project_artifact_instances",
     );
   });
 });

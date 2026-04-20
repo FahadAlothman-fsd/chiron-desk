@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { Effect, Layer } from "effect";
 import {
@@ -8,6 +8,7 @@ import {
   type ProjectWorkUnitRow,
   type UpdateActiveTransitionExecutionPointerParams,
 } from "@chiron/workflow-engine";
+import { methodologyWorkUnitTypes } from "../schema/methodology";
 import { projectWorkUnits } from "../schema/runtime";
 
 type DB = LibSQLDatabase<Record<string, unknown>>;
@@ -27,6 +28,9 @@ function toProjectWorkUnitRow(row: typeof projectWorkUnits.$inferSelect): Projec
     id: row.id,
     projectId: row.projectId,
     workUnitTypeId: row.workUnitTypeId,
+    workUnitKey: row.workUnitKey,
+    instanceNumber: row.instanceNumber,
+    displayName: row.displayName,
     currentStateId: row.currentStateId,
     activeTransitionExecutionId: row.activeTransitionExecutionId,
     createdAt: row.createdAt,
@@ -38,13 +42,56 @@ export function createProjectWorkUnitRepoLayer(db: DB): Layer.Layer<ProjectWorkU
   return Layer.succeed(ProjectWorkUnitRepository, {
     createProjectWorkUnit: (params: CreateProjectWorkUnitParams) =>
       dbEffect("project-work-unit.create", async () => {
-        const rows = await db.insert(projectWorkUnits).values(params).returning();
-        const created = rows[0];
-        if (!created) {
-          throw new Error("Failed to create project work unit");
-        }
+        return db.transaction(async (tx) => {
+          const workUnitTypes = await tx
+            .select({
+              key: methodologyWorkUnitTypes.key,
+              cardinality: methodologyWorkUnitTypes.cardinality,
+            })
+            .from(methodologyWorkUnitTypes)
+            .where(eq(methodologyWorkUnitTypes.id, params.workUnitTypeId))
+            .limit(1);
 
-        return toProjectWorkUnitRow(created);
+          const workUnitType = workUnitTypes[0];
+          if (!workUnitType) {
+            throw new Error(`Unknown work unit type '${params.workUnitTypeId}'`);
+          }
+
+          const [latest] = await tx
+            .select({ instanceNumber: projectWorkUnits.instanceNumber })
+            .from(projectWorkUnits)
+            .where(
+              and(
+                eq(projectWorkUnits.projectId, params.projectId),
+                eq(projectWorkUnits.workUnitTypeId, params.workUnitTypeId),
+              ),
+            )
+            .orderBy(desc(projectWorkUnits.instanceNumber), desc(projectWorkUnits.id))
+            .limit(1);
+
+          const nextInstanceNumber = (latest?.instanceNumber ?? 0) + 1;
+          const rows = await tx
+            .insert(projectWorkUnits)
+            .values({
+              projectId: params.projectId,
+              workUnitTypeId: params.workUnitTypeId,
+              workUnitKey: `${workUnitType.key}-${nextInstanceNumber}`,
+              instanceNumber: nextInstanceNumber,
+              displayName:
+                workUnitType.cardinality === "many_per_project"
+                  ? (params.displayName ?? null)
+                  : null,
+              currentStateId: params.currentStateId,
+            })
+            .returning();
+
+          const created = rows[0];
+          if (!created) {
+            throw new Error("Failed to create project work unit");
+          }
+
+          return toProjectWorkUnitRow(created);
+        });
       }),
 
     listProjectWorkUnitsByProject: (projectId: string) =>
