@@ -159,7 +159,7 @@ Wave 4: web runtime surfaces + audit/regression
 > Implementation + Test = ONE task. Never separate.
 > EVERY task MUST have: Agent Profile + Parallelization + QA Scenarios.
 
-- [ ] 1. Lock canonical contracts, schemas, and runtime payload shapes
+- [x] 1. Lock canonical contracts, schemas, and runtime payload shapes
 
   **What to do**: Update contracts to freeze the final canonical fact family shapes, manual CRUD payloads, MCP `readItemId` / `writeItemId` direction, explicit `queryParam`, runtime error envelopes, `bound_fact`, `workflow_ref_fact`, `artifact_snapshot_fact`, closed `work_unit_draft_spec_fact`, CRUD verbs, and the fixed/fact-backed invoke source matrix. Rename the methodology/design-time enum layer to `bound_fact` now; do not keep legacy design-time names as canonical.
   **Must NOT do**: Do not harden runtime services in this task. Do not keep `stepExecutionId` in the final MCP v1 tool inputs.
@@ -201,7 +201,7 @@ Wave 4: web runtime surfaces + audit/regression
 
   **Commit**: YES | Message: `feat(contracts): lock plan-b fact and mcp contracts` | Files: `packages/contracts/src/**`
 
-- [ ] 2. Add runtime schema and repository foundation for workflow-context CRUD and work-unit identity
+- [x] 2. Add runtime schema and repository foundation for workflow-context CRUD and work-unit identity
 
   **What to do**: Add/extend runtime schema and repository support for workflow-context manual CRUD, immutable work-unit keys, display-name metadata behavior, and any needed runtime CRUD persistence records. Keep family-specific repositories under `packages/db/src/runtime-repositories/**` and add the missing workflow-context runtime repository rather than reusing design-time methodology repositories.
   **Must NOT do**: Do not put manual CRUD logic in routers. Do not write created invoke ids into draft-spec storage.
@@ -243,7 +243,7 @@ Wave 4: web runtime surfaces + audit/regression
 
   **Commit**: YES | Message: `feat(runtime): add fact crud repository foundation` | Files: `packages/db/src/**`, `packages/workflow-engine/src/repositories/**`
 
-- [ ] 3. Implement shared runtime manual fact CRUD orchestration and error model
+- [x] 3. Implement shared runtime manual fact CRUD orchestration and error model
 
   **What to do**: Add one shared orchestration layer (for example `RuntimeManualFactCrudService`) that owns canonical decode/normalize/validate/apply logic for manual runtime CRUD across project facts, work-unit facts, and workflow-context facts. This service must enforce runtime-only validation, family-specific policy, logical delete semantics, context-only remove/delete distinction, and structured agent/user-facing errors.
   **Must NOT do**: Do not bypass methodology/context definitions. Do not let routers call repositories directly for Plan B-managed runtime CRUD after this task.
@@ -283,7 +283,7 @@ Wave 4: web runtime surfaces + audit/regression
 
   **Commit**: YES | Message: `feat(runtime): add shared manual fact crud service` | Files: `packages/workflow-engine/src/services/**`
 
-- [ ] 4. Implement artifact snapshot semantics and shared path validation
+- [x] 4. Implement artifact snapshot semantics and shared path validation
 
   **What to do**: Implement the canonical `artifact_snapshot_fact` semantics: grouped files per slot, canonical `slotDefinitionId` persistence, full repo-relative path regex validation, optional folder-path fact binding, repo-root fallback when folder fact is missing, explicit file status values, `record_deleted_file` / `remove_from_slot` distinction, and no direct repo deletion. Apply this to both project-fact-linked and work-unit-fact-linked artifact relationships.
   **Must NOT do**: Do not persist friendly slot keys. Do not infer folder binding from unrelated facts.
@@ -322,7 +322,7 @@ Wave 4: web runtime surfaces + audit/regression
 
   **Commit**: YES | Message: `feat(facts): add artifact snapshot validation semantics` | Files: `packages/contracts/src/**`, `packages/workflow-engine/src/**`, `packages/db/src/**`
 
-- [ ] 5. Implement work-unit runtime identity and progressive-disclosure reads
+- [x] 5. Implement work-unit runtime identity and progressive-disclosure reads
 
   **What to do**: Implement immutable `{definition_key}-{instance#}` work-unit keys, cardinality-many display-name flag behavior, and progressive-disclosure runtime reads for work-unit search/expansion. Keep default query results lightweight and require explicit expansion for facts/artifacts.
   **Must NOT do**: Do not reuse instance numbers after deletion. Do not expose full fact/artifact payloads by default.
@@ -360,7 +360,7 @@ Wave 4: web runtime surfaces + audit/regression
 
   **Commit**: YES | Message: `feat(runtime): add work-unit identity and disclosure rules` | Files: `packages/db/src/**`, `packages/workflow-engine/src/**`, `packages/contracts/src/**`
 
-- [ ] 6. Migrate project and work-unit manual runtime CRUD procedures to CRUD verbs over shared service
+- [x] 6. Migrate project and work-unit manual runtime CRUD procedures to CRUD verbs over shared service
 
   **What to do**: Replace router-direct project/work-unit runtime fact mutation flows with family-specific CRUD procedures over the shared service. Migrate the current add/set/replace behavior into explicit `create/update/delete` semantics while preserving the existing project fact and work-unit fact detail pages as the canonical manual CRUD homes.
   **Must NOT do**: Do not keep the web UI dependent on the old `add/set/replace` procedure names after this task. Do not add `remove` for project/work-unit facts.
@@ -399,7 +399,7 @@ Wave 4: web runtime surfaces + audit/regression
 
   **Commit**: YES | Message: `feat(api): migrate project and work-unit fact crud` | Files: `packages/api/src/**`, `packages/workflow-engine/src/**`, `apps/web/src/routes/**`
 
-- [ ] 7. Implement workflow-context manual runtime CRUD and MCP progressive-disclosure model
+- [x] 7. Implement workflow-context manual runtime CRUD and MCP progressive-disclosure model
 
   **What to do**: Add runtime workflow-context CRUD procedures and services, expose them on workflow execution detail as the canonical manual CRUD home, and redesign MCP read/write around `readItemId` / `writeItemId`, mode-driven reads, `queryParam`, `limit`, and structured runtime errors. Keep workflow-context `remove` vs `delete` distinction only here.
   **Must NOT do**: Do not make step execution detail the primary manual CRUD home. Do not leave definition-id based read contracts in place.
@@ -440,7 +440,7 @@ Wave 4: web runtime surfaces + audit/regression
 
   **Commit**: YES | Message: `feat(runtime): add workflow context crud and mcp progressive reads` | Files: `packages/contracts/src/**`, `packages/api/src/**`, `packages/workflow-engine/src/**`, `apps/web/src/routes/**`
 
-- [ ] 8. Redefine invoke template/state handling around template-only draft specs
+- [x] 8. Redefine invoke template/state handling around template-only draft specs
 
   **What to do**: Redefine `work_unit_draft_spec_fact` as a closed template-only payload with stable draft keys, grouped artifact slots/files, and no created runtime ids. Move created work-unit/fact/artifact instance ids and the fully resolved frozen values into invoke state/materialization mappings only. Preserve template reuse across multiple invoke runs.
   **Must NOT do**: Do not persist created runtime ids back into the template. Do not keep flat artifact arrays.
@@ -478,7 +478,7 @@ Wave 4: web runtime surfaces + audit/regression
 
   **Commit**: YES | Message: `feat(invoke): make draft spec template-only` | Files: `packages/contracts/src/**`, `packages/workflow-engine/src/**`
 
-- [ ] 9. Migrate legacy readers/consumers and harden all runtime boundaries
+- [x] 9. Migrate legacy readers/consumers and harden all runtime boundaries
 
   **What to do**: Audit and update all readers/evaluators/consumers that still expect legacy envelopes or flat draft-spec payloads: detail views, action runtime, command services, invoke readers, form/context consumers, and any compatibility fallbacks. Ensure write hardening and read compatibility land together.
   **Must NOT do**: Do not harden writers only and leave readers stale. Do not leave raw `factInstanceId` envelopes as the canonical runtime expectation.
@@ -518,7 +518,7 @@ Wave 4: web runtime surfaces + audit/regression
 
   **Commit**: YES | Message: `fix(runtime): migrate fact consumers to canonical model` | Files: `packages/workflow-engine/src/**`, `packages/api/src/**`
 
-- [ ] 10. Implement manual runtime CRUD dialogs and page flows on existing runtime surfaces
+- [x] 10. Implement manual runtime CRUD dialogs and page flows on existing runtime surfaces
 
   **What to do**: Upgrade the existing runtime pages to the locked UI matrix. Keep project fact CRUD on `projects.$projectId.facts.$factDefinitionId`, work-unit fact CRUD on `projects.$projectId.work-units.$projectWorkUnitId.facts.$factDefinitionId`, and add workflow-context CRUD as a context section on workflow execution detail. Use dialogs by default: cardinality-one direct set/replace dialog; cardinality-many instance list + per-instance dialogs. Use kind-specific structured dialogs for `bound_fact`, `work_unit`, `artifact_snapshot_fact`, `workflow_ref_fact`, and `work_unit_draft_spec_fact`.
   **Must NOT do**: Do not introduce a broad new runtime CRUD UI architecture. Do not use generic JSON-first dialogs for special fact families.
@@ -560,7 +560,7 @@ Wave 4: web runtime surfaces + audit/regression
 
   **Commit**: YES | Message: `feat(web): add plan-b runtime fact dialogs` | Files: `apps/web/src/routes/**`, `apps/web/src/components/**`
 
-- [ ] 11. Run no-bypass audit, regression, and Plan A compatibility proof
+- [x] 11. Run no-bypass audit, regression, and Plan A compatibility proof
 
   **What to do**: Prove that all approved fact mutation surfaces now use the canonical runtime model and shared runtime enforcement where required, that workflow-context mediation remains intact, and that Plan A action/branch flows still pass. Include exact regression commands and evidence.
   **Must NOT do**: Do not leave compatibility claims as prose. Do not skip Plan A reruns.
@@ -611,7 +611,7 @@ Wave 4: web runtime surfaces + audit/regression
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 > **Never mark F1-F4 as checked before getting user's okay.** Rejection or user feedback -> fix -> re-run -> present again -> wait for okay.
-- [ ] F1. Plan Compliance Audit — oracle
+- [x] F1. Plan Compliance Audit — oracle
 
   **QA Scenarios**:
   ```
@@ -621,7 +621,7 @@ Wave 4: web runtime surfaces + audit/regression
     Expected: Oracle review packet has passing type/test evidence and confirms task-by-task compliance against this plan
     Evidence: .sisyphus/evidence/f1-plan-compliance.log
   ```
-- [ ] F2. Code Quality Review — unspecified-high
+- [x] F2. Code Quality Review — unspecified-high
 
   **QA Scenarios**:
   ```
@@ -631,7 +631,7 @@ Wave 4: web runtime surfaces + audit/regression
     Expected: Build passes and reviewer can inspect final code paths, error handling, and layering without unresolved quality defects
     Evidence: .sisyphus/evidence/f2-code-quality.log
   ```
-- [ ] F3. Real Manual QA — unspecified-high (+ playwright if UI)
+- [x] F3. Real Manual QA — unspecified-high (+ playwright if UI)
 
   **QA Scenarios**:
   ```
@@ -641,7 +641,7 @@ Wave 4: web runtime surfaces + audit/regression
     Expected: All manual runtime CRUD surfaces behave according to the plan, with correct dialogs, validation, and page ownership
     Evidence: .sisyphus/evidence/f3-real-manual-qa.log
   ```
-- [ ] F4. Scope Fidelity Check — deep
+- [x] F4. Scope Fidelity Check — deep
 
   **QA Scenarios**:
   ```

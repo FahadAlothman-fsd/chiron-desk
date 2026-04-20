@@ -1,0 +1,375 @@
+# Collected Changes
+
+Purpose: capture issues, tweaks, deferred changes, and preliminary solution notes during manual app walkthroughs without fixing them immediately.
+
+Workflow for this file:
+- capture the reported issue exactly as observed
+- add preliminary solution notes as research comes in
+- defer implementation until an explicit fixing pass
+
+## 2026-04-20
+
+### 1. Remove `defaultValue` from facts for now
+- Status: queued
+- Request: remove the `defaultValue` field from facts entirely for now.
+- Reason: `defaultValue` is not implemented at project runtime yet, so keeping it in the authoring model is misleading.
+- Follow-up: reintroduce it later once runtime support exists.
+- Preliminary solution research:
+  - status: researched
+  - findings:
+    - `defaultValue` is not just a dormant authoring field; it currently exists across contracts, DB schema, API schemas, methodology validation, runtime services, web UI, seeds, and tests.
+    - the most important active runtime consumer is `packages/workflow-engine/src/services/invoke-work-unit-execution-service.ts`, which still applies `defaultValueJson` during work-unit initialization.
+    - additional runtime-adjacent usage still exists in `packages/workflow-engine/src/services/runtime-manual-fact-crud-service.ts` and `packages/workflow-engine/src/services/step-execution-detail-service.ts`.
+    - validation/publishing logic still checks default compatibility in `packages/methodology-engine/src/lifecycle-validation.ts` and `packages/methodology-engine/src/version-service.ts`.
+    - persistence/modeling still exists in:
+      - `packages/contracts/src/methodology/fact.ts`
+      - `packages/contracts/src/methodology/version.ts`
+      - `packages/db/src/schema/methodology.ts`
+      - `packages/db/src/methodology-repository.ts`
+    - UI/editor/display usage still exists in:
+      - `apps/web/src/features/methodologies/methodology-facts.tsx`
+      - `apps/web/src/features/methodologies/version-workspace.tsx`
+      - methodology fact/work-unit fact route/dialog flows
+    - seed blast radius is real: `packages/scripts/src/seed/methodology/setup/setup-bmad-mapping.ts` contains many `defaultValueJson` definitions, including meaningful non-null ones.
+  - preliminary solution direction:
+    - remove runtime consumption first, since that is the functional dependency the user explicitly wants gone.
+    - then remove validation logic and API/contracts so authoring stops exposing the field.
+    - DB column removal can be deferred; a safer first pass is to stop reading/writing/using the field and leave the nullable columns in place temporarily.
+    - expect seed and test cleanup after the contract/API removal because many fixtures still encode `defaultValue` / `defaultValueJson`.
+  - caution:
+    - this is broader than a simple UI tweak; removing it cleanly is a cross-layer refactor.
+
+### 2. Methodology fact update request fails validation
+- Status: queued
+- Surface: `POST /rpc/methodology/version/fact/update`
+- Observed result: `400 BAD_REQUEST` with `Input validation failed`
+- Request context:
+  - `versionId`: `mver_bmad_v1_draft`
+  - `factKey`: `communication_language`
+- Payload snapshot provided during walkthrough:
+  - `name`: `Communication Language`
+  - `key`: `communication_language`
+  - `factType`: `string`
+  - `cardinality`: `one`
+  - `defaultValue`: `Babelonian`
+  - `description.markdown`: `Default language used for interactive guidance and conversational responses across the methodology.`
+  - `guidance.human.markdown`: `Sets the default language Chiron uses when guiding people through setup, brainstorming, and research.`
+  - `guidance.agent.markdown`: `Use this as the default response language unless a more specific project or runtime override is present.`
+  - `validation.kind`: `none`
+- Likely investigation angle later: the payload still uses legacy `factType` / `defaultValue` shape, which may no longer match the canonical methodology fact update contract.
+- Preliminary solution research:
+  - status: researched
+  - findings:
+    - the main failure is not oRPC itself; oRPC is correctly surfacing a schema validation failure from the route input schema.
+    - external oRPC behavior confirms this error shape means the request payload failed the route schema before business logic ran; the useful detail is in the schema `issues` array.
+    - the route is validated in `packages/api/src/routers/methodology.ts`.
+    - the update flow depends on a discriminated union input schema that requires a top-level `kind` field to choose the correct fact branch.
+    - the current methodology facts web route builds an update payload without that discriminator in `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.facts.tsx`.
+    - the search found the likely bad shape as: payload includes `factType`, `cardinality`, `defaultValue`, `validation`, etc., but omits the required `kind` discriminator.
+    - that means the request likely dies at input validation time before the update service runs.
+  - likely root cause:
+    - UI payload drift after canonical fact unification: the backend now expects canonical discriminated input, while the editor route still submits an older shape missing `kind`.
+  - preliminary solution direction:
+    - update the methodology fact editor submission path to send the canonical discriminator (`kind`) expected by the API.
+    - for plain methodology facts, the likely correct value is `kind: "plain_fact"`.
+    - verify whether `type` also needs to be included alongside `factType` in that specific mutation helper for consistency with the current router schema.
+    - once we enter fix mode, inspect the actual returned validation `issues` payload to confirm the exact missing field(s), but current evidence strongly points to missing `kind`.
+  - key files to inspect when implementing:
+    - `packages/api/src/routers/methodology.ts`
+    - `packages/contracts/src/methodology/fact.ts`
+    - `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.facts.tsx`
+
+### 3. Work-unit fact creation fails validation
+- Status: queued
+- Surface: `POST /rpc/methodology/version/workUnit/fact/create`
+- Observed result: `400 BAD_REQUEST` with `Input validation failed`
+- Request context:
+  - `versionId`: `mver_bmad_v1_draft`
+  - `workUnitTypeKey`: `fasdfa`
+  - `fact`: payload details not fully expanded in console output
+- Observed error frame:
+  - request reaches oRPC validation layer and fails before business logic runs
+  - root payload shape is `{ versionId, workUnitTypeKey, fact }`
+- Preliminary solution research:
+  - status: researched
+  - findings:
+    - this appears to be the same family of problem as the methodology fact update failure: the API expects a canonical discriminated fact payload, but the web authoring path is likely sending a shape without the required `kind` discriminator.
+    - the API route is in `packages/api/src/routers/methodology.ts`.
+    - the work-unit fact create contract expects `{ versionId, workUnitTypeKey, fact }`, where `fact` must satisfy a discriminated union over `kind`.
+    - the route-level schema distinguishes at least:
+      - `kind: "plain_fact"`
+      - `kind: "work_unit_reference_fact"`
+    - the current work-unit fact web authoring flow likely builds the payload in:
+      - `apps/web/src/features/methodologies/work-unit-l2/FactsTab.tsx`
+      - `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.tsx`
+    - the search found that the web route constructs an API fact payload with `factType`, `cardinality`, etc. but likely omits `kind`, which would make the Zod discriminated union fail during input validation.
+    - tests for this endpoint already demonstrate the correct shape by explicitly including `kind`.
+  - likely root cause:
+    - another UI payload drift after canonical fact unification: create-work-unit-fact submissions are probably still built from pre-discriminator assumptions.
+  - preliminary solution direction:
+    - update the work-unit fact create/update payload builder to send the canonical `kind` field.
+    - plain facts should likely submit `kind: "plain_fact"`.
+    - work-unit reference facts should likely submit `kind: "work_unit_reference_fact"`.
+    - when entering fix mode, verify whether additional reference-specific fields also need canonical remapping alongside `kind`.
+  - key files to inspect when implementing:
+    - `packages/api/src/routers/methodology.ts`
+    - `apps/web/src/features/methodologies/work-unit-l2/FactsTab.tsx`
+    - `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.tsx`
+    - `packages/api/src/tests/routers/methodology.test.ts`
+
+### 4. Workflow editor plain_fact dialog is missing type/validation controls
+- Status: queued
+- Surface: workflow editor → create context fact definition modal
+- Observed result:
+  - when selecting `plain_fact`, the modal does not show type or validation controls
+  - screenshot shows the Value Semantics tab with only a large `PLAIN FACT` block and no editable type/validation UI
+- Expected behavior:
+  - plain facts should expose at least their value type and validation semantics in the authoring dialog
+- Preliminary solution research:
+  - status: researched
+  - findings:
+    - this looks like a direct UI conditional mismatch, not a backend validation issue.
+    - in the workflow editor, users select `plain_fact` from the kind options.
+    - but the Value Semantics rendering logic in `apps/web/src/features/workflow-editor/dialogs.tsx` is still checking for the legacy kind `plain_value_fact` in at least one key branch.
+    - result: the dialog enters the plain-fact flow, but the type/validation controls do not render because the condition is looking for the old literal.
+    - contracts currently carry both canonical and legacy names for compatibility, which is why this bug can exist silently:
+      - canonical: `plain_fact`
+      - legacy: `plain_value_fact`
+    - the workflow-editor test direction already points toward `plain_fact` as the intended canonical authoring shape.
+  - likely root cause:
+    - workflow-editor UI logic was only partially migrated during canonical fact unification: option values were updated to `plain_fact`, but some rendering/building branches still key off `plain_value_fact`.
+  - preliminary solution direction:
+    - update workflow-editor plain-fact rendering and validation-building branches to handle canonical `plain_fact`.
+    - if temporary compatibility is still needed, the condition should handle both `plain_fact` and `plain_value_fact`.
+    - use the work-unit fact editor as the best internal reference for what a complete type/validation UI should expose.
+  - best internal reference implementation:
+    - `apps/web/src/features/methodologies/work-unit-l2/FactsTab.tsx`
+    - supporting helpers:
+      - `apps/web/src/features/methodologies/fact-editor-controls.tsx`
+      - `apps/web/src/features/methodologies/fact-validation.ts`
+  - key files to inspect when implementing:
+    - `apps/web/src/features/workflow-editor/dialogs.tsx`
+    - `apps/web/src/features/workflow-editor/types.ts`
+    - `packages/contracts/src/methodology/fact.ts`
+    - `packages/contracts/src/methodology/workflow.ts`
+
+### 5. Seeded work units are not showing workflows in the Workflows tab
+- Status: queued
+- Surface: methodology version work-unit detail → Workflows tab
+- Observed result:
+  - seeded work units such as Brainstorming show an empty workflow list
+  - this appears to affect seeded work units broadly, not just one record
+  - newly created work units can create workflows normally, which then do show up
+- User hypothesis:
+  - likely a seed/data issue or a mismatch between seeded workflow shape and current listing/hydration logic
+- Preliminary solution research:
+  - status: researched
+  - findings:
+    - seeded workflow definitions do appear to exist for brainstorming and other seeded work units; this is not a simple “workflows were never seeded” omission.
+    - brainstorming specifically has seeded workflow definitions in `packages/scripts/src/seed/methodology/setup/setup-bmad-mapping.ts`, and runtime workflow fixture material in `packages/scripts/src/seed/methodology/setup/brainstorming-demo-fixture.ts`.
+    - the workflows tab list path goes through:
+      - `apps/web/src/features/methodologies/work-unit-l2/WorkflowsTab.tsx`
+      - `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.tsx`
+      - `packages/api/src/routers/methodology.ts`
+      - `packages/methodology-engine/src/services/workflow-service.ts`
+      - `packages/db/src/methodology-repository.ts`
+    - the repository list query uses a strict join between `methodologyWorkflows` and `methodologyWorkUnitTypes` scoped by both `methodologyVersionId` and `workUnitTypeKey`.
+    - that means seeded workflows can exist in the database and still not show up in the UI if the current view is querying a different methodology version than the seeded rows are attached to, or if the work-unit association is not lining up exactly.
+    - newly created work units/workflows showing up normally supports this: the create flow writes rows for the exact current draft/version context the UI is browsing, so the list query finds them.
+    - recent seed-reset/canonical-refactor churn did touch workflow metadata patching and runtime fixture wiring, so there may still be seed-related fragility, but current evidence points more strongly to a version/work-unit listing mismatch than total seed absence.
+  - likely root cause:
+    - seeded workflows exist, but the Workflows tab query is likely filtering them out because of strict version-scoped and work-unit-scoped joins.
+  - preliminary solution direction:
+    - verify which `versionId` the UI is browsing when the seeded work unit page is opened and compare it to the version IDs used by seed rows.
+    - inspect whether seeded workflow rows for brainstorming have the expected `workUnitTypeId` / work-unit key association the listing query expects.
+    - if the issue is draft/version cloning drift, the eventual fix may need to copy or remap seeded workflows into the browsed draft version rather than relying on canonical rows from another version.
+    - if the issue is query strictness, the eventual fix may be in the list/hydration path rather than the seed definitions themselves.
+  - key files to inspect when implementing:
+    - `packages/scripts/src/seed/methodology/setup/setup-bmad-mapping.ts`
+    - `packages/scripts/src/seed/methodology/setup/brainstorming-demo-fixture.ts`
+    - `packages/scripts/src/manual-seed.mjs`
+    - `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.tsx`
+    - `packages/db/src/methodology-repository.ts`
+
+### 6. Transition gate condition engine UI is using the wrong target/operator model
+- Status: queued
+- Surface: work-unit state machine transition gates in methodology authoring UI
+- Observed result:
+  - the transition gate group editor currently exposes a generic model centered around:
+    - `Add Fact Condition`
+    - `Add Work Unit Condition`
+  - screenshot and local code/test inspection show generic operator handling rather than a fact-kind-aware condition system.
+- Expected behavior per user direction:
+  - transition conditions should target:
+    - project facts
+    - current work-unit facts
+  - available operators should vary by fact kind/value kind
+  - this should be similar to the branch-step condition engine, except branch conditions can additionally target workflow context facts
+- Current local implementation evidence:
+  - UI lives in `apps/web/src/features/methodologies/work-unit-l2/StateMachineTab.tsx`
+  - the group editor currently renders generic buttons for `Add Fact Condition` and `Add Work Unit Condition`
+  - current integration tests in `apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx` still assert against that generic model
+- Preliminary solution research:
+  - status: researched
+  - current implementation findings:
+    - the current transition-gate authoring UI lives in `apps/web/src/features/methodologies/work-unit-l2/StateMachineTab.tsx`.
+    - it currently exposes a generic grouped model based on:
+      - `Add Fact Condition`
+      - `Add Work Unit Condition`
+    - local UI/tests currently revolve around generic operator sets such as:
+      - fact: `exists`, `equals`
+      - work unit: `exists`, `state_is`
+    - the corresponding shell-route integration tests still assert against that generic model in `apps/web/src/tests/routes/methodologies.$methodologyId.versions.$versionId.shell-routes.integration.test.tsx`.
+  - branch-step reference findings:
+    - the branch-step condition engine is much more structured and typed.
+    - key reference files:
+      - `packages/methodology-engine/src/services/condition-engine.ts`
+      - `packages/methodology-engine/src/services/branch-step-definition-service.ts`
+      - `packages/workflow-engine/src/services/branch-route-evaluator.ts`
+      - `apps/web/src/features/workflow-editor/dialogs.tsx`
+      - `apps/web/src/features/workflow-editor/types.ts`
+    - branch-step logic derives compatible operators from the selected operand/fact type instead of exposing a flat generic set.
+    - branch-step editor logic includes reusable patterns like:
+      - resolving an operand from selected fact + subfield
+      - filtering operators by operand compatibility
+      - reconciling invalid operators when target selection changes
+      - generating default comparison payloads by operand/operator type
+  - current mismatch findings:
+    - transition gates currently use a simpler generic condition model, while the branch-step engine already has the typed operator infrastructure the user expected.
+    - current transition-gate/backend contract research found runtime condition kinds around `fact`, `work_unit_fact`, and `artifact`, which is already different from the UI’s current `fact` vs `work_unit` surface.
+    - this strongly suggests transition gates are suffering from UI/contract drift, not just bad labels.
+  - external support references:
+    - external references reinforce the same design principle: operators should vary by selected field/value type rather than staying flat.
+    - strongest examples gathered:
+      - React Query Builder `getOperators(...)`
+      - OData / odata2ts typed filter operations
+      - query-builder operator-validation patterns
+  - authoritative spec/contract findings:
+    - the canonical transition-gate condition kinds are defined in `packages/contracts/src/runtime/conditions.ts` as:
+      - `fact`
+      - `work_unit_fact`
+      - `artifact`
+    - canonical operator families are:
+      - `fact`: `exists`, `equals`
+      - `work_unit_fact`: `exists`, `equals`
+      - `artifact`: `exists`, `stale`, `fresh`
+    - contract tests lock this shape in `packages/contracts/src/tests/runtime/runtime-contracts.test.ts`.
+    - the branch-step docs confirm the key distinction:
+      - branch conditions can target workflow/runtime context paths like `context.*`
+      - transition gates should not target workflow-local context; they target durable project/work-unit state (and artifacts)
+    - authoritative repo docs/notes for this split include:
+      - `docs/architecture/methodology-pages/workflow-editor/branch-step.md`
+      - `docs/architecture/methodology-pages/state-machine-tab.md`
+      - `docs/plans/2026-03-21-transition-condition-binding-design.md`
+  - final diagnosis:
+    - the current transition-gate UI is materially wrong relative to repo canon.
+    - it exposes a generic `fact` / `work_unit` model with operators like `state_is`, while current contracts/docs expect a more explicit gate model centered on:
+      - project facts (`fact`)
+      - current work-unit facts (`work_unit_fact`)
+      - artifact slots (`artifact`)
+    - the branch-step engine is the right implementation reference for typed operator derivation and reconciliation patterns, but transition gates must remain narrower in target scope than branch conditions.
+    - specifically, transition gates should not expose workflow context targets even though branch conditions can.
+  - preliminary solution direction:
+    - replace the current generic transition-gate editor model with a condition-kind-aware model aligned to `fact`, `work_unit_fact`, and `artifact`.
+    - for `fact` and `work_unit_fact`, expose only canonical gate operators (`exists`, `equals`) and derive the right value UI from the selected fact kind/value kind.
+    - for `artifact`, expose `exists`, `stale`, and `fresh` against artifact slots.
+    - remove or retire the current `work_unit` + `state_is` authoring model unless there is a deliberate compatibility migration path.
+    - reuse branch-step editor patterns for:
+      - operand/target resolution
+      - compatible operator filtering
+      - reconciliation when target selection changes
+      - default comparison payload generation
+    - but do not copy branch-step target scope wholesale; transition gates must stay limited to durable gate targets, not workflow context.
+
+### 7. Remove methodology-defined agents entirely
+- Status: queued
+- Request:
+  - completely remove methodology-defined agent tables/pages/procedures entirely
+  - user explicitly does not want methodology-defined agents to exist in the product
+- Preliminary solution research:
+  - status: researched
+  - findings:
+    - methodology-defined agents are a complete vertical slice spanning:
+      - DB schema/table(s)
+      - contracts
+      - methodology repository + lifecycle repository
+      - methodology engine services
+      - API router procedures
+      - dedicated methodology web route/page
+      - seed data
+      - tests
+      - docs
+    - primary storage is the `methodologyAgentTypes` table in `packages/db/src/schema/methodology.ts`.
+    - primary contracts live in `packages/contracts/src/methodology/agent.ts`.
+    - primary API surface lives in `packages/api/src/routers/methodology.ts`.
+    - the dedicated design-time page is `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.agents.tsx`.
+    - seed definitions live in:
+      - `packages/scripts/src/seed/methodology/tables/methodology-agent-types.seed.ts`
+      - `packages/scripts/src/seed/methodology/setup/setup-bmad-mapping.ts`
+    - the main architectural wrinkle is that design-time agent steps still reference methodology-defined agent keys/model-reference types in a few places, so removal needs to deliberately sever that coupling rather than only deleting the CRUD pages.
+  - preliminary solution direction:
+    - remove the dedicated methodology agents page/route, router procedures, contracts, seed rows, schema table, and associated tests/docs as one coordinated removal.
+    - separately decide how to simplify agent-step design-time payloads so they no longer depend on methodology-defined agent records or agent-specific shared contracts.
+  - key files to inspect when implementing:
+    - `packages/db/src/schema/methodology.ts`
+    - `packages/contracts/src/methodology/agent.ts`
+    - `packages/db/src/methodology-repository.ts`
+    - `packages/db/src/lifecycle-repository.ts`
+    - `packages/methodology-engine/src/lifecycle-repository.ts`
+    - `packages/api/src/routers/methodology.ts`
+    - `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.agents.tsx`
+    - `packages/scripts/src/seed/methodology/tables/methodology-agent-types.seed.ts`
+    - `packages/scripts/src/seed/methodology/setup/setup-bmad-mapping.ts`
+
+### 8. Artifact slots are not showing in seeded work-unit surfaces
+- Status: queued
+- Surface:
+  - methodology version work-unit detail → Artifact Slots tab
+  - workflow context fact dialog for `artifact_slot_reference_fact`
+- Observed result:
+  - Research work unit shows an empty Artifact Slots list
+  - artifact slot picker in the context fact dialog says no artifact slots found
+  - by contrast, a newly created workflow shows up in both the workflows list and the workflow-ref context fact picker
+- User hypothesis:
+  - likely the same family of issue as seeded workflows: seed/data exists but current list/picker path is failing to surface it
+- Preliminary solution research:
+  - status: researched
+  - findings:
+    - the design-time methodology surfaces do query artifact slots through the expected methodology path:
+      - work-unit detail route calls `orpc.methodology.version.workUnit.artifactSlot.list`
+      - methodology service maps from `findArtifactSlotsByWorkUnitType(...)`
+      - workflow-editor route also uses the same methodology artifact-slot list query to populate `artifact_slot_reference_fact` options
+    - the workflow-editor dialog consumes `artifactSlots` for `artifact_slot_reference_fact` in the same general way it consumes `availableWorkflows` for `workflow_ref_fact`.
+    - live `local.db` inspection is decisive here:
+      - `mver_bmad_v1_active` has the seeded Research artifact slot `research_report`
+      - `mver_bmad_v1_active` also has the seeded Research workflows (`domain_research`, `market_research`, `research_primary`, `technical_research`)
+      - `mver_bmad_v1_draft` does **not** have those seeded Research rows copied into draft
+      - instead, draft currently contains only the manually created rows:
+        - workflow: `fadsafsd`
+        - artifact slot: `fasdf`
+    - this mirrors the seeded-workflow issue very closely: active/canonical seeded definitions exist, but the draft version being browsed is missing the seeded rows.
+    - because the design-time pages are browsing `mver_bmad_v1_draft`, an empty list before manual creation is explained by missing draft rows rather than missing active seed data.
+    - after manual creation, `local.db` now shows one draft Research artifact slot row and one draft Research workflow row. The workflow appears in UI as expected.
+    - if the artifact-slot picker still remains empty even after that draft artifact slot exists, that implies a likely **secondary UI/picker visibility bug** on top of the draft-seeding/version issue.
+    - external combobox research suggests the most likely UI-only fallback causes would be value/label filtering or Command empty-state wiring, but current evidence makes that secondary, not primary.
+  - final diagnosis:
+    - primary issue: draft version is missing the seeded Research artifact slot definitions, just like it is missing the seeded Research workflows.
+    - likely same family as the seeded-workflow visibility problem: active canonical rows exist, but the browsed draft version does not contain copied/remapped design-time rows.
+    - possible secondary issue: if the user still sees “No artifact slots found” in the context-fact dialog after a draft artifact slot exists, then the picker path has an additional UI/query caching/filtering bug that needs separate verification during implementation.
+  - preliminary solution direction:
+    - treat artifact-slot visibility as part of the same broader active→draft design-time propagation/remapping bug affecting seeded workflows.
+    - verify/fix how seeded work-unit-scoped design-time rows (workflows and artifact slots) are copied or made visible in the browsed draft methodology version.
+    - once that is fixed, re-check the artifact-slot-reference picker specifically; if it still fails while the Artifact Slots tab shows data, debug the editor option-loading path (`toArtifactSlotOptions(...)`, query invalidation, combobox filtering).
+  - live local.db evidence:
+    - active Research artifact slot: `research_report`
+    - draft Research artifact slot: `fasdf` (manual)
+    - active Research workflows: `domain_research`, `market_research`, `research_primary`, `technical_research`
+    - draft Research workflow: `fadsafsd` (manual)
+  - key files to inspect when implementing:
+    - `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.tsx`
+    - `apps/web/src/routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId.tsx`
+    - `apps/web/src/features/workflow-editor/dialogs.tsx`
+    - `packages/methodology-engine/src/services/methodology-version-service.ts`
+    - `packages/db/src/methodology-repository.ts`
+    - `packages/scripts/src/seed/methodology/setup/setup-bmad-mapping.ts`
+    - `local.db` (for before/after verification)

@@ -1,0 +1,121 @@
+{
+  "active_plan": "/home/gondilf/Desktop/projects/masters/chiron/.sisyphus/plans/l3-plan-b-fact-unification-runtime-validation.md",
+  "started_at": "2026-04-18T21:10:54.219Z",
+  "session_ids": [
+    "ses_25d915855ffe3LkI5xYIcc7izl",
+    "ses_259d13b61ffexLicyHjAjYWNa6",
+    "ses_259d139bdffegoDsnfarCdvveb",
+    "ses_259b9f9f1ffeIgHwEdt25hMUq3",
+    "ses_259b9f7fcffe4f2LbaWKHzjKwz",
+    "ses_259b3b4d9ffeaqH2c4Q4i0P5rl",
+    "ses_259b3b18bffeQxOK4ZTPYbt9zg",
+    "ses_259b3b183ffetijlnTUIs2y1Z4",
+    "ses_259ab0d62ffewOqlAaC16GYcNQ",
+    "ses_259ab0ad8ffeWEfmRVRodH1561",
+    "ses_259745d12ffe74MW11PG3LhaX5",
+    "ses_259745b52ffeLVpfdoYjxsrd8g",
+    "ses_258e35f1cffeSiRcW5e2bO52I5",
+    "ses_258e35ce7ffe2REI7H5lPR17hB"
+  ],
+  "plan_name": "l3-plan-b-fact-unification-runtime-validation",
+  "worktree_path": null,
+  "session_origins": {
+    "ses_25d915855ffe3LkI5xYIcc7izl": "direct",
+    "ses_259d13b61ffexLicyHjAjYWNa6": "appended",
+    "ses_259d139bdffegoDsnfarCdvveb": "appended",
+    "ses_259b9f9f1ffeIgHwEdt25hMUq3": "appended",
+    "ses_259b9f7fcffe4f2LbaWKHzjKwz": "appended",
+    "ses_259b3b4d9ffeaqH2c4Q4i0P5rl": "appended",
+    "ses_259b3b18bffeQxOK4ZTPYbt9zg": "appended",
+    "ses_259b3b183ffetijlnTUIs2y1Z4": "appended",
+    "ses_259ab0d62ffewOqlAaC16GYcNQ": "appended",
+    "ses_259ab0ad8ffeWEfmRVRodH1561": "appended",
+    "ses_259745d12ffe74MW11PG3LhaX5": "appended",
+    "ses_259745b52ffeLVpfdoYjxsrd8g": "appended",
+    "ses_258e35f1cffeSiRcW5e2bO52I5": "appended",
+    "ses_258e35ce7ffe2REI7H5lPR17hB": "appended"
+  },
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Lock canonical contracts, schemas, and runtime payload shapes",
+      "session_id": "ses_25d910cacffeG7JT63AXwrqjE9",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-18T21:20:57.325Z"
+    },
+    "todo:2": {
+      "task_key": "todo:2",
+      "task_label": "2",
+      "task_title": "Add runtime schema and repository foundation for workflow-context CRUD and work-unit identity",
+      "session_id": "ses_25d853668ffelL828rY1xBRqrv",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-18T21:38:03.823Z"
+    },
+    "todo:3": {
+      "task_key": "todo:3",
+      "task_label": "3",
+      "task_title": "Implement shared runtime manual fact CRUD orchestration and error model",
+      "session_id": "ses_25d77b0bfffe1IUyNRLhzDxCBa",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-18T21:57:28.489Z"
+    },
+    "todo:4": {
+      "task_key": "todo:4",
+      "task_label": "4",
+      "task_title": "Implement artifact snapshot semantics and shared path validation",
+      "session_id": "ses_25d667b71ffeS3koXDvaTg1y9c",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-18T22:17:04.313Z"
+    },
+    "todo:6": {
+      "task_key": "todo:6",
+      "task_label": "6",
+      "task_title": "Migrate project and work-unit manual runtime CRUD procedures to CRUD verbs over shared service",
+      "session_id": "ses_25d526000ffeZamKn9q0jwyI1a",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-18T22:39:01.613Z"
+    },
+    "todo:8": {
+      "task_key": "todo:8",
+      "task_label": "8",
+      "task_title": "Redefine invoke template/state handling around template-only draft specs",
+      "session_id": "ses_25d407212ffeZwYgtsqA2YIUHV",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-18T22:51:16.049Z"
+    },
+    "todo:10": {
+      "task_key": "todo:10",
+      "task_label": "10",
+      "task_title": "Implement manual runtime CRUD dialogs and page flows on existing runtime surfaces",
+      "session_id": "ses_25d3511e5ffe7OtP1wvqGwAdxN",
+      "agent": "Sisyphus-Junior",
+      "category": "visual-engineering",
+      "updated_at": "2026-04-18T23:21:42.713Z"
+    },
+    "todo:11": {
+      "task_key": "todo:11",
+      "task_label": "11",
+      "task_title": "Run no-bypass audit, regression, and Plan A compatibility proof",
+      "session_id": "ses_25d195b43ffecW5yhdw1NBH7gV",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-04-18T23:26:22.826Z"
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "Plan Compliance Audit — oracle",
+      "session_id": "ses_25d152e0effeEimjB8QvYXDgkS",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-04-18T23:30:31.453Z"
+    }
+  }
+}
