@@ -19,12 +19,12 @@ export type AgentStepReadSource = "explicit" | "inferred_from_write";
 export type AgentStepReadModePreview =
   | "value_read"
   | "value_write_target"
-  | "external_read"
-  | "external_write_target"
+  | "bound_read"
+  | "bound_write_target"
   | "workflow_reference_read"
   | "workflow_reference_write_target"
-  | "artifact_reference_read"
-  | "artifact_reference_write_target"
+  | "artifact_snapshot_read"
+  | "artifact_snapshot_write_target"
   | "draft_spec_read"
   | "draft_spec_write_target";
 
@@ -83,15 +83,17 @@ export const deriveAgentStepReadModePreview = (
   source: AgentStepReadSource,
 ): AgentStepReadModePreview => {
   switch (factKind) {
+    case "plain_fact":
     case "plain_value_fact":
       return source === "explicit" ? "value_read" : "value_write_target";
-    case "definition_backed_external_fact":
-    case "bound_external_fact":
-      return source === "explicit" ? "external_read" : "external_write_target";
-    case "workflow_reference_fact":
+    case "bound_fact":
+      return source === "explicit" ? "bound_read" : "bound_write_target";
+    case "workflow_ref_fact":
       return source === "explicit" ? "workflow_reference_read" : "workflow_reference_write_target";
-    case "artifact_reference_fact":
-      return source === "explicit" ? "artifact_reference_read" : "artifact_reference_write_target";
+    case "work_unit_reference_fact":
+      return source === "explicit" ? "workflow_reference_read" : "workflow_reference_write_target";
+    case "artifact_slot_reference_fact":
+      return source === "explicit" ? "artifact_snapshot_read" : "artifact_snapshot_write_target";
     case "work_unit_draft_spec_fact":
       return source === "explicit" ? "draft_spec_read" : "draft_spec_write_target";
   }

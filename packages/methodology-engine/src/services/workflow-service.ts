@@ -316,9 +316,7 @@ export const WorkflowServiceLive = Layer.effect(
         yield* ensureDraftVersion(version);
 
         if (!repo.updateWorkflowMetadataByDefinitionId) {
-          return yield* Effect.fail(
-            missingCapability("workflowMetadata.updateWorkflowMetadataByDefinitionId"),
-          );
+          return yield* missingCapability("workflowMetadata.updateWorkflowMetadataByDefinitionId");
         }
 
         const workflow = yield* repo.updateWorkflowMetadataByDefinitionId({

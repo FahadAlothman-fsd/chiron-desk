@@ -39,7 +39,7 @@ const contextFacts = [
   },
   {
     contextFactDefinitionId: "ctx-workflow-set",
-    kind: "workflow_reference_fact",
+    kind: "workflow_ref_fact",
     key: "workflowSet",
     label: "Workflow Set",
     cardinality: "many",
@@ -94,19 +94,19 @@ const contextFacts = [
   },
   {
     contextFactDefinitionId: "ctx-artifact",
-    kind: "artifact_reference_fact",
+    kind: "artifact_slot_reference_fact",
     key: "artifact",
     label: "Artifact",
     cardinality: "one",
-    artifactSlotDefinitionId: "artifact-prd",
+    slotDefinitionId: "artifact-prd",
   },
   {
     contextFactDefinitionId: "ctx-external-path",
-    kind: "definition_backed_external_fact",
+    kind: "bound_fact",
     key: "repositoryRoot",
     label: "Repository Root",
     cardinality: "one",
-    externalFactDefinitionId: "ext-repository-root",
+    factDefinitionId: "ext-repository-root",
     valueType: "string",
     validationJson: {
       kind: "path",
@@ -117,31 +117,31 @@ const contextFacts = [
   },
   {
     contextFactDefinitionId: "ctx-external-status",
-    kind: "definition_backed_external_fact",
+    kind: "bound_fact",
     key: "repositoryStatus",
     label: "Repository Status",
     cardinality: "one",
-    externalFactDefinitionId: "ext-repository-status",
+    factDefinitionId: "ext-repository-status",
     valueType: "string",
     validationJson: { kind: "allowed-values", values: ["draft", "ready"] },
   },
   {
     contextFactDefinitionId: "ctx-external-work-unit",
-    kind: "definition_backed_external_fact",
+    kind: "bound_fact",
     key: "currentStory",
     label: "Current Story",
     cardinality: "one",
-    externalFactDefinitionId: "ext-current-story",
+    factDefinitionId: "ext-current-story",
     valueType: "work_unit",
     workUnitDefinitionId: "wut-story",
   },
   {
     contextFactDefinitionId: "ctx-external-json",
-    kind: "definition_backed_external_fact",
+    kind: "bound_fact",
     key: "externalJsonMetadata",
     label: "External JSON Metadata",
     cardinality: "one",
-    externalFactDefinitionId: "ext-json-metadata",
+    factDefinitionId: "ext-json-metadata",
     valueType: "json",
     validationJson: {
       kind: "json-schema",
@@ -203,7 +203,7 @@ const workUnitPayload: InvokeStepPayload = {
     agent: { markdown: "Preserve authored bindings." },
   },
   targetKind: "work_unit",
-  sourceMode: "context_fact_backed",
+  sourceMode: "fact_backed",
   contextFactDefinitionId: "ctx-story-draft",
   bindings: [
     {
@@ -320,7 +320,7 @@ function makeLayer(options?: {
         payload: {
           key: "route-a-step",
           targetKind: "workflow",
-          sourceMode: "fixed_set",
+          sourceMode: "fixed",
           workflowDefinitionIds: ["wf-1"],
         },
       } as const);
@@ -441,11 +441,11 @@ function makeLayer(options?: {
           ...contextFacts,
           {
             contextFactDefinitionId: "ctx-artifact",
-            kind: "artifact_reference_fact",
+            kind: "artifact_slot_reference_fact",
             key: "artifact",
             label: "Artifact",
             cardinality: "one",
-            artifactSlotDefinitionId: "artifact-prd",
+            slotDefinitionId: "artifact-prd",
           },
         ],
         formDefinitions: [],
@@ -458,7 +458,7 @@ function makeLayer(options?: {
               payload: {
                 key: "route-a-step",
                 targetKind: "workflow",
-                sourceMode: "fixed_set",
+                sourceMode: "fixed",
                 workflowDefinitionIds: ["wf-1"],
               },
             }
@@ -617,7 +617,7 @@ function makeEditorDefinitionLayer(options?: {
         payload: {
           key: "invoke-story-work",
           targetKind: "workflow",
-          sourceMode: "fixed_set",
+          sourceMode: "fixed",
           workflowDefinitionIds: ["wf-review"],
         },
       }),
@@ -887,7 +887,7 @@ describe("l3 invoke step definition service", () => {
             payload: {
               key: "invoke-workflows",
               targetKind: "workflow",
-              sourceMode: "fixed_set",
+              sourceMode: "fixed",
               workflowDefinitionIds: ["wf-1"],
               bindings: [
                 {

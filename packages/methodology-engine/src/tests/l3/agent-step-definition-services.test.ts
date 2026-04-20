@@ -38,19 +38,20 @@ const contextFacts = [
   },
   {
     contextFactDefinitionId: "fact-artifact",
-    kind: "artifact_reference_fact",
+    kind: "artifact_slot_reference_fact",
     key: "prd_artifact",
     label: "PRD Artifact",
     cardinality: "one",
-    artifactSlotDefinitionId: "ART.PRD",
+    slotDefinitionId: "ART.PRD",
   },
   {
     contextFactDefinitionId: "fact-external",
-    kind: "definition_backed_external_fact",
+    kind: "bound_fact",
     key: "project_context",
     label: "Project Context",
     cardinality: "one",
-    externalFactDefinitionId: "EXT.PROJECT_CONTEXT",
+    factDefinitionId: "FACT.PROJECT_CONTEXT",
+    valueType: "string",
   },
   {
     contextFactDefinitionId: "fact-draft-spec",
@@ -58,7 +59,9 @@ const contextFacts = [
     key: "story_spec",
     label: "Story Spec",
     cardinality: "one",
-    includedFactDefinitionIds: ["fact-summary"],
+    workUnitDefinitionId: "WU.STORY",
+    selectedWorkUnitFactDefinitionIds: ["fact-summary"],
+    selectedArtifactSlotDefinitionIds: ["ART.PRD"],
   },
 ] as const;
 
@@ -73,7 +76,7 @@ const basePayload: AgentStepDesignTimePayload = {
     {
       writeItemId: "write-artifact",
       contextFactDefinitionId: "fact-artifact",
-      contextFactKind: "artifact_reference_fact",
+      contextFactKind: "artifact_slot_reference_fact",
       order: 20,
       requirementContextFactDefinitionIds: ["fact-summary", "fact-summary"],
     },
@@ -247,14 +250,14 @@ describe("agent-step definition services", () => {
       {
         writeItemId: "write-artifact",
         contextFactDefinitionId: "fact-artifact",
-        contextFactKind: "artifact_reference_fact",
+        contextFactKind: "artifact_slot_reference_fact",
         order: 200,
         requirementContextFactDefinitionIds: ["fact-summary"],
       },
     ]);
 
-    expect(deriveAgentStepReadModePreview("artifact_reference_fact", "explicit")).toBe(
-      "artifact_reference_read",
+    expect(deriveAgentStepReadModePreview("artifact_slot_reference_fact", "explicit")).toBe(
+      "artifact_snapshot_read",
     );
     expect(deriveAgentStepReadModePreview("work_unit_draft_spec_fact", "inferred_from_write")).toBe(
       "draft_spec_write_target",
@@ -265,9 +268,9 @@ describe("agent-step definition services", () => {
         contextFactDefinitionId: "fact-artifact",
         key: "prd_artifact",
         label: "PRD Artifact",
-        contextFactKind: "artifact_reference_fact",
+        contextFactKind: "artifact_slot_reference_fact",
         source: "inferred_from_write",
-        readModePreview: "artifact_reference_write_target",
+        readModePreview: "artifact_snapshot_write_target",
       },
       {
         contextFactDefinitionId: "fact-draft-spec",
@@ -322,9 +325,9 @@ describe("agent-step definition services", () => {
         contextFactDefinitionId: "fact-artifact",
         key: "prd_artifact",
         label: "PRD Artifact",
-        contextFactKind: "artifact_reference_fact",
+        contextFactKind: "artifact_slot_reference_fact",
         source: "inferred_from_write",
-        readModePreview: "artifact_reference_write_target",
+        readModePreview: "artifact_snapshot_write_target",
       },
     ]);
     expect(result.writeItemPreviews).toEqual([
@@ -343,7 +346,7 @@ describe("agent-step definition services", () => {
         writeItemId: "write-artifact",
         contextFactDefinitionId: "fact-artifact",
         contextFactKey: "prd_artifact",
-        contextFactKind: "artifact_reference_fact",
+        contextFactKind: "artifact_slot_reference_fact",
         label: undefined,
         order: 200,
         requirementContextFactDefinitionIds: ["fact-summary"],
@@ -391,7 +394,7 @@ describe("agent-step definition services", () => {
                 {
                   writeItemId: "write-artifact-duplicate",
                   contextFactDefinitionId: "fact-artifact",
-                  contextFactKind: "artifact_reference_fact",
+                  contextFactKind: "artifact_slot_reference_fact",
                   order: 30,
                   requirementContextFactDefinitionIds: [],
                 },

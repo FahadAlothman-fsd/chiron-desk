@@ -115,6 +115,24 @@ export interface UpdateVersionMetadataInput {
 function flattenTransitionWorkflowBindingsByWorkUnit(
   scopedBindings: Record<string, Record<string, readonly string[]>>,
 ): MethodologyVersionDefinition["transitionWorkflowBindings"] {
+  const topLevelEntries = Object.entries(scopedBindings ?? {});
+  if (topLevelEntries.length === 0) {
+    return {} as MethodologyVersionDefinition["transitionWorkflowBindings"];
+  }
+
+  if (Array.isArray(topLevelEntries[0]?.[1])) {
+    return Object.fromEntries(
+      topLevelEntries.map(([transitionKey, workflowKeys]) => [
+        transitionKey,
+        Array.isArray(workflowKeys)
+          ? workflowKeys.filter(
+              (workflowKey): workflowKey is string => typeof workflowKey === "string",
+            )
+          : [],
+      ]),
+    ) as MethodologyVersionDefinition["transitionWorkflowBindings"];
+  }
+
   const flattened = new Map<string, string[]>();
 
   for (const transitionsByKey of Object.values(scopedBindings)) {
@@ -293,8 +311,16 @@ function mapFactDefinitionRowToInput(fact: {
 }): MethodologyFactDefinitionInput {
   return {
     id: fact.id,
+    kind: "plain_fact",
     name: fact.name ?? undefined,
     key: fact.key,
+    type:
+      fact.valueType === "string" ||
+      fact.valueType === "number" ||
+      fact.valueType === "boolean" ||
+      fact.valueType === "json"
+        ? fact.valueType
+        : undefined,
     factType: fact.valueType as MethodologyFactDefinitionInput["factType"],
     cardinality: (fact.cardinality as "one" | "many" | null) ?? "one",
     description: fact.descriptionJson as MethodologyFactDefinitionInput["description"],
@@ -626,8 +652,19 @@ function loadCanonicalLifecycleDefinition(
             };
           }),
           factSchemas: factSchemas.map((fact) => ({
+            kind:
+              fact.factType === "work_unit" || fact.factType === "work_unit_reference"
+                ? ("work_unit_reference_fact" as const)
+                : ("plain_fact" as const),
             name: extractText(fact.name),
             key: fact.key,
+            type:
+              fact.factType === "string" ||
+              fact.factType === "number" ||
+              fact.factType === "boolean" ||
+              fact.factType === "json"
+                ? fact.factType
+                : undefined,
             factType: asCanonicalFactType(fact.factType),
             description: extractText(fact.description),
             defaultValue: fact.defaultValueJson,
@@ -2088,9 +2125,18 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
           !workflow.workUnitTypeKey || workflow.workUnitTypeKey === input.workUnitTypeKey,
       );
       const workflowKeys = new Set(workflows.map((workflow) => workflow.key));
-      const transitionEntries = Object.entries(
-        snapshot.transitionWorkflowBindings?.[input.workUnitTypeKey] ?? {},
-      ) as Array<[string, string[]]>;
+      const scopedBindings =
+        snapshot.transitionWorkflowBindings &&
+        typeof snapshot.transitionWorkflowBindings === "object" &&
+        !Array.isArray(snapshot.transitionWorkflowBindings)
+          ? (snapshot.transitionWorkflowBindings as Record<string, unknown>)
+          : {};
+      const rawTransitionBindings = Array.isArray(Object.values(scopedBindings)[0])
+        ? scopedBindings
+        : ((scopedBindings[input.workUnitTypeKey] as
+            | Record<string, string[] | unknown>
+            | undefined) ?? {});
+      const transitionEntries = Object.entries(rawTransitionBindings) as Array<[string, string[]]>;
       const filteredBindings = new Map<string, string[]>();
       for (const [transitionKey, boundWorkflowKeys] of transitionEntries) {
         const filtered = boundWorkflowKeys.filter((workflowKey) => workflowKeys.has(workflowKey));

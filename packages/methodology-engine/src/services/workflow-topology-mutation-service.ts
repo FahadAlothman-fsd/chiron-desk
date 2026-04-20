@@ -136,7 +136,7 @@ export const WorkflowTopologyMutationServiceLive = Layer.effect(
           !repo.updateWorkflowEdgeByDefinitionId ||
           !repo.deleteWorkflowEdgeByDefinitionId
         ) {
-          return yield* Effect.fail(missingCapability("workflowTopology.edgeMutations"));
+          return yield* missingCapability("workflowTopology.edgeMutations");
         }
       });
 

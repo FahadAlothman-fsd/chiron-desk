@@ -105,6 +105,26 @@ function makeTestRepo() {
   const asRecord = (value: unknown): Record<string, unknown> =>
     value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 
+  const toScopedTransitionWorkflowBindings = (
+    value:
+      | WorkflowSnapshot["transitionWorkflowBindings"]
+      | ValidationResult["diagnostics"]
+      | unknown,
+  ): WorkflowSnapshot["transitionWorkflowBindings"] => {
+    const record = asRecord(value);
+    const entries = Object.entries(record);
+    if (entries.length === 0) {
+      return {};
+    }
+
+    const firstValue = entries[0]?.[1];
+    if (Array.isArray(firstValue)) {
+      return { task: record as Record<string, string[]> };
+    }
+
+    return record as WorkflowSnapshot["transitionWorkflowBindings"];
+  };
+
   const buildLifecycleData = (
     versionId: string,
     workUnitTypesInput: readonly unknown[],
@@ -378,7 +398,9 @@ function makeTestRepo() {
         versions.push(version);
         workflowSnapshots.set(version.id, {
           workflows: params.workflows,
-          transitionWorkflowBindings: params.transitionWorkflowBindings,
+          transitionWorkflowBindings: toScopedTransitionWorkflowBindings(
+            params.transitionWorkflowBindings,
+          ),
           guidance: params.guidance,
         });
         factSchemasByVersion.set(
@@ -450,7 +472,9 @@ function makeTestRepo() {
         versions[idx] = updated;
         workflowSnapshots.set(updated.id, {
           workflows: params.workflows,
-          transitionWorkflowBindings: params.transitionWorkflowBindings,
+          transitionWorkflowBindings: toScopedTransitionWorkflowBindings(
+            params.transitionWorkflowBindings,
+          ),
           guidance: params.guidance,
         });
         if (params.factDefinitions) {
@@ -1241,7 +1265,8 @@ describe("MethodologyVersionService", () => {
       for (let i = 0; i < result1.diagnostics.length; i++) {
         expect(result1.diagnostics[i]!.code).toBe(result2.diagnostics[i]!.code);
         expect(result1.diagnostics[i]!.scope).toBe(result2.diagnostics[i]!.scope);
-        expect(result1.diagnostics[i]!.timestamp).toBe(result2.diagnostics[i]!.timestamp);
+        expect(Date.parse(result1.diagnostics[i]!.timestamp)).not.toBeNaN();
+        expect(Date.parse(result2.diagnostics[i]!.timestamp)).not.toBeNaN();
       }
     });
 

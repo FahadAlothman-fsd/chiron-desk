@@ -101,15 +101,15 @@ const isContextFactCompatibleWithWorkUnitFact = (
     return false;
   }
 
+  if (sourceFact.kind === "plain_fact") {
+    return sourceFact.type === destination.factType;
+  }
+
   if (sourceFact.kind === "plain_value_fact") {
     return sourceFact.valueType === destination.factType;
   }
 
-  if (
-    (sourceFact.kind === "definition_backed_external_fact" ||
-      sourceFact.kind === "bound_external_fact") &&
-    typeof sourceFact.valueType === "string"
-  ) {
+  if (sourceFact.kind === "bound_fact" && typeof sourceFact.valueType === "string") {
     return sourceFact.valueType === destination.factType;
   }
 
@@ -120,7 +120,7 @@ const isContextFactCompatibleWithArtifactSlot = (
   sourceFact: WorkflowContextFactDto,
   destination: { cardinality: "single" | "fileset" },
 ): boolean =>
-  sourceFact.kind === "artifact_reference_fact" &&
+  sourceFact.kind === "artifact_slot_reference_fact" &&
   getWorkflowContextFactCardinality(sourceFact) ===
     (destination.cardinality === "fileset" ? "many" : "one");
 
@@ -154,7 +154,7 @@ const validateBindingSet = (
     const workUnitFactById = new Map(workUnitFacts.map((fact) => [fact.id, fact]));
     const artifactSlotById = new Map(artifactSlots.map((slot) => [slot.id, slot]));
     const selectedDraftSpecFact =
-      payload.sourceMode === "context_fact_backed"
+      payload.sourceMode === "fact_backed"
         ? factByIdentifier.get(payload.contextFactDefinitionId)
         : null;
 
@@ -180,9 +180,9 @@ const validateBindingSet = (
         }
 
         if (
-          (payload.sourceMode === "fixed_set" &&
+          (payload.sourceMode === "fixed" &&
             destination.workUnitTypeId !== payload.workUnitDefinitionId) ||
-          (payload.sourceMode === "context_fact_backed" &&
+          (payload.sourceMode === "fact_backed" &&
             (!selectedDraftSpecFact ||
               selectedDraftSpecFact.kind !== "work_unit_draft_spec_fact" ||
               selectedDraftSpecFact.workUnitDefinitionId !== destination.workUnitTypeId ||
@@ -239,9 +239,9 @@ const validateBindingSet = (
       }
 
       if (
-        (payload.sourceMode === "fixed_set" &&
+        (payload.sourceMode === "fixed" &&
           artifactSlot.workUnitTypeId !== payload.workUnitDefinitionId) ||
-        (payload.sourceMode === "context_fact_backed" &&
+        (payload.sourceMode === "fact_backed" &&
           (!selectedDraftSpecFact ||
             selectedDraftSpecFact.kind !== "work_unit_draft_spec_fact" ||
             selectedDraftSpecFact.workUnitDefinitionId !== artifactSlot.workUnitTypeId ||
@@ -312,7 +312,7 @@ const validateInvokePayload = (
   Effect.gen(function* () {
     const factByIdentifier = createContextFactIndex(facts);
 
-    if (payload.sourceMode === "context_fact_backed") {
+    if (payload.sourceMode === "fact_backed") {
       yield* validateContextFactReference(
         factByIdentifier,
         payload.contextFactDefinitionId,

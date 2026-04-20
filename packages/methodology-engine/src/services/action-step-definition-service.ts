@@ -64,9 +64,8 @@ interface ActionStepDefinitionRepository {
 }
 
 const ACTION_STEP_ALLOWED_CONTEXT_FACT_KINDS = new Set<WorkflowContextFactDto["kind"]>([
-  "definition_backed_external_fact",
-  "bound_external_fact",
-  "artifact_reference_fact",
+  "bound_fact",
+  "artifact_slot_reference_fact",
 ]);
 
 const ensureDraftVersion = (

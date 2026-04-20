@@ -137,11 +137,27 @@ const getJsonSubFieldMetadata = (
   operandType: "string" | "number" | "boolean";
   validationKind: "none" | "path" | "allowed-values";
 } | null => {
+  const factValueType =
+    "type" in fact &&
+    (fact.type === "string" ||
+      fact.type === "number" ||
+      fact.type === "boolean" ||
+      fact.type === "json")
+      ? fact.type
+      : "valueType" in fact &&
+          (fact.valueType === "string" ||
+            fact.valueType === "number" ||
+            fact.valueType === "boolean" ||
+            fact.valueType === "json" ||
+            fact.valueType === "work_unit")
+        ? fact.valueType
+        : undefined;
+
   if (
-    (fact.kind !== "plain_value_fact" &&
-      fact.kind !== "definition_backed_external_fact" &&
-      fact.kind !== "bound_external_fact") ||
-    fact.valueType !== "json"
+    (fact.kind !== "plain_fact" &&
+      fact.kind !== "plain_value_fact" &&
+      fact.kind !== "bound_fact") ||
+    factValueType !== "json"
   ) {
     return null;
   }
@@ -207,13 +223,29 @@ const validateConditionReferences = (
       fact: WorkflowContextFactDto,
     ): Effect.Effect<ResolvedConditionOperand, ValidationDecodeError> =>
       Effect.gen(function* () {
+        const factValueType =
+          "type" in fact &&
+          (fact.type === "string" ||
+            fact.type === "number" ||
+            fact.type === "boolean" ||
+            fact.type === "json")
+            ? fact.type
+            : "valueType" in fact &&
+                (fact.valueType === "string" ||
+                  fact.valueType === "number" ||
+                  fact.valueType === "boolean" ||
+                  fact.valueType === "json" ||
+                  fact.valueType === "work_unit")
+              ? fact.valueType
+              : undefined;
+
         const subFieldKey = condition.subFieldKey?.trim() ?? "";
         if (subFieldKey.length > 0) {
           if (
-            (fact.kind === "plain_value_fact" ||
-              fact.kind === "definition_backed_external_fact" ||
-              fact.kind === "bound_external_fact") &&
-            fact.valueType === "json"
+            (fact.kind === "plain_fact" ||
+              fact.kind === "plain_value_fact" ||
+              fact.kind === "bound_fact") &&
+            factValueType === "json"
           ) {
             const subField = getJsonSubFieldMetadata(fact, subFieldKey);
             if (!subField) {
@@ -281,23 +313,30 @@ const validateConditionReferences = (
         }
 
         switch (fact.kind) {
+          case "plain_fact":
           case "plain_value_fact":
             return {
-              operandType: fact.valueType === "json" ? "json_object" : fact.valueType,
+              operandType: factValueType === "json" ? "json_object" : (factValueType ?? "string"),
               cardinality: fact.cardinality,
               freshnessCapable: false,
             } as const;
-          case "workflow_reference_fact":
+          case "workflow_ref_fact":
             return {
               operandType: "workflow_reference",
               cardinality: fact.cardinality,
               freshnessCapable: false,
             } as const;
-          case "artifact_reference_fact":
+          case "artifact_slot_reference_fact":
             return {
               operandType: "artifact_reference",
               cardinality: fact.cardinality,
               freshnessCapable: true,
+            } as const;
+          case "work_unit_reference_fact":
+            return {
+              operandType: "work_unit",
+              cardinality: fact.cardinality,
+              freshnessCapable: false,
             } as const;
           case "work_unit_draft_spec_fact":
             return {
@@ -305,15 +344,13 @@ const validateConditionReferences = (
               cardinality: fact.cardinality,
               freshnessCapable: true,
             } as const;
-          case "definition_backed_external_fact":
-          case "bound_external_fact": {
+          case "bound_fact": {
             const valueType =
-              "valueType" in fact &&
-              (fact.valueType === "number" ||
-                fact.valueType === "boolean" ||
-                fact.valueType === "json" ||
-                fact.valueType === "work_unit")
-                ? fact.valueType
+              factValueType === "number" ||
+              factValueType === "boolean" ||
+              factValueType === "json" ||
+              factValueType === "work_unit"
+                ? factValueType
                 : typeof fact.workUnitDefinitionId === "string" &&
                     fact.workUnitDefinitionId.length > 0
                   ? "work_unit"
@@ -334,10 +371,26 @@ const validateConditionReferences = (
       operand: ResolvedConditionOperand,
     ): Effect.Effect<void, ValidationDecodeError> =>
       Effect.gen(function* () {
+        const factValueType =
+          "type" in fact &&
+          (fact.type === "string" ||
+            fact.type === "number" ||
+            fact.type === "boolean" ||
+            fact.type === "json")
+            ? fact.type
+            : "valueType" in fact &&
+                (fact.valueType === "string" ||
+                  fact.valueType === "number" ||
+                  fact.valueType === "boolean" ||
+                  fact.valueType === "json" ||
+                  fact.valueType === "work_unit")
+              ? fact.valueType
+              : undefined;
+
         if (
+          fact.kind !== "plain_fact" &&
           fact.kind !== "plain_value_fact" &&
-          fact.kind !== "definition_backed_external_fact" &&
-          fact.kind !== "bound_external_fact"
+          fact.kind !== "bound_fact"
         ) {
           return;
         }
@@ -345,7 +398,7 @@ const validateConditionReferences = (
         const subFieldKey = condition.subFieldKey?.trim() ?? "";
 
         const allowedOperators = (() => {
-          if (fact.valueType === "json") {
+          if (factValueType === "json") {
             if (subFieldKey.length === 0) {
               return new Set(["exists"]);
             }
@@ -369,44 +422,41 @@ const validateConditionReferences = (
             return new Set<string>();
           }
 
-          if (
-            fact.kind === "definition_backed_external_fact" ||
-            fact.kind === "bound_external_fact"
-          ) {
+          if (fact.kind === "bound_fact") {
             if (
-              fact.valueType === "work_unit" ||
+              factValueType === "work_unit" ||
               (typeof fact.workUnitDefinitionId === "string" &&
                 fact.workUnitDefinitionId.length > 0)
             ) {
               return new Set(["exists", "equals"]);
             }
 
-            if (fact.valueType === "string") {
+            if (factValueType === "string") {
               return new Set(["exists", "equals"]);
             }
 
-            if (fact.valueType === "number") {
+            if (factValueType === "number") {
               return new Set(["exists", "equals"]);
             }
 
-            if (fact.valueType === "boolean") {
+            if (factValueType === "boolean") {
               return new Set(["exists", "equals"]);
             }
 
-            if (fact.valueType === "json") {
+            if (factValueType === "json") {
               return new Set(["exists"]);
             }
           }
 
-          if (fact.valueType === "string") {
+          if (factValueType === "string") {
             return new Set(["exists", "equals"]);
           }
 
-          if (fact.valueType === "number") {
+          if (factValueType === "number") {
             return new Set(["exists", "equals"]);
           }
 
-          if (fact.valueType === "boolean") {
+          if (factValueType === "boolean") {
             return new Set(["exists", "equals"]);
           }
 

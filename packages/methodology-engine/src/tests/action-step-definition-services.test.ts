@@ -23,29 +23,29 @@ const versionRow = {
 const contextFacts = [
   {
     contextFactDefinitionId: "fact-external",
-    kind: "definition_backed_external_fact",
+    kind: "bound_fact",
     key: "project_context",
     label: "Project Context",
     cardinality: "one",
-    externalFactDefinitionId: "EXT.PROJECT_CONTEXT",
+    factDefinitionId: "EXT.PROJECT_CONTEXT",
     valueType: "json",
   },
   {
     contextFactDefinitionId: "fact-bound",
-    kind: "bound_external_fact",
+    kind: "bound_fact",
     key: "bound_status",
     label: "Bound Status",
     cardinality: "one",
-    externalFactDefinitionId: "EXT.STATUS",
+    factDefinitionId: "EXT.STATUS",
     valueType: "string",
   },
   {
     contextFactDefinitionId: "fact-artifact",
-    kind: "artifact_reference_fact",
+    kind: "artifact_slot_reference_fact",
     key: "prd_artifact",
     label: "PRD Artifact",
     cardinality: "one",
-    artifactSlotDefinitionId: "ART.PRD",
+    slotDefinitionId: "ART.PRD",
   },
   {
     contextFactDefinitionId: "fact-plain",
@@ -75,7 +75,7 @@ const basePayload: ActionStepPayload = {
       sortOrder: 100,
       actionKind: "propagation",
       contextFactDefinitionId: "fact-external",
-      contextFactKind: "definition_backed_external_fact",
+      contextFactKind: "bound_fact",
       items: [
         { itemId: "item-1", itemKey: "project-name", label: "Project name", sortOrder: 100 },
         { itemId: "item-2", itemKey: "project-scope", label: "Project scope", sortOrder: 200 },
@@ -89,7 +89,7 @@ const basePayload: ActionStepPayload = {
       sortOrder: 200,
       actionKind: "propagation",
       contextFactDefinitionId: "fact-artifact",
-      contextFactKind: "artifact_reference_fact",
+      contextFactKind: "artifact_slot_reference_fact",
       items: [{ itemId: "item-3", itemKey: "prd-doc", label: "PRD", sortOrder: 100 }],
     },
   ],
@@ -334,7 +334,7 @@ describe("action-step definition services", () => {
                 actions: [
                   {
                     ...basePayload.actions[0]!,
-                    contextFactKind: "artifact_reference_fact",
+                    contextFactKind: "artifact_slot_reference_fact",
                   },
                 ],
               },

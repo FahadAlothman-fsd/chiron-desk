@@ -58,7 +58,7 @@ import {
 import { LifecycleRepository } from "../lifecycle-repository";
 import { validateLifecycleDefinition } from "../lifecycle-validation";
 import { mergeLayeredGuidance } from "../guidance";
-import type { MethodologyVersionRow, VersionWorkspaceStats } from "../repository";
+import type { MethodologyVersionRow, VersionWorkspaceStats, WorkflowSnapshot } from "../repository";
 import { MethodologyRepository } from "../repository";
 import {
   MethodologyVersionService as CoreMethodologyVersionServiceTag,
@@ -188,6 +188,63 @@ function asStringArray(value: unknown): readonly string[] | undefined {
   return items.length === value.length ? items : undefined;
 }
 
+function normalizeScopedTransitionWorkflowBindings(
+  value: WorkflowSnapshot["transitionWorkflowBindings"] | unknown,
+  workUnitTypes: readonly WorkUnitTypeDefinition[],
+  workflows: readonly WorkflowDefinition[],
+): WorkflowSnapshot["transitionWorkflowBindings"] {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+
+  const record = value as Record<string, unknown>;
+  const entries = Object.entries(record);
+  if (entries.length === 0) {
+    return {};
+  }
+
+  const firstValue = entries[0]?.[1];
+  if (Array.isArray(firstValue)) {
+    const inferredWorkUnitTypeKey =
+      workflows.find((workflow) => typeof workflow.workUnitTypeKey === "string")?.workUnitTypeKey ??
+      workUnitTypes[0]?.key ??
+      "default";
+
+    return {
+      [inferredWorkUnitTypeKey]: Object.fromEntries(
+        entries.map(([transitionKey, workflowKeys]) => [
+          transitionKey,
+          Array.isArray(workflowKeys)
+            ? workflowKeys.filter(
+                (workflowKey): workflowKey is string => typeof workflowKey === "string",
+              )
+            : [],
+        ]),
+      ),
+    };
+  }
+
+  return Object.fromEntries(
+    entries.map(([workUnitTypeKey, transitionBindings]) => [
+      workUnitTypeKey,
+      typeof transitionBindings === "object" && transitionBindings !== null
+        ? Object.fromEntries(
+            Object.entries(transitionBindings as Record<string, unknown>).map(
+              ([transitionKey, workflowKeys]) => [
+                transitionKey,
+                Array.isArray(workflowKeys)
+                  ? workflowKeys.filter(
+                      (workflowKey): workflowKey is string => typeof workflowKey === "string",
+                    )
+                  : [],
+              ],
+            ),
+          )
+        : {},
+    ]),
+  ) as WorkflowSnapshot["transitionWorkflowBindings"];
+}
+
 function mapFactDefinitionRowToInput(fact: {
   id: string;
   name: string | null;
@@ -201,8 +258,16 @@ function mapFactDefinitionRowToInput(fact: {
 }): MethodologyFactDefinitionInput {
   return {
     id: fact.id,
+    kind: "plain_fact",
     name: fact.name ?? undefined,
     key: fact.key,
+    type:
+      fact.valueType === "string" ||
+      fact.valueType === "number" ||
+      fact.valueType === "boolean" ||
+      fact.valueType === "json"
+        ? fact.valueType
+        : undefined,
     factType: asFactType(fact.valueType),
     cardinality: fact.cardinality === "many" ? "many" : "one",
     description: fact.descriptionJson as MethodologyFactDefinitionInput["description"],
@@ -362,8 +427,19 @@ function loadPreviousLifecycleDefinition(
         .filter((transition): transition is NonNullable<typeof transition> => transition !== null),
       factSchemas: (factsByWorkUnitType.get(workUnitTypeRow.id) ?? []).map((factSchemaRow) => ({
         id: factSchemaRow.id,
+        kind:
+          factSchemaRow.factType === "work_unit" || factSchemaRow.factType === "work_unit_reference"
+            ? ("work_unit_reference_fact" as const)
+            : ("plain_fact" as const),
         name: factSchemaRow.name ?? undefined,
         key: factSchemaRow.key,
+        type:
+          factSchemaRow.factType === "string" ||
+          factSchemaRow.factType === "number" ||
+          factSchemaRow.factType === "boolean" ||
+          factSchemaRow.factType === "json"
+            ? factSchemaRow.factType
+            : undefined,
         factType: asFactType(factSchemaRow.factType),
         cardinality: factSchemaRow.cardinality === "many" ? "many" : "one",
         description: factSchemaRow.description ?? undefined,
@@ -1940,7 +2016,11 @@ export const MethodologyVersionServiceLive = Layer.effect(
           workUnitTypes,
           agentTypes,
           workflows: workflowSnapshot.workflows,
-          transitionWorkflowBindings: workflowSnapshot.transitionWorkflowBindings,
+          transitionWorkflowBindings: normalizeScopedTransitionWorkflowBindings(
+            workflowSnapshot.transitionWorkflowBindings,
+            workUnitTypes,
+            workflowSnapshot.workflows,
+          ),
           guidance: workflowSnapshot.guidance,
           factDefinitions: factDefinitionRows.map(mapFactDefinitionRowToInput),
           linkTypeDefinitions: linkTypeRows.map(mapLinkTypeDefinitionRowToInput),
