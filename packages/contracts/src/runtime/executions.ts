@@ -430,11 +430,7 @@ export const RuntimeActionExecutionRow = Schema.Struct({
   actionKind: Schema.Literal("propagation"),
   contextFactDefinitionId: Schema.NonEmptyString,
   contextFactKey: Schema.optional(Schema.String),
-  contextFactKind: Schema.Literal(
-    "definition_backed_external_fact",
-    "bound_external_fact",
-    "artifact_reference_fact",
-  ),
+  contextFactKind: Schema.Literal("bound_fact", "artifact_slot_reference_fact"),
   status: ActionStepRenderableActionStatus,
   resultSummaryJson: Schema.optional(Schema.Unknown),
   resultJson: Schema.optional(Schema.Unknown),

@@ -1,6 +1,97 @@
 import * as Schema from "effect/Schema";
 
 import { RuntimeFactCardinality, RuntimeFactPrimitiveType } from "./work-units.js";
+import { WorkflowContextFactKind } from "../methodology/workflow.js";
+
+export const RUNTIME_FACT_CRUD_VERBS = ["create", "update", "remove", "delete"] as const;
+export const RuntimeFactCrudVerb = Schema.Literal(...RUNTIME_FACT_CRUD_VERBS);
+export type RuntimeFactCrudVerb = typeof RuntimeFactCrudVerb.Type;
+
+export const RuntimeFactInstanceValue = Schema.Struct({
+  instanceId: Schema.NonEmptyString,
+  value: Schema.Unknown,
+});
+export type RuntimeFactInstanceValue = typeof RuntimeFactInstanceValue.Type;
+
+export const WorkflowRefFactValue = Schema.Struct({
+  workflowDefinitionId: Schema.NonEmptyString,
+});
+export type WorkflowRefFactValue = typeof WorkflowRefFactValue.Type;
+
+export const ArtifactTrackedFile = Schema.Struct({
+  filePath: Schema.NonEmptyString,
+  gitCommitHash: Schema.NullOr(Schema.NonEmptyString),
+  gitCommitTitle: Schema.NullOr(Schema.String),
+});
+export type ArtifactTrackedFile = typeof ArtifactTrackedFile.Type;
+
+export const ArtifactSlotReferenceFactValue = Schema.Struct({
+  slotDefinitionId: Schema.NonEmptyString,
+  artifactInstanceId: Schema.NonEmptyString,
+  files: Schema.Array(ArtifactTrackedFile),
+});
+export type ArtifactSlotReferenceFactValue = typeof ArtifactSlotReferenceFactValue.Type;
+
+export const WorkUnitDraftSpecFactValue = Schema.Struct({
+  workUnitDefinitionId: Schema.NonEmptyString,
+  factValues: Schema.Array(
+    Schema.Struct({
+      workUnitFactDefinitionId: Schema.NonEmptyString,
+      value: Schema.Unknown,
+    }),
+  ),
+  artifactValues: Schema.Array(
+    Schema.Struct({
+      slotDefinitionId: Schema.NonEmptyString,
+      relativePath: Schema.optional(Schema.NonEmptyString),
+      sourceContextFactDefinitionId: Schema.optional(Schema.NonEmptyString),
+      clear: Schema.optionalWith(Schema.Boolean, { default: () => false }),
+    }),
+  ),
+});
+export type WorkUnitDraftSpecFactValue = typeof WorkUnitDraftSpecFactValue.Type;
+
+export const RuntimeFactManualCrudPayload = Schema.Union(
+  Schema.Struct({
+    verb: Schema.Literal("create"),
+    value: Schema.Unknown,
+  }),
+  Schema.Struct({
+    verb: Schema.Literal("update"),
+    instanceId: Schema.NonEmptyString,
+    value: Schema.Unknown,
+  }),
+  Schema.Struct({
+    verb: Schema.Literal("remove"),
+    instanceId: Schema.NonEmptyString,
+  }),
+  Schema.Struct({
+    verb: Schema.Literal("delete"),
+  }),
+);
+export type RuntimeFactManualCrudPayload = typeof RuntimeFactManualCrudPayload.Type;
+
+export class RuntimeFactValidationError extends Schema.TaggedError<RuntimeFactValidationError>()(
+  "RuntimeFactValidationError",
+  {
+    factKind: WorkflowContextFactKind,
+    message: Schema.String,
+  },
+) {}
+
+export class RuntimeFactCrudError extends Schema.TaggedError<RuntimeFactCrudError>()(
+  "RuntimeFactCrudError",
+  {
+    verb: RuntimeFactCrudVerb,
+    message: Schema.String,
+  },
+) {}
+
+export const RuntimeFactErrorEnvelope = Schema.Struct({
+  status: Schema.Literal("error"),
+  error: Schema.Union(RuntimeFactValidationError, RuntimeFactCrudError),
+});
+export type RuntimeFactErrorEnvelope = typeof RuntimeFactErrorEnvelope.Type;
 
 export const GetProjectFactsInput = Schema.Struct({
   projectId: Schema.String,
@@ -28,7 +119,7 @@ export const GetProjectFactsOutput = Schema.Struct({
       cardinality: RuntimeFactCardinality,
       exists: Schema.Boolean,
       currentCount: Schema.Number,
-      currentValues: Schema.Array(Schema.Unknown),
+      currentValues: Schema.Array(RuntimeFactInstanceValue),
       target: Schema.Struct({
         page: Schema.Literal("project-fact-detail"),
         factDefinitionId: Schema.String,
@@ -73,11 +164,13 @@ export const GetProjectFactDetailOutput = Schema.Struct({
     exists: Schema.Boolean,
     currentCount: Schema.Number,
     values: Schema.Array(
-      Schema.Struct({
-        projectFactInstanceId: Schema.String,
-        value: Schema.Unknown,
-        createdAt: Schema.String,
-      }),
+      RuntimeFactInstanceValue.pipe(
+        Schema.extend(
+          Schema.Struct({
+            createdAt: Schema.String,
+          }),
+        ),
+      ),
     ),
   }),
   actions: Schema.Struct({

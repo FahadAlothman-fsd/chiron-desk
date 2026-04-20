@@ -13,6 +13,11 @@ import {
   RuntimeGuidanceStreamEnvelope,
 } from "../../runtime/guidance";
 import { RUNTIME_ROUTE_INVENTORY, RuntimeRoutePage } from "../../runtime/overview";
+import {
+  ArtifactInstanceDetail,
+  ArtifactInstanceSummary,
+  CheckArtifactSlotCurrentInstanceOutput,
+} from "../../runtime/artifacts";
 
 describe("runtime contract inventory locks", () => {
   it("locks the runtime route inventory", () => {
@@ -122,5 +127,56 @@ describe("runtime contract inventory locks", () => {
 
     expect(() => decodeConditionKind("step")).toThrow();
     expect(() => decodeArtifactOperator("modified")).toThrow();
+  });
+
+  it("locks the canonical artifact-instance runtime schemas", () => {
+    const decodeSummary = Schema.decodeUnknownSync(ArtifactInstanceSummary);
+    const decodeDetail = Schema.decodeUnknownSync(ArtifactInstanceDetail);
+    const decodeCheck = Schema.decodeUnknownSync(CheckArtifactSlotCurrentInstanceOutput);
+
+    expect(
+      decodeSummary({
+        exists: true,
+        artifactInstanceId: "artifact-instance-1",
+        updatedAt: "2026-04-20T00:00:00.000Z",
+        fileCount: 1,
+        previewFiles: [
+          {
+            filePath: "docs/prd.md",
+            gitCommitHash: "abc123",
+            gitCommitTitle: "Add PRD",
+          },
+        ],
+      }).artifactInstanceId,
+    ).toBe("artifact-instance-1");
+
+    expect(
+      decodeDetail({
+        exists: true,
+        artifactInstanceId: "artifact-instance-1",
+        updatedAt: "2026-04-20T00:00:00.000Z",
+        fileCount: 2,
+        files: [
+          {
+            filePath: "docs/prd.md",
+            gitCommitHash: "abc123",
+            gitCommitTitle: "Add PRD",
+          },
+          {
+            filePath: "docs/notes.md",
+            gitCommitHash: null,
+            gitCommitTitle: null,
+          },
+        ],
+      }).files.length,
+    ).toBe(2);
+
+    expect(
+      decodeCheck({
+        result: "unchanged",
+        artifactInstanceId: "artifact-instance-1",
+        currentArtifactInstanceExists: true,
+      }).currentArtifactInstanceExists,
+    ).toBe(true);
   });
 });

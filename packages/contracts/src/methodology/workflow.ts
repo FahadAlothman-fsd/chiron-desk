@@ -2,7 +2,12 @@ import * as Schema from "effect/Schema";
 import { AudienceGuidance } from "./guidance.js";
 import { DescriptionJson } from "../shared/invariants.js";
 import { WorkflowDefinition } from "./version.js";
-import { FactType } from "./fact.js";
+import {
+  CANONICAL_WORKFLOW_CONTEXT_FACT_KINDS,
+  CanonicalWorkflowContextFactDefinition,
+  CanonicalWorkflowContextFactValueType,
+  LegacyPlainValueFactDefinition,
+} from "./fact.js";
 
 export const WorkflowEditorRouteIdentity = Schema.Struct({
   methodologyId: Schema.NonEmptyString,
@@ -37,75 +42,23 @@ export const FormStepFieldPayload = Schema.Struct({
 });
 export type FormStepFieldPayload = typeof FormStepFieldPayload.Type;
 
-export const WORKFLOW_CONTEXT_FACT_KINDS = [
-  "plain_value_fact",
-  "definition_backed_external_fact",
-  "bound_external_fact",
-  "workflow_reference_fact",
-  "artifact_reference_fact",
-  "work_unit_draft_spec_fact",
-] as const;
+export const WORKFLOW_CONTEXT_FACT_KINDS = CANONICAL_WORKFLOW_CONTEXT_FACT_KINDS;
 
-export const WorkflowContextFactKind = Schema.Literal(...WORKFLOW_CONTEXT_FACT_KINDS);
+export const WorkflowContextFactKind = Schema.Literal(
+  ...WORKFLOW_CONTEXT_FACT_KINDS,
+  "plain_value_fact",
+);
 export type WorkflowContextFactKind = typeof WorkflowContextFactKind.Type;
 
 export const WorkflowContextFactCardinality = Schema.Literal("one", "many");
 export type WorkflowContextFactCardinality = typeof WorkflowContextFactCardinality.Type;
 
-export const WorkflowContextFactValueType = FactType;
+export const WorkflowContextFactValueType = CanonicalWorkflowContextFactValueType;
 export type WorkflowContextFactValueType = typeof WorkflowContextFactValueType.Type;
 
-const WorkflowContextFactMetadata = Schema.Struct({
-  contextFactDefinitionId: Schema.optional(Schema.NonEmptyString),
-  label: Schema.optional(Schema.String),
-  descriptionJson: Schema.optional(DescriptionJson),
-  guidance: Schema.optional(AudienceGuidance),
-  validationJson: Schema.optional(Schema.Unknown),
-});
-
 export const WorkflowContextFactDto = Schema.Union(
-  Schema.Struct({
-    kind: Schema.Literal("plain_value_fact"),
-    key: Schema.NonEmptyString,
-    cardinality: WorkflowContextFactCardinality,
-    valueType: FormFieldValueType,
-  }).pipe(Schema.extend(WorkflowContextFactMetadata)),
-  Schema.Struct({
-    kind: Schema.Literal("definition_backed_external_fact"),
-    key: Schema.NonEmptyString,
-    cardinality: WorkflowContextFactCardinality,
-    externalFactDefinitionId: Schema.NonEmptyString,
-    valueType: Schema.optional(WorkflowContextFactValueType),
-    workUnitDefinitionId: Schema.optional(Schema.NonEmptyString),
-  }).pipe(Schema.extend(WorkflowContextFactMetadata)),
-  Schema.Struct({
-    kind: Schema.Literal("bound_external_fact"),
-    key: Schema.NonEmptyString,
-    cardinality: WorkflowContextFactCardinality,
-    externalFactDefinitionId: Schema.NonEmptyString,
-    valueType: Schema.optional(WorkflowContextFactValueType),
-    workUnitDefinitionId: Schema.optional(Schema.NonEmptyString),
-  }).pipe(Schema.extend(WorkflowContextFactMetadata)),
-  Schema.Struct({
-    kind: Schema.Literal("workflow_reference_fact"),
-    key: Schema.NonEmptyString,
-    cardinality: WorkflowContextFactCardinality,
-    allowedWorkflowDefinitionIds: Schema.Array(Schema.NonEmptyString),
-  }).pipe(Schema.extend(WorkflowContextFactMetadata)),
-  Schema.Struct({
-    kind: Schema.Literal("artifact_reference_fact"),
-    key: Schema.NonEmptyString,
-    cardinality: WorkflowContextFactCardinality,
-    artifactSlotDefinitionId: Schema.NonEmptyString,
-  }).pipe(Schema.extend(WorkflowContextFactMetadata)),
-  Schema.Struct({
-    kind: Schema.Literal("work_unit_draft_spec_fact"),
-    key: Schema.NonEmptyString,
-    cardinality: WorkflowContextFactCardinality,
-    workUnitDefinitionId: Schema.NonEmptyString,
-    selectedWorkUnitFactDefinitionIds: Schema.Array(Schema.NonEmptyString),
-    selectedArtifactSlotDefinitionIds: Schema.Array(Schema.NonEmptyString),
-  }).pipe(Schema.extend(WorkflowContextFactMetadata)),
+  CanonicalWorkflowContextFactDefinition,
+  LegacyPlainValueFactDefinition,
 );
 export type WorkflowContextFactDto = typeof WorkflowContextFactDto.Type;
 
@@ -124,7 +77,7 @@ export type FormStepPayload = typeof FormStepPayload.Type;
 export const InvokeTargetKind = Schema.Literal("workflow", "work_unit");
 export type InvokeTargetKind = typeof InvokeTargetKind.Type;
 
-export const InvokeSourceMode = Schema.Literal("fixed_set", "context_fact_backed");
+export const InvokeSourceMode = Schema.Literal("fixed", "fact_backed");
 export type InvokeSourceMode = typeof InvokeSourceMode.Type;
 
 export const InvokeBindingDestination = Schema.Union(
@@ -174,28 +127,24 @@ const WorkUnitInvokePayloadShared = Schema.Struct({
 export const InvokeStepPayload = Schema.Union(
   Schema.Struct({
     targetKind: Schema.Literal("workflow"),
-    sourceMode: Schema.Literal("fixed_set"),
+    sourceMode: Schema.Literal("fixed"),
     workflowDefinitionIds: Schema.Array(Schema.NonEmptyString),
   }).pipe(Schema.extend(WorkflowStepPayloadMetadata)),
   Schema.Struct({
     targetKind: Schema.Literal("workflow"),
-    sourceMode: Schema.Literal("context_fact_backed"),
+    sourceMode: Schema.Literal("fact_backed"),
     contextFactDefinitionId: Schema.NonEmptyString,
   }).pipe(Schema.extend(WorkflowStepPayloadMetadata)),
   Schema.Struct({
     targetKind: Schema.Literal("work_unit"),
-    sourceMode: Schema.Literal("fixed_set"),
+    sourceMode: Schema.Literal("fixed"),
     workUnitDefinitionId: Schema.NonEmptyString,
-  })
-    .pipe(Schema.extend(WorkUnitInvokePayloadShared))
-    .pipe(Schema.extend(WorkflowStepPayloadMetadata)),
+  }).pipe(Schema.extend(WorkUnitInvokePayloadShared), Schema.extend(WorkflowStepPayloadMetadata)),
   Schema.Struct({
     targetKind: Schema.Literal("work_unit"),
-    sourceMode: Schema.Literal("context_fact_backed"),
+    sourceMode: Schema.Literal("fact_backed"),
     contextFactDefinitionId: Schema.NonEmptyString,
-  })
-    .pipe(Schema.extend(WorkUnitInvokePayloadShared))
-    .pipe(Schema.extend(WorkflowStepPayloadMetadata)),
+  }).pipe(Schema.extend(WorkUnitInvokePayloadShared), Schema.extend(WorkflowStepPayloadMetadata)),
 );
 export type InvokeStepPayload = typeof InvokeStepPayload.Type;
 
@@ -208,9 +157,8 @@ export const ActionStepExecutionMode = Schema.Literal(...ACTION_STEP_EXECUTION_M
 export type ActionStepExecutionMode = typeof ActionStepExecutionMode.Type;
 
 export const ACTION_STEP_ALLOWED_CONTEXT_FACT_KINDS = [
-  "definition_backed_external_fact",
-  "bound_external_fact",
-  "artifact_reference_fact",
+  "bound_fact",
+  "artifact_slot_reference_fact",
 ] as const;
 export const ActionStepAllowedContextFactKind = Schema.Literal(
   ...ACTION_STEP_ALLOWED_CONTEXT_FACT_KINDS,
@@ -277,25 +225,24 @@ export type ActionStepActionPayload = typeof ActionStepActionPayload.Type;
 export const ActionStepPayload = Schema.Struct({
   executionMode: ActionStepExecutionMode,
   actions: Schema.Array(ActionStepActionPayload),
-})
-  .pipe(Schema.extend(WorkflowStepPayloadMetadata))
-  .pipe(Schema.filter((payload) => payload.actions.some((action) => action.enabled !== false)))
-  .pipe(
-    Schema.filter((payload) => {
-      if (payload.actions.length < 1) {
-        return false;
-      }
+}).pipe(
+  Schema.extend(WorkflowStepPayloadMetadata),
+  Schema.filter((payload) => payload.actions.some((action) => action.enabled !== false)),
+  Schema.filter((payload) => {
+    if (payload.actions.length < 1) {
+      return false;
+    }
 
-      const actionIds = payload.actions.map((action) => action.actionId);
-      const actionKeys = payload.actions.map((action) => action.actionKey);
-      const actionSortOrders = payload.actions.map((action) => action.sortOrder);
-      return (
-        new Set(actionIds).size === actionIds.length &&
-        new Set(actionKeys).size === actionKeys.length &&
-        new Set(actionSortOrders).size === actionSortOrders.length
-      );
-    }),
-  );
+    const actionIds = payload.actions.map((action) => action.actionId);
+    const actionKeys = payload.actions.map((action) => action.actionKey);
+    const actionSortOrders = payload.actions.map((action) => action.sortOrder);
+    return (
+      new Set(actionIds).size === actionIds.length &&
+      new Set(actionKeys).size === actionKeys.length &&
+      new Set(actionSortOrders).size === actionSortOrders.length
+    );
+  }),
+);
 export type ActionStepPayload = typeof ActionStepPayload.Type;
 
 export const BranchConditionMode = Schema.Literal("all", "any");
@@ -346,18 +293,17 @@ export const BranchStepPayload = Schema.Struct({
     default: () => null,
   }),
   routes: Schema.Array(BranchRoutePayload),
-})
-  .pipe(Schema.extend(WorkflowStepPayloadMetadata))
-  .pipe(
-    Schema.filter((payload) => {
-      const routeIds = payload.routes.map((route) => route.routeId);
-      const targetStepIds = payload.routes.map((route) => route.targetStepId);
-      return (
-        new Set(routeIds).size === routeIds.length &&
-        new Set(targetStepIds).size === targetStepIds.length
-      );
-    }),
-  );
+}).pipe(
+  Schema.extend(WorkflowStepPayloadMetadata),
+  Schema.filter((payload) => {
+    const routeIds = payload.routes.map((route) => route.routeId);
+    const targetStepIds = payload.routes.map((route) => route.targetStepId);
+    return (
+      new Set(routeIds).size === routeIds.length &&
+      new Set(targetStepIds).size === targetStepIds.length
+    );
+  }),
+);
 export type BranchStepPayload = typeof BranchStepPayload.Type;
 
 export const CreateActionStepInput = Schema.Struct({

@@ -1,5 +1,6 @@
 import * as Schema from "effect/Schema";
 
+import { AgentStepNormalizedError } from "./errors.js";
 import { ModelReference } from "../methodology/agent.js";
 import { WorkflowContextFactKind } from "../methodology/workflow.js";
 
@@ -64,6 +65,10 @@ export const AGENT_STEP_V1_MCP_TOOLS = [
   "write_context_value",
 ] as const;
 
+export const AGENT_STEP_MCP_READ_MODES = ["latest", "all", "query"] as const;
+export const AgentStepMcpReadMode = Schema.Literal(...AGENT_STEP_MCP_READ_MODES);
+export type AgentStepMcpReadMode = typeof AgentStepMcpReadMode.Type;
+
 export const AgentStepHarnessBindingState = Schema.Literal(
   "unbound",
   "binding",
@@ -86,6 +91,7 @@ export const AgentStepContractBoundary = Schema.Struct({
   supportedMcpTools: Schema.Array(
     Schema.Literal("read_step_snapshot", "read_context_value", "write_context_value"),
   ),
+  stepSnapshotReadItemId: Schema.NonEmptyString,
   requestContextAccess: Schema.Literal(false),
   continuationMode: Schema.Literal("bootstrap_only"),
   nativeMessageLog: Schema.Literal(false),
@@ -94,10 +100,21 @@ export const AgentStepContractBoundary = Schema.Struct({
 });
 export type AgentStepContractBoundary = typeof AgentStepContractBoundary.Type;
 
+export const AgentStepRuntimeErrorEnvelope = Schema.Struct({
+  status: Schema.Literal("error"),
+  error: AgentStepNormalizedError,
+});
+export type AgentStepRuntimeErrorEnvelope = typeof AgentStepRuntimeErrorEnvelope.Type;
+
+// For readable workflow context facts, readItemId is the authored fact definition key.
+// Runtime services resolve this stable key to the concrete contextFactDefinitionId internally.
 export const AgentStepReadableContextFact = Schema.Struct({
+  readItemId: Schema.NonEmptyString,
   contextFactDefinitionId: Schema.NonEmptyString,
   contextFactKind: WorkflowContextFactKind,
   source: Schema.Literal("explicit", "inferred_from_write"),
+  supportedReadModes: Schema.Array(AgentStepMcpReadMode),
+  queryParam: Schema.optional(Schema.NonEmptyString),
 });
 export type AgentStepReadableContextFact = typeof AgentStepReadableContextFact.Type;
 

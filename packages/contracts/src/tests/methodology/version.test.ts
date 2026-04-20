@@ -9,6 +9,7 @@ import {
   ProjectMethodologyPinEvent,
   ProjectMethodologyPinEventType,
   MethodologyLinkTypeDefinitionInput,
+  MethodologyFactDefinition,
   MethodologyVersionDefinition,
   PinProjectMethodologyVersionInput,
   PublicationEvidence,
@@ -217,6 +218,28 @@ describe("MethodologyFactDefinitionInput", () => {
     const result = decode(validVar);
     expect(result.key).toBe("priority");
     expect(result.factType).toBe("number");
+  });
+
+  it("accepts canonical plain-fact shape on methodology fact definitions", () => {
+    const decodeReadModel = Schema.decodeUnknownSync(MethodologyFactDefinition);
+    const result = decodeReadModel({
+      id: "fact-priority",
+      methodologyVersionId: "version-1",
+      key: "priority",
+      kind: "plain_fact",
+      type: "number",
+      factType: "number",
+      cardinality: "one",
+      description: null,
+      guidanceJson: null,
+      defaultValueJson: null,
+      validationJson: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      name: null,
+    });
+    expect(result.kind).toBe("plain_fact");
+    expect(result.type).toBe("number");
   });
 
   it("accepts fact definition with all optional fields", () => {

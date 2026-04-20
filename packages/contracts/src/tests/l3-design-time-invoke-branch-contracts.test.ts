@@ -23,13 +23,13 @@ describe("l3 design-time invoke/branch contracts", () => {
       decode({
         key: "invoke-child-workflows",
         targetKind: "workflow",
-        sourceMode: "fixed_set",
+        sourceMode: "fixed",
         workflowDefinitionIds: ["wf-story", "wf-bugfix"],
       }),
     ).toEqual({
       key: "invoke-child-workflows",
       targetKind: "workflow",
-      sourceMode: "fixed_set",
+      sourceMode: "fixed",
       workflowDefinitionIds: ["wf-story", "wf-bugfix"],
     });
 
@@ -38,14 +38,14 @@ describe("l3 design-time invoke/branch contracts", () => {
         key: "invoke-context-workflows",
         label: "Invoke referenced workflows",
         targetKind: "workflow",
-        sourceMode: "context_fact_backed",
+        sourceMode: "fact_backed",
         contextFactDefinitionId: "fact-workflows",
       }),
     ).toEqual({
       key: "invoke-context-workflows",
       label: "Invoke referenced workflows",
       targetKind: "workflow",
-      sourceMode: "context_fact_backed",
+      sourceMode: "fact_backed",
       contextFactDefinitionId: "fact-workflows",
     });
 
@@ -53,7 +53,7 @@ describe("l3 design-time invoke/branch contracts", () => {
       decode({
         key: "invoke-story-work-unit",
         targetKind: "work_unit",
-        sourceMode: "fixed_set",
+        sourceMode: "fixed",
         workUnitDefinitionId: "wu-story",
         bindings: [
           {
@@ -77,7 +77,7 @@ describe("l3 design-time invoke/branch contracts", () => {
     ).toEqual({
       key: "invoke-story-work-unit",
       targetKind: "work_unit",
-      sourceMode: "fixed_set",
+      sourceMode: "fixed",
       workUnitDefinitionId: "wu-story",
       bindings: [
         {
@@ -104,7 +104,7 @@ describe("l3 design-time invoke/branch contracts", () => {
         key: "invoke-drafted-work-units",
         descriptionJson: { markdown: "Materialize authored draft specs." },
         targetKind: "work_unit",
-        sourceMode: "context_fact_backed",
+        sourceMode: "fact_backed",
         contextFactDefinitionId: "fact-story-drafts",
         bindings: [
           {
@@ -133,7 +133,7 @@ describe("l3 design-time invoke/branch contracts", () => {
       key: "invoke-drafted-work-units",
       descriptionJson: { markdown: "Materialize authored draft specs." },
       targetKind: "work_unit",
-      sourceMode: "context_fact_backed",
+      sourceMode: "fact_backed",
       contextFactDefinitionId: "fact-story-drafts",
       bindings: [
         {
@@ -164,7 +164,7 @@ describe("l3 design-time invoke/branch contracts", () => {
     const payload = {
       key: "invoke-story-work-unit",
       targetKind: "work_unit",
-      sourceMode: "fixed_set",
+      sourceMode: "fixed",
       workUnitDefinitionId: "wu-story",
       bindings: [],
       activationTransitions: [],
@@ -207,7 +207,7 @@ describe("l3 design-time invoke/branch contracts", () => {
       decode({
         key: "bad-workflow-fixed-set",
         targetKind: "workflow",
-        sourceMode: "fixed_set",
+        sourceMode: "fixed",
         contextFactDefinitionId: "fact-workflows",
       }),
     ).toThrow();
@@ -216,7 +216,7 @@ describe("l3 design-time invoke/branch contracts", () => {
       decode({
         key: "bad-work-unit-fixed-set",
         targetKind: "work_unit",
-        sourceMode: "fixed_set",
+        sourceMode: "fixed",
         bindings: [],
         activationTransitions: [],
       }),
@@ -226,7 +226,7 @@ describe("l3 design-time invoke/branch contracts", () => {
       decode({
         key: "bad-work-unit-context",
         targetKind: "work_unit",
-        sourceMode: "context_fact_backed",
+        sourceMode: "fact_backed",
         contextFactDefinitionId: "fact-drafts",
         bindings: [],
       }),
@@ -587,7 +587,7 @@ describe("l3 design-time invoke/branch contracts", () => {
         payload: {
           key: "invoke-story-work-unit",
           targetKind: "work_unit",
-          sourceMode: "fixed_set",
+          sourceMode: "fixed",
           workUnitDefinitionId: "wu-story",
           bindings: [],
           activationTransitions: [],
@@ -646,7 +646,7 @@ describe("l3 design-time invoke/branch contracts", () => {
     const invokePayload = Schema.decodeUnknownSync(InvokeStepPayload)({
       key: "invoke-story-work-unit",
       targetKind: "work_unit",
-      sourceMode: "fixed_set",
+      sourceMode: "fixed",
       workUnitDefinitionId: "wu-story",
       bindings: [
         {

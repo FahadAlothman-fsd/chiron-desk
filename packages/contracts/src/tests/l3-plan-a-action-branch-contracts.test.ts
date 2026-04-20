@@ -47,9 +47,8 @@ describe("l3 plan a action/branch contracts", () => {
     expect(ACTION_STEP_EDITOR_TABS).toEqual(["overview", "actions", "execution", "guidance"]);
     expect(ACTION_STEP_EXECUTION_MODES).toEqual(["sequential", "parallel"]);
     expect(ACTION_STEP_ALLOWED_CONTEXT_FACT_KINDS).toEqual([
-      "definition_backed_external_fact",
-      "bound_external_fact",
-      "artifact_reference_fact",
+      "bound_fact",
+      "artifact_slot_reference_fact",
     ]);
     expect(ACTION_STEP_WHOLE_STEP_AUTHORING_RULES).toEqual([
       "whole_step_only",
@@ -78,7 +77,7 @@ describe("l3 plan a action/branch contracts", () => {
           sortOrder: 10,
           actionKind: "propagation",
           contextFactDefinitionId: "fact-prd",
-          contextFactKind: "artifact_reference_fact",
+          contextFactKind: "artifact_slot_reference_fact",
           items: [
             {
               itemId: "item-1",
@@ -94,7 +93,7 @@ describe("l3 plan a action/branch contracts", () => {
     expect(payload.actions[0]).toMatchObject({
       enabled: true,
       actionKind: "propagation",
-      contextFactKind: "artifact_reference_fact",
+      contextFactKind: "artifact_slot_reference_fact",
     });
     expect(payload.actions[0]?.items[0]?.targetContextFactDefinitionId).toBe("fact-prd-target");
 
@@ -109,7 +108,7 @@ describe("l3 plan a action/branch contracts", () => {
             sortOrder: 10,
             actionKind: "propagation",
             contextFactDefinitionId: "fact-shared",
-            contextFactKind: "bound_external_fact",
+            contextFactKind: "bound_fact",
             items: [
               {
                 itemId: "item-1",
@@ -125,7 +124,7 @@ describe("l3 plan a action/branch contracts", () => {
             sortOrder: 20,
             actionKind: "propagation",
             contextFactDefinitionId: "fact-shared",
-            contextFactKind: "bound_external_fact",
+            contextFactKind: "bound_fact",
             items: [
               {
                 itemId: "item-2",
@@ -196,7 +195,7 @@ describe("l3 plan a action/branch contracts", () => {
             sortOrder: 10,
             actionKind: "propagation",
             contextFactDefinitionId: "fact-repo",
-            contextFactKind: "bound_external_fact",
+            contextFactKind: "bound_fact",
             items: [{ itemId: "item-1", itemKey: "repo-1", sortOrder: 10 }],
           },
         ],
@@ -214,7 +213,7 @@ describe("l3 plan a action/branch contracts", () => {
             sortOrder: 10,
             actionKind: "materialize_directory",
             contextFactDefinitionId: "fact-prd",
-            contextFactKind: "artifact_reference_fact",
+            contextFactKind: "artifact_slot_reference_fact",
             items: [{ itemId: "item-1", itemKey: "prd-artifact", sortOrder: 10 }],
           },
         ],
@@ -250,7 +249,7 @@ describe("l3 plan a action/branch contracts", () => {
             sortOrder: 10,
             actionKind: "propagation",
             contextFactDefinitionId: "fact-repo",
-            contextFactKind: "bound_external_fact",
+            contextFactKind: "bound_fact",
             items: [{ itemId: "item-1", itemKey: "repo-1", sortOrder: 10 }],
           },
           {
@@ -259,7 +258,7 @@ describe("l3 plan a action/branch contracts", () => {
             sortOrder: 20,
             actionKind: "propagation",
             contextFactDefinitionId: "fact-repo",
-            contextFactKind: "bound_external_fact",
+            contextFactKind: "bound_fact",
             items: [{ itemId: "item-2", itemKey: "repo-2", sortOrder: 10 }],
           },
         ],
@@ -277,7 +276,7 @@ describe("l3 plan a action/branch contracts", () => {
             sortOrder: 10,
             actionKind: "propagation",
             contextFactDefinitionId: "fact-repo",
-            contextFactKind: "bound_external_fact",
+            contextFactKind: "bound_fact",
             items: [
               { itemId: "item-1", itemKey: "repo-1", sortOrder: 10 },
               { itemId: "item-2", itemKey: "repo-2", sortOrder: 10 },
@@ -409,7 +408,7 @@ describe("l3 plan a action/branch contracts", () => {
             actionKind: "propagation",
             contextFactDefinitionId: "fact-repo",
             contextFactKey: "repository",
-            contextFactKind: "bound_external_fact",
+            contextFactKind: "bound_fact",
             status: "not_started",
             items: [
               {

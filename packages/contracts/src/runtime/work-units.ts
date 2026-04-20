@@ -9,6 +9,9 @@ import {
 export const RuntimeFactPrimitiveType = Schema.Literal("string", "number", "boolean", "json");
 export type RuntimeFactPrimitiveType = typeof RuntimeFactPrimitiveType.Type;
 
+export const RuntimeWorkUnitFactKind = Schema.Literal("plain_fact", "work_unit_reference_fact");
+export type RuntimeWorkUnitFactKind = typeof RuntimeWorkUnitFactKind.Type;
+
 export const RuntimeFactCardinality = Schema.Literal("one", "many");
 export type RuntimeFactCardinality = typeof RuntimeFactCardinality.Type;
 
@@ -322,9 +325,11 @@ export const GetWorkUnitFactsOutput = Schema.Struct({
     Schema.Struct({
       cards: Schema.Array(
         Schema.Struct({
+          kind: Schema.Literal("plain_fact"),
           factDefinitionId: Schema.String,
           factKey: Schema.String,
           factName: Schema.optional(Schema.String),
+          type: RuntimeFactPrimitiveType,
           factType: RuntimeFactPrimitiveType,
           cardinality: RuntimeFactCardinality,
           exists: Schema.Boolean,
@@ -342,6 +347,7 @@ export const GetWorkUnitFactsOutput = Schema.Struct({
     Schema.Struct({
       outgoing: Schema.Array(
         Schema.Struct({
+          kind: Schema.Literal("work_unit_reference_fact"),
           factDefinitionId: Schema.String,
           factKey: Schema.String,
           factName: Schema.optional(Schema.String),
@@ -366,6 +372,7 @@ export const GetWorkUnitFactsOutput = Schema.Struct({
       ),
       incoming: Schema.Array(
         Schema.Struct({
+          kind: Schema.Literal("work_unit_reference_fact"),
           factDefinitionId: Schema.String,
           factKey: Schema.String,
           factName: Schema.optional(Schema.String),
@@ -401,9 +408,11 @@ export const GetWorkUnitFactDetailInput = Schema.Struct({
 export type GetWorkUnitFactDetailInput = typeof GetWorkUnitFactDetailInput.Type;
 
 export const RuntimeWorkUnitFactDetailDefinition = Schema.Struct({
+  kind: RuntimeWorkUnitFactKind,
   factDefinitionId: Schema.String,
   factKey: Schema.String,
   factName: Schema.optional(Schema.String),
+  type: Schema.optional(RuntimeFactPrimitiveType),
   factType: Schema.Literal("string", "number", "boolean", "json", "work_unit"),
   cardinality: RuntimeFactCardinality,
   description: Schema.optional(Schema.Unknown),

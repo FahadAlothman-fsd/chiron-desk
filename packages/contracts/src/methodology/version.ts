@@ -2,7 +2,8 @@ import * as Schema from "effect/Schema";
 import {
   FactType,
   MethodologyFactDefinitionInput as MethodologyFactDefinitionInputSchema,
-  type FactType as FactTypeType,
+  PlainFactType,
+  type PlainFactType as PlainFactTypeType,
 } from "./fact.js";
 import {
   AudienceGuidance,
@@ -26,8 +27,8 @@ export const VersionEventType = Schema.Literal(
 );
 export type VersionEventType = typeof VersionEventType.Type;
 
-export const VariableValueType = FactType;
-export type VariableValueType = FactTypeType;
+export const VariableValueType = PlainFactType;
+export type VariableValueType = PlainFactTypeType;
 
 export const WorkflowStepType = Schema.Literal(
   "form",
@@ -291,8 +292,10 @@ export type MethodologyVersionEvent = typeof MethodologyVersionEvent.Type;
 export const MethodologyFactDefinition = Schema.Struct({
   id: Schema.String,
   methodologyVersionId: Schema.String,
+  kind: Schema.optionalWith(Schema.Literal("plain_fact"), { default: () => "plain_fact" as const }),
   name: Schema.NullOr(Schema.String),
   key: Schema.String,
+  type: Schema.optional(PlainFactType),
   factType: FactType,
   cardinality: Schema.NullOr(Schema.Literal("one", "many")),
   description: Schema.NullOr(Schema.Unknown),

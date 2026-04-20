@@ -55,7 +55,7 @@ describe("l3 agent-step contracts", () => {
         {
           writeItemId: "write-prd",
           contextFactDefinitionId: "fact-prd-artifact",
-          contextFactKind: "artifact_reference_fact",
+          contextFactKind: "artifact_slot_reference_fact",
           order: 10,
           requirementContextFactDefinitionIds: ["fact-project-context"],
         },
@@ -174,6 +174,7 @@ describe("l3 agent-step contracts", () => {
       contractBoundary: {
         version: "v1",
         supportedMcpTools: [...AGENT_STEP_V1_MCP_TOOLS],
+        stepSnapshotReadItemId: "read-step-snapshot",
         requestContextAccess: false,
         continuationMode: "bootstrap_only",
         nativeMessageLog: false,
@@ -201,16 +202,18 @@ describe("l3 agent-step contracts", () => {
       instructionsMarkdown: "Ground every claim in context.",
       readableContextFacts: [
         {
+          readItemId: "projectContext",
           contextFactDefinitionId: "fact-project-context",
-          contextFactKind: "plain_value_fact",
+          contextFactKind: "plain_fact",
           source: "explicit",
+          supportedReadModes: ["latest", "all"],
         },
       ],
       writeItems: [
         {
           writeItemId: "write-prd",
           contextFactDefinitionId: "fact-prd-artifact",
-          contextFactKind: "artifact_reference_fact",
+          contextFactKind: "artifact_slot_reference_fact",
           order: 100,
           requirementContextFactDefinitionIds: ["fact-project-context"],
           exposureMode: "requirements_only",
@@ -251,6 +254,7 @@ describe("l3 agent-step contracts", () => {
         contractBoundary: {
           version: "v1",
           supportedMcpTools: [...AGENT_STEP_V1_MCP_TOOLS],
+          stepSnapshotReadItemId: "read-step-snapshot",
           requestContextAccess: false,
           continuationMode: "bootstrap_only",
           nativeMessageLog: false,
@@ -339,6 +343,10 @@ describe("l3 agent-step contracts", () => {
       throw new Error("expected write_context_value response");
     }
 
+    if (!("output" in writeResponse)) {
+      throw new Error("expected write_context_value output envelope");
+    }
+
     expect(writeResponse.output.status).toBe("applied");
     expect(writeResponse.output.appliedWrite).not.toHaveProperty("rejected");
   });
@@ -372,6 +380,7 @@ describe("l3 agent-step contracts", () => {
     const boundary = Schema.decodeUnknownSync(AgentStepContractBoundary)({
       version: "v1",
       supportedMcpTools: [...AGENT_STEP_V1_MCP_TOOLS],
+      stepSnapshotReadItemId: "read-step-snapshot",
       requestContextAccess: false,
       continuationMode: "bootstrap_only",
       nativeMessageLog: false,

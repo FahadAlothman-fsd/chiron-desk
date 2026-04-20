@@ -33,7 +33,7 @@ export const ArtifactRecordedBy = Schema.Struct({
 export type ArtifactRecordedBy = typeof ArtifactRecordedBy.Type;
 
 export const ArtifactMember = Schema.Struct({
-  artifactSnapshotFileId: Schema.String,
+  artifactInstanceFileId: Schema.String,
   filePath: Schema.String,
   gitBlobHash: Schema.optional(Schema.String),
   gitCommitHash: Schema.optional(Schema.String),
@@ -41,6 +41,41 @@ export const ArtifactMember = Schema.Struct({
   gitCommitBody: Schema.optional(Schema.String),
 });
 export type ArtifactMember = typeof ArtifactMember.Type;
+
+export const ArtifactInstanceFile = Schema.Struct({
+  filePath: Schema.String,
+  gitCommitHash: Schema.NullOr(Schema.String),
+  gitCommitTitle: Schema.NullOr(Schema.String),
+});
+export type ArtifactInstanceFile = typeof ArtifactInstanceFile.Type;
+
+export const ArtifactInstanceSummary = Schema.Struct({
+  exists: Schema.Boolean,
+  artifactInstanceId: Schema.optional(Schema.String),
+  updatedAt: Schema.optional(Schema.String),
+  recordedBy: Schema.optional(ArtifactRecordedBy),
+  fileCount: Schema.Number,
+  previewFiles: Schema.Array(ArtifactInstanceFile),
+});
+export type ArtifactInstanceSummary = typeof ArtifactInstanceSummary.Type;
+
+export const ArtifactInstanceDetail = Schema.Struct({
+  exists: Schema.Boolean,
+  artifactInstanceId: Schema.optional(Schema.String),
+  updatedAt: Schema.optional(Schema.String),
+  recordedBy: Schema.optional(ArtifactRecordedBy),
+  fileCount: Schema.Number,
+  files: Schema.Array(ArtifactInstanceFile),
+});
+export type ArtifactInstanceDetail = typeof ArtifactInstanceDetail.Type;
+
+export const CheckArtifactSlotCurrentInstanceOutput = Schema.Struct({
+  result: Schema.Literal("changed", "unchanged", "unavailable"),
+  artifactInstanceId: Schema.optional(Schema.String),
+  currentArtifactInstanceExists: Schema.Boolean,
+});
+export type CheckArtifactSlotCurrentInstanceOutput =
+  typeof CheckArtifactSlotCurrentInstanceOutput.Type;
 
 export const GetArtifactSlotsInput = Schema.Struct({
   projectId: Schema.String,
@@ -53,16 +88,7 @@ export const GetArtifactSlotsOutput = Schema.Struct({
   slots: Schema.Array(
     Schema.Struct({
       slotDefinition: ArtifactSlotDefinition,
-      currentEffectiveSnapshot: Schema.Struct({
-        exists: Schema.Boolean,
-        projectArtifactSnapshotId: Schema.optional(Schema.String),
-        createdAt: Schema.optional(Schema.String),
-        memberCounts: Schema.Struct({ currentCount: Schema.Number }),
-        previewMembers: Schema.Array(ArtifactMember),
-      }),
-      latestLineageHead: Schema.optional(
-        Schema.Struct({ projectArtifactSnapshotId: Schema.String, createdAt: Schema.String }),
-      ),
+      currentArtifactInstance: ArtifactInstanceSummary,
       target: Schema.Struct({
         page: Schema.Literal("artifact-slot-detail"),
         slotDefinitionId: Schema.String,
@@ -82,45 +108,19 @@ export type GetArtifactSlotDetailInput = typeof GetArtifactSlotDetailInput.Type;
 export const GetArtifactSlotDetailOutput = Schema.Struct({
   workUnit: RuntimeWorkUnitIdentity,
   slotDefinition: ArtifactSlotDefinition,
-  currentEffectiveSnapshot: Schema.Struct({
-    exists: Schema.Boolean,
-    projectArtifactSnapshotId: Schema.optional(Schema.String),
-    createdAt: Schema.optional(Schema.String),
-    recordedBy: Schema.optional(ArtifactRecordedBy),
-    memberCounts: Schema.Struct({ currentCount: Schema.Number }),
-    members: Schema.Array(ArtifactMember),
-  }),
-  lineage: Schema.Array(
-    Schema.Struct({
-      projectArtifactSnapshotId: Schema.String,
-      supersedesProjectArtifactSnapshotId: Schema.optional(Schema.String),
-      createdAt: Schema.String,
-      recordedBy: Schema.optional(ArtifactRecordedBy),
-      memberCounts: Schema.Struct({ deltaRowCount: Schema.Number, effectiveCount: Schema.Number }),
-      actions: Schema.optional(
-        Schema.Struct({
-          inspectSnapshot: Schema.optional(
-            Schema.Struct({
-              kind: Schema.Literal("open_artifact_snapshot_dialog"),
-              projectArtifactSnapshotId: Schema.String,
-            }),
-          ),
-        }),
-      ),
-    }),
-  ),
+  currentArtifactInstance: ArtifactInstanceDetail,
 });
 export type GetArtifactSlotDetailOutput = typeof GetArtifactSlotDetailOutput.Type;
 
-export const GetArtifactSnapshotDialogInput = Schema.Struct({
+export const GetArtifactInstanceDialogInput = Schema.Struct({
   projectId: Schema.String,
   projectWorkUnitId: Schema.String,
   slotDefinitionId: Schema.String,
-  projectArtifactSnapshotId: Schema.String,
+  artifactInstanceId: Schema.String,
 });
-export type GetArtifactSnapshotDialogInput = typeof GetArtifactSnapshotDialogInput.Type;
+export type GetArtifactInstanceDialogInput = typeof GetArtifactInstanceDialogInput.Type;
 
-export const GetArtifactSnapshotDialogOutput = Schema.Struct({
+export const GetArtifactInstanceDialogOutput = Schema.Struct({
   workUnit: Schema.Struct({
     projectWorkUnitId: Schema.String,
     workUnitTypeId: Schema.String,
@@ -133,24 +133,9 @@ export const GetArtifactSnapshotDialogOutput = Schema.Struct({
     slotName: Schema.optional(Schema.String),
     artifactKind: ArtifactKind,
   }),
-  snapshot: Schema.Struct({
-    projectArtifactSnapshotId: Schema.String,
-    supersedesProjectArtifactSnapshotId: Schema.optional(Schema.String),
-    createdAt: Schema.String,
-    recordedBy: Schema.optional(ArtifactRecordedBy),
-    deltaMembers: Schema.Array(
-      ArtifactMember.pipe(
-        Schema.extend(
-          Schema.Struct({
-            memberStatus: ArtifactSnapshotMemberStatus,
-          }),
-        ),
-      ),
-    ),
-    effectiveMemberCounts: Schema.Struct({ currentCount: Schema.Number }),
-  }),
+  artifactInstance: ArtifactInstanceDetail,
 });
-export type GetArtifactSnapshotDialogOutput = typeof GetArtifactSnapshotDialogOutput.Type;
+export type GetArtifactInstanceDialogOutput = typeof GetArtifactInstanceDialogOutput.Type;
 
 export const CheckArtifactSlotCurrentStateInput = Schema.Struct({
   projectId: Schema.String,
@@ -161,7 +146,7 @@ export type CheckArtifactSlotCurrentStateInput = typeof CheckArtifactSlotCurrent
 
 export const CheckArtifactSlotCurrentStateOutput = Schema.Struct({
   result: Schema.Literal("changed", "unchanged", "unavailable"),
-  projectArtifactSnapshotId: Schema.optional(Schema.String),
-  currentEffectiveSnapshotExists: Schema.Boolean,
+  artifactInstanceId: Schema.optional(Schema.String),
+  currentArtifactInstanceExists: Schema.Boolean,
 });
 export type CheckArtifactSlotCurrentStateOutput = typeof CheckArtifactSlotCurrentStateOutput.Type;

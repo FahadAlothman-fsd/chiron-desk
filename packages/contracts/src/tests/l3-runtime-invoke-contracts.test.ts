@@ -30,7 +30,8 @@ describe("l3 runtime invoke contracts", () => {
       body: {
         stepType: "invoke",
         targetKind: "work_unit",
-        sourceMode: "context_fact_backed",
+        sourceMode: "fact_backed",
+        sourceContextFactDefinitionId: "fact-story-drafts",
         workflowTargets: [
           {
             label: "Create story workflow",

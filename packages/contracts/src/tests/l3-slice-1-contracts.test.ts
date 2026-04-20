@@ -121,10 +121,10 @@ describe("slice-1 contract locks", () => {
       ],
       contextFacts: [
         {
-          kind: "plain_value_fact",
+          kind: "plain_fact",
           key: "summary",
           cardinality: "one",
-          valueType: "string",
+          type: "string",
         },
       ],
     });
@@ -156,20 +156,20 @@ describe("slice-1 contract locks", () => {
     ).toEqual({ markdown: "Only when approved" });
   });
 
-  it("locks the active 6 context-fact kinds", () => {
+  it("locks the active 5 context-fact kinds", () => {
     expect(WORKFLOW_CONTEXT_FACT_KINDS).toEqual([
-      "plain_value_fact",
-      "definition_backed_external_fact",
-      "bound_external_fact",
-      "workflow_reference_fact",
-      "artifact_reference_fact",
+      "plain_fact",
+      "bound_fact",
+      "workflow_ref_fact",
+      "artifact_slot_reference_fact",
+      "work_unit_reference_fact",
       "work_unit_draft_spec_fact",
     ]);
 
     const decode = Schema.decodeUnknownSync(WorkflowContextFactDto);
     const samples = [
       {
-        kind: "plain_value_fact",
+        kind: "plain_fact",
         contextFactDefinitionId: "fact-name",
         key: "name",
         cardinality: "one",
@@ -177,31 +177,32 @@ describe("slice-1 contract locks", () => {
           human: { markdown: "Provide the name." },
           agent: { markdown: "Preserve the authored name." },
         },
+        type: "string",
+      },
+      {
+        kind: "bound_fact",
+        key: "repositoryType",
+        cardinality: "one",
+        factDefinitionId: "fact-repository-type",
         valueType: "string",
       },
       {
-        kind: "definition_backed_external_fact",
-        key: "gitRoot",
-        cardinality: "one",
-        externalFactDefinitionId: "ext-workflow-mode",
-      },
-      {
-        kind: "bound_external_fact",
-        key: "repositoryType",
-        cardinality: "one",
-        externalFactDefinitionId: "ext-repository-type",
-      },
-      {
-        kind: "workflow_reference_fact",
+        kind: "workflow_ref_fact",
         key: "sourceWf",
         cardinality: "many",
         allowedWorkflowDefinitionIds: ["wf-2", "wf-3"],
       },
       {
-        kind: "artifact_reference_fact",
+        kind: "artifact_slot_reference_fact",
         key: "prd",
         cardinality: "many",
-        artifactSlotDefinitionId: "ART.PRD",
+        slotDefinitionId: "ART.PRD",
+      },
+      {
+        kind: "work_unit_reference_fact",
+        key: "dependsOn",
+        cardinality: "many",
+        linkTypeDefinitionId: "link-blocks",
       },
       {
         kind: "work_unit_draft_spec_fact",
@@ -217,7 +218,9 @@ describe("slice-1 contract locks", () => {
       expect(decode(sample).kind).toBe(sample.kind);
     }
 
-    expect(() => decode({ kind: "work_unit_reference_fact", key: "x" })).toThrow();
+    expect(decode({ kind: "work_unit_reference_fact", key: "x", cardinality: "one" }).kind).toBe(
+      "work_unit_reference_fact",
+    );
     expect(() => decode({ kind: "draft_spec_field", key: "x" })).toThrow();
   });
 
@@ -239,9 +242,9 @@ describe("slice-1 contract locks", () => {
           required: true,
           uiMultiplicityMode: "many",
           cardinality: "many",
-          kind: "plain_value_fact",
+          kind: "plain_fact",
           input: { kind: "text" },
-          valueType: "string",
+          type: "string",
         },
       ],
     });
@@ -291,7 +294,7 @@ describe("slice-1 contract locks", () => {
         payload: {
           key: "invoke-story",
           targetKind: "workflow",
-          sourceMode: "fixed_set",
+          sourceMode: "fixed",
           workflowDefinitionIds: ["wf-story"],
         },
       }),
