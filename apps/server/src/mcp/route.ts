@@ -14,7 +14,9 @@ import type {
 const readStepSnapshotInputSchema = z.object({});
 
 const readContextValueInputSchema = z.object({
-  contextFactDefinitionId: z.string().min(1),
+  readItemId: z.string().min(1),
+  mode: z.enum(["latest", "all", "query"]),
+  queryParam: z.string().min(1).optional(),
 });
 
 const writeContextValueInputSchema = z.object({
@@ -24,6 +26,7 @@ const writeContextValueInputSchema = z.object({
 });
 
 const readStepSnapshotOutputSchema = z.object({
+  readItemId: z.string().min(1),
   stepExecutionId: z.string().min(1),
   workflowExecutionId: z.string().min(1),
   state: z.enum([
@@ -40,13 +43,21 @@ const readStepSnapshotOutputSchema = z.object({
 });
 
 const readContextValueOutputSchema = z.object({
-  stepExecutionId: z.string().min(1),
+  readItemId: z.string().min(1),
+  mode: z.enum(["latest", "all", "query"]),
+  queryParam: z.string().optional(),
   contextFactDefinitionId: z.string().min(1),
-  contextFactKind: z.enum(["project", "work_unit", "workflow"]),
+  contextFactKind: z.enum([
+    "plain_value_fact",
+    "bound_fact",
+    "workflow_ref_fact",
+    "artifact_slot_reference_fact",
+    "work_unit_draft_spec_fact",
+  ]),
   values: z.array(
     z.object({
-      contextFactInstanceId: z.string().min(1).optional(),
-      valueJson: z.unknown(),
+      instanceId: z.string().min(1),
+      value: z.unknown(),
       recordedAt: z.string().optional(),
     }),
   ),
@@ -54,7 +65,6 @@ const readContextValueOutputSchema = z.object({
 
 const writeContextValueOutputSchema = z.object({
   status: z.literal("applied"),
-  stepExecutionId: z.string().min(1),
   writeItemId: z.string().min(1),
   appliedWrite: z.object({
     appliedWriteId: z.string().min(1),
@@ -122,10 +132,12 @@ async function executeMcpRequest(
   throw Cause.squash(exit.cause);
 }
 
-function toToolResult(output: unknown) {
+function toToolResult<T extends Record<string, unknown>>(output: T) {
   return {
     content: [{ type: "text" as const, text: JSON.stringify(output, null, 2) }],
-    structuredContent: output,
+    ...(output && typeof output === "object" && !Array.isArray(output)
+      ? { structuredContent: output as Record<string, unknown> }
+      : {}),
   };
 }
 
@@ -170,9 +182,9 @@ function createBinding(
         const response = await executeMcpRequest(serviceLayer, {
           version: "v1",
           toolName: "read_step_snapshot",
-          input: { stepExecutionId },
+          input: { readItemId: "step_snapshot", stepExecutionId } as never,
         });
-        return toToolResult(response.output);
+        return "output" in response ? toToolResult(response.output) : toToolError(response.error);
       } catch (error) {
         return toToolError(error);
       }
@@ -188,14 +200,14 @@ function createBinding(
       inputSchema: readContextValueInputSchema,
       outputSchema: readContextValueOutputSchema,
     },
-    async ({ contextFactDefinitionId }) => {
+    async (input) => {
       try {
         const response = await executeMcpRequest(serviceLayer, {
           version: "v1",
           toolName: "read_context_value",
-          input: { stepExecutionId, contextFactDefinitionId },
+          input: { ...input, stepExecutionId } as never,
         });
-        return toToolResult(response.output);
+        return "output" in response ? toToolResult(response.output) : toToolError(response.error);
       } catch (error) {
         return toToolError(error);
       }
@@ -212,14 +224,14 @@ function createBinding(
       inputSchema: writeContextValueInputSchema,
       outputSchema: writeContextValueOutputSchema,
     },
-    async ({ writeItemId, valueJson, appliedByTimelineItemId }) => {
+    async (input) => {
       try {
         const response = await executeMcpRequest(serviceLayer, {
           version: "v1",
           toolName: "write_context_value",
-          input: { stepExecutionId, writeItemId, valueJson, appliedByTimelineItemId },
+          input: { ...input, stepExecutionId } as never,
         });
-        return toToolResult(response.output);
+        return "output" in response ? toToolResult(response.output) : toToolError(response.error);
       } catch (error) {
         return toToolError(error);
       }

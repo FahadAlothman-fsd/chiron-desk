@@ -19,24 +19,23 @@ describe("server build config", () => {
   });
 
   it("ships the desktop db package tree alongside the bundle", () => {
-    const bundledServer = readFileSync(join(process.cwd(), "../server/dist/server.mjs"), "utf8");
-    const bundledDbPackage = readFileSync(
-      join(process.cwd(), "../server/dist/node_modules/@chiron/db/package.json"),
-      "utf8",
-    );
-    const bundledBetterAuthPackage = readFileSync(
-      join(process.cwd(), "../server/dist/node_modules/better-auth/package.json"),
-      "utf8",
-    );
-    const bundledBetterAuthCorePackage = readFileSync(
-      join(process.cwd(), "../server/dist/node_modules/@better-auth/core/package.json"),
+    const bundleScript = readFileSync(
+      join(process.cwd(), "../server/scripts/bundle-desktop-runtime.mjs"),
       "utf8",
     );
 
-    expect(bundledServer).toContain('from "@chiron/db"');
-    expect(bundledServer).toContain('from "better-auth"');
-    expect(bundledDbPackage).toContain('"name": "@chiron/db"');
-    expect(bundledBetterAuthPackage).toContain('"name": "better-auth"');
-    expect(bundledBetterAuthCorePackage).toContain('"name": "@better-auth/core"');
+    expect(bundleScript).toContain(
+      'copyFile(join(distDir, "index.mjs"), join(distDir, "server.mjs"))',
+    );
+    expect(bundleScript).toContain(
+      'const desktopDbPackageDir = join(distDir, "node_modules", "@chiron", "db")',
+    );
+    expect(bundleScript).toContain(
+      'await cp(join(workspaceRoot, "packages", "db"), desktopDbPackageDir',
+    );
+    expect(bundleScript).toContain(
+      "for (const dependencyName of Object.keys(serverPackage.dependencies ?? {}))",
+    );
+    expect(bundleScript).toContain("await copyPackageDependencies(desktopDbPackageDir)");
   });
 });
