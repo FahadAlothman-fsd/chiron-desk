@@ -10,7 +10,8 @@ import type {
   AgentStepTimelineItem,
 } from "@chiron/contracts/agent-step/runtime";
 import type { AgentStepSseEnvelope } from "@chiron/contracts/sse";
-import { Context, Effect, Layer, Queue, Runtime, Stream } from "effect";
+import { inspect } from "node:util";
+import { Context, Effect, Layer, Option, Queue, Runtime, Stream } from "effect";
 
 import {
   HarnessDiscoveryError,
@@ -828,12 +829,7 @@ function readToolText(value: unknown): string | undefined {
     return String(value);
   }
 
-  return Effect.runSync(
-    Effect.try({
-      try: () => JSON.stringify(value, null, 2),
-      catch: () => undefined,
-    }).pipe(Effect.catchAll(() => Effect.succeed(undefined))),
-  );
+  return inspect(value, { depth: 5, breakLength: 100, compact: false });
 }
 
 function addTimelineItem(record: SessionRecord, item: AgentStepTimelineItem): boolean {
@@ -1367,7 +1363,7 @@ export function makeOpencodeHarnessService(
             Effect.sync(() => {
               record.eventPumpActive = false;
               if (record.eventPumpAbortController === controller) {
-                record.eventPumpAbortController = undefined;
+                delete record.eventPumpAbortController;
               }
             }),
           ),
@@ -1431,7 +1427,6 @@ export function makeOpencodeHarnessService(
           const server = yield* serverManager.startManagedServer(
             config.stepExecutionId,
             config.projectRootPath,
-            config.serverBaseUrl,
           );
           const promptSelections = yield* resolvePromptSelections(
             server.client,
@@ -1589,9 +1584,9 @@ export function makeOpencodeHarnessService(
       Effect.gen(function* () {
         const mappedSessionId = sessionIdByStepExecutionId.get(config.stepExecutionId);
         if (mappedSessionId === config.resumeSessionId) {
-          const existing = yield* requireSession(mappedSessionId, "start_session").pipe(
-            Effect.catchTag("HarnessExecutionError", () => Effect.succeed(undefined)),
-          );
+          const existing = yield* Effect.option(
+            requireSession(mappedSessionId, "start_session"),
+          ).pipe(Effect.map(Option.getOrUndefined));
 
           if (existing) {
             return {
@@ -1636,6 +1631,7 @@ export function makeOpencodeHarnessService(
             {
               ...config,
               resumeSessionId: config.resumeSessionId,
+              noReply: true,
             },
             server,
             {

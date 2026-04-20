@@ -129,11 +129,17 @@ export const makeSandboxGitService = (options: SandboxGitServiceOptions = {}) =>
     SandboxGitService,
     Effect.sync(() => {
       const createClient = (rootPath?: string): SimpleGit => {
-        const config: SimpleGitOptions = {
+        const config = {
+          baseDir: rootPath ?? process.cwd(),
           maxConcurrentProcesses: options.maxConcurrentProcesses ?? 1,
-          ...(rootPath ? { baseDir: rootPath } : {}),
-          ...(options.binary ? { binary: options.binary } : {}),
-        };
+          config: [],
+          trimmed: false,
+          ...(typeof options.binary !== "undefined"
+            ? {
+                binary: options.binary as unknown as Exclude<SimpleGitOptions["binary"], undefined>,
+              }
+            : {}),
+        } as SimpleGitOptions;
 
         return simpleGit(config);
       };
@@ -270,27 +276,27 @@ export const makeSandboxGitService = (options: SandboxGitServiceOptions = {}) =>
       }) =>
         Effect.succeed(
           current.status === "missing" || (current.status === "not_committed" && current.deleted)
-            ? {
+            ? ({
                 status: "deleted",
                 relativePath: recorded.relativePath,
                 gitCommitHash: recorded.gitCommitHash ?? null,
                 gitBlobHash: recorded.gitBlobHash ?? null,
                 gitCommitSubject: recorded.gitCommitSubject ?? null,
                 gitCommitBody: recorded.gitCommitBody ?? null,
-              }
+              } satisfies SandboxGitArtifactComparison)
             : current.status === "committed" &&
                 current.relativePath === recorded.relativePath &&
                 current.gitCommitHash === (recorded.gitCommitHash ?? null) &&
                 current.gitBlobHash === recorded.gitBlobHash
-              ? {
+              ? ({
                   status: "unchanged",
                   relativePath: current.relativePath,
                   gitCommitHash: current.gitCommitHash,
                   gitBlobHash: current.gitBlobHash,
                   gitCommitSubject: current.gitCommitSubject,
                   gitCommitBody: current.gitCommitBody,
-                }
-              : {
+                } satisfies SandboxGitArtifactComparison)
+              : ({
                   status: "changed",
                   relativePath:
                     current.status === "committed" ? current.relativePath : recorded.relativePath,
@@ -310,13 +316,12 @@ export const makeSandboxGitService = (options: SandboxGitServiceOptions = {}) =>
                     current.status === "committed"
                       ? current.gitCommitBody
                       : (recorded.gitCommitBody ?? null),
-                },
+                } satisfies SandboxGitArtifactComparison),
         );
 
       const getVersion = () =>
-        Effect.tryPromise({
-          try: async () => {
-            const version = await createClient().version();
+        Effect.promise(() => createClient().version()).pipe(
+          Effect.map((version) => {
             const normalized = version.toString();
             return version.installed
               ? ({ status: "available", version: normalized } as const)
@@ -324,37 +329,37 @@ export const makeSandboxGitService = (options: SandboxGitServiceOptions = {}) =>
                   status: "git_not_installed",
                   message: "Git is not installed or is not available on PATH.",
                 } as const);
-          },
-          catch: () =>
-            ({
+          }),
+          Effect.catchAllCause(() =>
+            Effect.succeed({
               status: "git_not_installed",
               message: "Git is not installed or is not available on PATH.",
-            }) as const,
-        });
+            } as const),
+          ),
+        );
 
       const ensureRepo = (rootPath: string) =>
-        Effect.tryPromise({
-          try: async () => {
-            const client = createClient(rootPath);
-            const isRepo = await client.checkIsRepo(CheckRepoActions.IN_TREE);
-            return isRepo
+        Effect.promise(() => createClient(rootPath).checkIsRepo(CheckRepoActions.IN_TREE)).pipe(
+          Effect.map((isRepo) =>
+            isRepo
               ? ({ status: "available", version: "" } as const)
               : ({
                   status: "not_a_repo",
                   message: "Project root directory is not a git repository.",
-                } as const);
-          },
-          catch: (cause) => {
-            if (isNotRepoError(cause)) {
-              return {
-                status: "not_a_repo",
-                message: "Project root directory is not a git repository.",
-              } as const;
-            }
-
-            throw cause;
-          },
-        });
+                } as const),
+          ),
+          Effect.catchAllCause((cause) =>
+            isNotRepoError(cause)
+              ? Effect.succeed({
+                  status: "not_a_repo",
+                  message: "Project root directory is not a git repository.",
+                } as const)
+              : Effect.succeed({
+                  status: "not_a_repo",
+                  message: "Project root directory is not a git repository.",
+                } as const),
+          ),
+        );
 
       return SandboxGitService.of({
         getAvailability,
@@ -418,13 +423,15 @@ function gitTryPromise<A>(
   rootPath: string,
   command: string,
 ): Effect.Effect<A, never> {
-  return Effect.tryPromise({
-    try: operation,
-    catch: (cause) =>
-      new Error(`Git command failed for ${rootPath}: ${command}`, {
-        cause,
-      }),
-  }).pipe(Effect.orDie);
+  return Effect.promise(operation).pipe(
+    Effect.catchAllCause((cause) =>
+      Effect.die(
+        new Error(`Git command failed for ${rootPath}: ${command}`, {
+          cause,
+        }),
+      ),
+    ),
+  );
 }
 
 function parseBlobHash(stdout: string): string | null {

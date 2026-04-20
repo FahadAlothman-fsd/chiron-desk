@@ -258,6 +258,7 @@ export function makeFakeHarnessService(options: FakeHarnessOptions = {}) {
                 createdAt: now(),
                 role: "assistant",
                 content: responseResolver({
+                  session,
                   turn: 1,
                   message: bootstrapItem.content,
                 }),
@@ -367,7 +368,7 @@ export function makeFakeHarnessService(options: FakeHarnessOptions = {}) {
           toolName: "send_message",
           status: "started",
           summary: "Fake harness started processing the turn.",
-          input: JSON.stringify({ message }),
+          input: message,
         };
         const assistantMessage: HarnessTimelinePage["items"][number] = {
           itemType: "message",
@@ -388,10 +389,7 @@ export function makeFakeHarnessService(options: FakeHarnessOptions = {}) {
           toolName: "send_message",
           status: "completed",
           summary: "Fake harness completed the turn.",
-          output: JSON.stringify({
-            turn: record.turnCount,
-            reply: assistantMessage.content,
-          }),
+          output: assistantMessage.content,
         };
 
         yield* setSessionState(record, "active_streaming");
