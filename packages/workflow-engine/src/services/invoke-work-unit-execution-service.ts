@@ -14,6 +14,7 @@ import {
   StepExecutionRepository,
   type RuntimeWorkflowExecutionContextFactRow,
 } from "../repositories/step-execution-repository";
+import { unwrapRuntimeBoundFactEnvelope } from "./runtime-bound-fact-value";
 import { WorkflowContextExternalPrefillService } from "./workflow-context-external-prefill-service";
 
 const makeCommandError = (cause: string): RepositoryError =>
@@ -24,6 +25,270 @@ const makeCommandError = (cause: string): RepositoryError =>
 
 const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+
+const asNonEmptyString = (value: unknown): string | null =>
+  typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+
+const normalizeToItems = (value: unknown): readonly unknown[] => {
+  if (value === null || value === undefined) {
+    return [];
+  }
+
+  return Array.isArray(value) ? value : [value];
+};
+
+const stableStringify = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  }
+
+  if (isPlainRecord(value)) {
+    const keys = Object.keys(value).sort();
+    return `{${keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(",")}}`;
+  }
+
+  return JSON.stringify(value) ?? "null";
+};
+
+const dedupeByCanonicalKey = <T extends { canonicalKey: string }>(
+  items: readonly T[],
+): readonly T[] => {
+  const seen = new Set<string>();
+  const deduped: T[] = [];
+
+  for (const item of items) {
+    if (seen.has(item.canonicalKey)) {
+      continue;
+    }
+
+    seen.add(item.canonicalKey);
+    deduped.push(item);
+  }
+
+  return deduped;
+};
+
+const uniqueTransitionDefinitions = <T extends { transitionId: string }>(
+  transitions: readonly T[],
+): readonly T[] => {
+  const seen = new Set<string>();
+  const deduped: T[] = [];
+
+  for (const transition of transitions) {
+    if (seen.has(transition.transitionId)) {
+      continue;
+    }
+
+    seen.add(transition.transitionId);
+    deduped.push(transition);
+  }
+
+  return deduped;
+};
+
+export interface FrozenInvokeDraftFactValue {
+  readonly workUnitFactDefinitionId: string;
+  readonly value: unknown;
+}
+
+export interface FrozenInvokeDraftArtifactFile {
+  readonly relativePath?: string;
+  readonly sourceContextFactDefinitionId?: string;
+  readonly clear: boolean;
+}
+
+export interface FrozenInvokeDraftArtifactSlot {
+  readonly artifactSlotDefinitionId: string;
+  readonly files: readonly FrozenInvokeDraftArtifactFile[];
+}
+
+export interface FrozenInvokeDraftTemplate {
+  readonly draftKey: string;
+  readonly workUnitDefinitionId: string;
+  readonly factValues: readonly FrozenInvokeDraftFactValue[];
+  readonly artifactSlots: readonly FrozenInvokeDraftArtifactSlot[];
+}
+
+type ResolvedSourceDraftTemplate = FrozenInvokeDraftTemplate & { readonly canonicalKey: string };
+
+const normalizeDraftFactValues = (value: unknown): readonly FrozenInvokeDraftFactValue[] => {
+  const entries = isPlainRecord(value)
+    ? Array.isArray(value.factValues)
+      ? value.factValues
+      : Array.isArray(value.facts)
+        ? value.facts
+        : []
+    : [];
+
+  return entries.flatMap((entry) => {
+    if (!isPlainRecord(entry)) {
+      return [];
+    }
+
+    const workUnitFactDefinitionId =
+      asNonEmptyString(entry.workUnitFactDefinitionId) ?? asNonEmptyString(entry.factDefinitionId);
+    if (!workUnitFactDefinitionId) {
+      return [];
+    }
+
+    return [{ workUnitFactDefinitionId, value: "value" in entry ? entry.value : entry.valueJson }];
+  });
+};
+
+const normalizeDraftArtifactSlots = (value: unknown): readonly FrozenInvokeDraftArtifactSlot[] => {
+  if (!isPlainRecord(value)) {
+    return [];
+  }
+
+  const groupedSlots = Array.isArray(value.artifactSlots)
+    ? value.artifactSlots.flatMap((entry) => {
+        if (!isPlainRecord(entry)) {
+          return [];
+        }
+
+        const artifactSlotDefinitionId =
+          asNonEmptyString(entry.artifactSlotDefinitionId) ??
+          asNonEmptyString(entry.slotDefinitionId);
+        if (!artifactSlotDefinitionId) {
+          return [];
+        }
+
+        const files = Array.isArray(entry.files)
+          ? entry.files.flatMap((file) =>
+              isPlainRecord(file)
+                ? [
+                    {
+                      ...(typeof file.relativePath === "string"
+                        ? { relativePath: file.relativePath }
+                        : {}),
+                      ...(typeof file.sourceContextFactDefinitionId === "string"
+                        ? { sourceContextFactDefinitionId: file.sourceContextFactDefinitionId }
+                        : {}),
+                      clear: file.clear === true,
+                    } satisfies FrozenInvokeDraftArtifactFile,
+                  ]
+                : [],
+            )
+          : [];
+
+        return [{ artifactSlotDefinitionId, files } satisfies FrozenInvokeDraftArtifactSlot];
+      })
+    : [];
+
+  if (groupedSlots.length > 0) {
+    return groupedSlots;
+  }
+
+  const flatEntries = Array.isArray(value.artifactValues)
+    ? value.artifactValues
+    : Array.isArray(value.artifacts)
+      ? value.artifacts
+      : [];
+  const slots = new Map<string, FrozenInvokeDraftArtifactFile[]>();
+  for (const entry of flatEntries) {
+    if (!isPlainRecord(entry)) {
+      continue;
+    }
+
+    const artifactSlotDefinitionId =
+      asNonEmptyString(entry.artifactSlotDefinitionId) ?? asNonEmptyString(entry.slotDefinitionId);
+    if (!artifactSlotDefinitionId) {
+      continue;
+    }
+
+    const files = slots.get(artifactSlotDefinitionId) ?? [];
+    files.push({
+      ...(typeof entry.relativePath === "string" ? { relativePath: entry.relativePath } : {}),
+      ...(typeof entry.sourceContextFactDefinitionId === "string"
+        ? { sourceContextFactDefinitionId: entry.sourceContextFactDefinitionId }
+        : {}),
+      clear: entry.clear === true,
+    });
+    slots.set(artifactSlotDefinitionId, files);
+  }
+
+  return [...slots.entries()].map(
+    ([artifactSlotDefinitionId, files]) =>
+      ({
+        artifactSlotDefinitionId,
+        files,
+      }) satisfies FrozenInvokeDraftArtifactSlot,
+  );
+};
+
+const normalizeSourceDraftTemplate = (
+  value: unknown,
+  defaultWorkUnitDefinitionId: string,
+): ResolvedSourceDraftTemplate | null => {
+  if (!isPlainRecord(value)) {
+    return null;
+  }
+
+  const workUnitDefinitionId =
+    asNonEmptyString(value.workUnitDefinitionId) ??
+    asNonEmptyString(value.workUnitTypeId) ??
+    defaultWorkUnitDefinitionId;
+  if (workUnitDefinitionId !== defaultWorkUnitDefinitionId) {
+    return null;
+  }
+
+  const draftKey =
+    asNonEmptyString(value.draftKey) ??
+    asNonEmptyString(value.canonicalKey) ??
+    stableStringify(value);
+
+  return {
+    draftKey,
+    canonicalKey: draftKey,
+    workUnitDefinitionId,
+    factValues: normalizeDraftFactValues(value),
+    artifactSlots: normalizeDraftArtifactSlots(value),
+  };
+};
+
+const isContextBackedSourceMode = (sourceMode: string): boolean =>
+  sourceMode === "fact_backed" || sourceMode === "context_fact_backed";
+
+const toTemplateValueFromInitialFactDefinition = (definition: {
+  factDefinitionId: string;
+  initialValueJson?: unknown;
+  initialReferencedProjectWorkUnitId?: string | null;
+}): FrozenInvokeDraftFactValue => ({
+  workUnitFactDefinitionId: definition.factDefinitionId,
+  value:
+    definition.initialReferencedProjectWorkUnitId === undefined ||
+    definition.initialReferencedProjectWorkUnitId === null
+      ? (definition.initialValueJson ?? null)
+      : { projectWorkUnitId: definition.initialReferencedProjectWorkUnitId },
+});
+
+const buildFrozenDraftTemplate = (params: {
+  draftKey: string;
+  workUnitDefinitionId: string;
+  initialFactDefinitions: ReadonlyArray<{
+    factDefinitionId: string;
+    initialValueJson?: unknown;
+    initialReferencedProjectWorkUnitId?: string | null;
+  }>;
+  initialArtifactSlotDefinitions: ReadonlyArray<{
+    artifactSlotDefinitionId: string;
+    files?: ReadonlyArray<{
+      filePath: string;
+      memberStatus: "present";
+    }>;
+  }>;
+}): FrozenInvokeDraftTemplate => ({
+  draftKey: params.draftKey,
+  workUnitDefinitionId: params.workUnitDefinitionId,
+  factValues: params.initialFactDefinitions.map(toTemplateValueFromInitialFactDefinition),
+  artifactSlots: params.initialArtifactSlotDefinitions.map((slot) => ({
+    artifactSlotDefinitionId: slot.artifactSlotDefinitionId,
+    files: (slot.files ?? []).map((file) => ({
+      relativePath: file.filePath,
+      clear: false,
+    })),
+  })),
+});
 
 const hasRelativePath = (
   value: unknown,
@@ -297,6 +562,44 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
           );
         }
 
+        const uniqueActivationTransitions = uniqueTransitionDefinitions(
+          invokeDefinition.payload.activationTransitions,
+        );
+
+        const resolveSourceDraftTemplate = (contextFactDefinitionId: string) => {
+          const contextFact = contextFactsByDefinitionId.get(contextFactDefinitionId);
+          if (!contextFact || contextFact.kind !== "work_unit_draft_spec_fact") {
+            return undefined;
+          }
+
+          const sourceDraftTemplates = dedupeByCanonicalKey(
+            (workflowContextFactInstancesByDefinitionId.get(contextFactDefinitionId) ?? [])
+              .flatMap((fact) => normalizeToItems(fact.valueJson))
+              .flatMap((value) => {
+                const normalized = normalizeSourceDraftTemplate(
+                  value,
+                  invokeWorkUnitTarget.workUnitDefinitionId,
+                );
+                return normalized ? [normalized] : [];
+              }),
+          );
+
+          if (sourceDraftTemplates.length === 0) {
+            return undefined;
+          }
+
+          if (
+            uniqueActivationTransitions.length > 0 &&
+            typeof invokeWorkUnitTarget.resolutionOrder === "number"
+          ) {
+            return sourceDraftTemplates[
+              Math.floor(invokeWorkUnitTarget.resolutionOrder / uniqueActivationTransitions.length)
+            ];
+          }
+
+          return sourceDraftTemplates[0];
+        };
+
         const invokeBindings = invokeDefinition.payload.bindings;
         const workUnitFactDestinationIds = new Set(
           invokeBindings.flatMap((binding) =>
@@ -384,8 +687,8 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
             }
 
             if (
-              sourceContextFact.kind === "artifact_reference_fact" &&
-              sourceContextFact.artifactSlotDefinitionId === destinationArtifactSlotDefinitionId
+              sourceContextFact.kind === "artifact_slot_reference_fact" &&
+              sourceContextFact.slotDefinitionId === destinationArtifactSlotDefinitionId
             ) {
               const sourceValue = sourceInstances[0]?.valueJson;
               if (!hasRelativePath(sourceValue)) {
@@ -417,6 +720,27 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
             }
 
             if (sourceContextFact.kind === "work_unit_draft_spec_fact") {
+              const sourceDraftTemplate = resolveSourceDraftTemplate(
+                binding.source.contextFactDefinitionId,
+              );
+              const artifactSlot = sourceDraftTemplate?.artifactSlots.find(
+                (slot) => slot.artifactSlotDefinitionId === destinationArtifactSlotDefinitionId,
+              );
+              const firstPresentFile = artifactSlot?.files.find(
+                (file) => file.clear !== true && typeof file.relativePath === "string",
+              );
+              if (!firstPresentFile?.relativePath) {
+                continue;
+              }
+
+              resolvedArtifactValuesByDefinitionId.set(destinationArtifactSlotDefinitionId, {
+                relativePath: firstPresentFile.relativePath,
+                ...(typeof firstPresentFile.sourceContextFactDefinitionId === "string"
+                  ? {
+                      sourceContextFactDefinitionId: firstPresentFile.sourceContextFactDefinitionId,
+                    }
+                  : {}),
+              });
               continue;
             }
 
@@ -457,6 +781,22 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
             );
           }
 
+          if (sourceContextFact.kind === "work_unit_draft_spec_fact") {
+            const sourceDraftTemplate = resolveSourceDraftTemplate(
+              binding.source.contextFactDefinitionId,
+            );
+            const factValue = sourceDraftTemplate?.factValues.find(
+              (entry) => entry.workUnitFactDefinitionId === destinationFactDefinitionId,
+            );
+            if (factValue) {
+              resolvedWorkUnitFactValuesByDefinitionId.set(
+                destinationFactDefinitionId,
+                factValue.value,
+              );
+            }
+            continue;
+          }
+
           const sourceInstances =
             workflowContextFactInstancesByDefinitionId.get(
               binding.source.contextFactDefinitionId,
@@ -469,8 +809,14 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
 
           const resolvedValue =
             sourceContextFact.cardinality === "many"
-              ? sourceInstances.map((instance) => instance.valueJson)
-              : sourceInstances[0]?.valueJson;
+              ? sourceInstances.map((instance) =>
+                  sourceContextFact.kind === "bound_fact"
+                    ? unwrapRuntimeBoundFactEnvelope(instance.valueJson)
+                    : instance.valueJson,
+                )
+              : sourceContextFact.kind === "bound_fact"
+                ? unwrapRuntimeBoundFactEnvelope(sourceInstances[0]?.valueJson)
+                : sourceInstances[0]?.valueJson;
           resolvedWorkUnitFactValuesByDefinitionId.set(destinationFactDefinitionId, resolvedValue);
         }
 
@@ -503,6 +849,12 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
           }
         }
 
+        const frozenSourceDraft =
+          isContextBackedSourceMode(invokeDefinition.payload.sourceMode) &&
+          "contextFactDefinitionId" in invokeDefinition.payload
+            ? resolveSourceDraftTemplate(invokeDefinition.payload.contextFactDefinitionId)
+            : undefined;
+
         const initialFactDefinitions: Array<{
           factDefinitionId: string;
           initialValueJson?: unknown;
@@ -528,20 +880,33 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
             continue;
           }
 
-          if (factSchema.defaultValueJson === null || factSchema.defaultValueJson === undefined) {
-            continue;
-          }
-
-          const defaultFactDefinition = toInitialFactDefinition({
-            factDefinitionId: factSchema.id,
-            factType: factSchema.factType,
-            value: factSchema.defaultValueJson,
-          });
-
-          if (defaultFactDefinition) {
-            initialFactDefinitions.push(defaultFactDefinition);
-          }
+          continue;
         }
+
+        const initialArtifactSlotDefinitions = artifactSlots.flatMap((slot) =>
+          resolvedArtifactValuesByDefinitionId.has(slot.id)
+            ? [
+                {
+                  artifactSlotDefinitionId: slot.id,
+                  files: [
+                    {
+                      filePath: resolvedArtifactValuesByDefinitionId.get(slot.id)!.relativePath,
+                      memberStatus: "present" as const,
+                    },
+                  ],
+                },
+              ]
+            : [],
+        );
+
+        const frozenDraftTemplateJson = buildFrozenDraftTemplate({
+          draftKey:
+            frozenSourceDraft?.draftKey ??
+            `${invokeWorkUnitTarget.workUnitDefinitionId}:${invokeWorkUnitTarget.transitionDefinitionId}:${invokeWorkUnitTarget.resolutionOrder ?? 0}`,
+          workUnitDefinitionId: invokeWorkUnitTarget.workUnitDefinitionId,
+          initialFactDefinitions,
+          initialArtifactSlotDefinitions,
+        });
 
         const started = yield* invokeRepo.startInvokeWorkUnitTargetAtomically({
           projectId: input.projectId,
@@ -549,22 +914,9 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
           workUnitDefinitionId: invokeWorkUnitTarget.workUnitDefinitionId,
           transitionDefinitionId: invokeWorkUnitTarget.transitionDefinitionId,
           workflowDefinitionId: input.workflowDefinitionId,
+          frozenDraftTemplateJson,
           initialFactDefinitions,
-          initialArtifactSlotDefinitions: artifactSlots.flatMap((slot) =>
-            resolvedArtifactValuesByDefinitionId.has(slot.id)
-              ? [
-                  {
-                    artifactSlotDefinitionId: slot.id,
-                    files: [
-                      {
-                        filePath: resolvedArtifactValuesByDefinitionId.get(slot.id)!.relativePath,
-                        memberStatus: "present" as const,
-                      },
-                    ],
-                  },
-                ]
-              : [],
-          ),
+          initialArtifactSlotDefinitions,
         });
 
         yield* Effect.logInfo("invoke work-unit target atomic start completed").pipe(

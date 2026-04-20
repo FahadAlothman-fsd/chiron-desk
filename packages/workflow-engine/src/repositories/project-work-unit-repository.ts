@@ -5,6 +5,9 @@ export interface ProjectWorkUnitRow {
   id: string;
   projectId: string;
   workUnitTypeId: string;
+  workUnitKey?: string;
+  instanceNumber?: number;
+  displayName?: string | null;
   currentStateId: string | null;
   activeTransitionExecutionId: string | null;
   createdAt: Date;
@@ -14,6 +17,7 @@ export interface ProjectWorkUnitRow {
 export interface CreateProjectWorkUnitParams {
   projectId: string;
   workUnitTypeId: string;
+  displayName?: string | null;
   currentStateId: string | null;
 }
 

@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import { RepositoryError } from "../../errors";
 import { AgentStepExecutionAppliedWriteRepository } from "../../repositories/agent-step-execution-applied-write-repository";
+import { BranchStepRuntimeRepository } from "../../repositories/branch-step-runtime-repository";
 import {
   ExecutionReadRepository,
   type WorkflowExecutionDetailReadModel,
@@ -43,6 +44,7 @@ import {
 } from "../../repositories/workflow-execution-repository";
 import { InvokeCompletionServiceLive } from "../../services/invoke-completion-service";
 import { InvokePropagationServiceLive } from "../../services/invoke-propagation-service";
+import { ActionStepRuntimeService } from "../../services/action-step-runtime-service";
 import { InvokeWorkUnitExecutionService } from "../../services/invoke-work-unit-execution-service";
 import { InvokeWorkflowExecutionServiceLive } from "../../services/invoke-workflow-execution-service";
 import { InvokeWorkflowExecutionService } from "../../services/invoke-workflow-execution-service";
@@ -327,8 +329,13 @@ function buildWorkUnitCompletionRuntime(options?: { zeroTargets?: boolean }) {
 
   const stepProgressionLayer = Layer.succeed(StepProgressionService, {
     resolveEntryStepDefinition: () => Effect.die("unused"),
-    getNextStepDefinition: () => Effect.die("unused"),
+    getNextStepDefinition: () => Effect.succeed({ state: "no_next_step" as const }),
   } as unknown as Context.Tag.Service<typeof StepProgressionService>);
+  const branchRuntimeRepoLayer = Layer.succeed(BranchStepRuntimeRepository, {
+    createOnActivation: () => Effect.die("unused"),
+    saveSelection: () => Effect.die("unused"),
+    loadWithRoutes: () => Effect.succeed(null),
+  } as unknown as Context.Tag.Service<typeof BranchStepRuntimeRepository>);
 
   const appliedWriteRepoLayer = Layer.succeed(AgentStepExecutionAppliedWriteRepository, {
     createAppliedWrite: () => Effect.die("unused"),
@@ -387,7 +394,7 @@ function buildWorkUnitCompletionRuntime(options?: { zeroTargets?: boolean }) {
             payload: {
               key: "invoke-story-work",
               targetKind: "work_unit",
-              sourceMode: "fixed_set",
+              sourceMode: "fixed",
               workUnitDefinitionId: "wu-story",
               bindings: [],
               activationTransitions: [
@@ -418,7 +425,7 @@ function buildWorkUnitCompletionRuntime(options?: { zeroTargets?: boolean }) {
         payload: {
           key: "invoke-story-work",
           targetKind: "work_unit",
-          sourceMode: "fixed_set",
+          sourceMode: "fixed",
           workUnitDefinitionId: "wu-story",
           bindings: [],
           activationTransitions: [
@@ -542,9 +549,18 @@ function buildWorkUnitCompletionRuntime(options?: { zeroTargets?: boolean }) {
       ),
   } as unknown as Context.Tag.Service<typeof TransitionExecutionRepository>);
 
+  const actionRuntimeLayer = Layer.succeed(ActionStepRuntimeService, {
+    startExecution: () => Effect.die("unused"),
+    runActions: () => Effect.die("unused"),
+    retryActions: () => Effect.die("unused"),
+    completeStep: () => Effect.die("unused"),
+    getCompletionEligibility: () => Effect.die("unused"),
+  } as unknown as Context.Tag.Service<typeof ActionStepRuntimeService>);
+
   const baseLayer = Layer.mergeAll(
     projectContextLayer,
     stepProgressionLayer,
+    branchRuntimeRepoLayer,
     appliedWriteRepoLayer,
     lifecycleLayer,
     methodologyLayer,
@@ -553,6 +569,7 @@ function buildWorkUnitCompletionRuntime(options?: { zeroTargets?: boolean }) {
     invokeRepoLayer,
     workflowRepoLayer,
     transitionRepoLayer,
+    actionRuntimeLayer,
   );
   const contextLayer = StepContextMutationServiceLive.pipe(Layer.provideMerge(baseLayer));
   const completionLayer = InvokeCompletionServiceLive.pipe(Layer.provideMerge(baseLayer));
@@ -720,9 +737,15 @@ describe("runtime invoke integration", () => {
     expect(runtime.state.completeCalls).toEqual(["step-exec-1"]);
     expect(runtime.state.contextFacts.map((fact) => fact.valueJson)).toEqual([
       {
-        projectWorkUnitId: "project-work-unit-1",
-        workUnitFactInstanceIds: ["fact-instance-1-title"],
-        artifactSnapshotIds: ["artifact-snapshot-1-brief"],
+        workUnitDefinitionId: "wu-story",
+        draftKey: "wu-story:transition-ready:0",
+        factValues: [{ workUnitFactDefinitionId: "fact-title", value: "fact-instance-1-title" }],
+        artifactSlots: [
+          {
+            artifactSlotDefinitionId: "artifact-brief",
+            files: [{ relativePath: "artifact-snapshot-1-brief", clear: false }],
+          },
+        ],
       },
     ]);
   });

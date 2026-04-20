@@ -34,6 +34,39 @@ export interface RuntimeWorkUnitStateMachineOptions {
   readonly possibleTransitions?: readonly RuntimeStateMachineTransitionCandidate[];
 }
 
+export interface RuntimeWorkUnitDisclosure {
+  readonly facts?: boolean;
+  readonly artifacts?: boolean;
+}
+
+export interface RuntimeWorkUnitReferenceInput {
+  readonly projectId: string;
+  readonly projectWorkUnitId: string;
+  readonly workUnitFactInstanceIds?: readonly string[];
+  readonly artifactSnapshotIds?: readonly string[];
+  readonly disclosure?: RuntimeWorkUnitDisclosure;
+}
+
+export interface RuntimeWorkUnitReference {
+  readonly projectWorkUnitId: string;
+  readonly workUnitKey: string;
+  readonly instanceNumber: number;
+  readonly displayName: string | null;
+  readonly workUnitTypeId: string;
+  readonly workUnitTypeKey: string;
+  readonly workUnitTypeName: string;
+  readonly cardinality: "one_per_project" | "many_per_project";
+  readonly currentStateId: string;
+  readonly currentStateKey: string;
+  readonly currentStateLabel: string;
+  readonly facts?: {
+    readonly workUnitFactInstanceIds: readonly string[];
+  };
+  readonly artifacts?: {
+    readonly artifactSnapshotIds: readonly string[];
+  };
+}
+
 export class RuntimeWorkUnitService extends Context.Tag("RuntimeWorkUnitService")<
   RuntimeWorkUnitService,
   {
@@ -47,6 +80,9 @@ export class RuntimeWorkUnitService extends Context.Tag("RuntimeWorkUnitService"
       input: GetWorkUnitStateMachineInput,
       options?: RuntimeWorkUnitStateMachineOptions,
     ) => Effect.Effect<GetWorkUnitStateMachineOutput, RepositoryError>;
+    readonly readWorkUnitReference: (
+      input: RuntimeWorkUnitReferenceInput,
+    ) => Effect.Effect<RuntimeWorkUnitReference | null, RepositoryError>;
   }
 >() {}
 
@@ -170,6 +206,9 @@ const toWorkUnitIdentity = (
   workUnit: {
     readonly id: string;
     readonly workUnitTypeId: string;
+    readonly workUnitKey?: string;
+    readonly instanceNumber?: number;
+    readonly displayName?: string | null;
     readonly currentStateId: string | null;
     readonly createdAt: Date;
     readonly updatedAt: Date;
@@ -181,6 +220,12 @@ const toWorkUnitIdentity = (
 
   return {
     projectWorkUnitId: workUnit.id,
+    workUnitKey:
+      workUnit.workUnitKey ??
+      `${workUnitType.workUnitTypeKey}-${Math.max(workUnit.instanceNumber ?? 0, 0)}`,
+    instanceNumber: Math.max(workUnit.instanceNumber ?? 0, 0),
+    displayName:
+      workUnitType.cardinality === "many_per_project" ? (workUnit.displayName ?? null) : null,
     workUnitTypeId: workUnitType.workUnitTypeId,
     workUnitTypeKey: workUnitType.workUnitTypeKey,
     workUnitTypeName: workUnitType.workUnitTypeName,
@@ -190,6 +235,52 @@ const toWorkUnitIdentity = (
     currentStateLabel: currentState.stateLabel,
     createdAt: workUnit.createdAt.toISOString(),
     updatedAt: workUnit.updatedAt.toISOString(),
+  };
+};
+
+const resolveDisplayIdentity = (identity: ReturnType<typeof toWorkUnitIdentity>) => ({
+  primaryLabel: identity.displayName ?? identity.workUnitTypeName,
+  secondaryLabel: identity.displayName
+    ? `${identity.workUnitTypeName} · ${identity.currentStateLabel}`
+    : identity.currentStateLabel,
+  fullInstanceId: identity.workUnitKey,
+});
+
+const toRuntimeWorkUnitReference = (args: {
+  readonly workUnit: Parameters<typeof toWorkUnitIdentity>[0];
+  readonly lookups: LifecycleLookups | null;
+  readonly disclosure?: RuntimeWorkUnitDisclosure;
+  readonly workUnitFactInstanceIds?: readonly string[];
+  readonly artifactSnapshotIds?: readonly string[];
+}): RuntimeWorkUnitReference => {
+  const identity = toWorkUnitIdentity(args.workUnit, args.lookups);
+
+  return {
+    projectWorkUnitId: identity.projectWorkUnitId,
+    workUnitKey: identity.workUnitKey,
+    instanceNumber: identity.instanceNumber,
+    displayName: identity.displayName,
+    workUnitTypeId: identity.workUnitTypeId,
+    workUnitTypeKey: identity.workUnitTypeKey,
+    workUnitTypeName: identity.workUnitTypeName,
+    cardinality: identity.cardinality,
+    currentStateId: identity.currentStateId,
+    currentStateKey: identity.currentStateKey,
+    currentStateLabel: identity.currentStateLabel,
+    ...(args.disclosure?.facts
+      ? {
+          facts: {
+            workUnitFactInstanceIds: [...(args.workUnitFactInstanceIds ?? [])],
+          },
+        }
+      : {}),
+    ...(args.disclosure?.artifacts
+      ? {
+          artifacts: {
+            artifactSnapshotIds: [...(args.artifactSnapshotIds ?? [])],
+          },
+        }
+      : {}),
   };
 };
 
@@ -365,10 +456,11 @@ export const RuntimeWorkUnitServiceLive = Layer.effect(
 
               return {
                 projectWorkUnitId: workUnit.id,
-                displayIdentity: {
-                  primaryLabel: identity.workUnitTypeName,
-                  secondaryLabel: identity.currentStateLabel,
-                  fullInstanceId: workUnit.id,
+                displayIdentity: resolveDisplayIdentity(identity),
+                runtimeIdentity: {
+                  workUnitKey: identity.workUnitKey,
+                  instanceNumber: identity.instanceNumber,
+                  displayName: identity.displayName,
                 },
                 workUnitType: {
                   workUnitTypeId: identity.workUnitTypeId,
@@ -572,6 +664,35 @@ export const RuntimeWorkUnitServiceLive = Layer.effect(
         };
       });
 
+    const readWorkUnitReference = ({
+      projectId,
+      projectWorkUnitId,
+      workUnitFactInstanceIds,
+      artifactSnapshotIds,
+      disclosure,
+    }: RuntimeWorkUnitReferenceInput): Effect.Effect<
+      RuntimeWorkUnitReference | null,
+      RepositoryError
+    > =>
+      Effect.gen(function* () {
+        const [lookups, workUnit] = yield* Effect.all([
+          getLifecycleLookups(projectId),
+          projectWorkUnitRepository.getProjectWorkUnitById(projectWorkUnitId),
+        ]);
+
+        if (!workUnit || workUnit.projectId !== projectId) {
+          return null;
+        }
+
+        return toRuntimeWorkUnitReference({
+          workUnit,
+          lookups,
+          ...(disclosure ? { disclosure } : {}),
+          ...(workUnitFactInstanceIds ? { workUnitFactInstanceIds } : {}),
+          ...(artifactSnapshotIds ? { artifactSnapshotIds } : {}),
+        });
+      });
+
     const getWorkUnitStateMachine = (
       input: GetWorkUnitStateMachineInput,
       options?: RuntimeWorkUnitStateMachineOptions,
@@ -657,6 +778,7 @@ export const RuntimeWorkUnitServiceLive = Layer.effect(
       getWorkUnits,
       getWorkUnitOverview,
       getWorkUnitStateMachine,
+      readWorkUnitReference,
     });
   }),
 );

@@ -140,7 +140,7 @@ type WorkUnitRuntimeState = {
 const workflowInvokeContextFacts: readonly WorkflowContextFactDto[] = [
   {
     contextFactDefinitionId: "ctx-selected-workflows",
-    kind: "workflow_reference_fact",
+    kind: "workflow_ref_fact",
     key: "selectedWorkflows",
     label: "Selected Workflows",
     cardinality: "many",
@@ -148,7 +148,7 @@ const workflowInvokeContextFacts: readonly WorkflowContextFactDto[] = [
   },
   {
     contextFactDefinitionId: "ctx-all-workflows",
-    kind: "workflow_reference_fact",
+    kind: "workflow_ref_fact",
     key: "allWorkflows",
     label: "All Workflows",
     cardinality: "many",
@@ -334,7 +334,7 @@ function buildWorkflowInvokeCompletionRuntime() {
             payload: {
               key: "invoke-children",
               targetKind: "workflow",
-              sourceMode: "fixed_set",
+              sourceMode: "fixed",
               workflowDefinitionIds: ["workflow-child-1", "workflow-child-2"],
             },
           },
@@ -350,7 +350,7 @@ function buildWorkflowInvokeCompletionRuntime() {
         payload: {
           key: "invoke-children",
           targetKind: "workflow",
-          sourceMode: "fixed_set",
+          sourceMode: "fixed",
           workflowDefinitionIds: ["workflow-child-1", "workflow-child-2"],
         },
       }),
@@ -662,7 +662,7 @@ function buildWorkUnitInvokeCompletionRuntime() {
             payload: {
               key: "invoke-story-work",
               targetKind: "work_unit",
-              sourceMode: "fixed_set",
+              sourceMode: "fixed",
               workUnitDefinitionId: "wu-story",
               bindings: [],
               activationTransitions: [
@@ -682,7 +682,7 @@ function buildWorkUnitInvokeCompletionRuntime() {
         payload: {
           key: "invoke-story-work",
           targetKind: "work_unit",
-          sourceMode: "fixed_set",
+          sourceMode: "fixed",
           workUnitDefinitionId: "wu-story",
           bindings: [],
           activationTransitions: [
@@ -976,14 +976,26 @@ describe("invoke completion runtime flow", () => {
         .map((fact) => fact.valueJson),
     ).toEqual([
       {
-        projectWorkUnitId: "project-work-unit-1",
-        workUnitFactInstanceIds: ["fact-instance-1-title"],
-        artifactSnapshotIds: ["artifact-snapshot-1-brief"],
+        workUnitDefinitionId: "wu-story",
+        draftKey: "wu-story:transition-ready:0",
+        factValues: [{ workUnitFactDefinitionId: "fact-title", value: "fact-instance-1-title" }],
+        artifactSlots: [
+          {
+            artifactSlotDefinitionId: "artifact-brief",
+            files: [{ relativePath: "artifact-snapshot-1-brief", clear: false }],
+          },
+        ],
       },
       {
-        projectWorkUnitId: "project-work-unit-2",
-        workUnitFactInstanceIds: ["fact-instance-2-title"],
-        artifactSnapshotIds: ["artifact-snapshot-2-brief"],
+        workUnitDefinitionId: "wu-story",
+        draftKey: "wu-story:transition-ready:1",
+        factValues: [{ workUnitFactDefinitionId: "fact-title", value: "fact-instance-2-title" }],
+        artifactSlots: [
+          {
+            artifactSlotDefinitionId: "artifact-brief",
+            files: [{ relativePath: "artifact-snapshot-2-brief", clear: false }],
+          },
+        ],
       },
     ]);
     expect(
@@ -992,14 +1004,40 @@ describe("invoke completion runtime flow", () => {
         .map((fact) => fact.valueJson),
     ).toEqual([
       {
-        projectWorkUnitId: "project-work-unit-1",
-        workUnitFactInstanceIds: ["fact-instance-1-title", "fact-instance-1-notes"],
-        artifactSnapshotIds: ["artifact-snapshot-1-brief", "artifact-snapshot-1-notes"],
+        workUnitDefinitionId: "wu-story",
+        draftKey: "wu-story:transition-ready:0",
+        factValues: [
+          { workUnitFactDefinitionId: "fact-title", value: "fact-instance-1-title" },
+          { workUnitFactDefinitionId: "fact-notes", value: "fact-instance-1-notes" },
+        ],
+        artifactSlots: [
+          {
+            artifactSlotDefinitionId: "artifact-brief",
+            files: [{ relativePath: "artifact-snapshot-1-brief", clear: false }],
+          },
+          {
+            artifactSlotDefinitionId: "artifact-notes",
+            files: [{ relativePath: "artifact-snapshot-1-notes", clear: false }],
+          },
+        ],
       },
       {
-        projectWorkUnitId: "project-work-unit-2",
-        workUnitFactInstanceIds: ["fact-instance-2-title", "fact-instance-2-notes"],
-        artifactSnapshotIds: ["artifact-snapshot-2-brief", "artifact-snapshot-2-notes"],
+        workUnitDefinitionId: "wu-story",
+        draftKey: "wu-story:transition-ready:1",
+        factValues: [
+          { workUnitFactDefinitionId: "fact-title", value: "fact-instance-2-title" },
+          { workUnitFactDefinitionId: "fact-notes", value: "fact-instance-2-notes" },
+        ],
+        artifactSlots: [
+          {
+            artifactSlotDefinitionId: "artifact-brief",
+            files: [{ relativePath: "artifact-snapshot-2-brief", clear: false }],
+          },
+          {
+            artifactSlotDefinitionId: "artifact-notes",
+            files: [{ relativePath: "artifact-snapshot-2-notes", clear: false }],
+          },
+        ],
       },
     ]);
     for (const value of runtime.state.contextFacts
@@ -1012,7 +1050,6 @@ describe("invoke completion runtime flow", () => {
       expect(value).not.toHaveProperty("facts");
       expect(value).not.toHaveProperty("artifacts");
       expect(value).not.toHaveProperty("instance");
-      expect(value).not.toHaveProperty("factValues");
       expect(value).not.toHaveProperty("artifactValues");
     }
     expect(

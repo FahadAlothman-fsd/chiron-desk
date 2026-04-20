@@ -22,13 +22,23 @@ import {
   AgentStepExecutionStateRepository,
   type AgentStepExecutionStateRow,
 } from "../../repositories/agent-step-execution-state-repository";
+import { ArtifactRepository } from "../../repositories/artifact-repository";
 import { ExecutionReadRepository } from "../../repositories/execution-read-repository";
+import {
+  ProjectWorkUnitRepository,
+  type ProjectWorkUnitRow,
+} from "../../repositories/project-work-unit-repository";
 import {
   StepExecutionRepository,
   type RuntimeStepExecutionRow,
   type RuntimeWorkflowExecutionContextFactRow,
 } from "../../repositories/step-execution-repository";
+import {
+  WorkUnitFactRepository,
+  type WorkUnitFactInstanceRow,
+} from "../../repositories/work-unit-fact-repository";
 import { StepContextQueryService } from "../../services/step-context-query-service";
+import { RuntimeWorkUnitServiceLive } from "../../services/runtime-work-unit-service";
 import { StepExecutionDetailService } from "../../services/step-execution-detail-service";
 import { StepExecutionLifecycleService } from "../../services/step-execution-lifecycle-service";
 import { StepExecutionTransactionService } from "../../services/step-execution-transaction-service";
@@ -37,6 +47,7 @@ import { AgentStepContextWriteServiceLive } from "../../services/runtime/agent-s
 import { AgentStepEventStreamServiceLive } from "../../services/runtime/agent-step-event-stream-service";
 import { AgentStepExecutionDetailServiceLive } from "../../services/runtime/agent-step-execution-detail-service";
 import { AgentStepMcpServiceLive } from "../../services/runtime/agent-step-mcp-service";
+import { ArtifactSlotReferenceServiceLive } from "../../services/runtime/artifact-slot-reference-service";
 import { AgentStepSessionCommandServiceLive } from "../../services/runtime/agent-step-session-command-service";
 import { AgentStepSnapshotServiceLive } from "../../services/runtime/agent-step-snapshot-service";
 import { AgentStepTimelineServiceLive } from "../../services/runtime/agent-step-timeline-service";
@@ -82,6 +93,10 @@ export interface AgentStepRuntimeTestContext {
 export function makeAgentStepRuntimeTestContext(options?: {
   initialContextFacts?: readonly RuntimeWorkflowExecutionContextFactRow[];
   artifactReferenceResolutions?: Readonly<Record<string, SandboxGitFileResolution>>;
+  workflowEditorContextFacts?: WorkflowEditorDefinitionReadModel["contextFacts"];
+  agentPayload?: AgentStepDesignTimePayload;
+  projectWorkUnits?: readonly ProjectWorkUnitRow[];
+  workUnitFactsByWorkUnitId?: Readonly<Record<string, readonly WorkUnitFactInstanceRow[]>>;
 }) {
   const steps: RuntimeStepExecutionRow[] = [
     {
@@ -114,7 +129,7 @@ export function makeAgentStepRuntimeTestContext(options?: {
   const bindings: AgentStepExecutionHarnessBindingRow[] = [];
   const appliedWrites: AgentStepExecutionAppliedWriteRow[] = [];
 
-  const agentPayload = {
+  const defaultAgentPayload = {
     key: "synthesize_setup_handoff",
     label: "Synthesize setup handoff",
     objective: "Draft the setup handoff from approved context.",
@@ -145,7 +160,7 @@ export function makeAgentStepRuntimeTestContext(options?: {
       {
         writeItemId: "write-artifact",
         contextFactDefinitionId: "ctx-artifact",
-        contextFactKind: "artifact_reference_fact" as const,
+        contextFactKind: "artifact_slot_reference_fact" as const,
         label: "Artifact",
         order: 200,
         requirementContextFactDefinitionIds: ["ctx-summary"],
@@ -162,23 +177,11 @@ export function makeAgentStepRuntimeTestContext(options?: {
     },
   } satisfies AgentStepDesignTimePayload;
 
-  const workflowEditorDefinition = {
-    workflow: {
-      workflowDefinitionId: "workflow-1",
-      key: "setup-workflow",
-      displayName: "Setup Workflow",
-      descriptionJson: null,
-    },
-    steps: [
-      {
-        stepId: "agent-step-1",
-        stepType: "agent" as const,
-        mode: "deferred" as const,
-        defaultMessage: "Deferred agent step",
-      },
-    ],
-    edges: [],
-    contextFacts: [
+  const agentPayload = options?.agentPayload ?? defaultAgentPayload;
+
+  const workflowEditorContextFacts =
+    options?.workflowEditorContextFacts ??
+    ([
       {
         kind: "plain_value_fact" as const,
         contextFactDefinitionId: "ctx-project-context",
@@ -204,14 +207,49 @@ export function makeAgentStepRuntimeTestContext(options?: {
         valueType: "string" as const,
       },
       {
-        kind: "artifact_reference_fact" as const,
+        kind: "artifact_slot_reference_fact" as const,
         contextFactDefinitionId: "ctx-artifact",
         key: "artifact",
         label: "Artifact",
         cardinality: "one" as const,
-        artifactSlotDefinitionId: "slot-1",
+        slotDefinitionId: "slot-1",
+      },
+    ] satisfies WorkflowEditorDefinitionReadModel["contextFacts"]);
+
+  const projectWorkUnits = [
+    ...(options?.projectWorkUnits ?? [
+      {
+        id: "wu-1",
+        projectId: "project-1",
+        workUnitTypeId: "wu-type-1",
+        workUnitKey: "setup-1",
+        instanceNumber: 1,
+        displayName: null,
+        currentStateId: "todo",
+        activeTransitionExecutionId: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]),
+  ];
+
+  const workflowEditorDefinition = {
+    workflow: {
+      workflowDefinitionId: "workflow-1",
+      key: "setup-workflow",
+      displayName: "Setup Workflow",
+      descriptionJson: null,
+    },
+    steps: [
+      {
+        stepId: "agent-step-1",
+        stepType: "agent" as const,
+        mode: "deferred" as const,
+        defaultMessage: "Deferred agent step",
       },
     ],
+    edges: [],
+    contextFacts: workflowEditorContextFacts,
     formDefinitions: [],
   } satisfies WorkflowEditorDefinitionReadModel;
 
@@ -473,6 +511,22 @@ export function makeAgentStepRuntimeTestContext(options?: {
     listAgentStepDefinitions: () => Effect.succeed([agentStepDefinition]),
     getAgentStepDefinition: () => Effect.succeed(agentStepDefinition),
     getWorkflowEditorDefinition: () => Effect.succeed(workflowEditorDefinition),
+    findArtifactSlotsByWorkUnitType: () =>
+      Effect.succeed([
+        {
+          id: "slot-1",
+          methodologyVersionId: "version-1",
+          workUnitTypeId: "wu-type-1",
+          key: "ARTIFACT",
+          displayName: "Artifact",
+          descriptionJson: null,
+          guidanceJson: null,
+          cardinality: "fileset",
+          rulesJson: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ]),
   } as unknown as Context.Tag.Service<typeof MethodologyRepository>);
 
   const stateRepoLayer = Layer.succeed(AgentStepExecutionStateRepository, {
@@ -619,6 +673,43 @@ export function makeAgentStepRuntimeTestContext(options?: {
       ),
   } as unknown as Context.Tag.Service<typeof StepContextQueryService>);
 
+  const projectWorkUnitLayer = Layer.succeed(ProjectWorkUnitRepository, {
+    createProjectWorkUnit: () => Effect.die("unused"),
+    listProjectWorkUnitsByProject: (projectId: string) =>
+      Effect.succeed(projectWorkUnits.filter((workUnit) => workUnit.projectId === projectId)),
+    getProjectWorkUnitById: (projectWorkUnitId: string) =>
+      Effect.succeed(
+        projectWorkUnits.find((workUnit) => workUnit.id === projectWorkUnitId) ?? null,
+      ),
+    updateActiveTransitionExecutionPointer: () => Effect.die("unused"),
+  } as unknown as Context.Tag.Service<typeof ProjectWorkUnitRepository>);
+
+  const workUnitFactLayer = Layer.succeed(WorkUnitFactRepository, {
+    createFactInstance: () => Effect.die("unused"),
+    getCurrentValuesByDefinition: ({ projectWorkUnitId, factDefinitionId }: any) =>
+      Effect.succeed(
+        (options?.workUnitFactsByWorkUnitId?.[projectWorkUnitId] ?? []).filter(
+          (fact) => fact.factDefinitionId === factDefinitionId,
+        ),
+      ),
+    listFactsByWorkUnit: ({ projectWorkUnitId }: { projectWorkUnitId: string }) =>
+      Effect.succeed(options?.workUnitFactsByWorkUnitId?.[projectWorkUnitId] ?? []),
+    supersedeFactInstance: () => Effect.void,
+  } as unknown as Context.Tag.Service<typeof WorkUnitFactRepository>);
+
+  const artifactLayer = Layer.succeed(ArtifactRepository, {
+    createSnapshot: () => Effect.die("unused"),
+    addSnapshotFiles: () => Effect.die("unused"),
+    getCurrentSnapshotBySlot: () =>
+      Effect.succeed({
+        exists: false,
+        snapshot: null,
+        members: [],
+      }),
+    listLineageHistory: () => Effect.succeed([]),
+    checkFreshness: () => Effect.succeed({ exists: false, freshness: "unavailable" as const }),
+  } as unknown as Context.Tag.Service<typeof ArtifactRepository>);
+
   const lifecycleServiceLayer = Layer.succeed(StepExecutionLifecycleService, {
     activateFirstStepExecution: () => Effect.die("unused"),
     activateStepExecution: () => Effect.die("unused"),
@@ -741,6 +832,9 @@ export function makeAgentStepRuntimeTestContext(options?: {
     projectContextLayer,
     lifecycleLayer,
     methodologyLayer,
+    projectWorkUnitLayer,
+    workUnitFactLayer,
+    artifactLayer,
     stateRepoLayer,
     bindingRepoLayer,
     appliedWriteRepoLayer,
@@ -750,6 +844,8 @@ export function makeAgentStepRuntimeTestContext(options?: {
     sharedDetailLayer,
   );
 
+  const runtimeWorkUnitLayer = RuntimeWorkUnitServiceLive.pipe(Layer.provideMerge(layer));
+
   const timelineLayer = AgentStepTimelineServiceLive.pipe(Layer.provideMerge(layer));
   const detailLayer = AgentStepExecutionDetailServiceLive.pipe(
     Layer.provideMerge(layer),
@@ -758,8 +854,15 @@ export function makeAgentStepRuntimeTestContext(options?: {
   const sessionLayer = AgentStepSessionCommandServiceLive.pipe(Layer.provideMerge(layer));
   const eventLayer = AgentStepEventStreamServiceLive.pipe(Layer.provideMerge(layer));
   const snapshotLayer = AgentStepSnapshotServiceLive.pipe(Layer.provideMerge(layer));
-  const readLayer = AgentStepContextReadServiceLive.pipe(Layer.provideMerge(layer));
-  const writeLayer = AgentStepContextWriteServiceLive.pipe(Layer.provideMerge(layer));
+  const artifactSnapshotLayer = ArtifactSlotReferenceServiceLive.pipe(Layer.provideMerge(layer));
+  const readLayer = Layer.provide(
+    AgentStepContextReadServiceLive,
+    Layer.mergeAll(layer, runtimeWorkUnitLayer, artifactSnapshotLayer),
+  );
+  const writeLayer = Layer.provide(
+    AgentStepContextWriteServiceLive,
+    Layer.mergeAll(layer, artifactSnapshotLayer),
+  );
   const mcpLayer = AgentStepMcpServiceLive.pipe(
     Layer.provideMerge(snapshotLayer),
     Layer.provideMerge(readLayer),
@@ -774,6 +877,8 @@ export function makeAgentStepRuntimeTestContext(options?: {
       sessionLayer,
       eventLayer,
       snapshotLayer,
+      artifactSnapshotLayer,
+      runtimeWorkUnitLayer,
       readLayer,
       writeLayer,
       mcpLayer,

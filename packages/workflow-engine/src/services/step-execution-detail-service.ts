@@ -28,6 +28,10 @@ import { ProjectFactRepository } from "../repositories/project-fact-repository";
 import { ProjectWorkUnitRepository } from "../repositories/project-work-unit-repository";
 import { StepExecutionRepository } from "../repositories/step-execution-repository";
 import { WorkUnitFactRepository } from "../repositories/work-unit-fact-repository";
+import {
+  normalizeRuntimeBoundFactFieldValue,
+  toCanonicalRuntimeBoundFactEnvelope,
+} from "./runtime-bound-fact-value";
 import { ActionStepDetailService } from "./action-step-detail-service";
 import { evaluateRoutes, getSuggestedTarget } from "./branch-route-evaluator";
 import { InvokeStepDetailService } from "./invoke-step-detail-service";
@@ -42,11 +46,6 @@ const toIso = (value: Date | null): string | undefined => (value ? value.toISOSt
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
-
-const isExternalFactEnvelope = (
-  value: unknown,
-): value is { factInstanceId: string; value: unknown } =>
-  isRecord(value) && typeof value.factInstanceId === "string" && "value" in value;
 
 const extractMarkdown = (value: unknown): string | undefined => {
   if (!isRecord(value)) {
@@ -174,7 +173,7 @@ function nestedFieldsFromValidation(
       label: humanizeKey(field.key),
       factType: field.type,
       cardinality: field.cardinality,
-      required: "defaultValue" in field ? true : false,
+      required: false,
       description: extractMarkdown(field.description),
       ...(field.validation ? { validation: field.validation } : {}),
     }));
@@ -272,6 +271,11 @@ function buildRuntimeFactInstanceOption(params: {
   factLabel: string;
   projectWorkUnitsById: ReadonlyMap<string, { id: string; workUnitTypeId: string }>;
 }): RuntimeFormFieldOption {
+  const runtimeValue =
+    typeof params.instance.referencedProjectWorkUnitId === "string"
+      ? { projectWorkUnitId: params.instance.referencedProjectWorkUnitId }
+      : params.instance.valueJson;
+
   if (typeof params.instance.referencedProjectWorkUnitId === "string") {
     const projectWorkUnit = params.projectWorkUnitsById.get(
       params.instance.referencedProjectWorkUnitId,
@@ -281,14 +285,20 @@ function buildRuntimeFactInstanceOption(params: {
       : params.instance.referencedProjectWorkUnitId;
 
     return {
-      value: { factInstanceId: params.instance.id },
+      value: toCanonicalRuntimeBoundFactEnvelope({
+        instanceId: params.instance.id,
+        value: runtimeValue,
+      }),
       label,
       description: `${params.factLabel} reference`,
     };
   }
 
   return {
-    value: { factInstanceId: params.instance.id },
+    value: toCanonicalRuntimeBoundFactEnvelope({
+      instanceId: params.instance.id,
+      value: runtimeValue,
+    }),
     label: stringifyOptionLabel(params.instance.valueJson),
     description: params.factLabel,
   };
@@ -501,24 +511,29 @@ function resolveWorkflowOptions(
 
 function resolveFieldValue(
   payload: unknown,
-  field: Pick<RuntimeFormResolvedField, "fieldKey" | "contextFactDefinitionId" | "widget">,
+  field: Pick<
+    RuntimeFormResolvedField,
+    "fieldKey" | "contextFactDefinitionId" | "contextFactKind" | "widget"
+  >,
   fallbackPayload?: Record<string, unknown>,
 ): unknown {
+  const normalizeValue = (value: unknown) => normalizeRuntimeBoundFactFieldValue(field, value);
+
   if (isRecord(payload)) {
     if (field.fieldKey in payload) {
-      return payload[field.fieldKey];
+      return normalizeValue(payload[field.fieldKey]);
     }
     if (field.contextFactDefinitionId in payload) {
-      return payload[field.contextFactDefinitionId];
+      return normalizeValue(payload[field.contextFactDefinitionId]);
     }
   }
 
   if (fallbackPayload) {
     if (field.fieldKey in fallbackPayload) {
-      return fallbackPayload[field.fieldKey];
+      return normalizeValue(fallbackPayload[field.fieldKey]);
     }
     if (field.contextFactDefinitionId in fallbackPayload) {
-      return fallbackPayload[field.contextFactDefinitionId];
+      return normalizeValue(fallbackPayload[field.contextFactDefinitionId]);
     }
   }
 
@@ -526,22 +541,10 @@ function resolveFieldValue(
 }
 
 function mapContextFactValueForField(params: {
-  field: Pick<RuntimeFormResolvedField, "contextFactKind">;
+  field: Pick<RuntimeFormResolvedField, "contextFactKind" | "widget">;
   valueJson: unknown;
 }): unknown {
-  if (!isExternalFactEnvelope(params.valueJson)) {
-    return params.valueJson;
-  }
-
-  if (params.field.contextFactKind === "bound_external_fact") {
-    return { factInstanceId: params.valueJson.factInstanceId };
-  }
-
-  if (params.field.contextFactKind === "definition_backed_external_fact") {
-    return params.valueJson.value;
-  }
-
-  return params.valueJson;
+  return normalizeRuntimeBoundFactFieldValue(params.field, params.valueJson);
 }
 
 function buildContextPrefillPayload(params: {
@@ -619,17 +622,20 @@ function buildResolvedField(params: {
   } as const;
 
   switch (params.contextFact.kind) {
+    case "plain_fact":
     case "plain_value_fact":
       return {
         ...base,
         widget: buildPrimitiveWidget({
-          valueType: params.contextFact.valueType,
+          valueType: ("type" in params.contextFact
+            ? params.contextFact.type
+            : params.contextFact.valueType) as FactType,
           cardinality: params.contextFact.cardinality,
           renderedMultiplicity,
         }),
       };
-    case "definition_backed_external_fact": {
-      const externalBindingId = params.contextFact.externalFactDefinitionId;
+    case "bound_fact": {
+      const externalBindingId = params.contextFact.factDefinitionId;
       const workUnitFactSchemas = [...params.factSchemas.byId.values()];
       const externalById = params.factSchemas.byId.get(externalBindingId);
       const externalByKey = params.factSchemas.byKey.get(externalBindingId);
@@ -647,69 +653,69 @@ function buildResolvedField(params: {
           : undefined;
       const bindingLabel =
         external?.name ?? externalDefinition?.name ?? humanizeKey(externalBindingId);
+      const isReferenceFact =
+        params.contextFact.valueType === "work_unit" ||
+        typeof params.contextFact.workUnitDefinitionId === "string";
 
       return {
         ...base,
-        widget: {
-          ...buildPrimitiveWidget({
-            valueType: (external?.factType ?? "json") as FactType,
-            cardinality: params.contextFact.cardinality,
-            renderedMultiplicity,
-            validation: external?.validationJson,
-            externalBindingKey: externalBindingId,
-          }),
-          bindingLabel,
-        },
+        widget: isReferenceFact
+          ? {
+              control: "reference",
+              valueType: (params.contextFact.valueType ?? external?.factType ?? "json") as FactType,
+              cardinality: params.contextFact.cardinality,
+              renderedMultiplicity,
+              externalBindingKey: externalBindingId,
+              bindingLabel,
+              ...(resolveBoundExternalFactOptions({
+                bindingKey: externalBindingId,
+                methodologyFactDefinitions: params.methodologyFactDefinitions,
+                workUnitFactSchemas: [...params.factSchemas.byId.values()],
+                projectFactInstances: params.projectFactInstances,
+                currentWorkUnitFactInstances: params.currentWorkUnitFactInstances,
+                projectWorkUnits: params.projectWorkUnits,
+              })
+                ? {
+                    options: resolveBoundExternalFactOptions({
+                      bindingKey: externalBindingId,
+                      methodologyFactDefinitions: params.methodologyFactDefinitions,
+                      workUnitFactSchemas: [...params.factSchemas.byId.values()],
+                      projectFactInstances: params.projectFactInstances,
+                      currentWorkUnitFactInstances: params.currentWorkUnitFactInstances,
+                      projectWorkUnits: params.projectWorkUnits,
+                    }),
+                  }
+                : {
+                    emptyState:
+                      "No eligible existing instances are available yet. Create the required fact first.",
+                  }),
+            }
+          : {
+              ...buildPrimitiveWidget({
+                valueType: (params.contextFact.valueType ??
+                  external?.factType ??
+                  "json") as FactType,
+                cardinality: params.contextFact.cardinality,
+                renderedMultiplicity,
+                validation: external?.validationJson,
+                externalBindingKey: externalBindingId,
+              }),
+              bindingLabel,
+            },
       };
     }
-    case "bound_external_fact": {
-      const externalBindingId = params.contextFact.externalFactDefinitionId;
-      const workUnitFactSchemas = [...params.factSchemas.byId.values()];
-      const externalById = params.factSchemas.byId.get(externalBindingId);
-      const externalByKey = params.factSchemas.byKey.get(externalBindingId);
-      const methodologyByKey = params.methodologyFactDefinitions.find(
-        (fact) => fact.key === externalBindingId,
-      );
-      const external = externalById ? externalById : !methodologyByKey ? externalByKey : undefined;
-      const externalDefinitionById = params.methodologyFactDefinitions.find(
-        (fact) => fact.id === externalBindingId,
-      );
-      const externalDefinition = externalDefinitionById
-        ? externalDefinitionById
-        : !workUnitFactSchemas.some((fact) => fact.key === externalBindingId)
-          ? methodologyByKey
-          : undefined;
-      const bindingLabel =
-        external?.name ?? externalDefinition?.name ?? humanizeKey(externalBindingId);
-      const options = resolveBoundExternalFactOptions({
-        bindingKey: externalBindingId,
-        methodologyFactDefinitions: params.methodologyFactDefinitions,
-        workUnitFactSchemas: [...params.factSchemas.byId.values()],
-        projectFactInstances: params.projectFactInstances,
-        currentWorkUnitFactInstances: params.currentWorkUnitFactInstances,
-        projectWorkUnits: params.projectWorkUnits,
-      });
-
+    case "work_unit_reference_fact":
       return {
         ...base,
         widget: {
           control: "reference",
-          valueType: (external?.factType ?? "json") as FactType,
+          valueType: "work_unit",
           cardinality: params.contextFact.cardinality,
           renderedMultiplicity,
-          externalBindingKey: externalBindingId,
-          bindingLabel,
-          ...(options ? { options } : {}),
-          ...(!options
-            ? {
-                emptyState:
-                  "No eligible existing instances are available yet. Create the required fact first.",
-              }
-            : {}),
+          emptyState: "No eligible work units are available yet.",
         },
       };
-    }
-    case "workflow_reference_fact":
+    case "workflow_ref_fact":
       return {
         ...base,
         widget: {
@@ -723,8 +729,8 @@ function buildResolvedField(params: {
           ),
         },
       };
-    case "artifact_reference_fact": {
-      const artifactSlotDefinitionId = params.contextFact.artifactSlotDefinitionId;
+    case "artifact_slot_reference_fact": {
+      const artifactSlotDefinitionId = params.contextFact.slotDefinitionId;
       const artifactSlot = params.artifactSlotDefinitions.find(
         (slot) => slot.id === artifactSlotDefinitionId || slot.key === artifactSlotDefinitionId,
       );
@@ -837,9 +843,7 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                   workflowDetail.projectId,
                 );
                 if (!projectPin) {
-                  return yield* Effect.fail(
-                    makeDetailError("project methodology pin missing for step detail"),
-                  );
+                  return yield* makeDetailError("project methodology pin missing for step detail");
                 }
 
                 const [
@@ -868,9 +872,7 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                   (candidate) => candidate.id === workflowDetail.workUnitTypeId,
                 );
                 if (!workUnitType) {
-                  return yield* Effect.fail(
-                    makeDetailError("work unit type missing for runtime step detail"),
-                  );
+                  return yield* makeDetailError("work unit type missing for runtime step detail");
                 }
 
                 const artifactSlotDefinitions =
@@ -907,9 +909,7 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                   (definition) => definition.stepId === stepExecution.stepDefinitionId,
                 );
                 if (!formDefinition) {
-                  return yield* Effect.fail(
-                    makeDetailError("form definition missing for runtime step detail"),
-                  );
+                  return yield* makeDetailError("form definition missing for runtime step detail");
                 }
 
                 const factLookup = new Map(
@@ -1031,8 +1031,8 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                       workflowDetail.projectId,
                     );
                     if (!projectPin) {
-                      return yield* Effect.fail(
-                        makeDetailError("project methodology pin missing for branch step detail"),
+                      return yield* makeDetailError(
+                        "project methodology pin missing for branch step detail",
                       );
                     }
 
@@ -1046,14 +1046,14 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                       (candidate) => candidate.id === workflowDetail.workUnitTypeId,
                     );
                     if (!workUnitType) {
-                      return yield* Effect.fail(
-                        makeDetailError("work unit type missing for branch step detail"),
+                      return yield* makeDetailError(
+                        "work unit type missing for branch step detail",
                       );
                     }
 
                     if (!branchState) {
-                      return yield* Effect.fail(
-                        makeDetailError("branch runtime state missing for branch step detail"),
+                      return yield* makeDetailError(
+                        "branch runtime state missing for branch step detail",
                       );
                     }
 
@@ -1071,8 +1071,8 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                     ]);
 
                     if (!branchDefinition) {
-                      return yield* Effect.fail(
-                        makeDetailError("branch definition missing for branch step detail"),
+                      return yield* makeDetailError(
+                        "branch definition missing for branch step detail",
                       );
                     }
 

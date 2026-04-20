@@ -1,12 +1,12 @@
 import type {
   CheckArtifactSlotCurrentStateInput,
   CheckArtifactSlotCurrentStateOutput,
+  GetArtifactInstanceDialogInput,
+  GetArtifactInstanceDialogOutput,
   GetArtifactSlotDetailInput,
   GetArtifactSlotDetailOutput,
   GetArtifactSlotsInput,
   GetArtifactSlotsOutput,
-  GetArtifactSnapshotDialogInput,
-  GetArtifactSnapshotDialogOutput,
 } from "@chiron/contracts/runtime/artifacts";
 import { Context, Effect, Layer } from "effect";
 
@@ -45,9 +45,9 @@ export class RuntimeArtifactService extends Context.Tag("RuntimeArtifactService"
     readonly getArtifactSlotDetail: (
       input: GetArtifactSlotDetailInput,
     ) => Effect.Effect<GetArtifactSlotDetailOutput, RepositoryError>;
-    readonly getArtifactSnapshotDialog: (
-      input: GetArtifactSnapshotDialogInput,
-    ) => Effect.Effect<GetArtifactSnapshotDialogOutput, RepositoryError>;
+    readonly getArtifactInstanceDialog: (
+      input: GetArtifactInstanceDialogInput,
+    ) => Effect.Effect<GetArtifactInstanceDialogOutput, RepositoryError>;
     readonly checkArtifactSlotCurrentState: (
       input: CheckArtifactSlotCurrentStateInput,
     ) => Effect.Effect<CheckArtifactSlotCurrentStateOutput, RepositoryError>;
@@ -78,11 +78,6 @@ export const RuntimeArtifactServiceLive = Layer.effect(
                 projectWorkUnitId: input.projectWorkUnitId,
                 slotDefinitionId,
               });
-              const lineage = yield* artifactRepository.listLineageHistory({
-                projectWorkUnitId: input.projectWorkUnitId,
-                slotDefinitionId,
-              });
-              const latestHead = lineage[0]?.snapshot;
 
               return {
                 slotDefinition: {
@@ -94,34 +89,42 @@ export const RuntimeArtifactServiceLive = Layer.effect(
                       ? ("file_set" as const)
                       : ("single_file" as const),
                 },
-                currentEffectiveSnapshot: {
+                currentArtifactInstance: {
                   exists: currentState.exists,
                   ...(currentState.snapshot
-                    ? { projectArtifactSnapshotId: currentState.snapshot.id }
+                    ? { artifactInstanceId: currentState.snapshot.id }
                     : {}),
                   ...(currentState.snapshot
-                    ? { createdAt: currentState.snapshot.createdAt.toISOString() }
+                    ? { updatedAt: currentState.snapshot.createdAt.toISOString() }
                     : {}),
-                  memberCounts: {
-                    currentCount: currentState.members.length,
-                  },
-                  previewMembers: currentState.members.slice(0, 3).map((member) => ({
-                    artifactSnapshotFileId: member.id,
+                  ...(currentState.snapshot
+                    ? {
+                        recordedBy: {
+                          ...(currentState.snapshot.recordedByTransitionExecutionId
+                            ? {
+                                transitionExecutionId:
+                                  currentState.snapshot.recordedByTransitionExecutionId,
+                              }
+                            : {}),
+                          ...(currentState.snapshot.recordedByWorkflowExecutionId
+                            ? {
+                                workflowExecutionId:
+                                  currentState.snapshot.recordedByWorkflowExecutionId,
+                              }
+                            : {}),
+                          ...(currentState.snapshot.recordedByUserId
+                            ? { userId: currentState.snapshot.recordedByUserId }
+                            : {}),
+                        },
+                      }
+                    : {}),
+                  fileCount: currentState.members.length,
+                  previewFiles: currentState.members.slice(0, 3).map((member) => ({
                     filePath: member.filePath,
-                    ...(member.gitBlobHash ? { gitBlobHash: member.gitBlobHash } : {}),
-                    ...(member.gitCommitHash ? { gitCommitHash: member.gitCommitHash } : {}),
-                    ...(member.gitCommitTitle ? { gitCommitTitle: member.gitCommitTitle } : {}),
-                    ...(member.gitCommitBody ? { gitCommitBody: member.gitCommitBody } : {}),
+                    gitCommitHash: member.gitCommitHash ?? null,
+                    gitCommitTitle: member.gitCommitTitle ?? null,
                   })),
                 },
-                ...(latestHead
-                  ? {
-                      latestLineageHead: {
-                        projectArtifactSnapshotId: latestHead.id,
-                        createdAt: latestHead.createdAt.toISOString(),
-                      },
-                    }
-                  : {}),
                 target: {
                   page: "artifact-slot-detail" as const,
                   slotDefinitionId,
@@ -141,26 +144,13 @@ export const RuntimeArtifactServiceLive = Layer.effect(
       input: GetArtifactSlotDetailInput,
     ): Effect.Effect<GetArtifactSlotDetailOutput, RepositoryError> =>
       Effect.gen(function* () {
-        const [workUnit, currentState, lineage] = yield* Effect.all([
+        const [workUnit, currentState] = yield* Effect.all([
           projectWorkUnitRepository.getProjectWorkUnitById(input.projectWorkUnitId),
           artifactRepository.getCurrentSnapshotBySlot({
             projectWorkUnitId: input.projectWorkUnitId,
             slotDefinitionId: input.slotDefinitionId,
           }),
-          artifactRepository.listLineageHistory({
-            projectWorkUnitId: input.projectWorkUnitId,
-            slotDefinitionId: input.slotDefinitionId,
-          }),
         ]);
-
-        const supersededBySnapshotId = new Map(
-          lineage
-            .filter((entry) => entry.snapshot.supersededByProjectArtifactSnapshotId)
-            .map((entry) => [
-              entry.snapshot.supersededByProjectArtifactSnapshotId as string,
-              entry.snapshot.id,
-            ]),
-        );
 
         return {
           workUnit: toWorkUnitIdentity(workUnit, input.projectWorkUnitId),
@@ -171,13 +161,11 @@ export const RuntimeArtifactServiceLive = Layer.effect(
             artifactKind:
               currentState.members.length > 1 ? ("file_set" as const) : ("single_file" as const),
           },
-          currentEffectiveSnapshot: {
+          currentArtifactInstance: {
             exists: currentState.exists,
+            ...(currentState.snapshot ? { artifactInstanceId: currentState.snapshot.id } : {}),
             ...(currentState.snapshot
-              ? { projectArtifactSnapshotId: currentState.snapshot.id }
-              : {}),
-            ...(currentState.snapshot
-              ? { createdAt: currentState.snapshot.createdAt.toISOString() }
+              ? { updatedAt: currentState.snapshot.createdAt.toISOString() }
               : {}),
             ...(currentState.snapshot
               ? {
@@ -197,90 +185,28 @@ export const RuntimeArtifactServiceLive = Layer.effect(
                   },
                 }
               : {}),
-            memberCounts: {
-              currentCount: currentState.members.length,
-            },
-            members: currentState.members.map((member) => ({
-              artifactSnapshotFileId: member.id,
+            fileCount: currentState.members.length,
+            files: currentState.members.map((member) => ({
               filePath: member.filePath,
-              ...(member.gitBlobHash ? { gitBlobHash: member.gitBlobHash } : {}),
-              ...(member.gitCommitHash ? { gitCommitHash: member.gitCommitHash } : {}),
-              ...(member.gitCommitTitle ? { gitCommitTitle: member.gitCommitTitle } : {}),
-              ...(member.gitCommitBody ? { gitCommitBody: member.gitCommitBody } : {}),
+              gitCommitHash: member.gitCommitHash ?? null,
+              gitCommitTitle: member.gitCommitTitle ?? null,
             })),
           },
-          lineage: lineage.map((entry) => ({
-            projectArtifactSnapshotId: entry.snapshot.id,
-            ...(supersededBySnapshotId.get(entry.snapshot.id)
-              ? {
-                  supersedesProjectArtifactSnapshotId: supersededBySnapshotId.get(
-                    entry.snapshot.id,
-                  ) as string,
-                }
-              : {}),
-            createdAt: entry.snapshot.createdAt.toISOString(),
-            recordedBy: {
-              ...(entry.snapshot.recordedByTransitionExecutionId
-                ? { transitionExecutionId: entry.snapshot.recordedByTransitionExecutionId }
-                : {}),
-              ...(entry.snapshot.recordedByWorkflowExecutionId
-                ? { workflowExecutionId: entry.snapshot.recordedByWorkflowExecutionId }
-                : {}),
-              ...(entry.snapshot.recordedByUserId
-                ? { userId: entry.snapshot.recordedByUserId }
-                : {}),
-            },
-            memberCounts: {
-              deltaRowCount: entry.deltaMembers.length,
-              effectiveCount: entry.effectiveMembers.length,
-            },
-            actions: {
-              inspectSnapshot: {
-                kind: "open_artifact_snapshot_dialog" as const,
-                projectArtifactSnapshotId: entry.snapshot.id,
-              },
-            },
-          })),
         };
       });
 
-    const getArtifactSnapshotDialog = (
-      input: GetArtifactSnapshotDialogInput,
-    ): Effect.Effect<GetArtifactSnapshotDialogOutput, RepositoryError> =>
+    const getArtifactInstanceDialog = (
+      input: GetArtifactInstanceDialogInput,
+    ): Effect.Effect<GetArtifactInstanceDialogOutput, RepositoryError> =>
       Effect.gen(function* () {
-        const [workUnit, lineage] = yield* Effect.all([
+        const [workUnit, currentState] = yield* Effect.all([
           projectWorkUnitRepository.getProjectWorkUnitById(input.projectWorkUnitId),
-          artifactRepository.listLineageHistory({
+          artifactRepository.getCurrentSnapshotBySlot({
             projectWorkUnitId: input.projectWorkUnitId,
             slotDefinitionId: input.slotDefinitionId,
           }),
         ]);
-
-        const supersededBySnapshotId = new Map(
-          lineage
-            .filter((entry) => entry.snapshot.supersededByProjectArtifactSnapshotId)
-            .map((entry) => [
-              entry.snapshot.supersededByProjectArtifactSnapshotId as string,
-              entry.snapshot.id,
-            ]),
-        );
-
-        const selected = lineage.find(
-          (entry) => entry.snapshot.id === input.projectArtifactSnapshotId,
-        ) ?? {
-          snapshot: {
-            id: input.projectArtifactSnapshotId,
-            projectWorkUnitId: input.projectWorkUnitId,
-            slotDefinitionId: input.slotDefinitionId,
-            recordedByTransitionExecutionId: null,
-            recordedByWorkflowExecutionId: null,
-            recordedByUserId: null,
-            supersededByProjectArtifactSnapshotId: null,
-            createdAt: new Date(0),
-          },
-          deltaMembers: [],
-          effectiveMembers: [],
-        };
+        const selected = currentState.snapshot;
 
         return {
           workUnit: {
@@ -294,43 +220,33 @@ export const RuntimeArtifactServiceLive = Layer.effect(
             slotKey: input.slotDefinitionId,
             slotName: input.slotDefinitionId,
             artifactKind:
-              selected.effectiveMembers.length > 1
-                ? ("file_set" as const)
-                : ("single_file" as const),
+              currentState.members.length > 1 ? ("file_set" as const) : ("single_file" as const),
           },
-          snapshot: {
-            projectArtifactSnapshotId: selected.snapshot.id,
-            ...(supersededBySnapshotId.get(selected.snapshot.id)
+          artifactInstance: {
+            exists: currentState.exists,
+            ...(selected
+              ? { artifactInstanceId: selected.id }
+              : { artifactInstanceId: input.artifactInstanceId }),
+            ...(selected ? { updatedAt: selected.createdAt.toISOString() } : {}),
+            ...(selected
               ? {
-                  supersedesProjectArtifactSnapshotId: supersededBySnapshotId.get(
-                    selected.snapshot.id,
-                  ) as string,
+                  recordedBy: {
+                    ...(selected.recordedByTransitionExecutionId
+                      ? { transitionExecutionId: selected.recordedByTransitionExecutionId }
+                      : {}),
+                    ...(selected.recordedByWorkflowExecutionId
+                      ? { workflowExecutionId: selected.recordedByWorkflowExecutionId }
+                      : {}),
+                    ...(selected.recordedByUserId ? { userId: selected.recordedByUserId } : {}),
+                  },
                 }
               : {}),
-            createdAt: selected.snapshot.createdAt.toISOString(),
-            recordedBy: {
-              ...(selected.snapshot.recordedByTransitionExecutionId
-                ? { transitionExecutionId: selected.snapshot.recordedByTransitionExecutionId }
-                : {}),
-              ...(selected.snapshot.recordedByWorkflowExecutionId
-                ? { workflowExecutionId: selected.snapshot.recordedByWorkflowExecutionId }
-                : {}),
-              ...(selected.snapshot.recordedByUserId
-                ? { userId: selected.snapshot.recordedByUserId }
-                : {}),
-            },
-            deltaMembers: selected.deltaMembers.map((member) => ({
-              artifactSnapshotFileId: member.id,
+            fileCount: currentState.members.length,
+            files: currentState.members.map((member) => ({
               filePath: member.filePath,
-              memberStatus: member.memberStatus,
-              ...(member.gitBlobHash ? { gitBlobHash: member.gitBlobHash } : {}),
-              ...(member.gitCommitHash ? { gitCommitHash: member.gitCommitHash } : {}),
-              ...(member.gitCommitTitle ? { gitCommitTitle: member.gitCommitTitle } : {}),
-              ...(member.gitCommitBody ? { gitCommitBody: member.gitCommitBody } : {}),
+              gitCommitHash: member.gitCommitHash ?? null,
+              gitCommitTitle: member.gitCommitTitle ?? null,
             })),
-            effectiveMemberCounts: {
-              currentCount: selected.effectiveMembers.length,
-            },
           },
         };
       });
@@ -358,15 +274,15 @@ export const RuntimeArtifactServiceLive = Layer.effect(
               : freshness.freshness === "stale"
                 ? ("changed" as const)
                 : ("unchanged" as const),
-          ...(currentState.snapshot ? { projectArtifactSnapshotId: currentState.snapshot.id } : {}),
-          currentEffectiveSnapshotExists: freshness.exists,
+          ...(currentState.snapshot ? { artifactInstanceId: currentState.snapshot.id } : {}),
+          currentArtifactInstanceExists: freshness.exists,
         } satisfies CheckArtifactSlotCurrentStateOutput;
       });
 
     return RuntimeArtifactService.of({
       getArtifactSlots,
       getArtifactSlotDetail,
-      getArtifactSnapshotDialog,
+      getArtifactInstanceDialog,
       checkArtifactSlotCurrentState,
     });
   }),

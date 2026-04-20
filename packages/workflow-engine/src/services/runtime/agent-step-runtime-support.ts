@@ -30,6 +30,7 @@ import type {
 export const AGENT_STEP_CONTRACT_BOUNDARY: AgentStepContractBoundary = {
   version: "v1",
   supportedMcpTools: ["read_step_snapshot", "read_context_value", "write_context_value"],
+  stepSnapshotReadItemId: "step_snapshot",
   requestContextAccess: false,
   continuationMode: "bootstrap_only",
   nativeMessageLog: false,
@@ -157,9 +158,11 @@ export function deriveReadableContextFacts(params: {
     }
 
     readable.set(grant.contextFactDefinitionId, {
+      readItemId: fact.key,
       contextFactDefinitionId: grant.contextFactDefinitionId,
       contextFactKind: fact.kind,
       source: "explicit",
+      supportedReadModes: ["latest", "all", "query"],
     });
   }
 
@@ -174,9 +177,11 @@ export function deriveReadableContextFacts(params: {
     }
 
     readable.set(writeItem.contextFactDefinitionId, {
+      readItemId: fact.key,
       contextFactDefinitionId: writeItem.contextFactDefinitionId,
       contextFactKind: fact.kind,
       source: "inferred_from_write",
+      supportedReadModes: ["latest", "all", "query"],
     });
   }
 
@@ -422,20 +427,16 @@ export function ensureAgentStepRuntimeContext(
   return Effect.gen(function* () {
     const stepExecution = yield* deps.stepRepo.getStepExecutionById(params.stepExecutionId);
     if (!stepExecution) {
-      return yield* Effect.fail(
-        makeAgentRuntimeRepositoryError(
-          "agent-step-runtime.resolve",
-          `Step execution '${params.stepExecutionId}' was not found.`,
-        ),
+      return yield* makeAgentRuntimeRepositoryError(
+        "agent-step-runtime.resolve",
+        `Step execution '${params.stepExecutionId}' was not found.`,
       );
     }
 
     if (stepExecution.stepType !== "agent") {
-      return yield* Effect.fail(
-        makeAgentRuntimeRepositoryError(
-          "agent-step-runtime.resolve",
-          `Step execution '${params.stepExecutionId}' is not an Agent step.`,
-        ),
+      return yield* makeAgentRuntimeRepositoryError(
+        "agent-step-runtime.resolve",
+        `Step execution '${params.stepExecutionId}' is not an Agent step.`,
       );
     }
 
@@ -443,30 +444,24 @@ export function ensureAgentStepRuntimeContext(
       stepExecution.workflowExecutionId,
     );
     if (!workflowDetail) {
-      return yield* Effect.fail(
-        makeAgentRuntimeRepositoryError(
-          "agent-step-runtime.resolve",
-          `Workflow execution '${stepExecution.workflowExecutionId}' was not found.`,
-        ),
+      return yield* makeAgentRuntimeRepositoryError(
+        "agent-step-runtime.resolve",
+        `Workflow execution '${stepExecution.workflowExecutionId}' was not found.`,
       );
     }
 
     if (params.projectId && workflowDetail.projectId !== params.projectId) {
-      return yield* Effect.fail(
-        makeAgentRuntimeRepositoryError(
-          "agent-step-runtime.resolve",
-          "Agent step execution does not belong to the requested project.",
-        ),
+      return yield* makeAgentRuntimeRepositoryError(
+        "agent-step-runtime.resolve",
+        "Agent step execution does not belong to the requested project.",
       );
     }
 
     const projectPin = yield* deps.projectContextRepo.findProjectPin(workflowDetail.projectId);
     if (!projectPin) {
-      return yield* Effect.fail(
-        makeAgentRuntimeRepositoryError(
-          "agent-step-runtime.resolve",
-          `Project '${workflowDetail.projectId}' is missing a methodology pin.`,
-        ),
+      return yield* makeAgentRuntimeRepositoryError(
+        "agent-step-runtime.resolve",
+        `Project '${workflowDetail.projectId}' is missing a methodology pin.`,
       );
     }
 
@@ -484,11 +479,9 @@ export function ensureAgentStepRuntimeContext(
           (candidate) => candidate.id === workflowDetail.workUnitTypeId,
         );
         if (!workUnitType) {
-          return yield* Effect.fail(
-            makeAgentRuntimeRepositoryError(
-              "agent-step-runtime.resolve",
-              `Work-unit type '${workflowDetail.workUnitTypeId}' was not found.`,
-            ),
+          return yield* makeAgentRuntimeRepositoryError(
+            "agent-step-runtime.resolve",
+            `Work-unit type '${workflowDetail.workUnitTypeId}' was not found.`,
           );
         }
 
@@ -507,11 +500,9 @@ export function ensureAgentStepRuntimeContext(
       (candidate) => candidate.id === workflowDetail.workUnitTypeId,
     );
     if (!workUnitType) {
-      return yield* Effect.fail(
-        makeAgentRuntimeRepositoryError(
-          "agent-step-runtime.resolve",
-          `Work-unit type '${workflowDetail.workUnitTypeId}' was not found.`,
-        ),
+      return yield* makeAgentRuntimeRepositoryError(
+        "agent-step-runtime.resolve",
+        `Work-unit type '${workflowDetail.workUnitTypeId}' was not found.`,
       );
     }
 
@@ -531,11 +522,9 @@ export function ensureAgentStepRuntimeContext(
               (candidate) => candidate.stepId === stepExecution.stepDefinitionId,
             );
             if (!definition) {
-              return yield* Effect.fail(
-                makeAgentRuntimeRepositoryError(
-                  "agent-step-runtime.resolve",
-                  `Agent step definition '${stepExecution.stepDefinitionId}' was not found.`,
-                ),
+              return yield* makeAgentRuntimeRepositoryError(
+                "agent-step-runtime.resolve",
+                `Agent step definition '${stepExecution.stepDefinitionId}' was not found.`,
               );
             }
             return definition;
@@ -575,11 +564,9 @@ export function getContextFactKindOrFail(params: {
   return Effect.gen(function* () {
     const fact = params.contextFactById.get(params.contextFactDefinitionId);
     if (!fact) {
-      return yield* Effect.fail(
-        makeAgentRuntimeRepositoryError(
-          params.operation,
-          `Workflow context fact '${params.contextFactDefinitionId}' was not found.`,
-        ),
+      return yield* makeAgentRuntimeRepositoryError(
+        params.operation,
+        `Workflow context fact '${params.contextFactDefinitionId}' was not found.`,
       );
     }
 

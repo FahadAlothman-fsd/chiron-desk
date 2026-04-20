@@ -254,7 +254,7 @@ export const InvokeTargetResolutionServiceLive = Layer.effect(
         );
 
         return sourceContextFact?.workUnitDefinitionId;
-      }).pipe(Effect.catchAll(() => Effect.succeed(undefined)));
+      }).pipe(Effect.catchAll(() => Effect.succeed(undefined as string | undefined)));
 
     const resolveTargets = ({
       workflowExecutionId,
@@ -264,7 +264,7 @@ export const InvokeTargetResolutionServiceLive = Layer.effect(
       invokeStep: InvokeStepPayload;
     }) =>
       Effect.gen(function* () {
-        if (invokeStep.targetKind === "workflow" && invokeStep.sourceMode === "fixed_set") {
+        if (invokeStep.targetKind === "workflow" && invokeStep.sourceMode === "fixed") {
           const workflowTargets = dedupeByCanonicalKey(
             invokeStep.workflowDefinitionIds.map((workflowDefinitionId) => ({
               workflowDefinitionId,
@@ -282,7 +282,7 @@ export const InvokeTargetResolutionServiceLive = Layer.effect(
           } satisfies InvokeResolvedTargetSet;
         }
 
-        if (invokeStep.targetKind === "work_unit" && invokeStep.sourceMode === "fixed_set") {
+        if (invokeStep.targetKind === "work_unit" && invokeStep.sourceMode === "fixed") {
           const workUnitTargets = dedupeByCanonicalKey(
             invokeStep.activationTransitions.map((transition) => ({
               workUnitDefinitionId: invokeStep.workUnitDefinitionId,
@@ -326,7 +326,7 @@ export const InvokeTargetResolutionServiceLive = Layer.effect(
         }
 
         const contextBackedWorkUnitDefinitionId =
-          invokeStep.targetKind === "work_unit" && invokeStep.sourceMode === "context_fact_backed"
+          invokeStep.targetKind === "work_unit" && invokeStep.sourceMode === "fact_backed"
             ? yield* inferContextBackedWorkUnitDefinitionId({
                 workflowExecutionId,
                 contextFactDefinitionId: invokeStep.contextFactDefinitionId,
@@ -379,7 +379,7 @@ export const InvokeTargetResolutionServiceLive = Layer.effect(
 
           if (
             invokeStep.targetKind === "work_unit" &&
-            invokeStep.sourceMode === "context_fact_backed" &&
+            invokeStep.sourceMode === "fact_backed" &&
             workUnitTargetExecutions.length === 0
           ) {
             const resolvedTargets = yield* resolveTargets({

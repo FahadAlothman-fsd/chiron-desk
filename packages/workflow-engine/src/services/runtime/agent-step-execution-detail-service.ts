@@ -2,6 +2,7 @@ import type {
   GetAgentStepExecutionDetailInput,
   GetAgentStepExecutionDetailOutput,
 } from "@chiron/contracts/agent-step/runtime";
+import { AgentStepStateTransitionError } from "@chiron/contracts/agent-step/errors";
 import type { HarnessOperationError } from "@chiron/agent-runtime";
 import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-engine";
 import { ProjectContextRepository } from "@chiron/project-context";
@@ -31,7 +32,7 @@ export class AgentStepExecutionDetailService extends Context.Tag(
       input: GetAgentStepExecutionDetailInput,
     ) => Effect.Effect<
       GetAgentStepExecutionDetailOutput | null,
-      RepositoryError | HarnessOperationError
+      RepositoryError | HarnessOperationError | AgentStepStateTransitionError
     >;
   }
 >() {}
@@ -60,20 +61,6 @@ export const AgentStepExecutionDetailServiceLive = Layer.effect(
         if (!shell || shell.shell.stepType !== "agent") {
           return null;
         }
-
-        const _context = yield* ensureAgentStepRuntimeContext(
-          {
-            stepRepo,
-            readRepo,
-            projectContextRepo,
-            lifecycleRepo,
-            methodologyRepo,
-            stateRepo,
-            bindingRepo,
-            contextQuery,
-          },
-          input,
-        );
 
         const timelinePreview = yield* timeline.getTimelinePage({
           projectId: input.projectId,
@@ -142,9 +129,13 @@ export const AgentStepExecutionDetailServiceLive = Layer.effect(
             }),
             composer: buildComposerState({
               state: refreshedContext.runtimeState,
-              sessionId: refreshedContext.bindingRow?.sessionId ?? undefined,
+              ...(refreshedContext.bindingRow?.sessionId
+                ? { sessionId: refreshedContext.bindingRow.sessionId }
+                : {}),
             }),
-            projectRootPath: refreshedContext.projectRootPath,
+            ...(refreshedContext.projectRootPath
+              ? { projectRootPath: refreshedContext.projectRootPath }
+              : {}),
             objective: refreshedContext.agentPayload.objective,
             instructionsMarkdown: refreshedContext.agentPayload.instructionsMarkdown,
             readableContextFacts: refreshedContext.readableContextFacts,

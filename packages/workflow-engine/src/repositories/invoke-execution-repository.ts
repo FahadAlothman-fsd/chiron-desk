@@ -34,6 +34,7 @@ export interface InvokeWorkUnitTargetExecutionRow {
   workflowDefinitionId: string | null;
   workflowExecutionId: string | null;
   resolutionOrder: number | null;
+  frozenDraftTemplateJson?: unknown | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -86,6 +87,7 @@ export interface CreateInvokeWorkUnitTargetExecutionParams {
   workflowDefinitionId?: string | null;
   workflowExecutionId?: string | null;
   resolutionOrder?: number | null;
+  frozenDraftTemplateJson?: unknown | null;
 }
 
 export interface UpdateInvokeWorkUnitTargetExecutionStartParams {
@@ -94,6 +96,7 @@ export interface UpdateInvokeWorkUnitTargetExecutionStartParams {
   transitionExecutionId: string;
   workflowDefinitionId: string;
   workflowExecutionId: string;
+  frozenDraftTemplateJson?: unknown | null;
 }
 
 export interface StartInvokeWorkUnitTargetAtomicallyParams {
@@ -102,6 +105,7 @@ export interface StartInvokeWorkUnitTargetAtomicallyParams {
   workUnitDefinitionId: string;
   transitionDefinitionId: string;
   workflowDefinitionId: string;
+  frozenDraftTemplateJson?: unknown | null;
   initialFactDefinitions: ReadonlyArray<{
     factDefinitionId: string;
     initialValueJson?: unknown;

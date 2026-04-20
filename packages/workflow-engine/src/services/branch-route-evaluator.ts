@@ -14,6 +14,7 @@ import type {
 } from "@chiron/contracts/runtime/conditions";
 
 import type { RuntimeWorkflowExecutionContextFactRow } from "../repositories/step-execution-repository";
+import { unwrapRuntimeBoundFactEnvelope } from "./runtime-bound-fact-value";
 
 type BranchEvaluableRoute = Pick<
   BranchRoutePayload,
@@ -63,14 +64,6 @@ export interface BranchTargetSuggestion {
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
-
-const isExternalFactEnvelope = (
-  value: unknown,
-): value is { factInstanceId: string; value: unknown } =>
-  isRecord(value) && typeof value.factInstanceId === "string" && "value" in value;
-
-const unwrapExternalFactEnvelope = (value: unknown): unknown =>
-  isExternalFactEnvelope(value) ? value.value : value;
 
 const getRouteSortOrder = (route: BranchEvaluableRoute, index: number): number =>
   typeof route.sortOrder === "number" ? route.sortOrder : index;
@@ -161,7 +154,7 @@ const extractFactValues = (
   row: RuntimeWorkflowExecutionContextFactRow,
   subFieldKey: string | null,
 ): readonly unknown[] => {
-  const rawValue = unwrapExternalFactEnvelope(row.valueJson);
+  const rawValue = unwrapRuntimeBoundFactEnvelope(row.valueJson);
 
   if (!subFieldKey) {
     if (typeof row.valueJson === "undefined" || row.valueJson === null) {
@@ -172,11 +165,12 @@ const extractFactValues = (
   }
 
   switch (definition.kind) {
+    case "plain_fact":
     case "plain_value_fact":
-    case "definition_backed_external_fact":
-    case "bound_external_fact":
-    case "workflow_reference_fact":
-    case "artifact_reference_fact":
+    case "bound_fact":
+    case "workflow_ref_fact":
+    case "artifact_slot_reference_fact":
+    case "work_unit_reference_fact":
       return pickJsonSubFieldValues(rawValue, subFieldKey);
     case "work_unit_draft_spec_fact": {
       const normalized = normalizeDraftSpecValue(rawValue);

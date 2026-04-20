@@ -14,6 +14,7 @@ import {
   type InvokeWorkUnitTargetExecutionRow,
   type InvokeWorkflowTargetExecutionRow,
 } from "../../repositories/invoke-execution-repository";
+import { BranchStepRuntimeRepository } from "../../repositories/branch-step-runtime-repository";
 import { ProjectFactRepository } from "../../repositories/project-fact-repository";
 import { ProjectWorkUnitRepository } from "../../repositories/project-work-unit-repository";
 import {
@@ -33,6 +34,7 @@ import {
 } from "../../repositories/workflow-execution-repository";
 import { InvokeCompletionServiceLive } from "../../services/invoke-completion-service";
 import { InvokeStepDetailServiceLive } from "../../services/invoke-step-detail-service";
+import { ActionStepDetailService } from "../../services/action-step-detail-service";
 import {
   StepExecutionDetailService,
   StepExecutionDetailServiceLive,
@@ -133,7 +135,23 @@ function buildCommonLayers() {
     removeFactValue: () => Effect.die("unused"),
   } as unknown as Context.Tag.Service<typeof WorkUnitFactRepository>);
 
-  return Layer.mergeAll(projectContextLayer, projectFactLayer, workUnitFactLayer);
+  const branchRuntimeLayer = Layer.succeed(BranchStepRuntimeRepository, {
+    createOnActivation: () => Effect.die("unused"),
+    saveSelection: () => Effect.die("unused"),
+    loadWithRoutes: () => Effect.succeed(null),
+  } as unknown as Context.Tag.Service<typeof BranchStepRuntimeRepository>);
+
+  const actionDetailLayer = Layer.succeed(ActionStepDetailService, {
+    buildActionStepExecutionDetailBody: () => Effect.die("unused"),
+  } as unknown as Context.Tag.Service<typeof ActionStepDetailService>);
+
+  return Layer.mergeAll(
+    projectContextLayer,
+    projectFactLayer,
+    workUnitFactLayer,
+    branchRuntimeLayer,
+    actionDetailLayer,
+  );
 }
 
 function buildStepRepoLayer(params: {
@@ -235,7 +253,7 @@ describe("runtime invoke step detail", () => {
                 key: "invoke-zero-targets",
                 label: "Invoke zero targets",
                 targetKind: "workflow",
-                sourceMode: "fixed_set",
+                sourceMode: "fixed",
                 workflowDefinitionIds: [],
               },
             },
@@ -253,7 +271,7 @@ describe("runtime invoke step detail", () => {
             key: "invoke-zero-targets",
             label: "Invoke zero targets",
             targetKind: "workflow",
-            sourceMode: "fixed_set",
+            sourceMode: "fixed",
             workflowDefinitionIds: [],
           },
         }),
@@ -504,7 +522,7 @@ describe("runtime invoke step detail", () => {
                       key: "invoke-children",
                       label: "Invoke Child Workflows",
                       targetKind: "workflow",
-                      sourceMode: "fixed_set",
+                      sourceMode: "fixed",
                       workflowDefinitionIds: [
                         "workflow-child-1",
                         "workflow-child-2",
@@ -517,7 +535,7 @@ describe("runtime invoke step detail", () => {
                 contextFacts: [
                   {
                     contextFactDefinitionId: "ctx-child-workflows",
-                    kind: "workflow_reference_fact",
+                    kind: "workflow_ref_fact",
                     key: "childWorkflows",
                     label: "Child workflows",
                     cardinality: "many",
@@ -602,7 +620,7 @@ describe("runtime invoke step detail", () => {
           payload: {
             key: "invoke-story-workflow",
             targetKind: "workflow",
-            sourceMode: "fixed_set",
+            sourceMode: "fixed",
             workflowDefinitionIds: ["workflow-child-1", "workflow-child-2", "workflow-child-3"],
           },
         }),
@@ -920,7 +938,7 @@ describe("runtime invoke step detail", () => {
                 key: "invoke-stories",
                 label: "Invoke stories",
                 targetKind: "work_unit",
-                sourceMode: "fixed_set",
+                sourceMode: "fixed",
                 workUnitDefinitionId: "wu-story",
                 bindings: [
                   {
@@ -978,7 +996,7 @@ describe("runtime invoke step detail", () => {
           payload: {
             key: "invoke-story-work-unit",
             targetKind: "work_unit",
-            sourceMode: "fixed_set",
+            sourceMode: "fixed",
             workUnitDefinitionId: "wu-story",
             bindings: [
               {

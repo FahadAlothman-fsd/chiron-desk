@@ -16,6 +16,7 @@ import { InvokeCompletionService } from "./invoke-completion-service";
 import { InvokeTargetResolutionService } from "./invoke-target-resolution-service";
 import { StepProgressionService } from "./step-progression-service";
 import { StepExecutionTransactionService } from "./step-execution-transaction-service";
+import { toCanonicalRuntimeBoundFactEnvelope } from "./runtime-bound-fact-value";
 import type {
   SaveBranchStepSelectionInput,
   SaveBranchStepSelectionOutput,
@@ -184,8 +185,7 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
 
         const externalContextFacts = workflowEditor.contextFacts.flatMap((fact) => {
           if (
-            (fact.kind !== "definition_backed_external_fact" &&
-              fact.kind !== "bound_external_fact") ||
+            fact.kind !== "bound_fact" ||
             typeof fact.contextFactDefinitionId !== "string" ||
             fact.cardinality !== "one" ||
             existingContextFactIds.has(fact.contextFactDefinitionId)
@@ -196,7 +196,7 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
           return [
             {
               contextFactDefinitionId: fact.contextFactDefinitionId,
-              externalFactDefinitionId: fact.externalFactDefinitionId,
+              externalFactDefinitionId: fact.factDefinitionId,
             },
           ];
         });
@@ -279,13 +279,13 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
               {
                 contextFactDefinitionId: contextFact.contextFactDefinitionId,
                 instanceOrder: 0,
-                valueJson: {
-                  factInstanceId: workUnitInstance.id,
+                valueJson: toCanonicalRuntimeBoundFactEnvelope({
+                  instanceId: workUnitInstance.id,
                   value: runtimeFactValueFromInstance({
                     valueJson: workUnitInstance.valueJson,
                     referencedProjectWorkUnitId: workUnitInstance.referencedProjectWorkUnitId,
                   }),
-                },
+                }),
               },
             ];
           }
@@ -305,10 +305,10 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
             {
               contextFactDefinitionId: contextFact.contextFactDefinitionId,
               instanceOrder: 0,
-              valueJson: {
-                factInstanceId: projectFactInstance.id,
+              valueJson: toCanonicalRuntimeBoundFactEnvelope({
+                instanceId: projectFactInstance.id,
                 value: projectFactInstance.valueJson,
-              },
+              }),
             },
           ];
         });

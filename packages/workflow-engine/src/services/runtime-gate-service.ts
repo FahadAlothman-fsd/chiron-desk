@@ -15,6 +15,7 @@ import { ProjectFactRepository } from "../repositories/project-fact-repository";
 import type { ProjectFactInstanceRow } from "../repositories/project-fact-repository";
 import { WorkUnitFactRepository } from "../repositories/work-unit-fact-repository";
 import type { WorkUnitFactInstanceRow } from "../repositories/work-unit-fact-repository";
+import { unwrapRuntimeBoundFactEnvelope } from "./runtime-bound-fact-value";
 
 export interface RuntimeGateEvaluationInput {
   readonly projectId: string;
@@ -217,14 +218,6 @@ const normalizeSlotDefinitionId = (condition: {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const isExternalFactEnvelope = (
-  value: unknown,
-): value is { factInstanceId: string; value: unknown } =>
-  isRecord(value) && typeof value.factInstanceId === "string" && "value" in value;
-
-const unwrapExternalFactEnvelope = (value: unknown): unknown =>
-  isExternalFactEnvelope(value) ? value.value : value;
-
 type DraftSpecFactEntry = {
   factDefinitionId: string;
   value?: unknown;
@@ -317,12 +310,12 @@ const extractFactValues = (
     return rows.flatMap((row) =>
       typeof row.valueJson === "undefined" || row.valueJson === null
         ? []
-        : [unwrapExternalFactEnvelope(row.valueJson)],
+        : [unwrapRuntimeBoundFactEnvelope(row.valueJson)],
     );
   }
 
   return rows.flatMap((row) => {
-    const rawValue = unwrapExternalFactEnvelope(row.valueJson);
+    const rawValue = unwrapRuntimeBoundFactEnvelope(row.valueJson);
     const normalized = normalizeDraftSpecValue(rawValue);
     if (normalized) {
       if (subFieldKey.startsWith("fact:")) {

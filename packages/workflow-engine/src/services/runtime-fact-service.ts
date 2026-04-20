@@ -90,8 +90,8 @@ export const RuntimeFactServiceLive = Layer.effect(
         }
 
         const cards = [...grouped.entries()].map(([factDefinitionId, rows]) => {
-          const values = rows.map((row) => row.valueJson);
-          const factType = inferFactType(values[0]);
+          const values = rows.map((row) => ({ instanceId: row.id, value: row.valueJson }));
+          const factType = inferFactType(values[0]?.value);
           const currentCount = rows.length;
 
           return {
@@ -154,7 +154,7 @@ export const RuntimeFactServiceLive = Layer.effect(
             exists: values.length > 0,
             currentCount: values.length,
             values: values.map((value) => ({
-              projectFactInstanceId: value.id,
+              instanceId: value.id,
               value: value.valueJson,
               createdAt: value.createdAt.toISOString(),
             })),
@@ -201,14 +201,19 @@ export const RuntimeFactServiceLive = Layer.effect(
             values.every((value) => value.referencedProjectWorkUnitId === null),
           )
           .map(([factDefinitionId, values]) => ({
+            kind: "plain_fact" as const,
             factDefinitionId,
             factKey: factDefinitionId,
             factName: factDefinitionId,
+            type: inferFactType(values[0]?.valueJson),
             factType: inferFactType(values[0]?.valueJson),
             cardinality: inferCardinality(values.length),
             exists: values.length > 0,
             currentCount: values.length,
-            currentValues: values.map((value) => value.valueJson),
+            currentValues: values.map((value) => ({
+              instanceId: value.id,
+              value: value.valueJson,
+            })),
             target: {
               page: "work-unit-fact-detail" as const,
               factDefinitionId,
@@ -237,6 +242,7 @@ export const RuntimeFactServiceLive = Layer.effect(
               });
 
             return {
+              kind: "work_unit_reference_fact" as const,
               factDefinitionId,
               factKey: factDefinitionId,
               factName: factDefinitionId,
@@ -291,6 +297,7 @@ export const RuntimeFactServiceLive = Layer.effect(
         }
 
         const incoming = [...incomingByDefinition.entries()].map(([factDefinitionId, members]) => ({
+          kind: "work_unit_reference_fact" as const,
           factDefinitionId,
           factKey: factDefinitionId,
           factName: factDefinitionId,
@@ -348,9 +355,16 @@ export const RuntimeFactServiceLive = Layer.effect(
         return {
           workUnit: workUnitHeader,
           factDefinition: {
+            kind:
+              dependencyMembers.length > 0
+                ? ("work_unit_reference_fact" as const)
+                : ("plain_fact" as const),
             factDefinitionId: input.factDefinitionId,
             factKey: input.factDefinitionId,
             factName: input.factDefinitionId,
+            ...(dependencyMembers.length > 0
+              ? {}
+              : { type: inferFactType(workUnitFacts[0]?.valueJson) }),
             factType:
               dependencyMembers.length > 0
                 ? "work_unit"

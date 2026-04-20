@@ -296,11 +296,11 @@ describe("RuntimeFactService + RuntimeArtifactService", () => {
         slotDefinitionId: "slot-1",
       });
 
-      const snapshot = yield* artifactService.getArtifactSnapshotDialog({
+      const snapshot = yield* artifactService.getArtifactInstanceDialog({
         projectId: "project-1",
         projectWorkUnitId: "wu-1",
         slotDefinitionId: "slot-1",
-        projectArtifactSnapshotId: "snapshot-1",
+        artifactInstanceId: "snapshot-1",
       });
 
       const freshness = yield* artifactService.checkArtifactSlotCurrentState({
@@ -313,11 +313,10 @@ describe("RuntimeFactService + RuntimeArtifactService", () => {
     }).pipe(Effect.provide(artifactServiceLayer));
 
     const result = await Effect.runPromise(program);
-    expect(result.detail.currentEffectiveSnapshot.exists).toBe(true);
-    expect(result.detail.lineage[0]?.supersedesProjectArtifactSnapshotId).toBe("snapshot-0");
-    expect(result.snapshot.snapshot.projectArtifactSnapshotId).toBe("snapshot-1");
-    expect(result.snapshot.snapshot.supersedesProjectArtifactSnapshotId).toBe("snapshot-0");
+    expect(result.detail.currentArtifactInstance.exists).toBe(true);
+    expect(result.detail.currentArtifactInstance.artifactInstanceId).toBe("snapshot-1");
+    expect(result.snapshot.artifactInstance.artifactInstanceId).toBe("snapshot-1");
     expect(result.freshness.result).toBe("changed");
-    expect(result.freshness.projectArtifactSnapshotId).toBe("snapshot-1");
+    expect(result.freshness.artifactInstanceId).toBe("snapshot-1");
   });
 });

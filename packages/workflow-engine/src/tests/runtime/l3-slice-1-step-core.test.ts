@@ -1,7 +1,10 @@
 import { Context, Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
+import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-engine";
+import { ProjectContextRepository } from "@chiron/project-context";
 
 import { AgentStepExecutionAppliedWriteRepository } from "../../repositories/agent-step-execution-applied-write-repository";
+import { BranchStepRuntimeRepository } from "../../repositories/branch-step-runtime-repository";
 import { ExecutionReadRepository } from "../../repositories/execution-read-repository";
 import {
   StepExecutionRepository,
@@ -319,6 +322,32 @@ const buildRuntimeTestLayer = (options?: { entryMode?: "valid" | "missing" | "am
     listAppliedWritesForStepExecution: () => Effect.succeed([]),
   } as unknown as Context.Tag.Service<typeof AgentStepExecutionAppliedWriteRepository>);
 
+  const branchRuntimeRepoLayer = Layer.succeed(BranchStepRuntimeRepository, {
+    createOnActivation: () => Effect.die("unused"),
+    saveSelection: () => Effect.die("unused"),
+    loadWithRoutes: () => Effect.succeed(null),
+  } as unknown as Context.Tag.Service<typeof BranchStepRuntimeRepository>);
+
+  const projectContextRepoLayer = Layer.succeed(ProjectContextRepository, {
+    findProjectPin: () => Effect.succeed(null),
+  } as unknown as Context.Tag.Service<typeof ProjectContextRepository>);
+
+  const lifecycleRepoLayer = Layer.succeed(LifecycleRepository, {
+    findWorkUnitTypes: () => Effect.succeed([]),
+    findLifecycleStates: () => Effect.succeed([]),
+    findLifecycleTransitions: () => Effect.succeed([]),
+    findFactSchemas: () => Effect.succeed([]),
+    findTransitionConditionSets: () => Effect.succeed([]),
+    findAgentTypes: () => Effect.succeed([]),
+    findTransitionWorkflowBindings: () => Effect.succeed([]),
+    saveLifecycleDefinition: () => Effect.die("unused"),
+    recordLifecycleEvent: () => Effect.die("unused"),
+  } as unknown as Context.Tag.Service<typeof LifecycleRepository>);
+
+  const methodologyRepoLayer = Layer.succeed(MethodologyRepository, {
+    getWorkflowEditorDefinition: () => Effect.die("unused"),
+  } as unknown as Context.Tag.Service<typeof MethodologyRepository>);
+
   const invokeCompletionLayer = Layer.succeed(InvokeCompletionService, {
     getCompletionEligibility: () => Effect.die("unused"),
   } as unknown as Context.Tag.Service<typeof InvokeCompletionService>);
@@ -340,6 +369,10 @@ const buildRuntimeTestLayer = (options?: { entryMode?: "valid" | "missing" | "am
     workflowRepoLayer,
     readRepoLayer,
     appliedWriteRepoLayer,
+    branchRuntimeRepoLayer,
+    projectContextRepoLayer,
+    lifecycleRepoLayer,
+    methodologyRepoLayer,
     invokeCompletionLayer,
     invokePropagationLayer,
     actionRuntimeLayer,
@@ -352,7 +385,7 @@ const buildRuntimeTestLayer = (options?: { entryMode?: "valid" | "missing" | "am
   const contextMutation = Layer.provide(StepContextMutationServiceLive, base);
   const transaction = Layer.provide(
     StepExecutionTransactionServiceLive,
-    Layer.mergeAll(base, lifecycle, contextMutation),
+    Layer.mergeAll(base, progression, lifecycle, contextMutation),
   );
 
   return {

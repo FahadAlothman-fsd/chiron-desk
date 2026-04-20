@@ -12,6 +12,10 @@ import {
   type RuntimeWorkflowExecutionContextFactRow,
 } from "../repositories/step-execution-repository";
 import { ActionStepRuntimeService } from "./action-step-runtime-service";
+import {
+  getRuntimeBoundFactInstanceId,
+  readRuntimeBoundFactEnvelope,
+} from "./runtime-bound-fact-value";
 
 const makeActionDetailError = (cause: string): RepositoryError =>
   new RepositoryError({
@@ -397,12 +401,6 @@ function getItemSkipBlockedReason(params: {
   return undefined;
 }
 
-function isExternalEnvelope(
-  value: unknown,
-): value is { factInstanceId?: unknown; value?: unknown } {
-  return isRecord(value);
-}
-
 function isArtifactReferenceValue(value: unknown): value is { relativePath: string } {
   return (
     isRecord(value) &&
@@ -412,8 +410,9 @@ function isArtifactReferenceValue(value: unknown): value is { relativePath: stri
 }
 
 function hasPreviewDefinitionBackedValue(value: unknown): boolean {
-  if (isExternalEnvelope(value)) {
-    return value.value !== undefined && value.value !== null;
+  const envelope = readRuntimeBoundFactEnvelope(value);
+  if (envelope) {
+    return envelope.value !== undefined && envelope.value !== null;
   }
 
   return value !== undefined && value !== null;
@@ -457,7 +456,7 @@ function buildPreviewTargetMeta(params: {
 
   const affectedTargets = (() => {
     switch (params.action.contextFactKind) {
-      case "artifact_reference_fact":
+      case "artifact_slot_reference_fact":
         return rows.length > 0
           ? rows.map((row) =>
               isArtifactReferenceValue(row.valueJson)
@@ -480,43 +479,10 @@ function buildPreviewTargetMeta(params: {
                 ...(label ? { label } : {}),
               },
             ];
-      case "bound_external_fact":
+      case "bound_fact":
         return rows.length > 0
           ? rows.map((row) => {
-              const targetId =
-                isExternalEnvelope(row.valueJson) &&
-                typeof row.valueJson.factInstanceId === "string"
-                  ? row.valueJson.factInstanceId
-                  : undefined;
-
-              return targetId
-                ? {
-                    targetKind: "external_fact" as const,
-                    targetState: "exists" as const,
-                    targetId,
-                    ...(label ? { label } : {}),
-                  }
-                : {
-                    targetKind: "external_fact" as const,
-                    targetState: "missing" as const,
-                    ...(label ? { label } : {}),
-                  };
-            })
-          : [
-              {
-                targetKind: "external_fact" as const,
-                targetState: "missing" as const,
-                ...(label ? { label } : {}),
-              },
-            ];
-      case "definition_backed_external_fact":
-        return rows.length > 0
-          ? rows.map((row) => {
-              const targetId =
-                isExternalEnvelope(row.valueJson) &&
-                typeof row.valueJson.factInstanceId === "string"
-                  ? row.valueJson.factInstanceId
-                  : undefined;
+              const targetId = getRuntimeBoundFactInstanceId(row.valueJson);
               const hasUsableValue = hasPreviewDefinitionBackedValue(row.valueJson);
 
               return targetId || hasUsableValue
@@ -539,6 +505,8 @@ function buildPreviewTargetMeta(params: {
                 ...(label ? { label } : {}),
               },
             ];
+      default:
+        return [];
     }
   })();
 

@@ -13,6 +13,12 @@ import {
   WorkflowExecutionDetailService,
   WorkflowExecutionDetailServiceLive,
 } from "../../services/workflow-execution-detail-service";
+import { StepProgressionService } from "../../services/step-progression-service";
+
+const stepProgressionLayer = Layer.succeed(StepProgressionService, {
+  resolveEntryStepDefinition: () => Effect.die("unused"),
+  getNextStepDefinition: () => Effect.succeed({ state: "no_next_step" as const }),
+} as unknown as Context.Tag.Service<typeof StepProgressionService>);
 
 describe("WorkflowExecutionCommandService", () => {
   it("retrySameWorkflowExecution updates primary pointer only for primary role", async () => {
@@ -103,6 +109,7 @@ describe("WorkflowExecutionCommandService", () => {
           },
           retryWorkflowExecution: () => Effect.succeed(null),
         } as unknown as Context.Tag.Service<typeof WorkflowExecutionRepository>),
+        stepProgressionLayer,
       ),
     );
 
@@ -208,6 +215,7 @@ describe("WorkflowExecutionCommandService", () => {
           },
           retryWorkflowExecution: () => Effect.succeed(null),
         } as unknown as Context.Tag.Service<typeof WorkflowExecutionRepository>),
+        stepProgressionLayer,
       ),
     );
 
@@ -344,6 +352,7 @@ describe("WorkflowExecutionCommandService", () => {
           updateTransitionPrimaryWorkflowExecutionPointer: () => Effect.void,
           retryWorkflowExecution: () => Effect.succeed(null),
         } as unknown as Context.Tag.Service<typeof WorkflowExecutionRepository>),
+        stepProgressionLayer,
       ),
     );
 
@@ -443,6 +452,7 @@ describe("WorkflowExecutionDetailService", () => {
           listWorkflowStepDefinitions: () => Effect.succeed([]),
           listWorkflowEdges: () => Effect.succeed([]),
         } as unknown as Context.Tag.Service<typeof StepExecutionRepository>),
+        stepProgressionLayer,
       ),
     );
 

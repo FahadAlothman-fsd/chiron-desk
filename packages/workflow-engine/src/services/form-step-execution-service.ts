@@ -10,6 +10,10 @@ import { Context, Effect, Layer } from "effect";
 import { RepositoryError } from "../errors";
 import { ExecutionReadRepository } from "../repositories/execution-read-repository";
 import { StepExecutionRepository } from "../repositories/step-execution-repository";
+import {
+  readRuntimeBoundFactEnvelope,
+  toCanonicalRuntimeBoundFactEnvelope,
+} from "./runtime-bound-fact-value";
 import { StepExecutionTransactionService } from "./step-execution-transaction-service";
 
 export interface SaveFormStepDraftInput {
@@ -61,6 +65,20 @@ const validateStructuralPayload = (values: Record<string, unknown>) =>
 
 const validateReadyToSubmitPayload = (values: Record<string, unknown>) =>
   validateStructuralPayload(values);
+
+const normalizeFormPayloadValue = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map(normalizeFormPayloadValue);
+  }
+
+  const envelope = readRuntimeBoundFactEnvelope(value);
+  return envelope ? toCanonicalRuntimeBoundFactEnvelope(envelope) : value;
+};
+
+const normalizeFormPayload = (values: Record<string, unknown>): Record<string, unknown> =>
+  Object.fromEntries(
+    Object.entries(values).map(([key, value]) => [key, normalizeFormPayloadValue(value)]),
+  );
 
 const isPresentSubmittedValue = (value: unknown): boolean => {
   if (value === null || value === undefined) {
@@ -216,13 +234,15 @@ export const FormStepExecutionServiceLive = Layer.effect(
           return yield* makeFormExecutionError("draft payload must be a JSON-compatible object");
         }
 
+        const normalizedValues = normalizeFormPayload(input.values);
+
         const existingState = yield* stepRepo.getFormStepExecutionState(input.stepExecutionId);
 
         const now = new Date();
 
         yield* stepRepo.upsertFormStepExecutionState({
           stepExecutionId: input.stepExecutionId,
-          draftPayloadJson: input.values,
+          draftPayloadJson: normalizedValues,
           submittedPayloadJson: existingState?.submittedPayloadJson ?? null,
           lastDraftSavedAt: now,
           submittedAt: existingState?.submittedAt ?? null,
@@ -289,15 +309,17 @@ export const FormStepExecutionServiceLive = Layer.effect(
           return yield* makeFormExecutionError(submissionValidationError);
         }
 
+        const normalizedValues = normalizeFormPayload(input.values);
+
         const contextReplace = buildContextReplacement({
-          values: input.values,
+          values: normalizedValues,
           fields,
         });
 
         const submitted = yield* tx.submitFormStepExecution({
           workflowExecutionId: input.workflowExecutionId,
           stepExecutionId: input.stepExecutionId,
-          submittedValues: input.values,
+          submittedValues: normalizedValues,
           contextReplace: {
             workflowExecutionId: input.workflowExecutionId,
             sourceStepExecutionId: input.stepExecutionId,

@@ -10,6 +10,7 @@ import {
   StepExecutionRepository,
   type ReplaceRuntimeWorkflowExecutionContextFactValue,
 } from "../repositories/step-execution-repository";
+import type { FrozenInvokeDraftTemplate } from "./invoke-work-unit-execution-service";
 import { StepContextMutationService } from "./step-context-mutation-service";
 
 export interface PropagateInvokeCompletionOutputsParams {
@@ -44,8 +45,71 @@ const sortByResolutionOrder = <T extends { resolutionOrder: number | null }>(
       toResolutionOrder(left.resolutionOrder) - toResolutionOrder(right.resolutionOrder),
   );
 
+const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const normalizeFrozenDraftTemplate = (value: unknown): FrozenInvokeDraftTemplate | null => {
+  if (!isPlainRecord(value)) {
+    return null;
+  }
+
+  if (
+    typeof value.draftKey !== "string" ||
+    typeof value.workUnitDefinitionId !== "string" ||
+    !Array.isArray(value.factValues) ||
+    !Array.isArray(value.artifactSlots)
+  ) {
+    return null;
+  }
+
+  const factValues = value.factValues.flatMap((entry) =>
+    isPlainRecord(entry) && typeof entry.workUnitFactDefinitionId === "string" && "value" in entry
+      ? [{ workUnitFactDefinitionId: entry.workUnitFactDefinitionId, value: entry.value }]
+      : [],
+  );
+  const artifactSlots = value.artifactSlots.flatMap((entry) => {
+    if (!isPlainRecord(entry) || typeof entry.artifactSlotDefinitionId !== "string") {
+      return [];
+    }
+
+    const files = Array.isArray(entry.files)
+      ? entry.files.flatMap((file) =>
+          isPlainRecord(file)
+            ? [
+                {
+                  ...(typeof file.relativePath === "string"
+                    ? { relativePath: file.relativePath }
+                    : {}),
+                  ...(typeof file.sourceContextFactDefinitionId === "string"
+                    ? { sourceContextFactDefinitionId: file.sourceContextFactDefinitionId }
+                    : {}),
+                  clear: file.clear === true,
+                },
+              ]
+            : [],
+        )
+      : [];
+
+    return [{ artifactSlotDefinitionId: entry.artifactSlotDefinitionId, files }];
+  });
+
+  if (
+    factValues.length !== value.factValues.length ||
+    artifactSlots.length !== value.artifactSlots.length
+  ) {
+    return null;
+  }
+
+  return {
+    draftKey: value.draftKey,
+    workUnitDefinitionId: value.workUnitDefinitionId,
+    factValues,
+    artifactSlots,
+  };
+};
+
 const buildWorkflowReferenceValues = (params: {
-  contextFact: Extract<WorkflowContextFactDto, { kind: "workflow_reference_fact" }>;
+  contextFact: Extract<WorkflowContextFactDto, { kind: "workflow_ref_fact" }>;
   invokeTargets: ReadonlyArray<{
     workflowDefinitionId: string;
     workflowExecutionId: string;
@@ -74,17 +138,9 @@ const buildWorkflowReferenceValues = (params: {
 const buildWorkUnitDraftSpecValues = (params: {
   contextFact: Extract<WorkflowContextFactDto, { kind: "work_unit_draft_spec_fact" }>;
   invokeTargets: ReadonlyArray<{
-    projectWorkUnitId: string;
     workUnitDefinitionId: string;
     resolutionOrder: number | null;
-    workUnitFactInstanceIds: ReadonlyArray<{
-      factDefinitionId: string;
-      workUnitFactInstanceId: string;
-    }>;
-    artifactSnapshotIds: ReadonlyArray<{
-      artifactSlotDefinitionId: string;
-      artifactSnapshotId: string;
-    }>;
+    frozenDraftTemplateJson: unknown;
   }>;
 }): readonly ReplaceRuntimeWorkflowExecutionContextFactValue[] => {
   const filteredTargets = params.invokeTargets.filter(
@@ -92,29 +148,38 @@ const buildWorkUnitDraftSpecValues = (params: {
   );
 
   return restrictToCardinality(
-    sortByResolutionOrder(filteredTargets).map((target, instanceOrder) => ({
-      contextFactDefinitionId: params.contextFact.contextFactDefinitionId ?? params.contextFact.key,
-      instanceOrder,
-      valueJson: {
-        projectWorkUnitId: target.projectWorkUnitId,
-        workUnitFactInstanceIds: target.workUnitFactInstanceIds
-          .filter((fact) =>
-            params.contextFact.selectedWorkUnitFactDefinitionIds.length > 0
-              ? params.contextFact.selectedWorkUnitFactDefinitionIds.includes(fact.factDefinitionId)
-              : true,
-          )
-          .map((fact) => fact.workUnitFactInstanceId),
-        artifactSnapshotIds: target.artifactSnapshotIds
-          .filter((artifact) =>
-            params.contextFact.selectedArtifactSlotDefinitionIds.length > 0
-              ? params.contextFact.selectedArtifactSlotDefinitionIds.includes(
-                  artifact.artifactSlotDefinitionId,
-                )
-              : true,
-          )
-          .map((artifact) => artifact.artifactSnapshotId),
-      },
-    })),
+    sortByResolutionOrder(filteredTargets).flatMap((target, instanceOrder) => {
+      const frozenTemplate = normalizeFrozenDraftTemplate(target.frozenDraftTemplateJson);
+      if (!frozenTemplate) {
+        return [];
+      }
+
+      return [
+        {
+          contextFactDefinitionId:
+            params.contextFact.contextFactDefinitionId ?? params.contextFact.key,
+          instanceOrder,
+          valueJson: {
+            draftKey: frozenTemplate.draftKey,
+            workUnitDefinitionId: frozenTemplate.workUnitDefinitionId,
+            factValues: frozenTemplate.factValues.filter((fact) =>
+              params.contextFact.selectedWorkUnitFactDefinitionIds.length > 0
+                ? params.contextFact.selectedWorkUnitFactDefinitionIds.includes(
+                    fact.workUnitFactDefinitionId,
+                  )
+                : true,
+            ),
+            artifactSlots: frozenTemplate.artifactSlots.filter((slot) =>
+              params.contextFact.selectedArtifactSlotDefinitionIds.length > 0
+                ? params.contextFact.selectedArtifactSlotDefinitionIds.includes(
+                    slot.artifactSlotDefinitionId,
+                  )
+                : true,
+            ),
+          },
+        } satisfies ReplaceRuntimeWorkflowExecutionContextFactValue,
+      ];
+    }),
     params.contextFact.cardinality,
   );
 };
@@ -227,8 +292,8 @@ export const InvokePropagationServiceLive = Layer.effect(
               : [],
           );
           const outputFacts = workflowEditor.contextFacts.filter(
-            (fact): fact is Extract<WorkflowContextFactDto, { kind: "workflow_reference_fact" }> =>
-              fact.kind === "workflow_reference_fact",
+            (fact): fact is Extract<WorkflowContextFactDto, { kind: "workflow_ref_fact" }> =>
+              fact.kind === "workflow_ref_fact",
           );
           const affectedContextFactDefinitionIds = outputFacts.map(
             (fact) => fact.contextFactDefinitionId ?? fact.key,
@@ -271,17 +336,20 @@ export const InvokePropagationServiceLive = Layer.effect(
               ]);
 
               return {
-                projectWorkUnitId: target.projectWorkUnitId!,
                 workUnitDefinitionId: target.workUnitDefinitionId,
                 resolutionOrder: target.resolutionOrder,
-                workUnitFactInstanceIds: factMappings.map((mapping) => ({
-                  factDefinitionId: mapping.factDefinitionId,
-                  workUnitFactInstanceId: mapping.workUnitFactInstanceId,
-                })),
-                artifactSnapshotIds: artifactMappings.map((mapping) => ({
-                  artifactSlotDefinitionId: mapping.artifactSlotDefinitionId,
-                  artifactSnapshotId: mapping.artifactSnapshotId,
-                })),
+                frozenDraftTemplateJson: target.frozenDraftTemplateJson ?? {
+                  draftKey: `${target.workUnitDefinitionId}:${target.transitionDefinitionId}:${target.resolutionOrder ?? 0}`,
+                  workUnitDefinitionId: target.workUnitDefinitionId,
+                  factValues: factMappings.map((mapping) => ({
+                    workUnitFactDefinitionId: mapping.factDefinitionId,
+                    value: mapping.workUnitFactInstanceId,
+                  })),
+                  artifactSlots: artifactMappings.map((mapping) => ({
+                    artifactSlotDefinitionId: mapping.artifactSlotDefinitionId,
+                    files: [{ relativePath: mapping.artifactSnapshotId, clear: false }],
+                  })),
+                },
               };
             }),
         );

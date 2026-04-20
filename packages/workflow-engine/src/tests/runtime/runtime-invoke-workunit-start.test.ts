@@ -314,7 +314,7 @@ function createRuntime(options?: {
         payload: {
           key: "invoke-children",
           targetKind: "work_unit",
-          sourceMode: "fixed_set",
+          sourceMode: "fixed",
           workUnitDefinitionId: "wu-child",
           bindings: options?.invokeBindings ?? [],
           activationTransitions: options?.invokeActivationTransitions ?? [

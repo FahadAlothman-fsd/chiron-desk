@@ -7,6 +7,7 @@ import { ExecutionReadRepository } from "../repositories/execution-read-reposito
 import { ProjectFactRepository } from "../repositories/project-fact-repository";
 import { StepExecutionRepository } from "../repositories/step-execution-repository";
 import { WorkUnitFactRepository } from "../repositories/work-unit-fact-repository";
+import { toCanonicalRuntimeBoundFactEnvelope } from "./runtime-bound-fact-value";
 
 const makePrefillError = (cause: string): RepositoryError =>
   new RepositoryError({
@@ -124,8 +125,7 @@ export const WorkflowContextExternalPrefillServiceLive = Layer.effect(
 
         const externalContextFacts = workflowEditor.contextFacts.flatMap((fact) => {
           if (
-            (fact.kind !== "definition_backed_external_fact" &&
-              fact.kind !== "bound_external_fact") ||
+            fact.kind !== "bound_fact" ||
             typeof fact.contextFactDefinitionId !== "string" ||
             fact.cardinality !== "one" ||
             existingContextFactIds.has(fact.contextFactDefinitionId)
@@ -136,7 +136,7 @@ export const WorkflowContextExternalPrefillServiceLive = Layer.effect(
           return [
             {
               contextFactDefinitionId: fact.contextFactDefinitionId,
-              externalFactDefinitionId: fact.externalFactDefinitionId,
+              externalFactDefinitionId: fact.factDefinitionId,
             },
           ];
         });
@@ -244,13 +244,13 @@ export const WorkflowContextExternalPrefillServiceLive = Layer.effect(
               {
                 contextFactDefinitionId: contextFact.contextFactDefinitionId,
                 instanceOrder: 0,
-                valueJson: {
-                  factInstanceId: workUnitInstance.id,
+                valueJson: toCanonicalRuntimeBoundFactEnvelope({
+                  instanceId: workUnitInstance.id,
                   value: runtimeFactValueFromInstance({
                     valueJson: workUnitInstance.valueJson,
                     referencedProjectWorkUnitId: workUnitInstance.referencedProjectWorkUnitId,
                   }),
-                },
+                }),
               },
             ];
           }
@@ -270,10 +270,10 @@ export const WorkflowContextExternalPrefillServiceLive = Layer.effect(
             {
               contextFactDefinitionId: contextFact.contextFactDefinitionId,
               instanceOrder: 0,
-              valueJson: {
-                factInstanceId: projectFactInstance.id,
+              valueJson: toCanonicalRuntimeBoundFactEnvelope({
+                instanceId: projectFactInstance.id,
                 value: projectFactInstance.valueJson,
-              },
+              }),
             },
           ];
         });

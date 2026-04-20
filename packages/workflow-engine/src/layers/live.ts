@@ -6,6 +6,7 @@ import { SandboxGitServiceLive } from "@chiron/sandbox-engine";
 
 import { RuntimeArtifactServiceLive } from "../services/runtime-artifact-service";
 import { RuntimeFactServiceLive } from "../services/runtime-fact-service";
+import { RuntimeManualFactCrudServiceLive } from "../services/runtime-manual-fact-crud-service";
 import { RuntimeGateServiceLive } from "../services/runtime-gate-service";
 import { RuntimeGuidanceServiceLive } from "../services/runtime-guidance-service";
 import { RuntimeOverviewServiceLive } from "../services/runtime-overview-service";
@@ -33,6 +34,7 @@ import { WorkflowExecutionDetailServiceLive } from "../services/workflow-executi
 import { WorkflowContextExternalPrefillServiceLive } from "../services/workflow-context-external-prefill-service";
 import { WorkflowExecutionStepCommandServiceLive } from "../services/workflow-execution-step-command-service";
 import { AgentStepContextReadServiceLive } from "../services/runtime/agent-step-context-read-service";
+import { ArtifactSlotReferenceServiceLive } from "../services/runtime/artifact-slot-reference-service";
 import { AgentStepContextWriteServiceLive } from "../services/runtime/agent-step-context-write-service";
 import { ActionStepEventStreamServiceLive } from "../services/runtime/action-step-event-stream-service";
 import { AgentStepEventStreamServiceLive } from "../services/runtime/agent-step-event-stream-service";
@@ -48,6 +50,7 @@ const WorkflowEngineRuntimeBaseLayer = Layer.mergeAll(
   RuntimeGateServiceLive,
   RuntimeWorkflowIndexServiceLive,
   RuntimeFactServiceLive,
+  RuntimeManualFactCrudServiceLive,
   RuntimeArtifactServiceLive,
 );
 
@@ -162,6 +165,7 @@ const WorkflowEngineRuntimeAgentStepBaseLayer = Layer.mergeAll(
   Layer.service(LifecycleRepository),
   Layer.service(MethodologyRepository),
   SandboxGitServiceLive,
+  ArtifactSlotReferenceServiceLive.pipe(Layer.provideMerge(SandboxGitServiceLive)),
   WorkflowEngineRuntimeStepCoreLayer,
   WorkflowEngineRuntimeStepLifecycleLayer,
   WorkflowEngineRuntimeStepTransactionLayer,
@@ -203,7 +207,10 @@ const WorkflowEngineRuntimeAgentStepSnapshotLayer = Layer.provide(
 
 const WorkflowEngineRuntimeAgentStepContextReadLayer = Layer.provide(
   AgentStepContextReadServiceLive,
-  WorkflowEngineRuntimeAgentStepBaseLayer,
+  Layer.mergeAll(
+    WorkflowEngineRuntimeAgentStepBaseLayer,
+    RuntimeWorkUnitServiceLive.pipe(Layer.provide(WorkflowEngineRuntimeBaseLayer)),
+  ),
 );
 
 const WorkflowEngineRuntimeAgentStepContextWriteLayer = Layer.provide(

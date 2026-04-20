@@ -36,6 +36,18 @@ export const AgentStepSnapshotServiceLive = Layer.effect(
 
     const readStepSnapshot = (input: ReadStepSnapshotInput) =>
       Effect.gen(function* () {
+        const hiddenStepExecutionId =
+          typeof (input as unknown as { stepExecutionId?: unknown }).stepExecutionId === "string"
+            ? (input as unknown as { stepExecutionId: string }).stepExecutionId
+            : null;
+
+        if (!hiddenStepExecutionId) {
+          return yield* new RepositoryError({
+            operation: "agent-step-snapshot.read",
+            cause: new Error("read_step_snapshot requires a step execution scope."),
+          });
+        }
+
         const context = yield* ensureAgentStepRuntimeContext(
           {
             stepRepo,
@@ -47,10 +59,11 @@ export const AgentStepSnapshotServiceLive = Layer.effect(
             bindingRepo,
             contextQuery,
           },
-          input,
+          { stepExecutionId: hiddenStepExecutionId },
         );
 
         return {
+          readItemId: input.readItemId,
           stepExecutionId: context.stepExecution.id,
           workflowExecutionId: context.workflowDetail.workflowExecution.id,
           state: context.runtimeState,

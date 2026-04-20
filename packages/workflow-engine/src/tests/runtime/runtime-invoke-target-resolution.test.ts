@@ -181,7 +181,7 @@ describe("InvokeTargetResolutionService", () => {
           invokeStep: {
             key: "invoke-child-workflows",
             targetKind: "workflow",
-            sourceMode: "fixed_set",
+            sourceMode: "fixed",
             workflowDefinitionIds: ["wf-story", "wf-story", "wf-bugfix"],
           },
         });
@@ -193,7 +193,7 @@ describe("InvokeTargetResolutionService", () => {
           invokeStep: {
             key: "invoke-child-workflows",
             targetKind: "workflow",
-            sourceMode: "fixed_set",
+            sourceMode: "fixed",
             workflowDefinitionIds: ["wf-story", "wf-should-not-appear"],
           },
         });
@@ -246,7 +246,7 @@ describe("InvokeTargetResolutionService", () => {
           invokeStep: {
             key: "invoke-drafted-work-units",
             targetKind: "work_unit",
-            sourceMode: "context_fact_backed",
+            sourceMode: "fact_backed",
             contextFactDefinitionId: "fact-story-drafts",
             bindings: [],
             activationTransitions: [
@@ -296,7 +296,7 @@ describe("InvokeTargetResolutionService", () => {
           invokeStep: {
             key: "invoke-context-workflows",
             targetKind: "workflow",
-            sourceMode: "context_fact_backed",
+            sourceMode: "fact_backed",
             contextFactDefinitionId: "fact-workflows",
           },
         });
@@ -319,7 +319,7 @@ describe("InvokeTargetResolutionService", () => {
           invokeStep: {
             key: "invoke-context-workflows",
             targetKind: "workflow",
-            sourceMode: "context_fact_backed",
+            sourceMode: "fact_backed",
             contextFactDefinitionId: "fact-workflows",
           },
         });
@@ -353,7 +353,7 @@ describe("InvokeTargetResolutionService", () => {
           invokeStep: {
             key: "invoke-drafted-research-work-units",
             targetKind: "work_unit",
-            sourceMode: "context_fact_backed",
+            sourceMode: "fact_backed",
             contextFactDefinitionId: "fact-research-draft-specs",
             bindings: [],
             activationTransitions: [
@@ -383,7 +383,7 @@ describe("InvokeTargetResolutionService", () => {
           invokeStep: {
             key: "invoke-drafted-research-work-units",
             targetKind: "work_unit",
-            sourceMode: "context_fact_backed",
+            sourceMode: "fact_backed",
             contextFactDefinitionId: "fact-research-draft-specs",
             bindings: [],
             activationTransitions: [
@@ -440,7 +440,7 @@ describe("InvokeTargetResolutionService", () => {
           invokeStep: {
             key: "invoke-drafted-research-work-units",
             targetKind: "work_unit",
-            sourceMode: "context_fact_backed",
+            sourceMode: "fact_backed",
             contextFactDefinitionId: "fact-research-draft-specs",
             bindings: [],
             activationTransitions: [
@@ -470,7 +470,7 @@ describe("InvokeTargetResolutionService", () => {
           invokeStep: {
             key: "invoke-drafted-research-work-units",
             targetKind: "work_unit",
-            sourceMode: "context_fact_backed",
+            sourceMode: "fact_backed",
             contextFactDefinitionId: "fact-research-draft-specs",
             bindings: [],
             activationTransitions: [

@@ -48,6 +48,9 @@ async function seedSavedSession(ctx: ReturnType<typeof makeAgentStepRuntimeTestC
   });
 }
 
+const withHiddenStepExecutionId = <T extends object>(input: T) =>
+  ({ ...input, stepExecutionId: "step-exec-1" }) as T & { stepExecutionId: string };
+
 describe("AgentStep MCP services", () => {
   it("implements read_step_snapshot and read_context_value v1 semantics", async () => {
     const ctx = makeAgentStepRuntimeTestContext();
@@ -55,11 +58,14 @@ describe("AgentStep MCP services", () => {
     const snapshot = await Effect.runPromise(
       Effect.gen(function* () {
         const service = yield* AgentStepSnapshotService;
-        return yield* service.readStepSnapshot({ stepExecutionId: "step-exec-1" });
+        return yield* service.readStepSnapshot(
+          withHiddenStepExecutionId({ readItemId: "step_snapshot" }) as any,
+        );
       }).pipe(Effect.provide(ctx.runtimeLayer)),
     );
 
     expect(snapshot).toEqual({
+      readItemId: "step_snapshot",
       stepExecutionId: "step-exec-1",
       workflowExecutionId: "wfexec-1",
       state: "not_started",
@@ -74,10 +80,7 @@ describe("AgentStep MCP services", () => {
         return yield* service.execute({
           version: "v1",
           toolName: "read_context_value",
-          input: {
-            stepExecutionId: "step-exec-1",
-            contextFactDefinitionId: "ctx-project-context",
-          },
+          input: withHiddenStepExecutionId({ readItemId: "project-context", mode: "all" }) as any,
         });
       }).pipe(Effect.provide(ctx.runtimeLayer)),
     );
@@ -86,7 +89,8 @@ describe("AgentStep MCP services", () => {
       version: "v1",
       toolName: "read_context_value",
       output: {
-        stepExecutionId: "step-exec-1",
+        readItemId: "project-context",
+        mode: "all",
         contextFactDefinitionId: "ctx-project-context",
         contextFactKind: "plain_value_fact",
       },
@@ -109,11 +113,10 @@ describe("AgentStep MCP services", () => {
         yield* service.execute({
           version: "v1",
           toolName: "write_context_value",
-          input: {
-            stepExecutionId: "step-exec-1",
+          input: withHiddenStepExecutionId({
             writeItemId: "write-review-notes",
             valueJson: "needs more references",
-          },
+          }) as any,
         });
       }).pipe(Effect.provide(ctx.runtimeLayer)),
     ).catch(() => undefined);
@@ -136,11 +139,10 @@ describe("AgentStep MCP services", () => {
         return yield* service.execute({
           version: "v1",
           toolName: "write_context_value",
-          input: {
-            stepExecutionId: "step-exec-1",
+          input: withHiddenStepExecutionId({
             writeItemId: "write-summary",
             valueJson: "Approved summary",
-          },
+          }) as any,
         });
       }).pipe(Effect.provide(ctx.runtimeLayer)),
     );
@@ -166,11 +168,10 @@ describe("AgentStep MCP services", () => {
           service.execute({
             version: "v1",
             toolName: "write_context_value",
-            input: {
-              stepExecutionId: "step-exec-1",
+            input: withHiddenStepExecutionId({
               writeItemId: "write-summary",
               valueJson: "",
-            },
+            }) as any,
           }),
         );
       }).pipe(Effect.provide(ctx.runtimeLayer)),
@@ -206,11 +207,10 @@ describe("AgentStep MCP services", () => {
           service.execute({
             version: "v1",
             toolName: "write_context_value",
-            input: {
-              stepExecutionId: "step-exec-1",
+            input: withHiddenStepExecutionId({
               writeItemId: "write-artifact",
               valueJson: { relativePath: "docs/setup.md" },
-            },
+            }) as any,
           }),
         );
       }).pipe(Effect.provide(ctx.runtimeLayer)),
@@ -222,6 +222,35 @@ describe("AgentStep MCP services", () => {
     }
     expect(blocked.left).toBeInstanceOf(McpWriteRequirementError);
     expect(ctx.appliedWrites).toHaveLength(0);
+  });
+
+  it("returns structured validation errors for invalid progressive-disclosure query params", async () => {
+    const ctx = makeAgentStepRuntimeTestContext();
+
+    const invalidRead = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* AgentStepMcpService;
+        return yield* Effect.either(
+          service.execute({
+            version: "v1",
+            toolName: "read_context_value",
+            input: withHiddenStepExecutionId({
+              readItemId: "project-context",
+              mode: "query",
+              queryParam: "limit=0",
+            }) as any,
+          }),
+        );
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    expect(invalidRead._tag).toBe("Left");
+    if (invalidRead._tag !== "Left") {
+      throw new Error("expected invalid read to fail");
+    }
+
+    expect(invalidRead.left).toBeInstanceOf(McpToolValidationError);
+    expect(invalidRead.left.message).toContain("limit");
   });
 
   it("records committed git metadata for artifact reference writes", async () => {
@@ -245,11 +274,10 @@ describe("AgentStep MCP services", () => {
         yield* service.execute({
           version: "v1",
           toolName: "write_context_value",
-          input: {
-            stepExecutionId: "step-exec-1",
+          input: withHiddenStepExecutionId({
             writeItemId: "write-summary",
             valueJson: "Approved summary",
-          },
+          }) as any,
         });
       }).pipe(Effect.provide(ctx.runtimeLayer)),
     );
@@ -260,11 +288,10 @@ describe("AgentStep MCP services", () => {
         return yield* service.execute({
           version: "v1",
           toolName: "write_context_value",
-          input: {
-            stepExecutionId: "step-exec-1",
+          input: withHiddenStepExecutionId({
             writeItemId: "write-artifact",
             valueJson: { relativePath: "docs/setup.md" },
-          },
+          }) as any,
         });
       }).pipe(Effect.provide(ctx.runtimeLayer)),
     );
@@ -275,20 +302,32 @@ describe("AgentStep MCP services", () => {
     }
 
     expect(artifactWrite.response.output.appliedWrite.valueJson).toEqual({
-      relativePath: "docs/setup.md",
-      gitCommitHash: "commit-123",
-      gitBlobHash: "blob-123",
-      gitCommitSubject: "seed",
-      gitCommitBody: "seed body",
+      slotDefinitionId: "slot-1",
+      files: [
+        {
+          filePath: "docs/setup.md",
+          status: "present",
+          gitCommitHash: "commit-123",
+          gitBlobHash: "blob-123",
+          gitCommitSubject: "seed",
+          gitCommitBody: "seed body",
+        },
+      ],
     });
     expect(
       ctx.contextFacts.find((fact) => fact.contextFactDefinitionId === "ctx-artifact")?.valueJson,
     ).toEqual({
-      relativePath: "docs/setup.md",
-      gitCommitHash: "commit-123",
-      gitBlobHash: "blob-123",
-      gitCommitSubject: "seed",
-      gitCommitBody: "seed body",
+      slotDefinitionId: "slot-1",
+      files: [
+        {
+          filePath: "docs/setup.md",
+          status: "present",
+          gitCommitHash: "commit-123",
+          gitBlobHash: "blob-123",
+          gitCommitSubject: "seed",
+          gitCommitBody: "seed body",
+        },
+      ],
     });
   });
 
@@ -325,11 +364,10 @@ describe("AgentStep MCP services", () => {
         yield* service.execute({
           version: "v1",
           toolName: "write_context_value",
-          input: {
-            stepExecutionId: "step-exec-1",
+          input: withHiddenStepExecutionId({
             writeItemId: "write-summary",
             valueJson: "Approved summary",
-          },
+          }) as any,
         });
       }).pipe(Effect.provide(ctx.runtimeLayer)),
     );
@@ -341,11 +379,10 @@ describe("AgentStep MCP services", () => {
           service.execute({
             version: "v1",
             toolName: "write_context_value",
-            input: {
-              stepExecutionId: "step-exec-1",
+            input: withHiddenStepExecutionId({
               writeItemId: "write-artifact",
               valueJson: { relativePath: "docs/setup.md" },
-            },
+            }) as any,
           }),
         );
       }).pipe(Effect.provide(ctx.runtimeLayer)),
@@ -424,11 +461,10 @@ describe("AgentStep MCP services", () => {
         return yield* service.execute({
           version: "v1",
           toolName: "write_context_value",
-          input: {
-            stepExecutionId: "step-exec-1",
+          input: withHiddenStepExecutionId({
             writeItemId: "write-artifact",
-            valueJson: { relativePath: "docs/setup.md" },
-          },
+            valueJson: { relativePath: "docs/setup.md", status: "deleted" },
+          }) as any,
         });
       }).pipe(Effect.provide(ctx.runtimeLayer)),
     );
@@ -439,12 +475,17 @@ describe("AgentStep MCP services", () => {
     }
 
     expect(artifactWrite.response.output.appliedWrite.valueJson).toEqual({
-      relativePath: "docs/setup.md",
-      gitCommitHash: "commit-old",
-      gitBlobHash: "blob-old",
-      gitCommitSubject: "subject-old",
-      gitCommitBody: "body-old",
-      deleted: true,
+      slotDefinitionId: "slot-1",
+      files: [
+        {
+          filePath: "docs/setup.md",
+          status: "deleted",
+          gitCommitHash: "commit-old",
+          gitBlobHash: "blob-old",
+          gitCommitSubject: "subject-old",
+          gitCommitBody: "body-old",
+        },
+      ],
     });
   });
 });

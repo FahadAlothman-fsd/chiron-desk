@@ -2,6 +2,7 @@ import type {
   GetAgentStepTimelinePageInput,
   GetAgentStepTimelinePageOutput,
 } from "@chiron/contracts/agent-step/runtime";
+import { AgentStepStateTransitionError } from "@chiron/contracts/agent-step/errors";
 import { HarnessService, type HarnessOperationError } from "@chiron/agent-runtime";
 import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-engine";
 import { ProjectContextRepository } from "@chiron/project-context";
@@ -19,7 +20,10 @@ import {
   transitionAgentStepState,
 } from "./agent-step-runtime-support";
 
-type AgentStepTimelineServiceError = RepositoryError | HarnessOperationError;
+type AgentStepTimelineServiceError =
+  | RepositoryError
+  | HarnessOperationError
+  | AgentStepStateTransitionError;
 
 const isMissingHarnessSessionError = (message: string) =>
   message.includes("Harness session") && message.includes("was not found");

@@ -1,6 +1,6 @@
 import type { RuntimeActionCompletionSummary } from "@chiron/contracts/runtime/executions";
 import type { ActionStepSseEnvelope } from "@chiron/contracts/sse/envelope";
-import { Context, Effect, Layer, Stream } from "effect";
+import { Context, Effect, Layer, Runtime, Stream } from "effect";
 
 import { RepositoryError } from "../../errors";
 import { StepExecutionDetailService } from "../step-execution-detail-service";
@@ -56,6 +56,7 @@ export const ActionStepEventStreamServiceLive = Layer.effect(
   ActionStepEventStreamService,
   Effect.gen(function* () {
     const stepDetailService = yield* StepExecutionDetailService;
+    const runtime = yield* Effect.runtime<never>();
 
     const loadSnapshot = (input: { projectId: string; stepExecutionId: string }) =>
       stepDetailService.getRuntimeStepExecutionDetail(input).pipe(
@@ -110,7 +111,7 @@ export const ActionStepEventStreamServiceLive = Layer.effect(
         let current: ActionStepStreamSnapshot;
 
         try {
-          current = await Effect.runPromise(loadSnapshot(input));
+          current = await Runtime.runPromise(runtime)(loadSnapshot(input));
         } catch (error) {
           yield {
             version: "v1",

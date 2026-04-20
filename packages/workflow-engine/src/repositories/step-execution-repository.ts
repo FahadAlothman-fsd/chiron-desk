@@ -27,6 +27,7 @@ export interface RuntimeWorkflowExecutionContextFactRow {
   id: string;
   workflowExecutionId: string;
   contextFactDefinitionId: string;
+  instanceId?: string;
   instanceOrder: number;
   valueJson: unknown;
   sourceStepExecutionId: string | null;

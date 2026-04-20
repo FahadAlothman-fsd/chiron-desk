@@ -25,6 +25,11 @@ import {
 import { TransitionExecutionRepository } from "../repositories/transition-execution-repository";
 import { WorkflowExecutionRepository } from "../repositories/workflow-execution-repository";
 import { InvokeCompletionService } from "./invoke-completion-service";
+import {
+  readRuntimeBoundFactEnvelope,
+  toCanonicalRuntimeBoundFactEnvelope,
+  unwrapRuntimeBoundFactEnvelope,
+} from "./runtime-bound-fact-value";
 
 export interface BuildInvokeStepExecutionDetailBodyParams {
   projectId: string;
@@ -205,8 +210,8 @@ const artifactOptionsFromContextFacts = (params: {
     }
 
     if (
-      contextFact.kind === "artifact_reference_fact" &&
-      contextFact.artifactSlotDefinitionId === params.destinationArtifactSlotDefinitionId &&
+      contextFact.kind === "artifact_slot_reference_fact" &&
+      contextFact.slotDefinitionId === params.destinationArtifactSlotDefinitionId &&
       isPlainRecord(instance.valueJson) &&
       typeof instance.valueJson.relativePath === "string" &&
       instance.valueJson.relativePath.trim().length > 0
@@ -257,6 +262,37 @@ const formatWorkUnitLabel = (name: string, projectWorkUnitId?: string): string =
 
 const getContextFactLabel = (contextFact: WorkflowContextFactDto): string =>
   contextFact.label ?? humanizeKey(contextFact.key);
+
+const normalizeContextFactInstanceValue = (params: {
+  contextFact: WorkflowContextFactDto | undefined;
+  valueJson: unknown;
+}): unknown => {
+  if (params.contextFact?.kind !== "bound_fact") {
+    return params.valueJson;
+  }
+
+  const envelope = readRuntimeBoundFactEnvelope(params.valueJson);
+  return envelope ? toCanonicalRuntimeBoundFactEnvelope(envelope) : params.valueJson;
+};
+
+const resolveBindingSourceValue = (params: {
+  sourceContextFact: WorkflowContextFactDto | undefined;
+  sourceInstances: readonly { valueJson: unknown }[];
+}): unknown => {
+  if (params.sourceInstances.length === 0) {
+    return undefined;
+  }
+
+  if (params.sourceContextFact?.kind === "bound_fact") {
+    return params.sourceContextFact.cardinality === "many"
+      ? params.sourceInstances.map((instance) => unwrapRuntimeBoundFactEnvelope(instance.valueJson))
+      : unwrapRuntimeBoundFactEnvelope(params.sourceInstances[0]?.valueJson);
+  }
+
+  return params.sourceContextFact?.cardinality === "many"
+    ? params.sourceInstances.map((instance) => instance.valueJson)
+    : params.sourceInstances[0]?.valueJson;
+};
 
 const getWorkflowDefinitionName = (
   summary: WorkflowDefinitionSummary | undefined,
@@ -343,9 +379,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
       Effect.gen(function* () {
         const projectPin = yield* projectContextRepo.findProjectPin(projectId);
         if (!projectPin) {
-          return yield* Effect.fail(
-            makeDetailError("project methodology pin missing for invoke step detail"),
-          );
+          return yield* makeDetailError("project methodology pin missing for invoke step detail");
         }
 
         const workUnitTypes = yield* lifecycleRepo.findWorkUnitTypes(
@@ -355,9 +389,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
           (candidate) => candidate.id === workflowDetail.workUnitTypeId,
         );
         if (!parentWorkUnitType) {
-          return yield* Effect.fail(
-            makeDetailError("parent work-unit type missing for invoke step detail"),
-          );
+          return yield* makeDetailError("parent work-unit type missing for invoke step detail");
         }
 
         const [workflowEditor, invokeDefinition] = yield* Effect.all([
@@ -374,9 +406,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
         ]);
 
         if (!invokeDefinition) {
-          return yield* Effect.fail(
-            makeDetailError("invoke step definition missing for runtime detail"),
-          );
+          return yield* makeDetailError("invoke step definition missing for runtime detail");
         }
 
         const invokePayloadRaw =
@@ -385,9 +415,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
             : undefined;
         const invokeTargetKind = invokePayloadRaw?.targetKind;
         if (invokeTargetKind !== "workflow" && invokeTargetKind !== "work_unit") {
-          return yield* Effect.fail(
-            makeDetailError("invoke step payload missing for runtime detail"),
-          );
+          return yield* makeDetailError("invoke step payload missing for runtime detail");
         }
         const invokePayload = invokePayloadRaw as InvokeStepPayload;
         const workUnitInvokePayload: WorkUnitInvokePayload | null =
@@ -397,7 +425,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
           stepExecution.id,
         );
         if (!invokeState) {
-          return yield* Effect.fail(makeDetailError("invoke step execution state not found"));
+          return yield* makeDetailError("invoke step execution state not found");
         }
 
         const [
@@ -575,7 +603,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
         );
 
         const sourceContextFactDefinitionId =
-          invokePayload.sourceMode === "context_fact_backed"
+          invokePayload.sourceMode === "fact_backed"
             ? invokePayload.contextFactDefinitionId
             : undefined;
         const sourceContextFact = sourceContextFactDefinitionId
@@ -612,11 +640,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                     binding.source.kind === "literal"
                       ? binding.source.value
                       : binding.source.kind === "context_fact"
-                        ? sourceInstances.length === 0
-                          ? undefined
-                          : sourceContextFact?.cardinality === "many"
-                            ? sourceInstances.map((instance) => instance.valueJson)
-                            : sourceInstances[0]?.valueJson
+                        ? resolveBindingSourceValue({ sourceContextFact, sourceInstances })
                         : undefined;
 
                   const bindingEditorOptions = optionListFromValidation(
@@ -686,8 +710,8 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                   binding.source.kind === "literal"
                     ? binding.source.value
                     : binding.source.kind === "context_fact"
-                      ? sourceContextFact?.kind === "artifact_reference_fact" &&
-                        sourceContextFact.artifactSlotDefinitionId ===
+                      ? sourceContextFact?.kind === "artifact_slot_reference_fact" &&
+                        sourceContextFact.slotDefinitionId ===
                           binding.destination.artifactSlotDefinitionId
                         ? sourceInstances.length === 0
                           ? undefined
@@ -746,7 +770,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
               workflowExecutionId: stepExecution.workflowExecutionId,
               invokeStepDefinitionId: stepExecution.stepDefinitionId,
               sourceMode: invokePayload.sourceMode,
-              workUnitBindingDebugSummary: JSON.stringify(workUnitBindingDebugSummary),
+              workUnitBindingDebugSummaryCount: workUnitBindingDebugSummary.length,
             }),
           );
         }
@@ -838,7 +862,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
 
         const propagationOutputs = workflowEditor.contextFacts.filter((contextFact) =>
           invokeTargetKind === "workflow"
-            ? contextFact.kind === "workflow_reference_fact"
+            ? contextFact.kind === "workflow_ref_fact"
             : contextFact.kind === "work_unit_draft_spec_fact" &&
               propagationWorkUnitDefinitionIds.has(contextFact.workUnitDefinitionId),
         );
@@ -1127,8 +1151,11 @@ export const InvokeStepDetailServiceLive = Layer.effect(
           sourceMode: invokePayload.sourceMode,
           sourceContextFactDefinitionId,
           sourceContextFactKey: sourceContextFact?.key,
-          sourceContextFactInstanceValues: sourceContextFactInstances.map(
-            (instance) => instance.valueJson,
+          sourceContextFactInstanceValues: sourceContextFactInstances.map((instance) =>
+            normalizeContextFactInstanceValue({
+              contextFact: sourceContextFact,
+              valueJson: instance.valueJson,
+            }),
           ),
           workflowTargets,
           workUnitTargets,

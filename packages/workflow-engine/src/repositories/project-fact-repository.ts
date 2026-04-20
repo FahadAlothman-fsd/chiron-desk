@@ -15,12 +15,27 @@ export interface SupersedeProjectFactInstanceParams {
   supersededByProjectFactInstanceId: string;
 }
 
+export interface UpdateProjectFactInstanceParams {
+  projectFactInstanceId: string;
+  valueJson: unknown;
+  producedByTransitionExecutionId?: string | null;
+  producedByWorkflowExecutionId?: string | null;
+  authoredByUserId?: string | null;
+}
+
+export interface DeleteProjectFactInstanceParams {
+  projectFactInstanceId: string;
+  producedByTransitionExecutionId?: string | null;
+  producedByWorkflowExecutionId?: string | null;
+  authoredByUserId?: string | null;
+}
+
 export interface ProjectFactInstanceRow {
   id: string;
   projectId: string;
   factDefinitionId: string;
   valueJson: unknown;
-  status: "active" | "superseded" | "parent_superseded";
+  status: "active" | "superseded" | "parent_superseded" | "deleted";
   supersededByFactInstanceId: string | null;
   producedByTransitionExecutionId: string | null;
   producedByWorkflowExecutionId: string | null;
@@ -46,5 +61,11 @@ export class ProjectFactRepository extends Context.Tag(
     readonly supersedeFactInstance: (
       params: SupersedeProjectFactInstanceParams,
     ) => Effect.Effect<void, RepositoryError>;
+    readonly updateFactInstance?: (
+      params: UpdateProjectFactInstanceParams,
+    ) => Effect.Effect<ProjectFactInstanceRow | null, RepositoryError>;
+    readonly logicallyDeleteFactInstance?: (
+      params: DeleteProjectFactInstanceParams,
+    ) => Effect.Effect<ProjectFactInstanceRow | null, RepositoryError>;
   }
 >() {}

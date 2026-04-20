@@ -34,6 +34,11 @@ import {
 import { ProjectFactRepository } from "../repositories/project-fact-repository";
 import { WorkUnitFactRepository } from "../repositories/work-unit-fact-repository";
 import { ArtifactRepository } from "../repositories/artifact-repository";
+import {
+  getRuntimeBoundFactInstanceId,
+  readRuntimeBoundFactEnvelope,
+  toCanonicalRuntimeBoundFactEnvelope,
+} from "./runtime-bound-fact-value";
 
 const makeActionRuntimeError = (operation: string, cause: string): RepositoryError =>
   new RepositoryError({
@@ -43,10 +48,6 @@ const makeActionRuntimeError = (operation: string, cause: string): RepositoryErr
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
-
-const isExternalEnvelope = (
-  value: unknown,
-): value is { factInstanceId?: unknown; value?: unknown } => isRecord(value);
 
 const isArtifactReferenceValue = (value: unknown): value is { relativePath: string } =>
   isRecord(value) && typeof value.relativePath === "string" && value.relativePath.trim().length > 0;
@@ -428,9 +429,8 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
         }
 
         if (
-          contextFact.kind !== "definition_backed_external_fact" &&
-          contextFact.kind !== "bound_external_fact" &&
-          contextFact.kind !== "artifact_reference_fact"
+          contextFact.kind !== "bound_fact" &&
+          contextFact.kind !== "artifact_slot_reference_fact"
         ) {
           return yield* makeActionRuntimeError(
             "action-step-runtime.target-context",
@@ -439,9 +439,9 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
         }
 
         const artifactSlotDefinitionId =
-          contextFact.kind === "artifact_reference_fact"
+          contextFact.kind === "artifact_slot_reference_fact"
             ? (() => {
-                const slotRef = contextFact.artifactSlotDefinitionId;
+                const slotRef = contextFact.slotDefinitionId;
                 const matchedSlot = params.context.artifactSlotDefinitions.find(
                   (slot) => slot.id === slotRef || slot.key === slotRef,
                 );
@@ -450,10 +450,10 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
               })()
             : undefined;
 
-        if (contextFact.kind === "artifact_reference_fact" && !artifactSlotDefinitionId) {
+        if (contextFact.kind === "artifact_slot_reference_fact" && !artifactSlotDefinitionId) {
           return yield* makeActionRuntimeError(
             "action-step-runtime.target-context",
-            `artifact slot '${contextFact.artifactSlotDefinitionId}' could not be resolved on work-unit type '${params.context.workUnitTypeKey}'`,
+            `artifact slot '${contextFact.slotDefinitionId}' could not be resolved on work-unit type '${params.context.workUnitTypeKey}'`,
           );
         }
 
@@ -646,7 +646,7 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
       Effect.gen(function* () {
         const artifactSucceeded = params.itemOutcomes.filter(
           (item) =>
-            item.status === "succeeded" && item.contextFactKind === "artifact_reference_fact",
+            item.status === "succeeded" && item.contextFactKind === "artifact_slot_reference_fact",
         );
 
         if (artifactSucceeded.length === 0) {
@@ -714,31 +714,30 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
         .sort((left, right) => left.instanceOrder - right.instanceOrder);
 
       const normalized = relevantRows.map((row) => {
-        if (isExternalEnvelope(row.valueJson) && typeof row.valueJson.factInstanceId === "string") {
+        const envelope = readRuntimeBoundFactEnvelope(row.valueJson);
+        if (envelope) {
           return {
             contextFactDefinitionId: row.contextFactDefinitionId,
             instanceOrder: row.instanceOrder,
-            valueJson: row.valueJson,
+            valueJson: toCanonicalRuntimeBoundFactEnvelope(envelope),
             changed: false,
           };
         }
 
-        const currentValue =
-          isExternalEnvelope(row.valueJson) && "value" in row.valueJson
-            ? row.valueJson.value
-            : row.valueJson;
+        const currentValue = row.valueJson;
+        const persistedInstanceId = params.persistedRowsByOrder.get(row.instanceOrder);
 
         return {
           contextFactDefinitionId: row.contextFactDefinitionId,
           instanceOrder: row.instanceOrder,
-          valueJson: {
-            factInstanceId: params.persistedRowsByOrder.get(row.instanceOrder),
-            value: currentValue,
-          },
-          changed:
-            typeof params.persistedRowsByOrder.get(row.instanceOrder) === "string" ||
-            !isExternalEnvelope(row.valueJson) ||
-            row.valueJson.factInstanceId !== params.persistedRowsByOrder.get(row.instanceOrder),
+          valueJson:
+            typeof persistedInstanceId === "string"
+              ? toCanonicalRuntimeBoundFactEnvelope({
+                  instanceId: persistedInstanceId,
+                  value: currentValue,
+                })
+              : currentValue,
+          changed: typeof persistedInstanceId === "string",
         };
       });
 
@@ -757,11 +756,7 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
         const contextFact = params.context.workflowContextFacts.find(
           (fact) => fact.contextFactDefinitionId === params.target.contextFactDefinitionId,
         );
-        if (
-          !contextFact ||
-          (contextFact.kind !== "definition_backed_external_fact" &&
-            contextFact.kind !== "bound_external_fact")
-        ) {
+        if (!contextFact || contextFact.kind !== "bound_fact") {
           return new Map<number, string>();
         }
 
@@ -802,7 +797,7 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
           }
         }
 
-        const externalBindingId = contextFact.externalFactDefinitionId;
+        const externalBindingId = contextFact.factDefinitionId;
         const workUnitFactSchemaById = factSchemasById.get(externalBindingId);
         const projectFactDefinitionById = factDefinitionsById.get(externalBindingId);
         const workUnitFactSchemaByKey = factSchemasByKey.get(externalBindingId);
@@ -821,17 +816,12 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
 
         const persistedEntries = yield* Effect.forEach(params.relevantRows, (row) =>
           Effect.gen(function* () {
-            if (
-              isExternalEnvelope(row.valueJson) &&
-              typeof row.valueJson.factInstanceId === "string"
-            ) {
-              return [row.instanceOrder, row.valueJson.factInstanceId] as const;
+            if (typeof getRuntimeBoundFactInstanceId(row.valueJson) === "string") {
+              return [row.instanceOrder, getRuntimeBoundFactInstanceId(row.valueJson)!] as const;
             }
 
             const currentValue =
-              isExternalEnvelope(row.valueJson) && "value" in row.valueJson
-                ? row.valueJson.value
-                : row.valueJson;
+              readRuntimeBoundFactEnvelope(row.valueJson)?.value ?? row.valueJson;
 
             if (workUnitFactSchema) {
               const instance = yield* workUnitFactRepo.createFactInstance({
@@ -907,7 +897,7 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
                 .sort((left, right) => left.instanceOrder - right.instanceOrder);
 
               const persistedRowsByOrder =
-                effectiveTarget.contextFactKind === "artifact_reference_fact"
+                effectiveTarget.contextFactKind === "artifact_slot_reference_fact"
                   ? new Map<number, string>()
                   : yield* persistMissingExternalFactInstances({
                       context: params.context,
@@ -916,8 +906,7 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
                     });
 
               const maybePersistedRows =
-                effectiveTarget.contextFactKind === "definition_backed_external_fact" ||
-                effectiveTarget.contextFactKind === "bound_external_fact"
+                effectiveTarget.contextFactKind === "bound_fact"
                   ? normalizeExternalContextRows({
                       targetContextFactDefinitionId: effectiveTarget.contextFactDefinitionId,
                       contextRows: allContextRows,
@@ -1032,7 +1021,7 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
                 itemDefinitionId: item.itemId,
                 targetContextFactDefinitionId: effectiveTarget.contextFactDefinitionId,
                 contextFactKind: effectiveTarget.contextFactKind,
-                ...(effectiveTarget.contextFactKind === "artifact_reference_fact"
+                ...(effectiveTarget.contextFactKind === "artifact_slot_reference_fact"
                   ? { artifactSlotDefinitionId: effectiveTarget.artifactSlotDefinitionId }
                   : {}),
                 status: outcomeStatus.status,
@@ -1664,16 +1653,15 @@ function resolveItemExecutionStatus(params: {
   }
 
   switch (params.contextFactKind) {
-    case "bound_external_fact": {
+    case "bound_fact": {
       const hasBinding = params.rows.every(
-        (row) =>
-          isExternalEnvelope(row.valueJson) && typeof row.valueJson.factInstanceId === "string",
+        (row) => typeof getRuntimeBoundFactInstanceId(row.valueJson) === "string",
       );
 
       return hasBinding
         ? {
             status: "succeeded" as const,
-            code: "bound_external_updated",
+            code: "bound_fact_updated",
             reason: undefined,
           }
         : {
@@ -1683,26 +1671,26 @@ function resolveItemExecutionStatus(params: {
               "The bound external target is missing and must be recreated from the current context value.",
           };
     }
-    case "definition_backed_external_fact":
-      return {
-        status: "succeeded" as const,
-        code: "definition_backed_synced",
-        reason: undefined,
-      };
-    case "artifact_reference_fact": {
+    case "artifact_slot_reference_fact": {
       const valid = params.rows.every((row) => isArtifactReferenceValue(row.valueJson));
       return valid
         ? {
             status: "succeeded" as const,
-            code: "artifact_reference_synced",
+            code: "artifact_snapshot_synced",
             reason: undefined,
           }
         : {
             status: "failed" as const,
-            code: "invalid_artifact_reference",
+            code: "invalid_artifact_snapshot",
             reason: "Artifact propagation requires a committed relativePath reference.",
           };
     }
+    default:
+      return {
+        status: "failed" as const,
+        code: "unsupported_context_fact_kind",
+        reason: `Unsupported propagation fact kind '${params.contextFactKind}'.`,
+      };
   }
 }
 
@@ -1715,7 +1703,7 @@ function resolveAffectedTargets(params: {
   }[];
 }): readonly RuntimeActionAffectedTarget[] {
   switch (params.target.contextFactKind) {
-    case "artifact_reference_fact":
+    case "artifact_slot_reference_fact":
       if (params.rows.length < 1) {
         return [
           {
@@ -1761,14 +1749,10 @@ function resolveAffectedTargets(params: {
               label: params.target.contextFactLabel ?? params.target.contextFactKey,
             },
           ];
-    case "bound_external_fact":
-    case "definition_backed_external_fact":
+    case "bound_fact":
       return params.rows.length > 0
         ? params.rows.map((row) => {
-            const targetId =
-              isExternalEnvelope(row.valueJson) && typeof row.valueJson.factInstanceId === "string"
-                ? row.valueJson.factInstanceId
-                : undefined;
+            const targetId = getRuntimeBoundFactInstanceId(row.valueJson);
 
             return targetId
               ? {
@@ -1790,6 +1774,8 @@ function resolveAffectedTargets(params: {
               label: params.target.contextFactLabel ?? params.target.contextFactKey,
             },
           ];
+    default:
+      return [];
   }
 }
 

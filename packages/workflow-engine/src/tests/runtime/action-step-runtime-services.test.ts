@@ -49,7 +49,7 @@ function makeAction(
     sortOrder: number;
     contextFactDefinitionId: string;
     contextFactKind: WorkflowContextFactDto["kind"] &
-      ("definition_backed_external_fact" | "bound_external_fact" | "artifact_reference_fact");
+      ("bound_fact" | "artifact_slot_reference_fact");
     enabled?: boolean;
     items?: ReadonlyArray<{
       itemId: string;
@@ -92,19 +92,19 @@ function makeTestContext(options?: {
         key: "bound-primary",
         sortOrder: 10,
         contextFactDefinitionId: "ctx-bound-1",
-        contextFactKind: "bound_external_fact",
+        contextFactKind: "bound_fact",
       }),
       makeAction("action-2", {
         key: "definition-secondary",
         sortOrder: 20,
         contextFactDefinitionId: "ctx-definition-1",
-        contextFactKind: "definition_backed_external_fact",
+        contextFactKind: "bound_fact",
       }),
       makeAction("action-3", {
         key: "artifact-tertiary",
         sortOrder: 30,
         contextFactDefinitionId: "ctx-artifact-1",
-        contextFactKind: "artifact_reference_fact",
+        contextFactKind: "artifact_slot_reference_fact",
       }),
     ] as const);
 
@@ -158,28 +158,28 @@ function makeTestContext(options?: {
 
   const workflowContextFacts: WorkflowContextFactDto[] = [
     {
-      kind: "bound_external_fact",
+      kind: "bound_fact",
       contextFactDefinitionId: "ctx-bound-1",
       key: "boundPrimary",
       label: "Bound Primary",
       cardinality: "one",
-      externalFactDefinitionId: "external-bound-1",
+      factDefinitionId: "external-bound-1",
     },
     {
-      kind: "definition_backed_external_fact",
+      kind: "bound_fact",
       contextFactDefinitionId: "ctx-definition-1",
       key: "definitionSecondary",
       label: "Definition Secondary",
       cardinality: "one",
-      externalFactDefinitionId: "external-definition-1",
+      factDefinitionId: "external-definition-1",
     },
     {
-      kind: "artifact_reference_fact",
+      kind: "artifact_slot_reference_fact",
       contextFactDefinitionId: "ctx-artifact-1",
       key: "artifactTertiary",
       label: "Artifact Tertiary",
       cardinality: "one",
-      artifactSlotDefinitionId: "slot-1",
+      slotDefinitionId: "slot-1",
     },
   ];
 
@@ -923,19 +923,19 @@ describe("ActionStep runtime services", () => {
           key: "bound-primary",
           sortOrder: 10,
           contextFactDefinitionId: "ctx-bound-1",
-          contextFactKind: "bound_external_fact",
+          contextFactKind: "bound_fact",
         }),
         makeAction("action-2", {
           key: "definition-secondary",
           sortOrder: 20,
           contextFactDefinitionId: "ctx-definition-1",
-          contextFactKind: "definition_backed_external_fact",
+          contextFactKind: "bound_fact",
         }),
         makeAction("action-3", {
           key: "artifact-tertiary",
           sortOrder: 30,
           contextFactDefinitionId: "ctx-artifact-1",
-          contextFactKind: "artifact_reference_fact",
+          contextFactKind: "artifact_slot_reference_fact",
         }),
       ],
       contextFacts: [
@@ -1001,13 +1001,13 @@ describe("ActionStep runtime services", () => {
     expect(ctx.projectFactRows).toHaveLength(1);
     expect(ctx.projectFactRows[0]).toMatchObject({
       factDefinitionId: "external-definition-1",
-      valueJson: { title: "needs bind" },
+      valueJson: { value: { title: "needs bind" } },
     });
     expect(
       ctx.contextFacts.find((row) => row.contextFactDefinitionId === "ctx-definition-1")?.valueJson,
     ).toEqual({
-      factInstanceId: ctx.projectFactRows[0]?.id,
-      value: { title: "needs bind" },
+      instanceId: ctx.projectFactRows[0]?.id,
+      value: { value: { title: "needs bind" } },
     });
     expect(ctx.artifactSnapshotRows).toHaveLength(1);
     expect(ctx.artifactSnapshotRows[0]).toMatchObject({
@@ -1034,13 +1034,13 @@ describe("ActionStep runtime services", () => {
     const ctx = makeTestContext({ executionMode: "sequential" });
     const artifactFact = ctx.workflowContextFacts.find(
       (fact) =>
-        fact.kind === "artifact_reference_fact" &&
+        fact.kind === "artifact_slot_reference_fact" &&
         fact.contextFactDefinitionId === "ctx-artifact-1",
     );
     if (!artifactFact) {
       throw new Error("Expected artifact context fact in test fixture");
     }
-    artifactFact.artifactSlotDefinitionId = "PROJECT_OVERVIEW";
+    artifactFact.slotDefinitionId = "PROJECT_OVERVIEW";
 
     await Effect.runPromise(
       Effect.gen(function* () {
@@ -1060,13 +1060,13 @@ describe("ActionStep runtime services", () => {
     const ctx = makeTestContext({ executionMode: "sequential" });
     const artifactFact = ctx.workflowContextFacts.find(
       (fact) =>
-        fact.kind === "artifact_reference_fact" &&
+        fact.kind === "artifact_slot_reference_fact" &&
         fact.contextFactDefinitionId === "ctx-artifact-1",
     );
     if (!artifactFact) {
       throw new Error("Expected artifact context fact in test fixture");
     }
-    artifactFact.artifactSlotDefinitionId = "UNKNOWN_SLOT";
+    artifactFact.slotDefinitionId = "UNKNOWN_SLOT";
 
     const result = await Effect.runPromise(
       Effect.either(
@@ -1092,13 +1092,13 @@ describe("ActionStep runtime services", () => {
           key: "artifact-a",
           sortOrder: 10,
           contextFactDefinitionId: "ctx-artifact-1",
-          contextFactKind: "artifact_reference_fact",
+          contextFactKind: "artifact_slot_reference_fact",
         }),
         makeAction("action-artifact-b", {
           key: "artifact-b",
           sortOrder: 20,
           contextFactDefinitionId: "ctx-artifact-2",
-          contextFactKind: "artifact_reference_fact",
+          contextFactKind: "artifact_slot_reference_fact",
         }),
       ],
       contextFacts: [
@@ -1126,12 +1126,12 @@ describe("ActionStep runtime services", () => {
     });
 
     ctx.workflowContextFacts.push({
-      kind: "artifact_reference_fact",
+      kind: "artifact_slot_reference_fact",
       contextFactDefinitionId: "ctx-artifact-2",
       key: "artifactSecondary",
       label: "Artifact Secondary",
       cardinality: "one",
-      artifactSlotDefinitionId: "slot-1",
+      slotDefinitionId: "slot-1",
     });
 
     await Effect.runPromise(
@@ -1177,13 +1177,13 @@ describe("ActionStep runtime services", () => {
           key: "artifact-v1",
           sortOrder: 10,
           contextFactDefinitionId: "ctx-artifact-1",
-          contextFactKind: "artifact_reference_fact",
+          contextFactKind: "artifact_slot_reference_fact",
         }),
         makeAction("action-artifact-v2", {
           key: "artifact-v2",
           sortOrder: 20,
           contextFactDefinitionId: "ctx-artifact-2",
-          contextFactKind: "artifact_reference_fact",
+          contextFactKind: "artifact_slot_reference_fact",
         }),
       ],
       contextFacts: [
@@ -1223,12 +1223,12 @@ describe("ActionStep runtime services", () => {
     });
 
     ctx.workflowContextFacts.push({
-      kind: "artifact_reference_fact",
+      kind: "artifact_slot_reference_fact",
       contextFactDefinitionId: "ctx-artifact-2",
       key: "artifactSecondary",
       label: "Artifact Secondary",
       cardinality: "one",
-      artifactSlotDefinitionId: "slot-1",
+      slotDefinitionId: "slot-1",
     });
 
     await Effect.runPromise(
@@ -1269,7 +1269,7 @@ describe("ActionStep runtime services", () => {
           key: "artifact-multi-slot",
           sortOrder: 10,
           contextFactDefinitionId: "ctx-artifact-1",
-          contextFactKind: "artifact_reference_fact",
+          contextFactKind: "artifact_slot_reference_fact",
           items: [
             { itemId: "item-a", itemKey: "item.a", sortOrder: 10 },
             {
@@ -1306,12 +1306,12 @@ describe("ActionStep runtime services", () => {
     });
 
     ctx.workflowContextFacts.push({
-      kind: "artifact_reference_fact",
+      kind: "artifact_slot_reference_fact",
       contextFactDefinitionId: "ctx-artifact-2",
       key: "artifactSecondary",
       label: "Artifact Secondary",
       cardinality: "one",
-      artifactSlotDefinitionId: "slot-1",
+      slotDefinitionId: "slot-1",
     });
 
     await Effect.runPromise(
@@ -1361,7 +1361,7 @@ describe("ActionStep runtime services", () => {
     expect(
       ctx.contextFacts.find((row) => row.contextFactDefinitionId === "ctx-definition-1")?.valueJson,
     ).toEqual({
-      factInstanceId: ctx.projectFactRows[0]?.id,
+      instanceId: ctx.projectFactRows[0]?.id,
       value: { title: "definition" },
     });
   });
@@ -1421,13 +1421,13 @@ describe("ActionStep runtime services", () => {
     expect(
       ctx.contextFacts.find((row) => row.contextFactDefinitionId === "ctx-bound-1")?.valueJson,
     ).toEqual({
-      factInstanceId: ctx.workUnitFactRows[0]?.id,
+      instanceId: ctx.workUnitFactRows[0]?.id,
       value: { title: "bound missing instance" },
     });
     expect(
       ctx.contextFacts.find((row) => row.contextFactDefinitionId === "ctx-definition-1")?.valueJson,
     ).toEqual({
-      factInstanceId: ctx.projectFactRows[0]?.id,
+      instanceId: ctx.projectFactRows[0]?.id,
       value: { title: "definition missing instance" },
     });
   });
@@ -1440,7 +1440,7 @@ describe("ActionStep runtime services", () => {
           key: "grouped-targets",
           sortOrder: 10,
           contextFactDefinitionId: "ctx-bound-1",
-          contextFactKind: "bound_external_fact",
+          contextFactKind: "bound_fact",
           items: [
             {
               itemId: "item-bound-default",
@@ -1483,12 +1483,12 @@ describe("ActionStep runtime services", () => {
     });
 
     ctx.workflowContextFacts.push({
-      kind: "bound_external_fact",
+      kind: "bound_fact",
       contextFactDefinitionId: "ctx-bound-2",
       key: "boundOverride",
       label: "Bound Override",
       cardinality: "one",
-      externalFactDefinitionId: "external-bound-1",
+      factDefinitionId: "external-bound-1",
     });
 
     await Effect.runPromise(
@@ -1600,7 +1600,7 @@ describe("ActionStep runtime services", () => {
           key: "artifact-multi",
           sortOrder: 10,
           contextFactDefinitionId: "ctx-artifact-1",
-          contextFactKind: "artifact_reference_fact",
+          contextFactKind: "artifact_slot_reference_fact",
           items: [
             {
               itemId: "item-good",
@@ -1641,12 +1641,12 @@ describe("ActionStep runtime services", () => {
     });
 
     ctx.workflowContextFacts.push({
-      kind: "artifact_reference_fact",
+      kind: "artifact_slot_reference_fact",
       contextFactDefinitionId: "ctx-artifact-2",
       key: "artifactSecondary",
       label: "Artifact Secondary",
       cardinality: "one",
-      artifactSlotDefinitionId: "slot-1",
+      slotDefinitionId: "slot-1",
     });
 
     await Effect.runPromise(
