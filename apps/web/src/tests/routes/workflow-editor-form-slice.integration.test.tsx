@@ -406,6 +406,29 @@ function createRouteContext(
               }),
             },
           },
+          dependencyDefinition: {
+            list: {
+              queryOptions: () => ({
+                queryKey: ["dependency-definitions", "v1"],
+                queryFn: async () => ({
+                  linkTypeDefinitions: [
+                    {
+                      key: "depends_on",
+                      name: "Depends On",
+                    },
+                    {
+                      key: "blocks",
+                      name: "Blocks",
+                    },
+                    {
+                      key: "relates_to",
+                      name: "Relates To",
+                    },
+                  ],
+                }),
+              }),
+            },
+          },
           workUnit: {
             list: {
               queryOptions: () => ({
@@ -612,7 +635,7 @@ describe("workflow editor form slice route", () => {
     fireEvent.click(screen.getByRole("button", { name: "+ Fact" }));
 
     expect(await screen.findByRole("button", { name: "Value Semantics" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Contract" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Contract/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Guidance" })).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText("Fact Key"), {
@@ -692,6 +715,50 @@ describe("workflow editor form slice route", () => {
     });
   });
 
+  it("maps work-unit reference context facts to dependency payload fields", async () => {
+    const { MethodologyWorkflowEditorRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId");
+
+    renderRoute(<MethodologyWorkflowEditorRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "+ Fact" }));
+    fireEvent.change(screen.getByLabelText("Fact Key"), {
+      target: { value: "current-story" },
+    });
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Current Story" },
+    });
+    fireEvent.change(screen.getByLabelText("workflow-editor-context-fact-kind"), {
+      target: { value: "work_unit_reference_fact" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Value Semantics/ }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Dependency Type" }));
+    expect(await screen.findByText("Blocks")).toBeTruthy();
+    fireEvent.click((await screen.findAllByText("Depends On"))[0]!);
+    fireEvent.click(screen.getByRole("combobox", { name: "Work Unit Definition" }));
+    fireEvent.click((await screen.findAllByText("Brainstorming"))[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => {
+      const createContextFactPayload = (createContextFactMutationSpy.mock.calls as unknown[][]).at(
+        -1,
+      )?.[0] as {
+        fact?: {
+          kind?: string;
+          linkTypeDefinitionId?: string;
+        };
+      };
+
+      expect(createContextFactPayload?.fact).toEqual(
+        expect.objectContaining({
+          kind: "work_unit_reference_fact",
+          linkTypeDefinitionId: "depends_on",
+        }),
+      );
+    });
+  });
+
   it("shows dirty indicators and discard confirmation for create-mode context facts", async () => {
     const { WorkflowContextFactDialog } = await import("../../features/workflow-editor/dialogs");
     const onOpenChange = vi.fn();
@@ -736,6 +803,43 @@ describe("workflow editor form slice route", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("highlights Fact Key when create returns duplicate-key validation error", async () => {
+    const { WorkflowContextFactDialog } = await import("../../features/workflow-editor/dialogs");
+
+    renderRoute(
+      <WorkflowContextFactDialog
+        open
+        mode="create"
+        methodologyFacts={[]}
+        currentWorkUnitFacts={[]}
+        artifactSlots={[]}
+        workUnitTypes={[]}
+        availableWorkflows={[]}
+        workUnitFactsQueryScope="WU.SETUP"
+        loadWorkUnitFacts={async () => []}
+        loadWorkUnitArtifactSlots={async () => []}
+        onOpenChange={vi.fn()}
+        onSave={vi.fn(async () => {
+          throw new Error(
+            "ValidationDecodeError: Workflow context fact key 'fasdfa' already exists",
+          );
+        })}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Fact Key"), {
+      target: { value: "fasdfa" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Fact key 'fasdfa' already exists in this workflow.")).toBeTruthy();
+    });
+
+    const keyInput = screen.getByLabelText("Fact Key") as HTMLInputElement;
+    expect(keyInput.getAttribute("aria-invalid")).toBe("true");
+  });
+
   it("submits draft-spec work unit and fact selections as ids", async () => {
     const { WorkflowContextFactDialog } = await import("../../features/workflow-editor/dialogs");
     const onSave = vi.fn();
@@ -760,6 +864,7 @@ describe("workflow editor form slice route", () => {
             label: "Brainstorming",
             secondaryLabel: "brainstorming",
             description: "Brainstorming",
+            badges: [{ label: "one", tone: "cardinality" }],
           },
         ]}
         availableWorkflows={[]}
@@ -825,6 +930,21 @@ describe("workflow editor form slice route", () => {
     fireEvent.click(screen.getByRole("combobox", { name: "Work Unit Definition" }));
     fireEvent.click((await screen.findAllByText("Brainstorming"))[0]!);
 
+    fireEvent.click(screen.getByRole("button", { name: /Contract/ }));
+    expect(
+      await screen.findByText(
+        "Selected work unit type 'Brainstorming' allows one instance, so cardinality is locked to one.",
+      ),
+    ).toBeTruthy();
+    const draftSpecCardinalitySelect = screen.getByLabelText(
+      "workflow-editor-context-fact-cardinality",
+    ) as HTMLSelectElement;
+    expect(
+      Array.from(draftSpecCardinalitySelect.options).map((option) => option.value),
+    ).not.toContain("many");
+
+    fireEvent.click(screen.getByRole("button", { name: /Value Semantics/ }));
+
     await waitFor(() => {
       expect(screen.queryByText("Loading facts for the selected work unit...")).toBeNull();
     });
@@ -849,6 +969,88 @@ describe("workflow editor form slice route", () => {
           workUnitDefinitionId: "wut-brainstorming",
           includedFactDefinitionIds: ["wuf-selected-directions", "wuf-desired-outcome"],
           selectedWorkUnitFactDefinitionIds: ["wuf-selected-directions", "wuf-desired-outcome"],
+        }),
+      );
+    });
+  });
+
+  it("shows value semantics for work-unit reference facts and saves selected dependency and work unit ids", async () => {
+    const { WorkflowContextFactDialog } = await import("../../features/workflow-editor/dialogs");
+    const onSave = vi.fn();
+
+    renderRoute(
+      <WorkflowContextFactDialog
+        open
+        mode="create"
+        methodologyFacts={[]}
+        currentWorkUnitFacts={[]}
+        artifactSlots={[]}
+        dependencyDefinitions={[
+          {
+            value: "depends_on",
+            label: "Depends On",
+            secondaryLabel: "depends_on",
+            description: "Dependency definition",
+          },
+        ]}
+        workUnitTypes={[
+          {
+            value: "wut-setup",
+            label: "Setup",
+            secondaryLabel: "WU.SETUP",
+            description: "Setup work unit",
+            badges: [{ label: "one", tone: "cardinality" }],
+          },
+        ]}
+        availableWorkflows={[]}
+        workUnitFactsQueryScope="v1"
+        loadWorkUnitFacts={async () => []}
+        loadWorkUnitArtifactSlots={async () => []}
+        onOpenChange={vi.fn()}
+        onSave={onSave}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Fact Key"), {
+      target: { value: "current-setup-work-unit" },
+    });
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Current Setup Work Unit" },
+    });
+    fireEvent.change(screen.getByLabelText("workflow-editor-context-fact-kind"), {
+      target: { value: "work_unit_reference_fact" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Value Semantics/ }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Dependency Type" }));
+    fireEvent.click((await screen.findAllByText("Depends On"))[0]!);
+    fireEvent.click(screen.getByRole("combobox", { name: "Work Unit Definition" }));
+    fireEvent.click((await screen.findAllByText("Setup"))[0]!);
+
+    fireEvent.click(screen.getByRole("button", { name: /Contract/ }));
+    expect(
+      await screen.findByText(
+        "Selected work unit type 'Setup' allows one instance, so cardinality is locked to one.",
+      ),
+    ).toBeTruthy();
+    const cardinalitySelect = screen.getByLabelText(
+      "workflow-editor-context-fact-cardinality",
+    ) as HTMLSelectElement;
+    expect(Array.from(cardinalitySelect.options).map((option) => option.value)).not.toContain(
+      "many",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Value Semantics/ }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: "work_unit_reference_fact",
+          workUnitDefinitionId: "wut-setup",
+          targetWorkUnitDefinitionId: "wut-setup",
+          linkTypeDefinitionId: "depends_on",
         }),
       );
     });

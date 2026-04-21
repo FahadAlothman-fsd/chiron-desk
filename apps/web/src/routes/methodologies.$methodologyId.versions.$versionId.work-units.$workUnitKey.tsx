@@ -288,14 +288,6 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
       return workflow.workflowDefinitionId;
     }
 
-    const metadataWorkflowDefinitionId = workflow.metadata?.workflowDefinitionId;
-    if (
-      typeof metadataWorkflowDefinitionId === "string" &&
-      metadataWorkflowDefinitionId.length > 0
-    ) {
-      return metadataWorkflowDefinitionId;
-    }
-
     return "";
   };
 
@@ -473,13 +465,22 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
           dependencyDefinitions={dependencyDefinitions}
           workUnits={workUnitTypes
             .filter(
-              (workUnit): workUnit is { key: string; displayName?: string } =>
-                typeof workUnit.key === "string" && workUnit.key.trim().length > 0,
+              (
+                workUnit,
+              ): workUnit is {
+                key: string;
+                displayName?: string;
+                cardinality?: "one_per_project" | "many_per_project";
+              } => typeof workUnit.key === "string" && workUnit.key.trim().length > 0,
             )
             .map((workUnit) => ({
               key: workUnit.key,
               ...(typeof workUnit.displayName === "string"
                 ? { displayName: workUnit.displayName }
+                : {}),
+              ...(workUnit.cardinality === "one_per_project" ||
+              workUnit.cardinality === "many_per_project"
+                ? { cardinality: workUnit.cardinality }
                 : {}),
             }))}
           createDialogOpen={isFactsCreateOpen}
@@ -718,9 +719,7 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
           }}
           onOpenWorkflowEditor={(workflowKey) => {
             const workflowsForEditor = (
-              Array.isArray(workflowsQuery.data)
-                ? workflowsQuery.data
-                : (selectedWorkUnit?.workflows ?? [])
+              Array.isArray(workflowsQuery.data) ? workflowsQuery.data : []
             ) as Array<{
               key: string;
               workflowDefinitionId?: string;

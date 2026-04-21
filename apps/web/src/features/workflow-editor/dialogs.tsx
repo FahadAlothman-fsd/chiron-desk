@@ -92,6 +92,7 @@ type WorkflowContextFactDialogProps = {
   methodologyFacts: readonly WorkflowEditorPickerOption[];
   currentWorkUnitFacts: readonly WorkflowEditorPickerOption[];
   artifactSlots: readonly WorkflowEditorPickerOption[];
+  dependencyDefinitions?: readonly WorkflowEditorPickerOption[];
   workUnitTypes: readonly WorkflowEditorPickerOption[];
   availableWorkflows: readonly WorkflowEditorPickerOption[];
   workUnitFactsQueryScope: string;
@@ -281,7 +282,9 @@ type WorkflowContextFactDialogSnapshot = {
     factDefinitionId: string;
     allowedWorkflowDefinitionIds: string[];
     slotDefinitionId: string;
+    linkTypeDefinitionId: string;
     workUnitDefinitionId: string;
+    targetWorkUnitDefinitionId: string;
     selectedWorkUnitFactDefinitionIds: string[];
     selectedArtifactSlotDefinitionIds: string[];
     plainNumberMinimum: string;
@@ -342,7 +345,10 @@ function toContextFactDraft(
     factDefinitionId: fact?.factDefinitionId ?? "",
     allowedWorkflowDefinitionIds: fact?.allowedWorkflowDefinitionIds ?? [],
     slotDefinitionId: fact?.slotDefinitionId ?? "",
-    workUnitDefinitionId: fact?.workUnitDefinitionId ?? "",
+    linkTypeDefinitionId: fact?.linkTypeDefinitionId ?? "",
+    workUnitDefinitionId: fact?.workUnitDefinitionId ?? fact?.targetWorkUnitDefinitionId ?? "",
+    targetWorkUnitDefinitionId:
+      fact?.targetWorkUnitDefinitionId ?? fact?.workUnitDefinitionId ?? "",
     selectedWorkUnitFactDefinitionIds:
       fact?.selectedWorkUnitFactDefinitionIds ?? fact?.includedFactDefinitionIds ?? [],
     selectedArtifactSlotDefinitionIds: fact?.selectedArtifactSlotDefinitionIds ?? [],
@@ -379,7 +385,11 @@ function toWorkflowContextFactDialogSnapshot(params: {
       factDefinitionId: params.draft.factDefinitionId ?? "",
       allowedWorkflowDefinitionIds: [...params.draft.allowedWorkflowDefinitionIds],
       slotDefinitionId: params.draft.slotDefinitionId ?? "",
-      workUnitDefinitionId: params.draft.workUnitDefinitionId ?? "",
+      linkTypeDefinitionId: params.draft.linkTypeDefinitionId ?? "",
+      workUnitDefinitionId:
+        params.draft.workUnitDefinitionId ?? params.draft.targetWorkUnitDefinitionId ?? "",
+      targetWorkUnitDefinitionId:
+        params.draft.targetWorkUnitDefinitionId ?? params.draft.workUnitDefinitionId ?? "",
       selectedWorkUnitFactDefinitionIds: params.draftSpecCards.map(
         (entry) => entry.factDefinitionId,
       ),
@@ -450,6 +460,18 @@ function summarizeContextFact(fact: WorkflowContextFactDraft | WorkflowContextFa
         : lead;
     case "artifact_slot_reference_fact":
       return fact.slotDefinitionId?.trim() ? `${lead} · ${fact.slotDefinitionId.trim()}` : lead;
+    case "work_unit_reference_fact":
+      return [
+        fact.linkTypeDefinitionId?.trim() ?? "",
+        fact.targetWorkUnitDefinitionId?.trim() ?? fact.workUnitDefinitionId?.trim() ?? "",
+      ].filter((entry) => entry.length > 0).length > 0
+        ? `${lead} · ${[
+            fact.linkTypeDefinitionId?.trim() ?? "",
+            fact.targetWorkUnitDefinitionId?.trim() ?? fact.workUnitDefinitionId?.trim() ?? "",
+          ]
+            .filter((entry) => entry.length > 0)
+            .join(" · ")}`
+        : lead;
     case "work_unit_draft_spec_fact":
       return fact.workUnitDefinitionId?.trim()
         ? `${lead} · ${fact.workUnitDefinitionId.trim()}`
@@ -464,6 +486,35 @@ function titleizeKey(value: string) {
     .filter((segment) => segment.length > 0)
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(" ");
+}
+
+function toErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (error && typeof error === "object" && "message" in error) {
+    return String((error as { message: unknown }).message);
+  }
+
+  return String(error);
+}
+
+function getContextFactKeyConflictMessage(error: unknown): string | null {
+  const message = toErrorMessage(error);
+  const workflowContextFactMatch = message.match(
+    /Workflow context fact key '([^']+)' already exists/i,
+  );
+  if (workflowContextFactMatch?.[1]) {
+    return `Fact key '${workflowContextFactMatch[1]}' already exists in this workflow.`;
+  }
+
+  const genericFactMatch = message.match(/Fact '([^']+)' already exists/i);
+  if (genericFactMatch?.[1]) {
+    return `Fact key '${genericFactMatch[1]}' already exists.`;
+  }
+
+  return null;
 }
 
 function createEmptyJsonSubSchemaDraft(
@@ -3930,6 +3981,7 @@ export function WorkflowContextFactDialog({
   methodologyFacts,
   currentWorkUnitFacts,
   artifactSlots,
+  dependencyDefinitions = [],
   workUnitTypes,
   availableWorkflows,
   workUnitFactsQueryScope,
@@ -3944,6 +3996,8 @@ export function WorkflowContextFactDialog({
   );
   const [activeTab, setActiveTab] = useState<WorkflowContextFactDialogTab>("contract");
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
+  const [keyErrorMessage, setKeyErrorMessage] = useState<string | null>(null);
+  const [submitErrorMessage, setSubmitErrorMessage] = useState<string | null>(null);
   const [plainNumberMinimum, setPlainNumberMinimum] = useState("");
   const [plainNumberMaximum, setPlainNumberMaximum] = useState("");
   const [plainStringValidationType, setPlainStringValidationType] =
@@ -4028,6 +4082,37 @@ export function WorkflowContextFactDialog({
         : undefined,
     [draft.kind, pendingIncludedFactDefinitionId, selectedWorkUnitFacts],
   );
+  const selectedWorkUnitTypeForReferenceFact = useMemo(() => {
+    if (draft.kind !== "work_unit_reference_fact") {
+      return undefined;
+    }
+
+    const workUnitDefinitionId =
+      draft.targetWorkUnitDefinitionId?.trim() ?? draft.workUnitDefinitionId?.trim() ?? "";
+    if (workUnitDefinitionId.length === 0) {
+      return undefined;
+    }
+
+    return workUnitTypes.find(
+      (option) =>
+        option.value === workUnitDefinitionId || option.secondaryLabel === workUnitDefinitionId,
+    );
+  }, [draft.kind, draft.targetWorkUnitDefinitionId, draft.workUnitDefinitionId, workUnitTypes]);
+  const selectedWorkUnitTypeForDraftSpecFact = useMemo(() => {
+    if (draft.kind !== "work_unit_draft_spec_fact") {
+      return undefined;
+    }
+
+    const workUnitDefinitionId = draft.workUnitDefinitionId?.trim() ?? "";
+    if (workUnitDefinitionId.length === 0) {
+      return undefined;
+    }
+
+    return workUnitTypes.find(
+      (option) =>
+        option.value === workUnitDefinitionId || option.secondaryLabel === workUnitDefinitionId,
+    );
+  }, [draft.kind, draft.workUnitDefinitionId, workUnitTypes]);
   const availableDraftSpecArtifactOptions = useMemo(
     () =>
       selectedWorkUnitArtifactSlots.filter(
@@ -4065,14 +4150,46 @@ export function WorkflowContextFactDialog({
     switch (draft.kind) {
       case "bound_fact":
         return getPickerOptionCardinality(selectedExternalFact);
+      case "work_unit_reference_fact":
+        return getPickerOptionCardinality(selectedWorkUnitTypeForReferenceFact);
       case "work_unit_draft_spec_fact":
-        return getPickerOptionCardinality(selectedDraftSpecFact);
+        return (
+          getPickerOptionCardinality(selectedWorkUnitTypeForDraftSpecFact) ??
+          getPickerOptionCardinality(selectedDraftSpecFact)
+        );
       case "artifact_slot_reference_fact":
         return getPickerOptionCardinality(selectedArtifactSlot);
       default:
         return undefined;
     }
-  }, [draft.kind, selectedDraftSpecFact, selectedExternalFact, selectedArtifactSlot]);
+  }, [
+    draft.kind,
+    selectedDraftSpecFact,
+    selectedExternalFact,
+    selectedArtifactSlot,
+    selectedWorkUnitTypeForReferenceFact,
+    selectedWorkUnitTypeForDraftSpecFact,
+  ]);
+  const cardinalityConstraintMessage = useMemo(() => {
+    if (constrainedSourceCardinality !== "one") {
+      return null;
+    }
+
+    if (draft.kind === "work_unit_reference_fact" && selectedWorkUnitTypeForReferenceFact) {
+      return `Selected work unit type '${selectedWorkUnitTypeForReferenceFact.label}' allows one instance, so cardinality is locked to one.`;
+    }
+
+    if (draft.kind === "work_unit_draft_spec_fact" && selectedWorkUnitTypeForDraftSpecFact) {
+      return `Selected work unit type '${selectedWorkUnitTypeForDraftSpecFact.label}' allows one instance, so cardinality is locked to one.`;
+    }
+
+    return null;
+  }, [
+    constrainedSourceCardinality,
+    draft.kind,
+    selectedWorkUnitTypeForReferenceFact,
+    selectedWorkUnitTypeForDraftSpecFact,
+  ]);
   const availableCardinalityOptions = useMemo(
     () =>
       constrainedSourceCardinality === "one"
@@ -4150,6 +4267,8 @@ export function WorkflowContextFactDialog({
     );
     setIsDiscardDialogOpen(false);
     setActiveTab("contract");
+    setKeyErrorMessage(null);
+    setSubmitErrorMessage(null);
   }, [fact, open]);
 
   useEffect(() => {
@@ -4357,30 +4476,52 @@ export function WorkflowContextFactDialog({
                     })
                   : draft.validationJson;
 
-              void onSave({
-                ...draft,
-                validationJson: nextValidationJson,
-                key: draft.key.trim(),
-                label: draft.label.trim(),
-                descriptionMarkdown: draft.descriptionMarkdown.trim(),
-                factDefinitionId: draft.factDefinitionId?.trim() ?? "",
-                slotDefinitionId: draft.slotDefinitionId?.trim() ?? "",
-                workUnitDefinitionId: draft.workUnitDefinitionId?.trim() ?? "",
-                allowedWorkflowDefinitionIds: draft.allowedWorkflowDefinitionIds.map((entry) =>
-                  entry.trim(),
-                ),
-                selectedWorkUnitFactDefinitionIds: draftSpecCards
-                  .map((entry) => entry.factDefinitionId.trim())
-                  .filter((entry) => entry.length > 0),
-                selectedArtifactSlotDefinitionIds: draft.selectedArtifactSlotDefinitionIds ?? [],
-                includedFactDefinitionIds: draftSpecCards
-                  .map((entry) => entry.factDefinitionId.trim())
-                  .filter((entry) => entry.length > 0),
-                guidance: {
-                  humanMarkdown: draft.guidance.humanMarkdown.trim(),
-                  agentMarkdown: draft.guidance.agentMarkdown.trim(),
-                },
-              });
+              setKeyErrorMessage(null);
+              setSubmitErrorMessage(null);
+
+              void (async () => {
+                try {
+                  await onSave({
+                    ...draft,
+                    validationJson: nextValidationJson,
+                    key: draft.key.trim(),
+                    label: draft.label.trim(),
+                    descriptionMarkdown: draft.descriptionMarkdown.trim(),
+                    factDefinitionId: draft.factDefinitionId?.trim() ?? "",
+                    slotDefinitionId: draft.slotDefinitionId?.trim() ?? "",
+                    linkTypeDefinitionId: draft.linkTypeDefinitionId?.trim() ?? "",
+                    workUnitDefinitionId: draft.workUnitDefinitionId?.trim() ?? "",
+                    targetWorkUnitDefinitionId:
+                      draft.targetWorkUnitDefinitionId?.trim() ??
+                      draft.workUnitDefinitionId?.trim() ??
+                      "",
+                    allowedWorkflowDefinitionIds: draft.allowedWorkflowDefinitionIds.map((entry) =>
+                      entry.trim(),
+                    ),
+                    selectedWorkUnitFactDefinitionIds: draftSpecCards
+                      .map((entry) => entry.factDefinitionId.trim())
+                      .filter((entry) => entry.length > 0),
+                    selectedArtifactSlotDefinitionIds:
+                      draft.selectedArtifactSlotDefinitionIds ?? [],
+                    includedFactDefinitionIds: draftSpecCards
+                      .map((entry) => entry.factDefinitionId.trim())
+                      .filter((entry) => entry.length > 0),
+                    guidance: {
+                      humanMarkdown: draft.guidance.humanMarkdown.trim(),
+                      agentMarkdown: draft.guidance.agentMarkdown.trim(),
+                    },
+                  });
+                } catch (error) {
+                  const keyConflictMessage = getContextFactKeyConflictMessage(error);
+                  if (keyConflictMessage) {
+                    setActiveTab("contract");
+                    setKeyErrorMessage(keyConflictMessage);
+                    return;
+                  }
+
+                  setSubmitErrorMessage(toErrorMessage(error));
+                }
+              })();
             }}
           >
             <DialogHeader className="shrink-0 gap-2">
@@ -4428,13 +4569,25 @@ export function WorkflowContextFactDialog({
                     <Label htmlFor="workflow-editor-context-fact-key">Fact Key</Label>
                     <Input
                       id="workflow-editor-context-fact-key"
-                      className="rounded-none border-border/70 bg-background/50"
+                      className={cn(
+                        "rounded-none border-border/70 bg-background/50",
+                        keyErrorMessage
+                          ? "border-destructive focus-visible:ring-destructive"
+                          : null,
+                      )}
+                      aria-invalid={keyErrorMessage ? true : undefined}
                       value={draft.key}
-                      onChange={(event) =>
-                        setDraft((previous) => ({ ...previous, key: event.target.value }))
-                      }
+                      onChange={(event) => {
+                        if (keyErrorMessage) {
+                          setKeyErrorMessage(null);
+                        }
+                        setDraft((previous) => ({ ...previous, key: event.target.value }));
+                      }}
                       placeholder="project-summary"
                     />
+                    {keyErrorMessage ? (
+                      <p className="text-xs text-destructive">{keyErrorMessage}</p>
+                    ) : null}
                   </div>
 
                   <div className="grid gap-2">
@@ -4547,6 +4700,11 @@ export function WorkflowContextFactDialog({
                         ))}
                       </SelectContent>
                     </Select>
+                    {cardinalityConstraintMessage ? (
+                      <p className="text-xs text-muted-foreground">
+                        {cardinalityConstraintMessage}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               ) : null}
@@ -5517,6 +5675,50 @@ export function WorkflowContextFactDialog({
                     </div>
                   ) : null}
 
+                  {draft.kind === "work_unit_reference_fact" ? (
+                    <div className="grid gap-4 lg:max-w-2xl">
+                      <div className="grid gap-2">
+                        <Label id="workflow-editor-context-fact-dependency-type">
+                          Dependency Type
+                        </Label>
+                        <SearchableCombobox
+                          labelId="workflow-editor-context-fact-dependency-type"
+                          value={draft.linkTypeDefinitionId ?? ""}
+                          onChange={(value) =>
+                            setDraft((previous) => ({ ...previous, linkTypeDefinitionId: value }))
+                          }
+                          options={dependencyDefinitions}
+                          placeholder="Select a dependency type"
+                          searchPlaceholder="Search dependency types..."
+                          emptyLabel="No dependency types found."
+                        />
+                      </div>
+
+                      <div className="grid gap-2">
+                        <Label id="workflow-editor-context-fact-work-unit-reference">
+                          Work Unit Definition
+                        </Label>
+                        <SearchableCombobox
+                          labelId="workflow-editor-context-fact-work-unit-reference"
+                          value={
+                            draft.targetWorkUnitDefinitionId ?? draft.workUnitDefinitionId ?? ""
+                          }
+                          onChange={(value) =>
+                            setDraft((previous) => ({
+                              ...previous,
+                              workUnitDefinitionId: value,
+                              targetWorkUnitDefinitionId: value,
+                            }))
+                          }
+                          options={workUnitTypes}
+                          placeholder="Select a work unit type"
+                          searchPlaceholder="Search work unit types..."
+                          emptyLabel="No work unit types found."
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+
                   {draft.kind === "work_unit_draft_spec_fact" ? (
                     <div className="grid gap-4">
                       <div className="grid gap-2 lg:max-w-2xl">
@@ -5826,6 +6028,12 @@ export function WorkflowContextFactDialog({
                 />
               ) : null}
             </div>
+
+            {submitErrorMessage ? (
+              <p className="mb-2 text-xs text-destructive" role="alert">
+                {submitErrorMessage}
+              </p>
+            ) : null}
 
             <DialogFooter className="shrink-0 border-t border-border/70 pt-4 sm:justify-between">
               <Button

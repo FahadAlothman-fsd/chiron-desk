@@ -1527,6 +1527,13 @@ function addVersionEditabilityMetadata<T extends MethodologyVersionSummaryLike>(
 function mapEffectError(err: MethodologyError | LifecycleError | unknown): never {
   const tag =
     err && typeof err === "object" && "_tag" in err ? (err as { _tag: string })._tag : undefined;
+  const fallbackMessage = err instanceof Error ? err.message : String(err);
+  if (!tag && /ValidationDecodeError:/i.test(fallbackMessage)) {
+    throw new ORPCError("BAD_REQUEST", {
+      message: fallbackMessage.replace(/^ValidationDecodeError:\s*/i, "").trim(),
+    });
+  }
+
   switch (tag) {
     case "VersionNotFoundError":
     case "MethodologyNotFoundError":

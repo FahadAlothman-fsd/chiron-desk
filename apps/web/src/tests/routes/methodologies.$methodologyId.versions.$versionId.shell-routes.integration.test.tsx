@@ -129,6 +129,7 @@ function createRouteContext(options?: {
         {
           key: "WU.TASK",
           displayName: "Task",
+          cardinality: "many_per_project",
           lifecycle: {
             states: [
               { key: "todo", displayName: "To Do", description: "Awaiting work" },
@@ -187,6 +188,30 @@ function createRouteContext(options?: {
               validation: { kind: "json-schema" },
             },
           ],
+        },
+        {
+          key: "WU.SETUP",
+          displayName: "Setup",
+          cardinality: "one_per_project",
+          lifecycle: {
+            states: [{ key: "draft", displayName: "Draft", description: "Setup draft" }],
+            transitions: [],
+          },
+          workflows: [],
+          artifactSlots: [],
+          factSchemas: [],
+        },
+        {
+          key: "WU.RESEARCH",
+          displayName: "Research",
+          cardinality: "many_per_project",
+          lifecycle: {
+            states: [{ key: "draft", displayName: "Draft", description: "Research draft" }],
+            transitions: [],
+          },
+          workflows: [],
+          artifactSlots: [],
+          factSchemas: [],
         },
       ],
       agentTypes: [
@@ -2168,6 +2193,7 @@ describe("methodology version shell routes", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "+ Add Fact" }));
     chooseOption("Fact Type", "work unit");
+    chooseOption("Work Unit", "WU.RESEARCH");
     chooseOptionIn(screen.getByRole("dialog"), "Cardinality", "many");
     expect(comboboxForField("Dependency Type")).toBeTruthy();
     chooseOption("Dependency Type", "link.requires");
@@ -2191,6 +2217,49 @@ describe("methodology version shell routes", () => {
           kind: "work_unit_reference_fact",
           key: "fact.upstream_unit",
           cardinality: "many",
+          validation: expect.objectContaining({ workUnitKey: "WU.RESEARCH" }),
+        }),
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("locks work-unit reference fact cardinality to one when referenced work unit is one_per_project", async () => {
+    const { MethodologyVersionWorkUnitDetailsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
+    const routeContext = createRouteContext();
+    useParamsMock.mockReturnValue({
+      methodologyId: "equity-core",
+      versionId: "draft-v2",
+      workUnitKey: "WU.TASK",
+    });
+    useSearchMock.mockReturnValue({ tab: "facts" });
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add Fact" }));
+    chooseOption("Fact Type", "work unit");
+    chooseOption("Work Unit", "WU.SETUP");
+
+    const cardinalityCombobox = comboboxForFieldIn(screen.getByRole("dialog"), "Cardinality");
+    expect(cardinalityCombobox.hasAttribute("disabled")).toBe(true);
+    expect(cardinalityCombobox.textContent?.toLowerCase().includes("one")).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(routeContext.createWorkUnitFactMock).toHaveBeenCalledTimes(1);
+    });
+
+    expect(routeContext.createWorkUnitFactMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        versionId: "draft-v2",
+        workUnitTypeKey: "WU.TASK",
+        fact: expect.objectContaining({
+          kind: "work_unit_reference_fact",
+          cardinality: "one",
+          validation: expect.objectContaining({ workUnitKey: "WU.SETUP" }),
         }),
       }),
       expect.anything(),
@@ -2349,7 +2418,7 @@ describe("methodology version shell routes", () => {
 
     renderWithQueryClient(<MethodologyVersionWorkUnitsRoute />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
+    fireEvent.click((await screen.findAllByRole("button", { name: "Delete" }))[0]!);
     fireEvent.click(screen.getByRole("button", { name: "Delete Work Unit Permanently" }));
     await waitFor(() => {
       expect(routeContext.deleteWorkUnitMock).toHaveBeenCalledTimes(1);

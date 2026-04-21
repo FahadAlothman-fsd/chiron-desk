@@ -317,7 +317,9 @@ export type WorkflowContextFactDraft = {
   allowedWorkflowDefinitionIds: readonly string[];
   slotDefinitionId?: string;
   artifactSlotDefinitionId?: string;
+  linkTypeDefinitionId?: string;
   workUnitDefinitionId?: string;
+  targetWorkUnitDefinitionId?: string;
   workUnitTypeKey?: string;
   selectedWorkUnitFactDefinitionIds: readonly string[];
   selectedArtifactSlotDefinitionIds: readonly string[];
@@ -341,7 +343,9 @@ export type WorkflowContextFactDefinitionItem = {
   allowedWorkflowDefinitionIds: readonly string[];
   slotDefinitionId?: string;
   artifactSlotDefinitionId?: string;
+  linkTypeDefinitionId?: string;
   workUnitDefinitionId?: string;
+  targetWorkUnitDefinitionId?: string;
   workUnitTypeKey?: string;
   selectedWorkUnitFactDefinitionIds?: readonly string[];
   selectedArtifactSlotDefinitionIds?: readonly string[];

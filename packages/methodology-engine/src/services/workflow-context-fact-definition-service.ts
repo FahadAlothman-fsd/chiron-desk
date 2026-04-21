@@ -110,6 +110,16 @@ export const WorkflowContextFactDefinitionServiceLive = Layer.effect(
         const version = yield* ensureVersion(input.versionId);
         yield* ensureDraftVersion(version);
 
+        const existing = yield* repo.listWorkflowContextFactsByDefinitionId({
+          versionId: input.versionId,
+          workflowDefinitionId: input.workflowDefinitionId,
+        });
+        if (existing.some((entry) => entry.key === input.fact.key)) {
+          return yield* new ValidationDecodeError({
+            message: `Workflow context fact key '${input.fact.key}' already exists`,
+          });
+        }
+
         const created = yield* repo.createWorkflowContextFactByDefinitionId({
           versionId: input.versionId,
           workflowDefinitionId: input.workflowDefinitionId,
@@ -162,6 +172,17 @@ export const WorkflowContextFactDefinitionServiceLive = Layer.effect(
         if (current.kind !== input.fact.kind) {
           return yield* new ValidationDecodeError({
             message: `Workflow context fact kind is locked for '${current.key}'`,
+          });
+        }
+
+        const duplicateKey = existing.some(
+          (fact) =>
+            fact.contextFactDefinitionId !== input.contextFactDefinitionId &&
+            fact.key === input.fact.key,
+        );
+        if (duplicateKey) {
+          return yield* new ValidationDecodeError({
+            message: `Workflow context fact key '${input.fact.key}' already exists`,
           });
         }
 

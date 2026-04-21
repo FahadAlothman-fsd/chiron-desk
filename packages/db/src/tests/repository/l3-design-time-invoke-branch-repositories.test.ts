@@ -457,6 +457,44 @@ describe("l3 design-time invoke/branch methodology repository", () => {
     });
   });
 
+  it("stores workflow fact_backed invoke source mode using DB canonical enum", async () => {
+    const created = await runRepo((repo) =>
+      repo.createInvokeStepDefinition({
+        versionId: "version-1",
+        workflowDefinitionId: "workflow-1",
+        payload: {
+          key: "invoke-workflow-from-fact",
+          label: "Invoke workflow from fact",
+          targetKind: "workflow",
+          sourceMode: "fact_backed",
+          contextFactDefinitionId: "ctx-summary",
+        },
+      }),
+    );
+
+    const rawRow = await client.execute({
+      sql: `SELECT source_mode FROM methodology_workflow_invoke_steps WHERE step_id = ?`,
+      args: [created.stepId],
+    });
+    expect(rawRow.rows[0]?.source_mode).toBe("context_fact_backed");
+
+    const loaded = await runRepo((repo) =>
+      repo.getInvokeStepDefinition({
+        versionId: "version-1",
+        workflowDefinitionId: "workflow-1",
+        stepId: created.stepId,
+      }),
+    );
+
+    expect(loaded?.payload).toEqual(
+      expect.objectContaining({
+        targetKind: "workflow",
+        sourceMode: "fact_backed",
+        contextFactDefinitionId: "ctx-summary",
+      }),
+    );
+  });
+
   it("persists branch steps with routes/groups/conditions and deletes omitted child rows", async () => {
     const created = await runRepo((repo) =>
       repo.createBranchStepDefinition({

@@ -354,8 +354,15 @@ describe("l3 slice-1 methodology repository", () => {
           workUnitTypeKey: "WU.STORY",
           workflowDefinitionId: "workflow-1",
         });
+        const editorByKey = yield* repo.getWorkflowEditorDefinition({
+          versionId: "version-1",
+          workUnitTypeKey: "WU.STORY",
+          workflowDefinitionId: "wu.story.setup",
+        });
 
         expect(editor.contextFacts.map((fact) => fact.key)).toContain("summary");
+        expect(editorByKey.workflow.workflowDefinitionId).toBe("workflow-1");
+        expect(editorByKey.contextFacts.map((fact) => fact.key)).toContain("summary");
         expect(editor.contextFacts).toContainEqual({
           kind: "plain_fact",
           contextFactDefinitionId: expect.any(String),

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangleIcon, CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -88,6 +88,7 @@ type DependencyDefinition = {
 type WorkUnitDefinition = {
   key: string;
   displayName?: string;
+  cardinality?: "one_per_project" | "many_per_project";
 };
 
 type FactsTabProps = {
@@ -632,6 +633,26 @@ function toMutationFact(formState: FactFormState, jsonSubKeys: readonly JsonSubK
   };
 }
 
+function resolveWorkUnitReferenceCardinality(params: {
+  valueType: FactType;
+  requestedCardinality: FactCardinality;
+  workUnitKey: string;
+  workUnits: readonly WorkUnitDefinition[];
+}): FactCardinality {
+  if (params.valueType !== "work unit") {
+    return params.requestedCardinality;
+  }
+
+  const selectedWorkUnit = params.workUnits.find(
+    (entry) => entry.key === params.workUnitKey.trim(),
+  );
+  if (selectedWorkUnit?.cardinality === "one_per_project") {
+    return "one";
+  }
+
+  return params.requestedCardinality;
+}
+
 export function FactsTab({
   initialFacts,
   dependencyDefinitions = [],
@@ -667,6 +688,30 @@ export function FactsTab({
       ),
     [dependencyDefinitions],
   );
+  const selectedReferencedWorkUnit = useMemo(
+    () => workUnits.find((entry) => entry.key === formState.workUnitKey.trim()) ?? null,
+    [formState.workUnitKey, workUnits],
+  );
+  const effectiveFactCardinality = resolveWorkUnitReferenceCardinality({
+    valueType: formState.valueType,
+    requestedCardinality: formState.cardinality,
+    workUnitKey: formState.workUnitKey,
+    workUnits,
+  });
+  const isWorkUnitCardinalityLocked =
+    formState.valueType === "work unit" &&
+    selectedReferencedWorkUnit?.cardinality === "one_per_project";
+
+  useEffect(() => {
+    if (effectiveFactCardinality === formState.cardinality) {
+      return;
+    }
+
+    setFormState((previous) => ({
+      ...previous,
+      cardinality: effectiveFactCardinality,
+    }));
+  }, [effectiveFactCardinality, formState.cardinality]);
 
   const mutateFacts = (updater: (current: UiFact[]) => UiFact[]) => {
     setFactsDraft((current) => updater(current ?? normalizedFacts));
@@ -740,7 +785,13 @@ export function FactsTab({
       formState.key.trim() ||
       (derivedKeyFromName.length > 0 ? `fact.${derivedKeyFromName}` : "fact.new");
 
-    const mutationFact = toMutationFact(formState, jsonSubKeys);
+    const mutationFact = toMutationFact(
+      {
+        ...formState,
+        cardinality: effectiveFactCardinality,
+      },
+      jsonSubKeys,
+    );
     const numberMinimum = parseOptionalNumber(formState.numberMin);
     const numberMaximum = parseOptionalNumber(formState.numberMax);
     if (
@@ -761,7 +812,7 @@ export function FactsTab({
       name: formState.name.trim() || key,
       key,
       valueType: formState.valueType,
-      cardinality: formState.cardinality,
+      cardinality: effectiveFactCardinality,
       validationKind:
         formState.valueType === "string"
           ? formState.validationKind
@@ -1029,7 +1080,8 @@ export function FactsTab({
                 <div className="space-y-2">
                   <Label>Cardinality</Label>
                   <Select
-                    value={formState.cardinality}
+                    value={effectiveFactCardinality}
+                    disabled={isWorkUnitCardinalityLocked}
                     onValueChange={(value) =>
                       setFormState((prev) => ({
                         ...prev,
@@ -1042,7 +1094,9 @@ export function FactsTab({
                     </SelectTrigger>
                     <SelectContent className="rounded-none">
                       <SelectItem value="one">one</SelectItem>
-                      <SelectItem value="many">many</SelectItem>
+                      {!isWorkUnitCardinalityLocked ? (
+                        <SelectItem value="many">many</SelectItem>
+                      ) : null}
                     </SelectContent>
                   </Select>
                 </div>

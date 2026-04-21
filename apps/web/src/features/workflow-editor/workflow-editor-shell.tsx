@@ -58,6 +58,7 @@ type WorkflowEditorShellProps = {
   methodologyFacts: readonly WorkflowEditorPickerOption[];
   currentWorkUnitFacts: readonly WorkflowEditorPickerOption[];
   artifactSlots: readonly WorkflowEditorPickerOption[];
+  dependencyDefinitions: readonly WorkflowEditorPickerOption[];
   workUnitTypes: readonly WorkflowEditorPickerOption[];
   availableWorkflows: readonly WorkflowEditorPickerOption[];
   availableTransitions: readonly WorkflowEditorPickerOption[];
@@ -628,9 +629,17 @@ function toContextFactDefinitionItem(
     ...(draft.factDefinitionId?.trim() ? { factDefinitionId: draft.factDefinitionId.trim() } : {}),
     allowedWorkflowDefinitionIds: draft.allowedWorkflowDefinitionIds,
     ...(draft.slotDefinitionId?.trim() ? { slotDefinitionId: draft.slotDefinitionId.trim() } : {}),
+    ...(draft.linkTypeDefinitionId?.trim()
+      ? { linkTypeDefinitionId: draft.linkTypeDefinitionId.trim() }
+      : {}),
     ...(draft.workUnitDefinitionId?.trim()
       ? { workUnitDefinitionId: draft.workUnitDefinitionId.trim() }
       : {}),
+    ...(draft.targetWorkUnitDefinitionId?.trim()
+      ? { targetWorkUnitDefinitionId: draft.targetWorkUnitDefinitionId.trim() }
+      : draft.workUnitDefinitionId?.trim()
+        ? { targetWorkUnitDefinitionId: draft.workUnitDefinitionId.trim() }
+        : {}),
     ...(selectedWorkUnitFactDefinitionIds.length > 0 || draft.includedFactDefinitionIds.length > 0
       ? {
           selectedWorkUnitFactDefinitionIds:
@@ -658,6 +667,7 @@ export function WorkflowEditorShell({
   methodologyFacts,
   currentWorkUnitFacts,
   artifactSlots,
+  dependencyDefinitions,
   workUnitTypes,
   availableWorkflows,
   availableTransitions,
@@ -1475,6 +1485,7 @@ export function WorkflowEditorShell({
         methodologyFacts={methodologyFacts}
         currentWorkUnitFacts={currentWorkUnitFacts}
         artifactSlots={artifactSlots}
+        dependencyDefinitions={dependencyDefinitions}
         workUnitTypes={workUnitTypes}
         availableWorkflows={availableWorkflows}
         workUnitFactsQueryScope={workUnitFactsQueryScope}

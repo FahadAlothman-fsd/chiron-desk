@@ -89,6 +89,11 @@ function toErrorMessage(error: unknown): string {
   return String(error);
 }
 
+function isContextFactKeyConflictError(error: unknown): boolean {
+  const message = toErrorMessage(error);
+  return /Workflow context fact key '([^']+)' already exists/i.test(message);
+}
+
 function titleizeKey(value: string) {
   return value
     .split(/[_:\-.]+/)
@@ -350,8 +355,16 @@ function summarizeContextFact(fact: WorkflowContextFactDraft | WorkflowContextFa
     case "artifact_slot_reference_fact":
       return fact.slotDefinitionId?.trim() ? `${lead} · ${fact.slotDefinitionId.trim()}` : lead;
     case "work_unit_reference_fact":
-      return fact.workUnitDefinitionId?.trim()
-        ? `${lead} · ${fact.workUnitDefinitionId.trim()}`
+      return [
+        fact.linkTypeDefinitionId?.trim() ?? "",
+        fact.targetWorkUnitDefinitionId?.trim() ?? fact.workUnitDefinitionId?.trim() ?? "",
+      ].filter((entry) => entry.length > 0).length > 0
+        ? `${lead} · ${[
+            fact.linkTypeDefinitionId?.trim() ?? "",
+            fact.targetWorkUnitDefinitionId?.trim() ?? fact.workUnitDefinitionId?.trim() ?? "",
+          ]
+            .filter((entry) => entry.length > 0)
+            .join(" · ")}`
         : lead;
     case "work_unit_draft_spec_fact":
       return fact.workUnitDefinitionId?.trim()
@@ -1293,6 +1306,21 @@ function toContextFactDefinitions(
         }
       }
 
+      if (
+        typeof value.targetWorkUnitDefinitionId === "string" &&
+        value.targetWorkUnitDefinitionId.trim().length > 0
+      ) {
+        item.targetWorkUnitDefinitionId = value.targetWorkUnitDefinitionId.trim();
+        item.workUnitDefinitionId = value.targetWorkUnitDefinitionId.trim();
+      }
+
+      if (
+        typeof value.linkTypeDefinitionId === "string" &&
+        value.linkTypeDefinitionId.trim().length > 0
+      ) {
+        item.linkTypeDefinitionId = value.linkTypeDefinitionId.trim();
+      }
+
       if (typeof value.slotDefinitionId === "string") {
         item.slotDefinitionId = value.slotDefinitionId;
       } else if (typeof value.artifactSlotKey === "string") {
@@ -1408,6 +1436,17 @@ function toContextFactMutationPayload(draft: WorkflowContextFactDraft) {
         ...base,
         slotDefinitionId: draft.slotDefinitionId?.trim() ?? "",
       };
+    case "work_unit_reference_fact": {
+      const linkTypeDefinitionId = draft.linkTypeDefinitionId?.trim() ?? "";
+      const targetWorkUnitDefinitionId =
+        draft.targetWorkUnitDefinitionId?.trim() ?? draft.workUnitDefinitionId?.trim() ?? "";
+
+      return {
+        ...base,
+        ...(linkTypeDefinitionId.length > 0 ? { linkTypeDefinitionId } : {}),
+        ...(targetWorkUnitDefinitionId.length > 0 ? { targetWorkUnitDefinitionId } : {}),
+      };
+    }
     case "work_unit_draft_spec_fact":
       return {
         ...base,
@@ -2097,14 +2136,28 @@ function toFactOptions(
     const description = readMarkdown(value.descriptionJson) || readMarkdown(value.description);
     const cardinality =
       value.cardinality === "one" || value.cardinality === "many" ? value.cardinality : null;
-    const pickerValueType = normalizePickerFactType(value.valueType ?? value.type);
-    const workUnitTypeKey =
+    const inferredValueTypeFromKind =
+      value.kind === "work_unit_reference_fact" || value.kind === "work_unit_draft_spec_fact"
+        ? "work_unit"
+        : null;
+    const pickerValueType = normalizePickerFactType(
+      value.valueType ?? value.type ?? inferredValueTypeFromKind,
+    );
+    const workUnitTypeIdentifier =
       typeof value.workUnitTypeKey === "string" && value.workUnitTypeKey.trim().length > 0
         ? value.workUnitTypeKey.trim()
-        : null;
+        : typeof value.workUnitTypeId === "string" && value.workUnitTypeId.trim().length > 0
+          ? value.workUnitTypeId.trim()
+          : typeof value.workUnitDefinitionId === "string" &&
+              value.workUnitDefinitionId.trim().length > 0
+            ? value.workUnitDefinitionId.trim()
+            : typeof value.targetWorkUnitDefinitionId === "string" &&
+                value.targetWorkUnitDefinitionId.trim().length > 0
+              ? value.targetWorkUnitDefinitionId.trim()
+              : null;
     const workUnitTypeLabel =
-      pickerValueType === "work unit" && workUnitTypeKey
-        ? getWorkUnitTypeLabel(rawWorkUnits, workUnitTypeKey)
+      pickerValueType === "work unit" && workUnitTypeIdentifier
+        ? getWorkUnitTypeLabel(rawWorkUnits, workUnitTypeIdentifier)
         : null;
     const badges: WorkflowEditorPickerBadge[] = [
       {
@@ -2124,7 +2177,7 @@ function toFactOptions(
       label,
       description,
       fallbackDescription,
-      workUnitTypeKey,
+      workUnitTypeIdentifier,
       ...badges.map((badge) => badge.label),
     ]
       .filter((segment): segment is string => typeof segment === "string" && segment.length > 0)
@@ -2262,6 +2315,12 @@ function toWorkUnitTypeOptions(rawWorkUnits: unknown) {
           ? workUnit.cardinality.replaceAll("_", " ")
           : "") ||
         "Work unit";
+      const cardinalityBadgeLabel =
+        workUnit.cardinality === "one_per_project"
+          ? "one"
+          : workUnit.cardinality === "many_per_project"
+            ? "many"
+            : null;
 
       return {
         value:
@@ -2271,6 +2330,11 @@ function toWorkUnitTypeOptions(rawWorkUnits: unknown) {
         label,
         secondaryLabel: workUnit.key,
         description,
+        ...(cardinalityBadgeLabel
+          ? {
+              badges: [{ label: cardinalityBadgeLabel, tone: "cardinality" as const }],
+            }
+          : {}),
       };
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
@@ -2372,6 +2436,44 @@ function toWorkflowOptions(rawWorkflows: unknown) {
           readMarkdown(workflow.guidanceJson) ||
           "Workflow",
       },
+    ];
+  });
+}
+
+function toDependencyDefinitionOptions(rawDependencyDefinitions: unknown) {
+  const record = asRecord(rawDependencyDefinitions);
+  const dependencyDefinitions = Array.isArray(rawDependencyDefinitions)
+    ? rawDependencyDefinitions
+    : Array.isArray(record?.linkTypeDefinitions)
+      ? record.linkTypeDefinitions
+      : [];
+
+  return dependencyDefinitions.flatMap((entry) => {
+    const dependencyDefinition = asRecord(entry);
+    if (!dependencyDefinition) {
+      return [];
+    }
+
+    const value =
+      typeof dependencyDefinition.key === "string" && dependencyDefinition.key.trim().length > 0
+        ? dependencyDefinition.key.trim()
+        : null;
+    if (!value) {
+      return [];
+    }
+
+    const label =
+      typeof dependencyDefinition.name === "string" && dependencyDefinition.name.trim().length > 0
+        ? dependencyDefinition.name.trim()
+        : value;
+
+    return [
+      {
+        value,
+        label,
+        secondaryLabel: value,
+        description: "Dependency definition",
+      } satisfies WorkflowEditorPickerOption,
     ];
   });
 }
@@ -2530,6 +2632,17 @@ export function MethodologyWorkflowEditorRoute() {
     queryFn: () => Promise<unknown>;
   };
   const methodologyFactsQuery = useQuery(methodologyFactsQueryOptions);
+  const dependencyDefinitionsQueryOptions =
+    (orpc.methodology.version.dependencyDefinition?.list?.queryOptions?.({
+      input: { versionId },
+    }) ?? {
+      queryKey: ["dependency-definitions", versionId],
+      queryFn: async () => [],
+    }) as unknown as {
+      queryKey: unknown[];
+      queryFn: () => Promise<unknown>;
+    };
+  const dependencyDefinitionsQuery = useQuery(dependencyDefinitionsQueryOptions);
   const workUnitTypesQueryOptions = (orpc.methodology.version.workUnit.list?.queryOptions?.({
     input: { versionId },
   }) ?? {
@@ -2806,6 +2919,7 @@ export function MethodologyWorkflowEditorRoute() {
       )}
       currentWorkUnitFacts={toWorkUnitFactOptions(workUnitFactsQuery.data, workUnitKey)}
       artifactSlots={toArtifactSlotOptions(artifactSlotsQuery.data)}
+      dependencyDefinitions={toDependencyDefinitionOptions(dependencyDefinitionsQuery.data)}
       workUnitTypes={toWorkUnitTypeOptions(workUnitTypesQuery.data)}
       availableWorkflows={toWorkflowOptions(availableWorkflowsQuery.data)}
       availableTransitions={toTransitionOptions(transitionsQuery.data)}
@@ -3172,7 +3286,9 @@ export function MethodologyWorkflowEditorRoute() {
           await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
           return nextFact;
         } catch (error) {
-          toast.error(`Failed to create context fact: ${toErrorMessage(error)}`);
+          if (!isContextFactKeyConflictError(error)) {
+            toast.error(`Failed to create context fact: ${toErrorMessage(error)}`);
+          }
           throw error;
         }
       }}
@@ -3188,7 +3304,9 @@ export function MethodologyWorkflowEditorRoute() {
 
           await queryClient.invalidateQueries({ queryKey: editorQueryOptions.queryKey });
         } catch (error) {
-          toast.error(`Failed to update context fact: ${toErrorMessage(error)}`);
+          if (!isContextFactKeyConflictError(error)) {
+            toast.error(`Failed to update context fact: ${toErrorMessage(error)}`);
+          }
           throw error;
         }
       }}

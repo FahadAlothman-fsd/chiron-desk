@@ -265,12 +265,27 @@ function buildFactIdentifierMap(facts: readonly WorkflowContextFactDto[]) {
   return factByIdentifier;
 }
 
-function normalizeLegacyInvokeSourceMode(mode: string): "fixed" | "fact_backed" | typeof mode {
+function normalizeInvokeSourceModeFromDb(mode: string): "fixed" | "fact_backed" | typeof mode {
   switch (mode) {
     case "fixed_set":
       return "fixed";
+    case "context_fact_backed":
     case "fact_select":
       return "fact_backed";
+    default:
+      return mode;
+  }
+}
+
+function normalizeInvokeSourceModeToDb(
+  mode: string,
+): "fixed_set" | "context_fact_backed" | typeof mode {
+  switch (mode) {
+    case "fixed":
+      return "fixed_set";
+    case "fact_backed":
+    case "fact_select":
+      return "context_fact_backed";
     default:
       return mode;
   }
@@ -361,7 +376,6 @@ function deriveStoredFieldValueType(fact: WorkflowContextFactDto | undefined): s
       return "work_unit";
     case "bound_fact":
     case "workflow_ref_fact":
-    case "artifact_slot_reference_fact":
     case "artifact_slot_reference_fact":
     case "work_unit_draft_spec_fact":
       return "json";
@@ -987,7 +1001,6 @@ async function insertContextFactSubtypeRow(
       });
       return;
     case "artifact_slot_reference_fact":
-    case "artifact_slot_reference_fact":
       await tx.insert(methodologyWorkflowContextFactArtifactReferences).values({
         contextFactDefinitionId: definitionId,
         slotDefinitionId: fact.slotDefinitionId,
@@ -1309,7 +1322,6 @@ async function readWorkflowContextFacts(
             : {}),
         };
       }
-      case "artifact_slot_reference_fact":
       case "artifact_slot_reference_fact": {
         const row = artifactReferenceByDefinitionId.get(definition.id);
         if (!row) {
@@ -2045,7 +2057,7 @@ function buildInvokePayload(
   bindings: readonly InvokeBindingRow[],
   transitions: readonly InvokeTransitionRow[],
 ): InvokeStepPayload {
-  const normalizedSourceMode = normalizeLegacyInvokeSourceMode(invokeStep.sourceMode);
+  const normalizedSourceMode = normalizeInvokeSourceModeFromDb(invokeStep.sourceMode);
   const payloadBase = {
     key: step.key,
     ...(step.displayName ? { label: step.displayName } : {}),
@@ -2171,7 +2183,7 @@ async function syncInvokeStepDefinition(
   stepId: string,
   payload: InvokeStepPayload,
 ): Promise<void> {
-  const normalizedSourceMode = normalizeLegacyInvokeSourceMode(payload.sourceMode);
+  const normalizedSourceMode = normalizeInvokeSourceModeToDb(payload.sourceMode);
   const workflowDefinitionIds =
     payload.targetKind === "workflow" && payload.sourceMode === "fixed"
       ? payload.workflowDefinitionIds
@@ -2438,7 +2450,7 @@ async function readInvokeStepDefinition(
     )
     .where(
       and(
-        eq(methodologyWorkflowSteps.workflowId, params.workflowDefinitionId),
+        eq(methodologyWorkflowSteps.workflowId, workflow.id),
         eq(methodologyWorkflowSteps.id, params.stepId),
         eq(methodologyWorkflowSteps.type, "invoke"),
       ),
@@ -2767,7 +2779,7 @@ async function readBranchStepDefinition(
     )
     .where(
       and(
-        eq(methodologyWorkflowSteps.workflowId, params.workflowDefinitionId),
+        eq(methodologyWorkflowSteps.workflowId, workflow.id),
         eq(methodologyWorkflowSteps.id, params.stepId),
         eq(methodologyWorkflowSteps.type, "branch"),
       ),
@@ -4139,58 +4151,6 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             guidanceJson: workUnitType.guidance ?? null,
             cardinality: workUnitType.cardinality ?? "many_per_project",
           });
-          return true;
-        }),
-      ),
-
-    updateWorkUnitType: ({ versionId, workUnitTypeKey, workUnitType }: UpdateWorkUnitTypeParams) =>
-      dbEffect("methodology.updateWorkUnitType", () =>
-        db.transaction(async (tx) => {
-          const rows = await tx
-            .select({
-              id: methodologyWorkUnitTypes.id,
-              cardinality: methodologyWorkUnitTypes.cardinality,
-            })
-            .from(methodologyWorkUnitTypes)
-            .where(
-              and(
-                eq(methodologyWorkUnitTypes.methodologyVersionId, versionId),
-                eq(methodologyWorkUnitTypes.key, workUnitTypeKey),
-              ),
-            )
-            .limit(1);
-          const existing = rows[0];
-          if (!existing) {
-            return false;
-          }
-
-          await tx
-            .update(methodologyWorkUnitTypes)
-            .set({
-              key: workUnitType.key,
-              displayName: workUnitType.displayName ?? null,
-              descriptionJson: workUnitType.description ?? null,
-              guidanceJson: workUnitType.guidance ?? null,
-              cardinality: workUnitType.cardinality ?? existing.cardinality,
-            })
-            .where(eq(methodologyWorkUnitTypes.id, existing.id));
-
-          return true;
-        }),
-      ),
-
-    createWorkUnitType: ({ versionId, workUnitType }: CreateWorkUnitTypeParams) =>
-      dbEffect("methodology.createWorkUnitType", () =>
-        db.transaction(async (tx) => {
-          await tx.insert(methodologyWorkUnitTypes).values({
-            methodologyVersionId: versionId,
-            key: workUnitType.key,
-            displayName: workUnitType.displayName ?? null,
-            descriptionJson: workUnitType.description ?? null,
-            guidanceJson: workUnitType.guidance ?? null,
-            cardinality: workUnitType.cardinality ?? "many_per_project",
-          });
-
           return true;
         }),
       ),
@@ -6579,19 +6539,21 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           );
         }
 
+        const resolvedWorkflowDefinitionId = workflow.id;
+
         const [stepRows, edgeRows, formDefinitions, contextFacts] = await Promise.all([
           db
             .select()
             .from(methodologyWorkflowSteps)
-            .where(eq(methodologyWorkflowSteps.workflowId, workflowDefinitionId))
+            .where(eq(methodologyWorkflowSteps.workflowId, resolvedWorkflowDefinitionId))
             .orderBy(asc(methodologyWorkflowSteps.createdAt), asc(methodologyWorkflowSteps.id)),
           db
             .select()
             .from(methodologyWorkflowEdges)
-            .where(eq(methodologyWorkflowEdges.workflowId, workflowDefinitionId))
+            .where(eq(methodologyWorkflowEdges.workflowId, resolvedWorkflowDefinitionId))
             .orderBy(asc(methodologyWorkflowEdges.createdAt), asc(methodologyWorkflowEdges.id)),
-          readWorkflowFormDefinitions(db, workflowDefinitionId),
-          readWorkflowContextFacts(db, versionId, workflowDefinitionId),
+          readWorkflowFormDefinitions(db, resolvedWorkflowDefinitionId),
+          readWorkflowContextFacts(db, versionId, resolvedWorkflowDefinitionId),
         ]);
 
         const stepKeyById = new Map(stepRows.map((row) => [row.id, row.key]));
@@ -6613,7 +6575,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             if (stepType === "invoke") {
               const definition = await readInvokeStepDefinition(db, {
                 versionId,
-                workflowDefinitionId,
+                workflowDefinitionId: resolvedWorkflowDefinitionId,
                 stepId: step.id,
               });
               if (!definition) {
@@ -6630,7 +6592,7 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
             if (stepType === "branch") {
               const definition = await readBranchStepDefinition(db, {
                 versionId,
-                workflowDefinitionId,
+                workflowDefinitionId: resolvedWorkflowDefinitionId,
                 stepId: step.id,
               });
               if (!definition) {
