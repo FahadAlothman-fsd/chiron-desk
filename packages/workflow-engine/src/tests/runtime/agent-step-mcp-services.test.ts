@@ -183,6 +183,30 @@ describe("AgentStep MCP services", () => {
     }
     expect(invalidWrite.left).toBeInstanceOf(McpToolValidationError);
     expect(ctx.appliedWrites).toHaveLength(1);
+
+    const invalidShapeWrite = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* AgentStepMcpService;
+        return yield* Effect.either(
+          service.execute({
+            version: "v1",
+            toolName: "write_context_value",
+            input: withHiddenStepExecutionId({
+              writeItemId: "write-summary",
+              valueJson: { summary: "Approved summary" },
+            }) as any,
+          }),
+        );
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    expect(invalidShapeWrite._tag).toBe("Left");
+    if (invalidShapeWrite._tag !== "Left") {
+      throw new Error("expected invalid shape write to fail");
+    }
+    expect(invalidShapeWrite.left).toBeInstanceOf(McpToolValidationError);
+    expect(invalidShapeWrite.left.message).toContain("string");
+    expect(ctx.appliedWrites).toHaveLength(1);
   });
 
   it("rejects blocked writes until requirements are satisfied", async () => {

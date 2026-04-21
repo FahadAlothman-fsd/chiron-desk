@@ -3,6 +3,7 @@ import type {
   ChoosePrimaryWorkflowForTransitionExecutionOutput,
   CompleteTransitionExecutionInput,
   CompleteTransitionExecutionOutput,
+  SingletonAutoAttachWarning,
   StartTransitionExecutionInput,
   StartTransitionExecutionOutput,
   SwitchActiveTransitionExecutionInput,
@@ -17,8 +18,10 @@ import { RepositoryError } from "../errors";
 import { ExecutionReadRepository } from "../repositories/execution-read-repository";
 import { ProjectWorkUnitRepository } from "../repositories/project-work-unit-repository";
 import { TransitionExecutionRepository } from "../repositories/transition-execution-repository";
+import { WorkUnitFactRepository } from "../repositories/work-unit-fact-repository";
 import { WorkflowExecutionRepository } from "../repositories/workflow-execution-repository";
 import { RuntimeGateService } from "./runtime-gate-service";
+import { resolveAutoAttachedProjectWorkUnit } from "./runtime-auto-attach";
 import { toRuntimeConditionTree } from "./transition-gate-conditions";
 import { WorkflowContextExternalPrefillService } from "./workflow-context-external-prefill-service";
 
@@ -79,6 +82,7 @@ export const TransitionExecutionCommandServiceLive = Layer.effect(
     const transitionRepo = yield* TransitionExecutionRepository;
     const workflowRepo = yield* WorkflowExecutionRepository;
     const projectWorkUnitRepo = yield* ProjectWorkUnitRepository;
+    const workUnitFactRepo = yield* Effect.serviceOption(WorkUnitFactRepository);
     const readRepo = yield* ExecutionReadRepository;
     const runtimeGate = yield* RuntimeGateService;
     const contextExternalPrefillService = yield* Effect.serviceOption(
@@ -183,6 +187,70 @@ export const TransitionExecutionCommandServiceLive = Layer.effect(
         };
       });
 
+    const seedAutoAttachedWorkUnitReferenceFacts = (params: {
+      projectId: string;
+      projectWorkUnitId: string;
+      workUnitTypeId: string;
+    }) =>
+      Effect.gen(function* () {
+        if (Option.isNone(workUnitFactRepo)) {
+          return [] as readonly SingletonAutoAttachWarning[];
+        }
+
+        const projectPin = yield* projectContextRepository.findProjectPin(params.projectId);
+        if (!projectPin) {
+          return [] as readonly SingletonAutoAttachWarning[];
+        }
+
+        const [factSchemas, workUnitTypes, projectWorkUnits] = yield* Effect.all([
+          lifecycleRepository.findFactSchemas(
+            projectPin.methodologyVersionId,
+            params.workUnitTypeId,
+          ),
+          lifecycleRepository.findWorkUnitTypes(projectPin.methodologyVersionId),
+          projectWorkUnitRepo.listProjectWorkUnitsByProject(params.projectId),
+        ]);
+
+        const warnings: SingletonAutoAttachWarning[] = [];
+
+        const referenceFacts = factSchemas.flatMap((factSchema) => {
+          if (factSchema.factType !== "work_unit" || factSchema.cardinality !== "one") {
+            return [];
+          }
+
+          const resolution = resolveAutoAttachedProjectWorkUnit({
+            targetWorkUnitDefinitionId: factSchema.targetWorkUnitDefinitionId ?? undefined,
+            projectWorkUnits,
+            workUnitTypes,
+            excludedProjectWorkUnitIds: [params.projectWorkUnitId],
+            factDefinitionId: factSchema.id,
+          });
+
+          if (resolution.warning) {
+            warnings.push(resolution.warning);
+          }
+
+          return resolution.projectWorkUnitId
+            ? [
+                {
+                  factDefinitionId: factSchema.id,
+                  referencedProjectWorkUnitId: resolution.projectWorkUnitId,
+                },
+              ]
+            : [];
+        });
+
+        yield* Effect.forEach(referenceFacts, (fact) =>
+          workUnitFactRepo.value.createFactInstance({
+            projectWorkUnitId: params.projectWorkUnitId,
+            factDefinitionId: fact.factDefinitionId,
+            referencedProjectWorkUnitId: fact.referencedProjectWorkUnitId,
+          }),
+        );
+
+        return warnings;
+      });
+
     const startTransitionExecution = (input: StartTransitionExecutionInput) =>
       Effect.gen(function* () {
         const resolvedStart = yield* Effect.gen(function* () {
@@ -224,9 +292,16 @@ export const TransitionExecutionCommandServiceLive = Layer.effect(
               ),
             );
 
+          const warnings = yield* seedAutoAttachedWorkUnitReferenceFacts({
+            projectId: input.projectId,
+            projectWorkUnitId: createdProjectWorkUnit.id,
+            workUnitTypeId: input.workUnit.workUnitTypeId,
+          });
+
           return {
             projectWorkUnitId: createdProjectWorkUnit.id,
             transitionContext,
+            warnings,
           };
         });
 
@@ -263,17 +338,20 @@ export const TransitionExecutionCommandServiceLive = Layer.effect(
           primaryWorkflowExecutionId: workflowExecution.id,
         });
 
-        if (Option.isSome(contextExternalPrefillService)) {
-          yield* contextExternalPrefillService.value.prefillFromExternalBindings({
-            projectId: input.projectId,
-            workflowExecutionId: workflowExecution.id,
-          });
-        }
+        const prefillWarnings = Option.isSome(contextExternalPrefillService)
+          ? (yield* contextExternalPrefillService.value.prefillFromExternalBindings({
+              projectId: input.projectId,
+              workflowExecutionId: workflowExecution.id,
+            })).warnings
+          : [];
+
+        const warnings = [...(resolvedStart.warnings ?? []), ...prefillWarnings];
 
         return {
           projectWorkUnitId: started.projectWorkUnitId,
           transitionExecutionId: started.id,
           workflowExecutionId: workflowExecution.id,
+          ...(warnings.length > 0 ? { warnings } : {}),
         } satisfies StartTransitionExecutionOutput;
       });
 
@@ -321,17 +399,18 @@ export const TransitionExecutionCommandServiceLive = Layer.effect(
           primaryWorkflowExecutionId: workflowExecution.id,
         });
 
-        if (Option.isSome(contextExternalPrefillService)) {
-          yield* contextExternalPrefillService.value.prefillFromExternalBindings({
-            projectId: input.projectId,
-            workflowExecutionId: workflowExecution.id,
-          });
-        }
+        const warnings = Option.isSome(contextExternalPrefillService)
+          ? (yield* contextExternalPrefillService.value.prefillFromExternalBindings({
+              projectId: input.projectId,
+              workflowExecutionId: workflowExecution.id,
+            })).warnings
+          : [];
 
         return {
           supersededTransitionExecutionId: input.supersededTransitionExecutionId,
           transitionExecutionId: switched.started.id,
           workflowExecutionId: workflowExecution.id,
+          ...(warnings.length > 0 ? { warnings } : {}),
         } satisfies SwitchActiveTransitionExecutionOutput;
       });
 

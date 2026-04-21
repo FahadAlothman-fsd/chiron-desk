@@ -484,7 +484,20 @@ const makeCrudTestLayer = () => {
     updateWorkflowMetadataByDefinitionId: () => Effect.die("unused"),
     findFactSchemasByVersionId: () => Effect.die("unused"),
     replaceArtifactSlotsForWorkUnitType: () => Effect.die("unused"),
-    findArtifactSlotsByWorkUnitType: () => Effect.die("unused"),
+    findArtifactSlotsByWorkUnitType: () =>
+      Effect.succeed([
+        {
+          id: "slot-story-doc",
+          key: "story_doc",
+          workUnitTypeId: "story",
+          displayName: "Story Doc",
+          descriptionJson: null,
+          guidanceJson: null,
+          cardinality: "fileset",
+          rulesJson: null,
+          templates: [],
+        },
+      ]),
     findInvokeBindingWorkUnitFactDefinitionsByIds: () => Effect.die("unused"),
     findInvokeBindingArtifactSlotDefinitionsByIds: () => Effect.die("unused"),
   } as unknown as Context.Tag.Service<typeof MethodologyRepository>);

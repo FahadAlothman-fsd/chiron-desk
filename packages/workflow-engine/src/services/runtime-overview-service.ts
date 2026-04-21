@@ -2,6 +2,8 @@ import type {
   GetOverviewRuntimeSummaryInput,
   GetOverviewRuntimeSummaryOutput,
 } from "@chiron/contracts/runtime/overview";
+import { MethodologyVersionBoundaryService } from "@chiron/methodology-engine";
+import { ProjectContextRepository } from "@chiron/project-context";
 import { Context, Effect, Layer } from "effect";
 
 import type { RepositoryError } from "../errors";
@@ -40,29 +42,39 @@ export const RuntimeOverviewServiceLive = Layer.effect(
     const projectFactRepository = yield* ProjectFactRepository;
     const projectWorkUnitRepository = yield* ProjectWorkUnitRepository;
     const runtimeWorkflowIndexService = yield* RuntimeWorkflowIndexService;
+    const projectContextRepository = yield* ProjectContextRepository;
+    const methodologyVersionService = yield* MethodologyVersionBoundaryService;
 
     const getOverviewRuntimeSummary = (
       input: GetOverviewRuntimeSummaryInput,
     ): Effect.Effect<GetOverviewRuntimeSummaryOutput, RepositoryError> =>
       Effect.gen(function* () {
-        const [projectFacts, projectWorkUnits, activeWorkflows] = yield* Effect.all([
+        const [projectFacts, projectWorkUnits, activeWorkflows, projectPin] = yield* Effect.all([
           projectFactRepository.listFactsByProject({ projectId: input.projectId }),
           projectWorkUnitRepository.listProjectWorkUnitsByProject(input.projectId),
           runtimeWorkflowIndexService.getActiveWorkflows({ projectId: input.projectId }),
+          projectContextRepository.findProjectPin(input.projectId),
         ]);
+        const workspaceSnapshot = projectPin
+          ? yield* methodologyVersionService
+              .getVersionWorkspaceSnapshot(projectPin.methodologyVersionId)
+              .pipe(Effect.catchAll(() => Effect.succeed(null)))
+          : null;
 
         const activeTransitionCount = projectWorkUnits.filter(
           (workUnit) => workUnit.activeTransitionExecutionId !== null,
         ).length;
         const factTypeCount = new Set(projectFacts.map((row) => row.factDefinitionId)).size;
         const workUnitTypeCount = new Set(projectWorkUnits.map((row) => row.workUnitTypeId)).size;
+        const totalFactDefinitionCount = workspaceSnapshot?.factDefinitions.length ?? factTypeCount;
+        const totalWorkUnitTypeCount = workspaceSnapshot?.workUnitTypes.length ?? workUnitTypeCount;
 
         return {
           stats: {
             factTypesWithInstances: {
               current: factTypeCount,
-              total: factTypeCount,
-              subtitle: `${factTypeCount} fact definitions currently instantiated`,
+              total: totalFactDefinitionCount,
+              subtitle: `${factTypeCount} of ${totalFactDefinitionCount} fact definitions currently instantiated`,
               target: {
                 page: "project-facts",
                 filters: { existence: "exists" },
@@ -70,8 +82,8 @@ export const RuntimeOverviewServiceLive = Layer.effect(
             },
             workUnitTypesWithInstances: {
               current: workUnitTypeCount,
-              total: workUnitTypeCount,
-              subtitle: `${workUnitTypeCount} work-unit types instantiated`,
+              total: totalWorkUnitTypeCount,
+              subtitle: `${workUnitTypeCount} of ${totalWorkUnitTypeCount} work-unit types instantiated`,
               target: {
                 page: "work-units",
               },

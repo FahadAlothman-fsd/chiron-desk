@@ -57,6 +57,35 @@ export const RuntimeWorkflowStepExecutionSummary = Schema.Struct({
 });
 export type RuntimeWorkflowStepExecutionSummary = typeof RuntimeWorkflowStepExecutionSummary.Type;
 
+export const RuntimeWorkflowStepGraphExecution = Schema.Struct({
+  stepExecutionId: Schema.NonEmptyString,
+  stepDefinitionId: Schema.NonEmptyString,
+  stepType: RuntimeWorkflowStepType,
+  status: Schema.Literal("active", "completed"),
+  activatedAt: Schema.String,
+  completedAt: Schema.optional(Schema.String),
+  previousStepExecutionId: Schema.optional(Schema.NonEmptyString),
+  target: Schema.Struct({
+    page: Schema.Literal("step-execution-detail"),
+    stepExecutionId: Schema.NonEmptyString,
+  }),
+});
+export type RuntimeWorkflowStepGraphExecution = typeof RuntimeWorkflowStepGraphExecution.Type;
+
+export const RuntimeWorkflowBranchSelectionSummary = Schema.Struct({
+  stepExecutionId: Schema.NonEmptyString,
+  selectedTargetStepDefinitionId: Schema.NullOr(Schema.NonEmptyString),
+  savedAt: Schema.optional(Schema.String),
+});
+export type RuntimeWorkflowBranchSelectionSummary =
+  typeof RuntimeWorkflowBranchSelectionSummary.Type;
+
+export const RuntimeWorkflowStepGraphRuntime = Schema.Struct({
+  executions: Schema.Array(RuntimeWorkflowStepGraphExecution),
+  branchSelections: Schema.Array(RuntimeWorkflowBranchSelectionSummary),
+});
+export type RuntimeWorkflowStepGraphRuntime = typeof RuntimeWorkflowStepGraphRuntime.Type;
+
 export const RuntimeWorkflowStepSurface = Schema.Union(
   Schema.Struct({
     state: Schema.Literal("entry_pending"),
@@ -317,6 +346,7 @@ export const GetWorkflowExecutionDetailOutput = Schema.Struct({
     }),
   ),
   stepSurface: RuntimeWorkflowStepSurface,
+  stepGraphRuntime: RuntimeWorkflowStepGraphRuntime,
   workflowContextFacts: RuntimeWorkflowContextFactsSection,
 });
 export type GetWorkflowExecutionDetailOutput = typeof GetWorkflowExecutionDetailOutput.Type;
@@ -343,6 +373,19 @@ export const RuntimeStepExecutionDetailShell = Schema.Struct({
   }),
 });
 export type RuntimeStepExecutionDetailShell = typeof RuntimeStepExecutionDetailShell.Type;
+
+export const RuntimeStepExecutionLineage = Schema.Struct({
+  previousStepExecutionId: Schema.optional(Schema.NonEmptyString),
+  nextStepExecutionId: Schema.optional(Schema.NonEmptyString),
+});
+export type RuntimeStepExecutionLineage = typeof RuntimeStepExecutionLineage.Type;
+
+export const RuntimeStepExecutionNextStep = Schema.Struct({
+  state: Schema.Literal("active", "completed", "inactive"),
+  nextStepDefinitionId: Schema.NonEmptyString,
+  nextStepExecutionId: Schema.optional(Schema.NonEmptyString),
+});
+export type RuntimeStepExecutionNextStep = typeof RuntimeStepExecutionNextStep.Type;
 
 export const ACTION_STEP_RUNTIME_ROW_STATUSES = [
   "running",
@@ -473,6 +516,8 @@ export const RuntimeActionStepExecutionDetailBody = Schema.Struct({
   duplicateRetryPolicy: Schema.Literal("idempotent_noop"),
   completionSummary: RuntimeActionCompletionSummary,
   actions: Schema.Array(RuntimeActionExecutionRow),
+  lineage: RuntimeStepExecutionLineage,
+  nextStep: Schema.optional(RuntimeStepExecutionNextStep),
 });
 export type RuntimeActionStepExecutionDetailBody = typeof RuntimeActionStepExecutionDetailBody.Type;
 
@@ -533,6 +578,8 @@ export const RuntimeBranchStepExecutionDetailBody = Schema.Struct({
     reasonIfDisabled: Schema.optional(Schema.String),
   }),
   completionSummary: RuntimeBranchCompletionSummary,
+  lineage: RuntimeStepExecutionLineage,
+  nextStep: Schema.optional(RuntimeStepExecutionNextStep),
 });
 export type RuntimeBranchStepExecutionDetailBody = typeof RuntimeBranchStepExecutionDetailBody.Type;
 
@@ -571,7 +618,7 @@ export const RuntimeFormNestedField = Schema.Struct({
 });
 export type RuntimeFormNestedField = typeof RuntimeFormNestedField.Type;
 
-export const RuntimeFormResolvedFieldWidget = Schema.Struct({
+export const RuntimeFormValueWidget = Schema.Struct({
   control: RuntimeFormFieldWidgetControl,
   valueType: Schema.optional(FactType),
   cardinality: FactCardinality,
@@ -579,11 +626,20 @@ export const RuntimeFormResolvedFieldWidget = Schema.Struct({
   options: Schema.optional(Schema.Array(RuntimeFormFieldOption)),
   pathConfig: Schema.optional(PathValidationConfig),
   nestedFields: Schema.optional(Schema.Array(RuntimeFormNestedField)),
-  emptyState: Schema.optional(Schema.String),
-  externalBindingKey: Schema.optional(Schema.NonEmptyString),
-  artifactSlotDefinitionId: Schema.optional(Schema.NonEmptyString),
-  bindingLabel: Schema.optional(Schema.String),
 });
+export type RuntimeFormValueWidget = typeof RuntimeFormValueWidget.Type;
+
+export const RuntimeFormResolvedFieldWidget = RuntimeFormValueWidget.pipe(
+  Schema.extend(
+    Schema.Struct({
+      boundValueWidget: Schema.optional(RuntimeFormValueWidget),
+      emptyState: Schema.optional(Schema.String),
+      externalBindingKey: Schema.optional(Schema.NonEmptyString),
+      artifactSlotDefinitionId: Schema.optional(Schema.NonEmptyString),
+      bindingLabel: Schema.optional(Schema.String),
+    }),
+  ),
+);
 export type RuntimeFormResolvedFieldWidget = typeof RuntimeFormResolvedFieldWidget.Type;
 
 export const RuntimeFormResolvedField = Schema.Struct({
@@ -630,10 +686,8 @@ export const RuntimeFormStepExecutionDetailBody = Schema.Struct({
     enabled: Schema.Boolean,
     reasonIfDisabled: Schema.optional(Schema.String),
   }),
-  lineage: Schema.Struct({
-    previousStepExecutionId: Schema.optional(Schema.NonEmptyString),
-    nextStepExecutionId: Schema.optional(Schema.NonEmptyString),
-  }),
+  lineage: RuntimeStepExecutionLineage,
+  nextStep: Schema.optional(RuntimeStepExecutionNextStep),
 });
 export type RuntimeFormStepExecutionDetailBody = typeof RuntimeFormStepExecutionDetailBody.Type;
 
@@ -641,6 +695,8 @@ export const RuntimeDeferredStepExecutionDetailBody = Schema.Struct({
   stepType: DeferredWorkflowStepType,
   mode: Schema.Literal("deferred"),
   defaultMessage: Schema.String,
+  lineage: RuntimeStepExecutionLineage,
+  nextStep: Schema.optional(RuntimeStepExecutionNextStep),
 });
 export type RuntimeDeferredStepExecutionDetailBody =
   typeof RuntimeDeferredStepExecutionDetailBody.Type;
@@ -808,6 +864,8 @@ export const RuntimeInvokeStepExecutionDetailBody = Schema.Struct({
   workUnitTargets: Schema.Array(RuntimeInvokeWorkUnitTargetRow),
   completionSummary: RuntimeInvokeCompletionSummary,
   propagationPreview: RuntimeInvokePropagationPreview,
+  lineage: RuntimeStepExecutionLineage,
+  nextStep: Schema.optional(RuntimeStepExecutionNextStep),
 });
 export type RuntimeInvokeStepExecutionDetailBody = typeof RuntimeInvokeStepExecutionDetailBody.Type;
 
@@ -875,6 +933,7 @@ export const StartInvokeWorkUnitTargetOutput = Schema.Struct({
   transitionExecutionId: Schema.NonEmptyString,
   workflowExecutionId: Schema.NonEmptyString,
   result: StartInvokeWorkUnitTargetResult,
+  warnings: Schema.optional(Schema.Array(SingletonAutoAttachWarning)),
 });
 export type StartInvokeWorkUnitTargetOutput = typeof StartInvokeWorkUnitTargetOutput.Type;
 
@@ -1023,6 +1082,30 @@ export const SaveBranchStepSelectionOutput = Schema.Struct({
 });
 export type SaveBranchStepSelectionOutput = typeof SaveBranchStepSelectionOutput.Type;
 
+export const SingletonAutoAttachWarningCode = Schema.Literal(
+  "singleton_auto_attach_no_match",
+  "singleton_auto_attach_multiple_matches",
+);
+export type SingletonAutoAttachWarningCode = typeof SingletonAutoAttachWarningCode.Type;
+
+export const SingletonAutoAttachWarning = Schema.Struct({
+  code: SingletonAutoAttachWarningCode,
+  targetWorkUnitDefinitionId: Schema.NonEmptyString,
+  targetWorkUnitLabel: Schema.optional(Schema.String),
+  matchCount: Schema.Number,
+  matchedProjectWorkUnitIds: Schema.Array(Schema.NonEmptyString),
+  matchedWorkUnits: Schema.Array(
+    Schema.Struct({
+      projectWorkUnitId: Schema.NonEmptyString,
+      label: Schema.String,
+    }),
+  ),
+  message: Schema.String,
+  contextFactDefinitionId: Schema.optional(Schema.NonEmptyString),
+  factDefinitionId: Schema.optional(Schema.NonEmptyString),
+});
+export type SingletonAutoAttachWarning = typeof SingletonAutoAttachWarning.Type;
+
 export const StartTransitionExecutionInput = Schema.Struct({
   projectId: Schema.String,
   transitionId: Schema.String,
@@ -1044,6 +1127,7 @@ export const StartTransitionExecutionOutput = Schema.Struct({
   projectWorkUnitId: Schema.optional(Schema.String),
   transitionExecutionId: Schema.String,
   workflowExecutionId: Schema.String,
+  warnings: Schema.optional(Schema.Array(SingletonAutoAttachWarning)),
 });
 export type StartTransitionExecutionOutput = typeof StartTransitionExecutionOutput.Type;
 
@@ -1062,6 +1146,7 @@ export const SwitchActiveTransitionExecutionOutput = Schema.Struct({
   supersededTransitionExecutionId: Schema.String,
   transitionExecutionId: Schema.String,
   workflowExecutionId: Schema.String,
+  warnings: Schema.optional(Schema.Array(SingletonAutoAttachWarning)),
 });
 export type SwitchActiveTransitionExecutionOutput =
   typeof SwitchActiveTransitionExecutionOutput.Type;

@@ -130,6 +130,10 @@ function makeServiceLayer() {
             stepKey: "capture",
           },
         },
+        stepGraphRuntime: {
+          executions: [],
+          branchSelections: [],
+        },
         workflowContextFacts: { mode: "read_only_by_definition", groups: [] },
       });
     },

@@ -71,6 +71,7 @@ type SessionRecord = {
   readonly client: OpencodeClientPort;
   readonly server: OpencodeManagedServer;
   readonly bootstrapContent: string;
+  readonly bootstrapTimelineItemId: string;
   readonly timeline: AgentStepTimelineItem[];
   readonly timelineIds: Set<string>;
   readonly eventLog: AgentStepSseEnvelope[];
@@ -427,7 +428,25 @@ function resolveDiscoveredAgentKey(
       normalizeAgentToken(agent.label) === normalizedSelection,
   );
 
-  return normalizedMatch?.key ?? selectedAgent;
+  return normalizedMatch?.key ?? discoveredAgents[0]?.key ?? selectedAgent;
+}
+
+function createBootstrapTimelineItem(params: {
+  sessionId: string;
+  createdAt: string;
+  content: string;
+}): AgentStepTimelineItem {
+  return {
+    itemType: "message",
+    timelineItemId: `bootstrap:${params.sessionId}`,
+    createdAt: params.createdAt,
+    role: "user",
+    content: params.content,
+  };
+}
+
+function hasBootstrapTimelineItem(record: SessionRecord): boolean {
+  return record.timeline.some((item) => item.timelineItemId === record.bootstrapTimelineItemId);
 }
 
 function modelExists(
@@ -1033,6 +1052,10 @@ function syncSessionMessages(record: SessionRecord, messages: readonly OpencodeM
         continue;
       }
 
+      if (content === record.bootstrapContent && hasBootstrapTimelineItem(record)) {
+        continue;
+      }
+
       const item: AgentStepTimelineItem = {
         itemType: "message",
         timelineItemId: `message:${messageId}`,
@@ -1236,14 +1259,20 @@ export function makeOpencodeHarnessService(
     };
 
     const bootstrapContent = buildBootstrapContent(config);
+    const bootstrapTimelineItem = createBootstrapTimelineItem({
+      sessionId: session.sessionId,
+      createdAt: session.startedAt,
+      content: bootstrapContent,
+    });
 
     return {
       session,
       client: server.client,
       server,
       bootstrapContent,
-      timeline: [],
-      timelineIds: new Set(),
+      bootstrapTimelineItemId: bootstrapTimelineItem.timelineItemId,
+      timeline: [bootstrapTimelineItem],
+      timelineIds: new Set([bootstrapTimelineItem.timelineItemId]),
       eventLog: [
         {
           version: "v1",
@@ -1253,7 +1282,7 @@ export function makeOpencodeHarnessService(
           data: {
             state: session.state,
             streamContract: SESSION_STREAM_CONTRACT,
-            timelineItems: [],
+            timelineItems: [bootstrapTimelineItem],
           },
         },
       ],

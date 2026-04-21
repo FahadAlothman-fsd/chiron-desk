@@ -1096,10 +1096,12 @@ A `work_unit_reference_fact` is a workflow-context relationship from the current
 
 It represents a runtime reference edge, not a free-form JSON payload.
 
-The contract-level definition may additionally constrain that edge with:
+At design time, this edge is defined against:
 
 - `linkTypeDefinitionId`
 - `targetWorkUnitDefinitionId`
+
+For this spec, those should be treated as always-present design-time semantics.
 
 ## Public MCP identity
 
@@ -1134,12 +1136,12 @@ The current clearly evidenced runtime rules are:
 - the target work unit must exist
 - the target work unit must belong to the same project
 
-Contract-level intent also exists for:
+The reference is therefore always interpreted through:
 
-- `targetWorkUnitDefinitionId`
-- `linkTypeDefinitionId`
+- a target work-unit type constraint
+- a link-type constraint
 
-Those should be treated as intended semantic constraints, even where current runtime enforcement is still thinner than the full contract intent.
+Even where current runtime enforcement may still be thinner than the full contract intent, this spec treats both constraints as required design-time inputs.
 
 ## Allowed actions
 
@@ -1164,7 +1166,8 @@ Behavior:
 
 - validates that the target project work unit exists
 - validates that it belongs to the same project
-- if target-type constraints are active, validates them
+- validates that it matches the required `targetWorkUnitDefinitionId`
+- validates against the required `linkTypeDefinitionId` semantics when applicable
 - creates a new workflow-context reference instance
 
 ### `update`
@@ -1246,8 +1249,10 @@ The runtime must validate:
 - the provided `projectWorkUnitId` is present
 - the referenced project work unit exists
 - the referenced project work unit belongs to the same project
+- the referenced project work unit matches the required `targetWorkUnitDefinitionId`
+- the relationship is authored under the required `linkTypeDefinitionId`
 
-Target-type and link-type constraints should also be enforced when the runtime has the necessary metadata available.
+For this spec, target-type and link-type constraints are not optional hints; they are part of the intended contract.
 
 ## Read capabilities required for agents
 
@@ -1258,8 +1263,8 @@ The agent must be able to read:
 - context fact key
 - label/name
 - cardinality
-- `targetWorkUnitDefinitionId` if present
-- `linkTypeDefinitionId` if present
+- `targetWorkUnitDefinitionId`
+- `linkTypeDefinitionId`
 - admissible actions
 
 ### 2. Read current workflow-context reference instances
@@ -1285,7 +1290,7 @@ This read is specifically for discovering candidate project work units that may 
 For the initial version, it should:
 
 - be scoped to the current project
-- honor target-work-unit constraints when present
+- always constrain candidates to the required `targetWorkUnitDefinitionId`
 - accept a `limit`
 - return identity metadata and fact-value summaries
 

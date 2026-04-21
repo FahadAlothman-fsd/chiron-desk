@@ -202,11 +202,41 @@ describe("setup invoke phase-1 fixture", () => {
       ]),
     );
 
+    expect(
+      setupInvokePhase1FixtureSeedRows.methodologyWorkflowContextFactDraftSpecSelections.filter(
+        (row) =>
+          row.draftSpecId === "seed:l3-setup-invoke:setup:mver_bmad_v1_active:draft-spec:research",
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          selectionType: "fact",
+          definitionId: "seed:work-unit-fact:research:research-goals:mver_bmad_v1_active",
+        }),
+        expect.objectContaining({
+          selectionType: "fact",
+          definitionId: "seed:work-unit-fact:research:research-topic:mver_bmad_v1_active",
+        }),
+        expect.objectContaining({
+          selectionType: "artifact",
+          definitionId: "seed:artifact-slot:research:research-report:mver_bmad_v1_active",
+        }),
+      ]),
+    );
+    expect(
+      setupInvokePhase1FixtureSeedRows.methodologyWorkflowContextFactDraftSpecSelections.some(
+        (row) =>
+          row.draftSpecId ===
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:draft-spec:research" &&
+          row.definitionId === "seed:work-unit-fact:research:setup-work-unit:mver_bmad_v1_active",
+      ),
+    ).toBe(false);
+
     expect(setupInvokePhase1FixtureSeedRows.methodologyWorkflowAgentSteps).toEqual([
       expect.objectContaining({
         stepId: "seed:l3-setup-invoke:setup:mver_bmad_v1_active:step:synthesize-setup-for-invoke",
         harness: "opencode",
-        agentKey: "Atlas (Plan Executor)",
+        agentKey: "Atlas - Plan Executor",
         modelJson: { provider: "opencode", model: "kimi-2.5" },
         bootstrapPromptNoReply: false,
         completionRequirementsJson: [

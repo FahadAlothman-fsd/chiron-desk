@@ -5,11 +5,9 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { useRouteContextMock, useParamsMock, useNavigateMock } = vi.hoisted(() => ({
-  useRouteContextMock: vi.fn(),
-  useParamsMock: vi.fn(),
-  useNavigateMock: vi.fn(),
-}));
+var useRouteContextMock = vi.fn();
+var useParamsMock = vi.fn();
+var useNavigateMock = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (options: Record<string, unknown>) => ({
@@ -57,6 +55,51 @@ vi.mock("@/components/ui/dialog", () => ({
 
 vi.mock("@/lib/utils", () => ({
   cn: (...classes: Array<string | null | undefined | false>) => classes.filter(Boolean).join(" "),
+}));
+
+vi.mock("@xyflow/react", () => ({
+  Background: () => <div data-testid="reactflow-background" />,
+  BaseEdge: () => <div data-testid="reactflow-base-edge" />,
+  Controls: () => <div data-testid="reactflow-controls" />,
+  Panel: ({ children }: { children: ReactNode }) => (
+    <div data-testid="reactflow-panel">{children}</div>
+  ),
+  Handle: () => <span data-testid="reactflow-handle" />,
+  ReactFlow: ({
+    nodes,
+    edges,
+    children,
+  }: {
+    nodes?: Array<{ id: string; data?: { step?: { stepKey?: string }; nodeState?: string } }>;
+    edges?: Array<{ id: string; source: string; target: string; data?: { edgeState?: string } }>;
+    children?: ReactNode;
+  }) => (
+    <div data-testid="mock-react-flow">
+      {nodes?.map((node) => (
+        <div
+          key={node.id}
+          data-testid={`mock-node-${node.id}`}
+          data-node-state={node.data?.nodeState}
+        >
+          {node.data?.step?.stepKey ?? node.id}
+        </div>
+      ))}
+      {edges?.map((edge) => (
+        <div
+          key={edge.id}
+          data-testid={`mock-edge-${edge.id}`}
+          data-edge-state={edge.data?.edgeState}
+        >
+          {edge.source}-{">"}
+          {edge.target}
+        </div>
+      ))}
+      {children}
+    </div>
+  ),
+  MarkerType: { ArrowClosed: "arrow-closed" },
+  Position: { Left: "left", Right: "right" },
+  getSmoothStepPath: () => ["M0,0 L1,1"],
 }));
 
 import {
@@ -187,6 +230,23 @@ type WorkflowDetail = {
         state: "invalid_definition";
         reason: "missing_entry_step" | "ambiguous_entry_step";
       };
+  stepGraphRuntime: {
+    executions: Array<{
+      stepExecutionId: string;
+      stepDefinitionId: string;
+      stepType: "form" | "agent" | "action" | "invoke" | "branch" | "display";
+      status: "active" | "completed";
+      activatedAt: string;
+      completedAt?: string;
+      previousStepExecutionId?: string;
+      target: { page: "step-execution-detail"; stepExecutionId: string };
+    }>;
+    branchSelections: Array<{
+      stepExecutionId: string;
+      selectedTargetStepDefinitionId: string | null;
+      savedAt?: string;
+    }>;
+  };
   workflowContextFacts: {
     mode: "read_only_by_definition";
     groups: WorkflowContextFactGroup[];
@@ -306,6 +366,10 @@ function buildWorkflowDetail(stepSurface: WorkflowDetail["stepSurface"]): Workfl
       },
     },
     stepSurface,
+    stepGraphRuntime: {
+      executions: [],
+      branchSelections: [],
+    },
     workflowContextFacts: {
       mode: "read_only_by_definition",
       groups: baseContextGroups,
@@ -313,7 +377,68 @@ function buildWorkflowDetail(stepSurface: WorkflowDetail["stepSurface"]): Workfl
   };
 }
 
-async function renderWorkflowDetailRoute(detail: WorkflowDetail) {
+const workflowEditorDefinition = {
+  workflow: { workflowDefinitionId: "wf_story_start_primary" },
+  steps: [
+    {
+      stepId: "step-entry",
+      stepType: "form",
+      payload: {
+        key: "capture_setup",
+        label: "Capture setup",
+        descriptionJson: { markdown: "Gather setup context." },
+      },
+    },
+    {
+      stepId: "step-branch",
+      stepType: "branch",
+      payload: {
+        key: "route_story",
+        label: "Route story",
+        descriptionJson: { markdown: "Choose the appropriate story path." },
+      },
+    },
+    {
+      stepId: "step-next",
+      stepType: "display",
+      payload: {
+        key: "show_summary",
+        label: "Show summary",
+        descriptionJson: { markdown: "Present the workflow summary." },
+      },
+    },
+    {
+      stepId: "step-alt",
+      stepType: "agent",
+      payload: {
+        key: "agent_review",
+        label: "Agent review",
+        descriptionJson: { markdown: "Run the review agent." },
+      },
+    },
+  ],
+  edges: [
+    { edgeId: "edge-1", fromStepKey: "capture_setup", toStepKey: "route_story" },
+    {
+      edgeId: "edge-2",
+      fromStepKey: "route_story",
+      toStepKey: "show_summary",
+      descriptionJson: { edgeOwner: "branch_default" },
+    },
+    {
+      edgeId: "edge-3",
+      fromStepKey: "route_story",
+      toStepKey: "agent_review",
+      descriptionJson: { edgeOwner: "branch_conditional", routeId: "route-review" },
+    },
+  ],
+  contextFacts: [],
+};
+
+async function renderWorkflowDetailRoute(
+  detail: WorkflowDetail,
+  options?: { withGraph?: boolean },
+) {
   const getRuntimeWorkflowExecutionDetailQueryOptionsMock = vi.fn(
     (_input: { input: { projectId: string; workflowExecutionId: string } }) => ({
       queryKey: ["runtime-workflow-execution-detail", "project-1", "we_story_start_primary_003"],
@@ -350,6 +475,20 @@ async function renderWorkflowDetailRoute(detail: WorkflowDetail) {
 
   const orpc = {
     project: {
+      getProjectDetails: {
+        queryOptions: vi.fn(() => ({
+          queryKey: ["project-details", "project-1"],
+          queryFn: async () =>
+            options?.withGraph
+              ? {
+                  pin: {
+                    methodologyId: "meth-1",
+                    methodologyVersionId: "version-1",
+                  },
+                }
+              : null,
+        })),
+      },
       createRuntimeWorkflowContextFactValue: {
         mutationOptions: vi.fn(() => ({ mutationFn: async () => ({ affectedCount: 1 }) })),
       },
@@ -373,6 +512,62 @@ async function renderWorkflowDetailRoute(detail: WorkflowDetail) {
       },
       activateWorkflowStepExecution: {
         mutationOptions: activateWorkflowStepExecutionMutationOptionsMock,
+      },
+    },
+    methodology: {
+      version: {
+        workUnit: {
+          workflow: {
+            getEditorDefinition: {
+              queryOptions: vi.fn(() => ({
+                queryKey: [
+                  "workflow-editor-definition",
+                  "meth-1",
+                  "version-1",
+                  detail.workUnit.workUnitTypeKey,
+                  detail.workflowExecution.workflowId,
+                ],
+                queryFn: async () => workflowEditorDefinition,
+              })),
+            },
+            list: {
+              queryOptions: vi.fn(() => ({
+                queryKey: ["workflow-list", detail.workUnit.workUnitTypeKey],
+                queryFn: async () => [],
+              })),
+            },
+          },
+          fact: {
+            list: {
+              queryOptions: vi.fn(() => ({
+                queryKey: ["work-unit-facts"],
+                queryFn: async () => ({ workUnitTypes: [] }),
+              })),
+            },
+          },
+          list: {
+            queryOptions: vi.fn(() => ({
+              queryKey: ["work-unit-types"],
+              queryFn: async () => ({ workUnitTypes: [] }),
+            })),
+          },
+          artifactSlot: {
+            list: {
+              queryOptions: vi.fn(() => ({
+                queryKey: ["artifact-slots"],
+                queryFn: async () => [],
+              })),
+            },
+          },
+        },
+        fact: {
+          list: {
+            queryOptions: vi.fn(() => ({
+              queryKey: ["methodology-facts"],
+              queryFn: async () => ({ factDefinitions: [] }),
+            })),
+          },
+        },
       },
     },
   };
@@ -509,6 +704,67 @@ describe("runtime workflow execution detail route", () => {
     expect(markup).toContain("Open completed step");
     expect(markup).toContain("Activate next step");
     expect(markup).toContain("show_summary");
+  });
+
+  it("renders a graph surface when workflow definition data is available", async () => {
+    const detail = buildWorkflowDetail({
+      state: "next_pending",
+      afterStep: {
+        stepExecutionId: "step-exec-entry",
+        stepDefinitionId: "step-entry",
+        stepType: "form",
+        status: "completed",
+        activatedAt: "2026-03-28T12:02:00.000Z",
+        completedAt: "2026-03-28T12:03:00.000Z",
+        target: { page: "step-execution-detail", stepExecutionId: "step-exec-entry" },
+      },
+      nextStep: {
+        stepDefinitionId: "step-next",
+        stepType: "display",
+        stepKey: "show_summary",
+      },
+    });
+    detail.stepGraphRuntime = {
+      executions: [
+        {
+          stepExecutionId: "step-exec-entry",
+          stepDefinitionId: "step-entry",
+          stepType: "form",
+          status: "completed",
+          activatedAt: "2026-03-28T12:02:00.000Z",
+          completedAt: "2026-03-28T12:03:00.000Z",
+          target: { page: "step-execution-detail", stepExecutionId: "step-exec-entry" },
+        },
+        {
+          stepExecutionId: "step-exec-branch",
+          stepDefinitionId: "step-branch",
+          stepType: "branch",
+          status: "completed",
+          activatedAt: "2026-03-28T12:03:10.000Z",
+          completedAt: "2026-03-28T12:03:40.000Z",
+          previousStepExecutionId: "step-exec-entry",
+          target: { page: "step-execution-detail", stepExecutionId: "step-exec-branch" },
+        },
+      ],
+      branchSelections: [
+        {
+          stepExecutionId: "step-exec-branch",
+          selectedTargetStepDefinitionId: "step-next",
+          savedAt: "2026-03-28T12:03:35.000Z",
+        },
+      ],
+    };
+
+    const { markup } = await renderWorkflowDetailRoute(detail, { withGraph: true });
+
+    expect(markup).toContain("workflow-step-surface-graph");
+    expect(markup).toContain("mock-node-step-entry");
+    expect(markup).toContain("mock-node-step-branch");
+    expect(markup).toContain("mock-node-step-next");
+    expect(markup).toContain('data-edge-state="branch_selected"');
+    expect(markup).toContain('data-edge-state="branch"');
+    expect(markup).toContain("Activate next step");
+    expect(markup).toContain("Selected step");
   });
 
   it("renders terminal state summary card", async () => {

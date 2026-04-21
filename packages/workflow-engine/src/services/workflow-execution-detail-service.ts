@@ -5,6 +5,8 @@ import type {
   RuntimeWorkflowStepExecutionSummary,
   RuntimeWorkflowExecutionSummary,
 } from "@chiron/contracts/runtime/executions";
+import { MethodologyVersionBoundaryService } from "@chiron/methodology-engine";
+import { ProjectContextRepository } from "@chiron/project-context";
 import { Context, Effect, Layer } from "effect";
 
 import { RepositoryError } from "../errors";
@@ -12,6 +14,7 @@ import {
   ExecutionReadRepository,
   type WorkflowExecutionDetailReadModel,
 } from "../repositories/execution-read-repository";
+import { BranchStepRuntimeRepository } from "../repositories/branch-step-runtime-repository";
 import { StepExecutionRepository } from "../repositories/step-execution-repository";
 import { StepProgressionService } from "./step-progression-service";
 
@@ -31,6 +34,29 @@ const toStepExecutionSummary = (stepExecution: {
   status: stepExecution.status,
   activatedAt: stepExecution.activatedAt.toISOString(),
   completedAt: toIso(stepExecution.completedAt),
+  target: {
+    page: "step-execution-detail",
+    stepExecutionId: stepExecution.id,
+  },
+});
+
+const toStepGraphExecution = (stepExecution: {
+  id: string;
+  stepDefinitionId: string;
+  stepType: string;
+  status: "active" | "completed";
+  activatedAt: Date;
+  completedAt: Date | null;
+  previousStepExecutionId: string | null;
+}): GetWorkflowExecutionDetailOutput["stepGraphRuntime"]["executions"][number] => ({
+  stepExecutionId: stepExecution.id,
+  stepDefinitionId: stepExecution.stepDefinitionId,
+  stepType:
+    stepExecution.stepType as GetWorkflowExecutionDetailOutput["stepGraphRuntime"]["executions"][number]["stepType"],
+  status: stepExecution.status,
+  activatedAt: stepExecution.activatedAt.toISOString(),
+  completedAt: toIso(stepExecution.completedAt),
+  previousStepExecutionId: stepExecution.previousStepExecutionId ?? undefined,
   target: {
     page: "step-execution-detail",
     stepExecutionId: stepExecution.id,
@@ -170,8 +196,11 @@ export const WorkflowExecutionDetailServiceLive = Layer.effect(
   WorkflowExecutionDetailService,
   Effect.gen(function* () {
     const readRepo = yield* ExecutionReadRepository;
+    const branchRuntimeRepo = yield* BranchStepRuntimeRepository;
     const stepRepo = yield* StepExecutionRepository;
     const progression = yield* StepProgressionService;
+    const projectContextRepository = yield* ProjectContextRepository;
+    const methodologyVersionService = yield* MethodologyVersionBoundaryService;
 
     const getWorkflowExecutionDetail = (input: GetWorkflowExecutionDetailInput) =>
       Effect.gen(function* () {
@@ -179,6 +208,21 @@ export const WorkflowExecutionDetailServiceLive = Layer.effect(
         if (!detail || detail.projectId !== input.projectId) {
           return null;
         }
+
+        const projectPin = yield* projectContextRepository.findProjectPin(detail.projectId);
+        const workspaceSnapshot = projectPin
+          ? yield* methodologyVersionService
+              .getVersionWorkspaceSnapshot(projectPin.methodologyVersionId)
+              .pipe(Effect.catchAll(() => Effect.succeed(null)))
+          : null;
+        const workUnitTypeDefinition =
+          workspaceSnapshot?.workUnitTypes.find(
+            (workUnitType) => workUnitType.id === detail.workUnitTypeId,
+          ) ?? null;
+        const currentStateDefinition =
+          workUnitTypeDefinition?.lifecycleStates.find(
+            (state) => state.key === detail.currentStateId,
+          ) ?? null;
 
         const transitionWorkflows = yield* readRepo.listWorkflowExecutionsForTransition(
           detail.workflowExecution.transitionExecutionId,
@@ -201,6 +245,27 @@ export const WorkflowExecutionDetailServiceLive = Layer.effect(
           stepRepo.listWorkflowStepDefinitions(detail.workflowExecution.workflowId),
           stepRepo.listWorkflowEdges(detail.workflowExecution.workflowId),
         ]);
+        const branchSelections = yield* Effect.all(
+          stepExecutions
+            .filter((stepExecution) => stepExecution.stepType === "branch")
+            .map((stepExecution) =>
+              branchRuntimeRepo.loadWithRoutes(stepExecution.id).pipe(
+                Effect.map((branchState) => {
+                  if (!branchState) {
+                    return null;
+                  }
+
+                  return {
+                    stepExecutionId: stepExecution.id,
+                    selectedTargetStepDefinitionId: branchState.branch.selectedTargetStepId,
+                    ...(toIso(branchState.branch.savedAt)
+                      ? { savedAt: toIso(branchState.branch.savedAt) }
+                      : {}),
+                  } satisfies GetWorkflowExecutionDetailOutput["stepGraphRuntime"]["branchSelections"][number];
+                }),
+              ),
+            ),
+        ).pipe(Effect.map((entries) => entries.flatMap((entry) => (entry ? [entry] : []))));
 
         const configuredEntryStepId =
           "getWorkflowEntryStepId" in stepRepo &&
@@ -314,11 +379,15 @@ export const WorkflowExecutionDetailServiceLive = Layer.effect(
           workUnit: {
             projectWorkUnitId: detail.projectWorkUnitId,
             workUnitTypeId: detail.workUnitTypeId,
-            workUnitTypeKey: detail.workUnitTypeId,
-            workUnitTypeName: detail.workUnitTypeId,
+            workUnitTypeKey: workUnitTypeDefinition?.key ?? detail.workUnitTypeId,
+            workUnitTypeName:
+              workUnitTypeDefinition?.displayName ??
+              workUnitTypeDefinition?.key ??
+              detail.workUnitTypeId,
             currentStateId: detail.currentStateId ?? "not_started",
-            currentStateKey: detail.currentStateId ?? "not_started",
-            currentStateLabel: detail.currentStateId ?? "Not started",
+            currentStateKey: currentStateDefinition?.key ?? detail.currentStateId ?? "not_started",
+            currentStateLabel:
+              currentStateDefinition?.displayName ?? detail.currentStateId ?? "Not started",
             target: {
               page: "work-unit-overview",
               projectWorkUnitId: detail.projectWorkUnitId,
@@ -376,6 +445,10 @@ export const WorkflowExecutionDetailServiceLive = Layer.effect(
             },
           },
           stepSurface,
+          stepGraphRuntime: {
+            executions: stepExecutions.map(toStepGraphExecution),
+            branchSelections,
+          },
           workflowContextFacts: {
             mode: "read_only_by_definition",
             groups: toWorkflowContextFactGroups({

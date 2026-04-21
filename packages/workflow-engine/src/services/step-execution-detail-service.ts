@@ -35,6 +35,7 @@ import {
 import { ActionStepDetailService } from "./action-step-detail-service";
 import { evaluateRoutes, getSuggestedTarget } from "./branch-route-evaluator";
 import { InvokeStepDetailService } from "./invoke-step-detail-service";
+import { StepProgressionService } from "./step-progression-service";
 
 const makeDetailError = (cause: string): RepositoryError =>
   new RepositoryError({
@@ -656,6 +657,12 @@ function buildResolvedField(params: {
       const isReferenceFact =
         params.contextFact.valueType === "work_unit" ||
         typeof params.contextFact.workUnitDefinitionId === "string";
+      const boundValueWidget = buildPrimitiveWidget({
+        valueType: (params.contextFact.valueType ?? external?.factType ?? "json") as FactType,
+        cardinality: params.contextFact.cardinality,
+        renderedMultiplicity,
+        validation: external?.validationJson,
+      });
 
       return {
         ...base,
@@ -665,6 +672,7 @@ function buildResolvedField(params: {
               valueType: (params.contextFact.valueType ?? external?.factType ?? "json") as FactType,
               cardinality: params.contextFact.cardinality,
               renderedMultiplicity,
+              boundValueWidget,
               externalBindingKey: externalBindingId,
               bindingLabel,
               ...(resolveBoundExternalFactOptions({
@@ -700,6 +708,7 @@ function buildResolvedField(params: {
                 validation: external?.validationJson,
                 externalBindingKey: externalBindingId,
               }),
+              boundValueWidget,
               bindingLabel,
             },
       };
@@ -808,6 +817,7 @@ export const StepExecutionDetailServiceLive = Layer.effect(
     const workUnitFactRepo = yield* WorkUnitFactRepository;
     const actionStepDetailService = yield* ActionStepDetailService;
     const invokeStepDetailService = yield* InvokeStepDetailService;
+    const progression = yield* StepProgressionService;
 
     const getRuntimeStepExecutionDetail = (input: GetRuntimeStepExecutionDetailInput) =>
       Effect.gen(function* () {
@@ -835,6 +845,31 @@ export const StepExecutionDetailServiceLive = Layer.effect(
 
           return candidate.previousStepExecutionId === stepExecution.id;
         });
+        const lineage = {
+          previousStepExecutionId: stepExecution.previousStepExecutionId ?? undefined,
+          nextStepExecutionId: nextStep?.id,
+        };
+        const nextStepResolution =
+          stepExecution.status === "completed" && !nextStep
+            ? yield* progression.getNextStepDefinition({
+                workflowExecutionId: stepExecution.workflowExecutionId,
+                workflowId: workflowDetail.workflowExecution.workflowId,
+                fromStepDefinitionId: stepExecution.stepDefinitionId,
+                fromStepExecutionId: stepExecution.id,
+              })
+            : null;
+        const nextStepSummary = nextStep
+          ? {
+              state: nextStep.status,
+              nextStepDefinitionId: nextStep.stepDefinitionId,
+              nextStepExecutionId: nextStep.id,
+            }
+          : nextStepResolution?.state === "next_step_ready"
+            ? {
+                state: "inactive" as const,
+                nextStepDefinitionId: nextStepResolution.nextStep.id,
+              }
+            : undefined;
 
         const body: GetRuntimeStepExecutionDetailOutput["body"] =
           stepExecution.stepType === "form"
@@ -1013,18 +1048,20 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                         ? "Only active Form steps can be submitted."
                         : undefined,
                   },
-                  lineage: {
-                    previousStepExecutionId: stepExecution.previousStepExecutionId ?? undefined,
-                    nextStepExecutionId: nextStep?.id,
-                  },
+                  lineage,
+                  ...(nextStepSummary ? { nextStep: nextStepSummary } : {}),
                 } satisfies GetRuntimeStepExecutionDetailOutput["body"];
               })
             : stepExecution.stepType === "action"
-              ? yield* actionStepDetailService.buildActionStepExecutionDetailBody({
-                  projectId: input.projectId,
-                  stepExecution,
-                  workflowDetail,
-                })
+              ? {
+                  ...(yield* actionStepDetailService.buildActionStepExecutionDetailBody({
+                    projectId: input.projectId,
+                    stepExecution,
+                    workflowDetail,
+                  })),
+                  lineage,
+                  ...(nextStepSummary ? { nextStep: nextStepSummary } : {}),
+                }
               : stepExecution.stepType === "branch"
                 ? yield* Effect.gen(function* () {
                     const projectPin = yield* projectContextRepo.findProjectPin(
@@ -1150,14 +1187,20 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                         eligible: persistedSelectionValid,
                         ...(blockingReason ? { reasonIfIneligible: blockingReason } : {}),
                       },
+                      lineage,
+                      ...(nextStepSummary ? { nextStep: nextStepSummary } : {}),
                     } satisfies GetRuntimeStepExecutionDetailOutput["body"];
                   })
                 : stepExecution.stepType === "invoke"
-                  ? yield* invokeStepDetailService.buildInvokeStepExecutionDetailBody({
-                      projectId: input.projectId,
-                      stepExecution,
-                      workflowDetail,
-                    })
+                  ? {
+                      ...(yield* invokeStepDetailService.buildInvokeStepExecutionDetailBody({
+                        projectId: input.projectId,
+                        stepExecution,
+                        workflowDetail,
+                      })),
+                      lineage,
+                      ...(nextStepSummary ? { nextStep: nextStepSummary } : {}),
+                    }
                   : {
                       stepType: stepExecution.stepType as Exclude<
                         GetRuntimeStepExecutionDetailOutput["body"]["stepType"],
@@ -1165,6 +1208,8 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                       >,
                       mode: "deferred",
                       defaultMessage: `${stepExecution.stepType} step detail remains read-only in this slice.`,
+                      lineage,
+                      ...(nextStepSummary ? { nextStep: nextStepSummary } : {}),
                     };
 
         const completionEnabled =

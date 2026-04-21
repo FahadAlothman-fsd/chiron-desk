@@ -4,9 +4,10 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { useRouteContextMock, useParamsMock, useSSEMock } = vi.hoisted(() => ({
+const { useRouteContextMock, useParamsMock, useNavigateMock, useSSEMock } = vi.hoisted(() => ({
   useRouteContextMock: vi.fn(),
   useParamsMock: vi.fn(),
+  useNavigateMock: vi.fn(),
   useSSEMock: vi.fn(),
 }));
 
@@ -15,6 +16,7 @@ vi.mock("@tanstack/react-router", () => ({
     ...options,
     useRouteContext: useRouteContextMock,
     useParams: useParamsMock,
+    useNavigate: () => useNavigateMock,
   }),
   Link: ({ children }: { children: ReactNode }) => <a href="/">{children}</a>,
 }));
@@ -330,7 +332,26 @@ function buildHarnessMetadata() {
   return {
     harness: "opencode" as const,
     discoveredAt: "2026-04-09T12:00:00.000Z",
-    agents: [],
+    agents: [
+      {
+        key: "Atlas - Plan Executor",
+        label: "Atlas - Plan Executor",
+        mode: "subagent" as const,
+        defaultModel: {
+          provider: "anthropic",
+          model: "claude-sonnet-4-20250514",
+        },
+      },
+      {
+        key: "Prometheus - Plan Builder",
+        label: "Prometheus - Plan Builder",
+        mode: "subagent" as const,
+        defaultModel: {
+          provider: "anthropic",
+          model: "claude-opus-4-20250514",
+        },
+      },
+    ],
     providers: [
       {
         provider: "anthropic",
@@ -518,6 +539,11 @@ function buildOrpc(overrides?: {
         sendAgentStepMessage: { mutationOptions: withMutationOptions(sendMessage) },
         updateAgentStepTurnSelection: { mutationOptions: withMutationOptions(updateTurnSelection) },
         completeAgentStepExecution: { mutationOptions: withMutationOptions(completeStep) },
+        activateWorkflowStepExecution: {
+          mutationOptions: withMutationOptions(
+            vi.fn(async () => ({ stepExecutionId: "step-next-1" as const })),
+          ),
+        },
       },
       methodology: {
         version: {
@@ -1000,6 +1026,31 @@ describe("runtime agent step detail route", () => {
         provider: "anthropic",
         model: "claude-opus-4-20250514",
       },
+    });
+  });
+
+  it("updates the next-turn agent selection using the canonical agent key", async () => {
+    const user = userEvent.setup();
+    const { updateTurnSelection } = await renderRoute("active_idle", {
+      agentDetailTransform: (detail) => ({
+        ...detail,
+        body: {
+          ...detail.body,
+          harnessBinding: {
+            ...detail.body.harnessBinding,
+            selectedAgent: "Atlas - Plan Executor",
+          },
+        },
+      }),
+    });
+
+    await user.click(await screen.findByText(/Prometheus - Plan Builder/i));
+
+    expect(updateTurnSelection).toHaveBeenCalledTimes(1);
+    expect(updateTurnSelection.mock.calls[0]?.[0]).toEqual({
+      projectId: "project-1",
+      stepExecutionId: "step-agent-1",
+      agent: "Prometheus - Plan Builder",
     });
   });
 });

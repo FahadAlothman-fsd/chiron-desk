@@ -67,6 +67,7 @@ import {
   type PromptInputSubmitStatus,
 } from "@/components/ai-elements/prompt-input";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { showSingletonAutoAttachWarnings as showSingletonAutoAttachWarningToasts } from "@/features/projects/singleton-auto-attach-warning-toast";
 import {
   Card,
   CardContent,
@@ -179,6 +180,8 @@ type ActionBody = Extract<GetRuntimeStepExecutionDetailOutput["body"], { stepTyp
 type BranchBody = Extract<GetRuntimeStepExecutionDetailOutput["body"], { stepType: "branch" }>;
 type InvokeBody = Extract<GetRuntimeStepExecutionDetailOutput["body"], { stepType: "invoke" }>;
 type AgentBody = GetAgentStepExecutionDetailOutput["body"];
+type StepBody = GetRuntimeStepExecutionDetailOutput["body"];
+type StepNextStep = NonNullable<StepBody["nextStep"]>;
 type TimelineThinkingItem = Extract<AgentStepTimelineItem, { itemType: "thinking" }>;
 type TimelineToolItem = Extract<AgentStepTimelineItem, { itemType: "tool_activity" }>;
 
@@ -1101,6 +1104,85 @@ function isArtifactReferenceContextFactKind(kind: string): boolean {
   return kind === "artifact_slot_reference_fact";
 }
 
+type BoundFactInputMode = "existing" | "new";
+
+function getBoundFactInstanceId(value: unknown): string {
+  if (!isPlainRecord(value)) {
+    return "";
+  }
+
+  return typeof value.instanceId === "string"
+    ? value.instanceId
+    : typeof value.factInstanceId === "string"
+      ? value.factInstanceId
+      : "";
+}
+
+function getBoundFactInlineValue(value: unknown): unknown {
+  return isPlainRecord(value) && "value" in value ? value.value : null;
+}
+
+function getDefaultBoundFactInputMode(
+  field: RuntimeFormResolvedField,
+  value: unknown,
+): BoundFactInputMode {
+  if (isPlainRecord(value) && "value" in value) {
+    return "new";
+  }
+
+  if (getBoundFactInstanceId(value).length > 0) {
+    return "existing";
+  }
+
+  return (field.widget.options?.length ?? 0) > 0 ? "existing" : "new";
+}
+
+function createEmptyValueForWidget(widget: RuntimeFormResolvedField["widget"]): unknown {
+  if (widget.renderedMultiplicity === "many") {
+    return [];
+  }
+
+  switch (widget.control) {
+    case "checkbox":
+      return false;
+    case "json":
+      return {};
+    default:
+      return null;
+  }
+}
+
+function createBoundFactEnvelope(params: {
+  field: RuntimeFormResolvedField;
+  mode: BoundFactInputMode;
+  currentValue: unknown;
+}): unknown {
+  const { field, mode, currentValue } = params;
+
+  if (mode === "existing") {
+    const instanceId = getBoundFactInstanceId(currentValue);
+    return instanceId.length > 0 ? { factInstanceId: instanceId } : null;
+  }
+
+  const inlineValue = getBoundFactInlineValue(currentValue);
+  return {
+    value: inlineValue ?? createEmptyValueForWidget(field.widget.boundValueWidget ?? field.widget),
+  };
+}
+
+function sanitizeBoundFactValue(value: unknown): unknown {
+  if (!isPlainRecord(value)) {
+    return value;
+  }
+
+  const instanceId = getBoundFactInstanceId(value);
+  if ("value" in value) {
+    return { value: value.value };
+  }
+
+  return instanceId.length > 0 ? { factInstanceId: instanceId } : null;
+}
+
 function primitiveFromInput(value: string, field: RuntimeFormResolvedField): unknown {
   if (isArtifactReferenceContextFactKind(field.contextFactKind)) {
     return value.length > 0 ? { relativePath: value } : null;
@@ -1111,7 +1193,7 @@ function primitiveFromInput(value: string, field: RuntimeFormResolvedField): unk
   }
 
   if (isBoundReferenceContextFactKind(field.contextFactKind)) {
-    return value.length > 0 ? { factInstanceId: value } : null;
+    return value.length > 0 ? { value } : null;
   }
 
   if (field.widget.control === "reference" && field.widget.valueType === "work_unit") {
@@ -1139,11 +1221,11 @@ function primitiveToInput(value: unknown, field: RuntimeFormResolvedField): stri
   }
 
   if (isBoundReferenceContextFactKind(field.contextFactKind) && isPlainRecord(value)) {
-    return typeof value.instanceId === "string"
-      ? value.instanceId
-      : typeof value.factInstanceId === "string"
-        ? value.factInstanceId
-        : "";
+    if ("value" in value) {
+      return value.value == null ? "" : String(value.value);
+    }
+
+    return getBoundFactInstanceId(value);
   }
 
   if (
@@ -1157,8 +1239,24 @@ function primitiveToInput(value: unknown, field: RuntimeFormResolvedField): stri
   return String(value);
 }
 
-function buildMutationValues(values: Record<string, unknown>): Record<string, unknown> {
-  return values;
+function buildMutationValues(
+  values: Record<string, unknown>,
+  fields: readonly RuntimeFormResolvedField[],
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(values).map(([fieldKey, value]) => {
+      const field = fields.find((candidate) => candidate.fieldKey === fieldKey);
+      if (!field || field.contextFactKind !== "bound_fact") {
+        return [fieldKey, value];
+      }
+
+      if (Array.isArray(value)) {
+        return [fieldKey, value.map((entry) => sanitizeBoundFactValue(entry))];
+      }
+
+      return [fieldKey, sanitizeBoundFactValue(value)];
+    }),
+  );
 }
 
 function hasPresentFieldValue(value: unknown): boolean {
@@ -1184,6 +1282,14 @@ function hasPresentFieldValue(value: unknown): boolean {
 function validateFieldValue(field: RuntimeFormResolvedField, value: unknown): string | undefined {
   if (!field.required) {
     return undefined;
+  }
+
+  if (field.contextFactKind === "bound_fact" && isPlainRecord(value)) {
+    if ("value" in value) {
+      return hasPresentFieldValue(value.value) ? undefined : `${field.fieldLabel} is required`;
+    }
+
+    return getBoundFactInstanceId(value).length > 0 ? undefined : `${field.fieldLabel} is required`;
   }
 
   return hasPresentFieldValue(value) ? undefined : `${field.fieldLabel} is required`;
@@ -1938,6 +2044,119 @@ function SelectField(props: {
   );
 }
 
+function PrimitiveFieldEditor(props: {
+  field: RuntimeFormResolvedField;
+  value: unknown;
+  onChange: (value: unknown) => void;
+  disabled: boolean;
+}) {
+  const { field, value, onChange, disabled } = props;
+
+  if (field.widget.control === "select" && (field.widget.options?.length ?? 0) > 0) {
+    return <SelectField field={field} value={value} onChange={onChange} disabled={disabled} />;
+  }
+
+  if (field.widget.control === "checkbox") {
+    if (field.widget.renderedMultiplicity === "many") {
+      const items = Array.isArray(value) ? value : [];
+      return (
+        <div className="space-y-3">
+          {items.map((entry, index) => (
+            <div key={`${field.fieldKey}-${index}`} className="flex items-center gap-3 text-xs">
+              <Checkbox
+                disabled={disabled}
+                checked={entry === true}
+                aria-label={`${field.fieldLabel} ${index + 1}`}
+                onCheckedChange={(checked) =>
+                  onChange(updateArrayValue(items, index, Boolean(checked)))
+                }
+              />
+              <span>Value {index + 1}</span>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            disabled={disabled}
+            onClick={() => onChange(addArrayValue(items, false))}
+          >
+            Add toggle
+          </Button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center gap-3 border border-border/70 bg-background/40 px-3 py-2 text-xs">
+        <Checkbox
+          disabled={disabled}
+          checked={value === true}
+          aria-label={field.fieldLabel}
+          onCheckedChange={(checked) => onChange(Boolean(checked))}
+        />
+        <span>{field.fieldLabel}</span>
+      </div>
+    );
+  }
+
+  if (field.widget.control === "json") {
+    if (field.widget.renderedMultiplicity === "many") {
+      const items = Array.isArray(value) ? value : [];
+      return (
+        <div className="space-y-3">
+          {items.map((entry, index) => (
+            <div key={`${field.fieldKey}-${index}`} className="space-y-2">
+              <JsonStructuredEditor
+                field={field}
+                value={entry}
+                onChange={(nextValue) => onChange(updateArrayValue(items, index, nextValue))}
+                disabled={disabled}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={disabled}
+                onClick={() => onChange(removeArrayValue(items, index))}
+              >
+                Remove row
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            disabled={disabled}
+            onClick={() => onChange(addArrayValue(items, {}))}
+          >
+            Add row
+          </Button>
+        </div>
+      );
+    }
+
+    return (
+      <JsonStructuredEditor field={field} value={value} onChange={onChange} disabled={disabled} />
+    );
+  }
+
+  if (field.widget.renderedMultiplicity === "many") {
+    return (
+      <RepeatedPrimitiveField field={field} value={value} onChange={onChange} disabled={disabled} />
+    );
+  }
+
+  return (
+    <Input
+      disabled={disabled}
+      aria-label={field.fieldLabel}
+      type={field.widget.control === "number" ? "number" : "text"}
+      value={primitiveToInput(value, field)}
+      onChange={(event) => onChange(primitiveFromInput(event.target.value, field))}
+      placeholder={field.widget.control === "path" ? "repo-relative path" : undefined}
+    />
+  );
+}
+
 function RepeatedPrimitiveField(props: {
   field: RuntimeFormResolvedField;
   value: unknown;
@@ -2097,6 +2316,165 @@ function ReferenceField(props: {
   );
 }
 
+function BoundFactFieldRow(props: {
+  field: RuntimeFormResolvedField;
+  value: unknown;
+  onChange: (value: unknown) => void;
+  disabled: boolean;
+  disabledOptionValues?: ReadonlySet<string>;
+  labelOverride?: string;
+}) {
+  const { field, value, onChange, disabled, disabledOptionValues, labelOverride } = props;
+  const defaultMode = getDefaultBoundFactInputMode(field, value);
+  const [mode, setMode] = useState<BoundFactInputMode>(defaultMode);
+  const hasOptions = (field.widget.options?.length ?? 0) > 0;
+  const valueField = useMemo<RuntimeFormResolvedField>(
+    () => ({
+      ...field,
+      fieldLabel: labelOverride ?? field.fieldLabel,
+      contextFactKind: "plain_value_fact",
+      widget: field.widget.boundValueWidget ?? field.widget,
+    }),
+    [field, labelOverride],
+  );
+
+  useEffect(() => {
+    setMode(defaultMode);
+  }, [defaultMode]);
+
+  return (
+    <div className="space-y-3 border border-border/70 bg-background/30 p-3">
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant={mode === "existing" ? "default" : "outline"}
+          size="sm"
+          disabled={disabled}
+          onClick={() => {
+            setMode("existing");
+            onChange(createBoundFactEnvelope({ field, mode: "existing", currentValue: value }));
+          }}
+        >
+          Bind existing
+        </Button>
+        <Button
+          type="button"
+          variant={mode === "new" ? "default" : "outline"}
+          size="sm"
+          disabled={disabled}
+          onClick={() => {
+            setMode("new");
+            onChange(createBoundFactEnvelope({ field, mode: "new", currentValue: value }));
+          }}
+        >
+          Create new
+        </Button>
+      </div>
+
+      {mode === "existing" ? (
+        <div className="space-y-2">
+          <ReferenceOptionCombobox
+            field={{ ...field, fieldLabel: labelOverride ?? field.fieldLabel }}
+            value={
+              getBoundFactInstanceId(value).length > 0
+                ? { factInstanceId: getBoundFactInstanceId(value) }
+                : null
+            }
+            onChange={(nextValue) => onChange(nextValue)}
+            disabledOptionValues={disabledOptionValues}
+            disabled={disabled || !hasOptions}
+          />
+          {field.widget.emptyState ? (
+            <p className="text-xs text-muted-foreground">{field.widget.emptyState}</p>
+          ) : null}
+          {!hasOptions ? (
+            <p className="text-xs text-muted-foreground">
+              You can still create a fresh value inline with the typed editor above.
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <PrimitiveFieldEditor
+            field={valueField}
+            value={getBoundFactInlineValue(value)}
+            onChange={(nextValue) => onChange({ value: nextValue })}
+            disabled={disabled}
+          />
+          <p className="text-xs text-muted-foreground">
+            Create a new {field.widget.bindingLabel?.toLowerCase() ?? "bound fact"} value inline.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BoundFactField(props: {
+  field: RuntimeFormResolvedField;
+  value: unknown;
+  onChange: (value: unknown) => void;
+  disabled: boolean;
+}) {
+  const { field, value, onChange, disabled } = props;
+
+  if (field.widget.renderedMultiplicity === "many") {
+    const items = Array.isArray(value) ? value : [];
+    const selectedValues = new Set(
+      items
+        .map((entry) => getBoundFactInstanceId(entry))
+        .filter((entry) => entry.length > 0)
+        .map((entry) => encodeOptionValue({ factInstanceId: entry })),
+    );
+
+    return (
+      <div className="space-y-3">
+        {items.map((entry, index) => (
+          <div key={`${field.fieldKey}-${index}`} className="space-y-2">
+            <BoundFactFieldRow
+              field={field}
+              value={entry}
+              onChange={(nextValue) => onChange(updateArrayValue(items, index, nextValue))}
+              disabled={disabled}
+              disabledOptionValues={selectedValues}
+              labelOverride={`${field.fieldLabel} ${index + 1}`}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={disabled}
+              onClick={() => onChange(removeArrayValue(items, index))}
+            >
+              Remove
+            </Button>
+          </div>
+        ))}
+        <Button
+          type="button"
+          variant="outline"
+          disabled={disabled}
+          onClick={() =>
+            onChange(
+              addArrayValue(
+                items,
+                createBoundFactEnvelope({
+                  field,
+                  mode: getDefaultBoundFactInputMode(field, null),
+                  currentValue: null,
+                }),
+              ),
+            )
+          }
+        >
+          Add value
+        </Button>
+      </div>
+    );
+  }
+
+  return <BoundFactFieldRow field={field} value={value} onChange={onChange} disabled={disabled} />;
+}
+
 function FormFieldEditor(props: {
   field: RuntimeFormResolvedField;
   value: unknown;
@@ -2107,6 +2485,10 @@ function FormFieldEditor(props: {
 
   if (field.contextFactKind === "work_unit_draft_spec_fact") {
     return <DraftSpecEditor field={field} value={value} onChange={onChange} disabled={disabled} />;
+  }
+
+  if (field.contextFactKind === "bound_fact") {
+    return <BoundFactField field={field} value={value} onChange={onChange} disabled={disabled} />;
   }
 
   if (
@@ -2183,72 +2565,65 @@ function FormFieldEditor(props: {
   }
 
   if (field.widget.control === "json") {
-    if (field.widget.renderedMultiplicity === "many") {
-      const items = Array.isArray(value) ? value : [];
-      return (
-        <div className="space-y-3">
-          {items.map((entry, index) => (
-            <div key={`${field.fieldKey}-${index}`} className="space-y-2">
-              <JsonStructuredEditor
-                field={field}
-                value={entry}
-                onChange={(nextValue) => onChange(updateArrayValue(items, index, nextValue))}
-                disabled={disabled}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                disabled={disabled}
-                onClick={() => onChange(removeArrayValue(items, index))}
-              >
-                Remove row
-              </Button>
-            </div>
-          ))}
-          <Button
-            type="button"
-            variant="outline"
-            disabled={disabled}
-            onClick={() => onChange(addArrayValue(items, {}))}
-          >
-            Add row
-          </Button>
-        </div>
-      );
-    }
-
     return (
-      <JsonStructuredEditor field={field} value={value} onChange={onChange} disabled={disabled} />
-    );
-  }
-
-  if (field.widget.renderedMultiplicity === "many") {
-    return (
-      <RepeatedPrimitiveField field={field} value={value} onChange={onChange} disabled={disabled} />
+      <PrimitiveFieldEditor field={field} value={value} onChange={onChange} disabled={disabled} />
     );
   }
 
   return (
-    <Input
-      disabled={disabled}
-      aria-label={field.fieldLabel}
-      type={field.widget.control === "number" ? "number" : "text"}
-      value={primitiveToInput(value, field)}
-      onChange={(event) => onChange(primitiveFromInput(event.target.value, field))}
-      placeholder={field.widget.control === "path" ? "repo-relative path" : undefined}
-    />
+    <PrimitiveFieldEditor field={field} value={value} onChange={onChange} disabled={disabled} />
   );
 }
 
 function StepExecutionShellCard(props: {
+  projectId: string;
   shell: GetRuntimeStepExecutionDetailOutput["shell"];
   completionOutcome: string;
   isBusy: boolean;
+  nextStep?: StepNextStep;
   onComplete?: () => void;
 }) {
-  const { shell, completionOutcome, isBusy, onComplete } = props;
+  const { projectId, shell, completionOutcome, isBusy, nextStep, onComplete } = props;
+  const navigate = Route.useNavigate();
+  const { orpc, queryClient } = Route.useRouteContext();
   const stepTypeColors = getStepTypeColors(shell.stepType);
   const stepTypeIconCode = STEP_TYPE_ICON_CODES[shell.stepType];
+  const activateNextStepMutation = useMutation(
+    orpc.project.activateWorkflowStepExecution.mutationOptions({
+      onSuccess: async (result) => {
+        showSingletonAutoAttachWarningToasts({
+          warnings: result?.warnings,
+          onOpenWorkUnits: () => {
+            void navigate({
+              to: "/projects/$projectId/work-units",
+              params: { projectId },
+              search: { q: "" },
+            });
+          },
+        });
+        await queryClient.invalidateQueries({
+          queryKey: runtimeStepExecutionDetailQueryKey(projectId, shell.stepExecutionId),
+        });
+
+        if (result?.stepExecutionId) {
+          await navigate({
+            to: "/projects/$projectId/step-executions/$stepExecutionId",
+            params: { projectId, stepExecutionId: result.stepExecutionId },
+          });
+        }
+      },
+    }),
+  );
+  const canOpenNextStep = nextStep?.state === "active" || nextStep?.state === "completed";
+  const canActivateNextStep = nextStep?.state === "inactive";
+  const nextStepLabel =
+    nextStep?.state === "active"
+      ? "Next step is active"
+      : nextStep?.state === "completed"
+        ? "Next step is completed"
+        : nextStep?.state === "inactive"
+          ? "Next step is inactive"
+          : null;
 
   return (
     <Card frame="cut-heavy" tone="runtime" corner="white">
@@ -2329,16 +2704,53 @@ function StepExecutionShellCard(props: {
                   </p>
                 ) : null}
               </div>
+              {shell.status === "completed" && nextStepLabel ? (
+                <div className="sm:col-span-2">
+                  <DetailLabel>Next step</DetailLabel>
+                  <DetailPrimary>{nextStepLabel}</DetailPrimary>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
       </CardContent>
 
       {shell.completionAction.visible && shell.completionAction.enabled && onComplete ? (
-        <CardFooter className="justify-end">
+        <CardFooter className="justify-end gap-2">
           <Button type="button" disabled={isBusy} onClick={onComplete}>
             Complete Step
           </Button>
+        </CardFooter>
+      ) : shell.status === "completed" && nextStep ? (
+        <CardFooter className="justify-end gap-2">
+          {canOpenNextStep && nextStep.nextStepExecutionId ? (
+            <Button
+              type="button"
+              disabled={isBusy}
+              onClick={() =>
+                void navigate({
+                  to: "/projects/$projectId/step-executions/$stepExecutionId",
+                  params: { projectId, stepExecutionId: nextStep.nextStepExecutionId! },
+                })
+              }
+            >
+              Open next step
+            </Button>
+          ) : null}
+          {canActivateNextStep ? (
+            <Button
+              type="button"
+              disabled={isBusy || activateNextStepMutation.isPending}
+              onClick={() =>
+                activateNextStepMutation.mutate({
+                  projectId,
+                  workflowExecutionId: shell.workflowExecutionId,
+                })
+              }
+            >
+              Activate and open next step
+            </Button>
+          ) : null}
         </CardFooter>
       ) : null}
     </Card>
@@ -2401,7 +2813,7 @@ function FormInteractionSurface(props: {
         projectId,
         workflowExecutionId: detail.shell.workflowExecutionId,
         stepExecutionId: detail.shell.stepExecutionId,
-        values: buildMutationValues(value),
+        values: buildMutationValues(value, body.page.fields),
       });
     },
   });
@@ -2413,9 +2825,11 @@ function FormInteractionSurface(props: {
   return (
     <div className="space-y-4">
       <StepExecutionShellCard
+        projectId={projectId}
         shell={detail.shell}
         completionOutcome={completionOutcome}
         isBusy={isBusy}
+        nextStep={detail.body.nextStep}
         onComplete={() =>
           completeStepMutation.mutate({
             projectId,
@@ -2556,7 +2970,7 @@ function FormInteractionSurface(props: {
                 projectId,
                 workflowExecutionId: detail.shell.workflowExecutionId,
                 stepExecutionId: detail.shell.stepExecutionId,
-                values: buildMutationValues(form.state.values),
+                values: buildMutationValues(form.state.values, body.page.fields),
               })
             }
           >
@@ -2784,9 +3198,11 @@ function ActionInteractionSurface(props: {
   return (
     <div className="space-y-4">
       <StepExecutionShellCard
+        projectId={projectId}
         shell={shell}
         completionOutcome={completionOutcome}
         isBusy={isBusy}
+        nextStep={detail.body.nextStep}
         onComplete={() =>
           completeStepMutation.mutate({
             projectId,
@@ -3267,9 +3683,11 @@ function BranchInteractionSurface(props: {
   return (
     <div className="space-y-4">
       <StepExecutionShellCard
+        projectId={projectId}
         shell={shell}
         completionOutcome={completionOutcome}
         isBusy={isBusy}
+        nextStep={detail.body.nextStep}
         onComplete={() =>
           completeStepMutation.mutate({
             projectId,
@@ -3570,7 +3988,19 @@ function InvokeInteractionSurface(props: {
 
   const startWorkUnitMutation = useMutation(
     orpc.project.startInvokeWorkUnitTarget.mutationOptions({
-      onSuccess: invalidateStepDetail,
+      onSuccess: async (result) => {
+        showSingletonAutoAttachWarningToasts({
+          warnings: result?.warnings,
+          onOpenWorkUnits: () => {
+            void navigate({
+              to: "/projects/$projectId/work-units",
+              params: { projectId },
+              search: { q: "" },
+            });
+          },
+        });
+        await invalidateStepDetail();
+      },
     }),
   );
 
@@ -3604,9 +4034,11 @@ function InvokeInteractionSurface(props: {
   return (
     <div className="space-y-4">
       <StepExecutionShellCard
+        projectId={projectId}
         shell={shell}
         completionOutcome={completionOutcome}
         isBusy={isBusy}
+        nextStep={detail.body.nextStep}
         onComplete={() =>
           completeStepMutation.mutate({
             projectId,
@@ -4878,9 +5310,11 @@ function AgentInteractionSurface(props: {
   return (
     <div className="space-y-4 scrollbar-thin">
       <StepExecutionShellCard
+        projectId={projectId}
         shell={shell}
         completionOutcome={completionOutcome}
         isBusy={isBusy}
+        nextStep={detail.body.nextStep}
         onComplete={() =>
           completeStepMutation.mutate({
             projectId,

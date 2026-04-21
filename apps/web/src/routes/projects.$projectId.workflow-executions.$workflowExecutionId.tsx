@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
+import { showSingletonAutoAttachWarnings } from "@/features/projects/singleton-auto-attach-warning-toast";
 import {
   DetailCode,
   DetailEyebrow,
@@ -41,6 +42,13 @@ import {
   getExecutionStatusTone,
   getStepTypeTone,
 } from "@/features/projects/execution-detail-visuals";
+import {
+  WorkflowStepSurfaceGraph,
+  type WorkflowStepGraphBranchSelection,
+  type WorkflowStepGraphDefinitionEdge,
+  type WorkflowStepGraphDefinitionStep,
+  type WorkflowStepGraphRuntimeExecution,
+} from "@/features/projects/workflow-step-surface-graph";
 import { cn } from "@/lib/utils";
 
 const runtimeGuidanceActiveQueryKey = (projectId: string) =>
@@ -75,6 +83,16 @@ type WorkflowContextFactGroup = {
 };
 
 type WorkflowContextDefinition =
+  | {
+      kind: "plain_fact";
+      contextFactDefinitionId: string;
+      key: string;
+      label?: string;
+      descriptionJson?: unknown;
+      cardinality: "one" | "many";
+      valueType: "string" | "number" | "boolean" | "json";
+      validationJson?: unknown;
+    }
   | {
       kind: "plain_value_fact";
       contextFactDefinitionId: string;
@@ -134,6 +152,12 @@ type FactDefinitionCatalogEntry = {
 
 type WorkUnitCatalogEntry = {
   label: string;
+};
+
+type BoundFactSourceDescriptor = {
+  contextFactDefinitionId: string;
+  factDefinitionId: string;
+  source: "project" | "work_unit";
 };
 
 type ArtifactSnapshotOptionsBySlot = Map<string, RuntimeFactOption[]>;
@@ -311,6 +335,143 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function readMarkdown(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (!isPlainRecord(value)) {
+    return "";
+  }
+
+  return typeof value.markdown === "string" ? value.markdown : "";
+}
+
+function normalizeWorkflowStepType(
+  value: unknown,
+): WorkflowStepGraphDefinitionStep["stepType"] | null {
+  switch (value) {
+    case "form":
+    case "agent":
+    case "action":
+    case "invoke":
+    case "branch":
+    case "display":
+      return value;
+    default:
+      return null;
+  }
+}
+
+function parseBranchProjectedEdgeMetadata(value: unknown): {
+  edgeOwner: Extract<
+    WorkflowStepGraphDefinitionEdge["kind"],
+    "branch_default" | "branch_conditional"
+  >;
+  routeId?: string;
+} | null {
+  const record = isPlainRecord(value) ? value : null;
+  if (!record) {
+    return null;
+  }
+
+  if (record.edgeOwner !== "branch_default" && record.edgeOwner !== "branch_conditional") {
+    return null;
+  }
+
+  return {
+    edgeOwner: record.edgeOwner,
+    ...(typeof record.routeId === "string" && record.routeId.trim().length > 0
+      ? { routeId: record.routeId }
+      : {}),
+  };
+}
+
+function toWorkflowStepGraphDefinition(value: unknown): {
+  steps: WorkflowStepGraphDefinitionStep[];
+  edges: WorkflowStepGraphDefinitionEdge[];
+} {
+  if (!isPlainRecord(value)) {
+    return { steps: [], edges: [] };
+  }
+
+  const rawSteps = Array.isArray(value.steps) ? value.steps : [];
+  const steps = rawSteps.flatMap<WorkflowStepGraphDefinitionStep>((entry, index) => {
+    const step = isPlainRecord(entry) ? entry : null;
+    if (!step) {
+      return [];
+    }
+
+    const stepType = normalizeWorkflowStepType(step.stepType ?? step.type);
+    const payload = isPlainRecord(step.payload) ? step.payload : null;
+    const stepDefinitionId = typeof step.stepId === "string" ? step.stepId : `step-${index}`;
+    const stepKey =
+      typeof payload?.key === "string"
+        ? payload.key
+        : typeof step.stepKey === "string"
+          ? step.stepKey
+          : stepDefinitionId;
+
+    if (!stepType) {
+      return [];
+    }
+
+    return [
+      {
+        stepDefinitionId,
+        stepType,
+        stepKey,
+        ...(typeof payload?.label === "string"
+          ? { stepLabel: payload.label }
+          : typeof step.stepLabel === "string"
+            ? { stepLabel: step.stepLabel }
+            : {}),
+        ...(readMarkdown(payload?.descriptionJson ?? step.descriptionJson ?? step.defaultMessage)
+          ? {
+              descriptionMarkdown: readMarkdown(
+                payload?.descriptionJson ?? step.descriptionJson ?? step.defaultMessage,
+              ),
+            }
+          : {}),
+      },
+    ];
+  });
+
+  const stepIdByKey = new Map(steps.map((step) => [step.stepKey, step.stepDefinitionId]));
+  const rawEdges = Array.isArray(value.edges) ? value.edges : [];
+  const edges = rawEdges.flatMap<WorkflowStepGraphDefinitionEdge>((entry, index) => {
+    const edge = isPlainRecord(entry) ? entry : null;
+    if (!edge || typeof edge.fromStepKey !== "string" || typeof edge.toStepKey !== "string") {
+      return [];
+    }
+
+    const fromStepDefinitionId = stepIdByKey.get(edge.fromStepKey);
+    const toStepDefinitionId = stepIdByKey.get(edge.toStepKey);
+    if (!fromStepDefinitionId || !toStepDefinitionId) {
+      return [];
+    }
+
+    const projectedMetadata = parseBranchProjectedEdgeMetadata(edge.descriptionJson);
+
+    return [
+      {
+        edgeId:
+          typeof edge.edgeId === "string"
+            ? edge.edgeId
+            : typeof edge.edgeKey === "string"
+              ? edge.edgeKey
+              : `edge-${index}`,
+        fromStepDefinitionId,
+        toStepDefinitionId,
+        kind: projectedMetadata?.edgeOwner ?? "linear",
+        ...(projectedMetadata?.routeId ? { routeId: projectedMetadata.routeId } : {}),
+      },
+    ];
+  });
+
+  return { steps, edges };
+}
+
 function getProjectPin(
   value: unknown,
 ): { methodologyId: string; methodologyVersionId: string } | null {
@@ -374,13 +535,25 @@ function toWorkflowContextDefinitions(value: unknown): Map<string, WorkflowConte
     }
 
     switch (entry.kind) {
+      case "plain_fact":
       case "plain_value_fact":
         if (
           entry.valueType === "string" ||
+          entry.type === "string" ||
           entry.valueType === "number" ||
+          entry.type === "number" ||
           entry.valueType === "boolean" ||
-          entry.valueType === "json"
+          entry.type === "boolean" ||
+          entry.valueType === "json" ||
+          entry.type === "json"
         ) {
+          const valueType: "string" | "number" | "boolean" | "json" =
+            entry.valueType === "string" ||
+            entry.valueType === "number" ||
+            entry.valueType === "boolean" ||
+            entry.valueType === "json"
+              ? entry.valueType
+              : (entry.type as "string" | "number" | "boolean" | "json");
           definitions.set(contextFactDefinitionId, {
             kind: entry.kind,
             contextFactDefinitionId,
@@ -390,7 +563,7 @@ function toWorkflowContextDefinitions(value: unknown): Map<string, WorkflowConte
               ? { descriptionJson: entry.descriptionJson }
               : {}),
             cardinality,
-            valueType: entry.valueType,
+            valueType,
             ...(entry.validationJson !== undefined ? { validationJson: entry.validationJson } : {}),
           });
         }
@@ -681,6 +854,95 @@ function toArtifactSnapshotOptionsBySlot(
   return result;
 }
 
+function toProjectFactInstanceOptions(value: unknown): RuntimeFactOption[] {
+  if (
+    !isPlainRecord(value) ||
+    !isPlainRecord(value.factDefinition) ||
+    !isPlainRecord(value.currentState)
+  ) {
+    return [];
+  }
+
+  const factLabel =
+    typeof value.factDefinition.factName === "string"
+      ? value.factDefinition.factName
+      : typeof value.factDefinition.factKey === "string"
+        ? value.factDefinition.factKey
+        : "Fact";
+
+  if (!Array.isArray(value.currentState.values)) {
+    return [];
+  }
+
+  return value.currentState.values.flatMap((entry, index) => {
+    if (!isPlainRecord(entry) || typeof entry.instanceId !== "string") {
+      return [];
+    }
+
+    const preview = "value" in entry ? formatUnknown(entry.value) : "";
+    return [
+      {
+        value: entry.instanceId,
+        label: `${factLabel} · ${preview || `Instance ${index + 1}`}`,
+      },
+    ];
+  });
+}
+
+function toWorkUnitFactInstanceOptions(value: unknown): RuntimeFactOption[] {
+  if (!isPlainRecord(value) || !isPlainRecord(value.factDefinition)) {
+    return [];
+  }
+
+  const factLabel =
+    typeof value.factDefinition.factName === "string"
+      ? value.factDefinition.factName
+      : typeof value.factDefinition.factKey === "string"
+        ? value.factDefinition.factKey
+        : "Fact";
+
+  const primitiveValues =
+    isPlainRecord(value.primitiveState) && Array.isArray(value.primitiveState.values)
+      ? value.primitiveState.values.flatMap((entry, index) => {
+          if (!isPlainRecord(entry) || typeof entry.workUnitFactInstanceId !== "string") {
+            return [];
+          }
+
+          const preview = "value" in entry ? formatUnknown(entry.value) : "";
+          return [
+            {
+              value: entry.workUnitFactInstanceId,
+              label: `${factLabel} · ${preview || `Instance ${index + 1}`}`,
+            },
+          ];
+        })
+      : [];
+
+  const dependencyValues =
+    isPlainRecord(value.dependencyState) && Array.isArray(value.dependencyState.outgoing)
+      ? value.dependencyState.outgoing.flatMap((entry) => {
+          if (!isPlainRecord(entry) || typeof entry.workUnitFactInstanceId !== "string") {
+            return [];
+          }
+
+          const counterpartLabel =
+            typeof entry.counterpartLabel === "string"
+              ? entry.counterpartLabel
+              : typeof entry.counterpartProjectWorkUnitId === "string"
+                ? entry.counterpartProjectWorkUnitId
+                : entry.workUnitFactInstanceId;
+          return [
+            {
+              value: entry.workUnitFactInstanceId,
+              label: `${factLabel} · ${counterpartLabel}`,
+            },
+          ];
+        })
+      : [];
+
+  return primitiveValues.length > 0 ? primitiveValues : dependencyValues;
+}
+
 function buildWorkflowContextDialogEditor(params: {
   definition: WorkflowContextDefinition;
   projectFactCatalog: Map<string, FactDefinitionCatalogEntry>;
@@ -689,9 +951,11 @@ function buildWorkflowContextDialogEditor(params: {
   workflowOptions: RuntimeFactOption[];
   artifactSlotCatalog: Map<string, WorkUnitCatalogEntry>;
   artifactSnapshotOptionsBySlot: ArtifactSnapshotOptionsBySlot;
+  boundFactInstanceOptionsByContextFactDefinition: Map<string, RuntimeFactOption[]>;
   workUnitOptions: RuntimeFactOption[];
 }): RuntimeDialogEditor | null {
   switch (params.definition.kind) {
+    case "plain_fact":
     case "plain_value_fact":
       return {
         kind: "primitive",
@@ -711,6 +975,10 @@ function buildWorkflowContextDialogEditor(params: {
       return {
         kind: "bound_fact",
         instanceLabel: `${resolvedDefinition?.label ?? params.definition.factDefinitionId} instance ID`,
+        instanceOptions:
+          params.boundFactInstanceOptionsByContextFactDefinition.get(
+            params.definition.contextFactDefinitionId,
+          ) ?? [],
         definition: resolvedDefinition?.definition ?? {
           factType: params.definition.valueType ?? "json",
           ...(params.definition.validationJson !== undefined
@@ -1144,7 +1412,7 @@ function WorkflowContextManualCrudCard({
                     setCreateDialogOpen(true);
                   }}
                 >
-                  {isSingle ? "Set value" : "Add instance"}
+                  {isSingle && group.instances.length === 0 ? "Create instance" : "Add instance"}
                 </Button>
               ) : null}
 
@@ -1159,7 +1427,7 @@ function WorkflowContextManualCrudCard({
                     setEditInstanceId(primaryInstance.contextFactInstanceId ?? null);
                   }}
                 >
-                  Replace value
+                  Edit instance
                 </Button>
               ) : null}
             </div>
@@ -1188,13 +1456,13 @@ function WorkflowContextManualCrudCard({
         <RuntimeFactValueDialog
           open={createDialogOpen}
           onOpenChange={setCreateDialogOpen}
-          title={isSingle ? `Set ${title}` : `Add ${title} instance`}
+          title={isSingle ? `Create ${title} instance` : `Add ${title} instance`}
           description={
             isSingle
-              ? "Set the current runtime value for this workflow-context fact."
+              ? "Create the first runtime instance for this workflow-context fact."
               : "Create a new runtime instance for this workflow-context fact."
           }
-          submitLabel={isSingle ? "Set value" : "Create instance"}
+          submitLabel={isSingle ? "Create instance" : "Add instance"}
           editor={editor}
           isPending={isCreating}
           errorMessage={createDialogOpen ? error : null}
@@ -1216,13 +1484,13 @@ function WorkflowContextManualCrudCard({
           onOpenChange={(open) =>
             setEditInstanceId(open ? (editingInstance.contextFactInstanceId ?? null) : null)
           }
-          title={isSingle ? `Replace ${title}` : `Edit ${title} instance`}
+          title={`Edit ${title} instance`}
           description={
             isSingle
-              ? "Replace the current runtime value for this workflow-context fact."
+              ? `Update instance ${editingInstance.instanceOrder + 1} for this workflow-context fact.`
               : `Update instance ${editingInstance.instanceOrder + 1} for this workflow-context fact.`
           }
-          submitLabel={isSingle ? "Replace value" : "Save instance"}
+          submitLabel="Save instance"
           editor={editor}
           initialValue={editingInstance.valueJson}
           isPending={isUpdating}
@@ -1577,6 +1845,16 @@ export function WorkflowExecutionDetailRoute() {
   const activateWorkflowStepMutation = useMutation(
     orpc.project.activateWorkflowStepExecution.mutationOptions({
       onSuccess: async (result) => {
+        showSingletonAutoAttachWarnings({
+          warnings: result?.warnings,
+          onOpenWorkUnits: () => {
+            void navigate({
+              to: "/projects/$projectId/work-units",
+              params: { projectId },
+              search: { q: "" },
+            });
+          },
+        });
         await Promise.all([
           queryClient.invalidateQueries({
             queryKey: runtimeWorkflowExecutionDetailQueryKey(projectId, workflowExecutionId),
@@ -1789,6 +2067,10 @@ export function WorkflowExecutionDetailRoute() {
     () => toWorkflowContextDefinitions(contextEditorDefinitionQuery.data),
     [contextEditorDefinitionQuery.data],
   );
+  const stepGraphDefinition = useMemo(
+    () => toWorkflowStepGraphDefinition(contextEditorDefinitionQuery.data),
+    [contextEditorDefinitionQuery.data],
+  );
   const artifactSnapshotSlotIds = useMemo(
     () =>
       [...contextDefinitions.values()]
@@ -1853,6 +2135,92 @@ export function WorkflowExecutionDetailRoute() {
     () => toRuntimeWorkUnitOptions(runtimeWorkUnitsQuery.data),
     [runtimeWorkUnitsQuery.data],
   );
+  const boundFactSourceDescriptors = useMemo<BoundFactSourceDescriptor[]>(
+    () =>
+      [...contextDefinitions.values()].flatMap<BoundFactSourceDescriptor>((definition) => {
+        if (definition.kind !== "bound_fact") {
+          return [];
+        }
+
+        if (projectFactCatalog.has(definition.factDefinitionId)) {
+          return [
+            {
+              contextFactDefinitionId: definition.contextFactDefinitionId,
+              factDefinitionId: definition.factDefinitionId,
+              source: "project" as const,
+            },
+          ];
+        }
+
+        if (workUnitFactCatalog.has(definition.factDefinitionId)) {
+          return [
+            {
+              contextFactDefinitionId: definition.contextFactDefinitionId,
+              factDefinitionId: definition.factDefinitionId,
+              source: "work_unit" as const,
+            },
+          ];
+        }
+
+        return [];
+      }),
+    [contextDefinitions, projectFactCatalog, workUnitFactCatalog],
+  );
+  const boundFactSourceQueries = useQueries({
+    queries: boundFactSourceDescriptors.map(
+      (descriptor) =>
+        (descriptor.source === "project"
+          ? (orpc.project.getRuntimeProjectFactDetail?.queryOptions?.({
+              input: {
+                projectId,
+                factDefinitionId: descriptor.factDefinitionId,
+              },
+            }) ?? {
+              queryKey: ["runtime-project-fact-detail", projectId, descriptor.factDefinitionId],
+              queryFn: async () => null,
+            })
+          : detail
+            ? (orpc.project.getRuntimeWorkUnitFactDetail?.queryOptions?.({
+                input: {
+                  projectId,
+                  projectWorkUnitId: detail.workUnit.projectWorkUnitId,
+                  factDefinitionId: descriptor.factDefinitionId,
+                },
+              }) ?? {
+                queryKey: [
+                  "runtime-work-unit-fact-detail",
+                  projectId,
+                  detail.workUnit.projectWorkUnitId,
+                  descriptor.factDefinitionId,
+                ],
+                queryFn: async () => null,
+              })
+            : {
+                queryKey: [
+                  "runtime-work-unit-fact-detail",
+                  projectId,
+                  "idle",
+                  descriptor.factDefinitionId,
+                ],
+                queryFn: async () => null,
+              }) as { queryKey: unknown[]; queryFn: () => Promise<unknown> },
+    ),
+  });
+  const boundFactInstanceOptionsByContextFactDefinition = useMemo(() => {
+    const result = new Map<string, RuntimeFactOption[]>();
+
+    for (const [index, descriptor] of boundFactSourceDescriptors.entries()) {
+      const data = boundFactSourceQueries[index]?.data;
+      result.set(
+        descriptor.contextFactDefinitionId,
+        descriptor.source === "project"
+          ? toProjectFactInstanceOptions(data)
+          : toWorkUnitFactInstanceOptions(data),
+      );
+    }
+
+    return result;
+  }, [boundFactSourceDescriptors, boundFactSourceQueries]);
   const artifactSnapshotOptionsBySlot = useMemo(
     () => toArtifactSnapshotOptionsBySlot(artifactSnapshotQueries),
     [artifactSnapshotQueries],
@@ -2091,18 +2459,48 @@ export function WorkflowExecutionDetailRoute() {
 
           <section className="space-y-3 border border-border/80 bg-background p-4">
             <DetailEyebrow className="text-[0.72rem]">Workflow step surface</DetailEyebrow>
-            <WorkflowStepSurfaceCard
-              projectId={projectId}
-              stepSurface={detail.stepSurface as WorkflowStepSurface}
-              activateWorkflowStep={async () => {
-                await activateWorkflowStepMutation.mutateAsync({ projectId, workflowExecutionId });
-              }}
-              isActivating={activateWorkflowStepMutation.isPending}
-              {...(detail.completeAction?.enabled
-                ? { completeWorkflow: () => setOpenCompleteDialog(true) }
-                : {})}
-              isCompleting={completeWorkflowMutation.isPending}
-            />
+            {stepGraphDefinition.steps.length > 0 ? (
+              <WorkflowStepSurfaceGraph
+                projectId={projectId}
+                stepSurface={detail.stepSurface as WorkflowStepSurface}
+                steps={stepGraphDefinition.steps}
+                edges={stepGraphDefinition.edges}
+                executions={
+                  (detail.stepGraphRuntime?.executions ?? []) as WorkflowStepGraphRuntimeExecution[]
+                }
+                branchSelections={
+                  (detail.stepGraphRuntime?.branchSelections ??
+                    []) as WorkflowStepGraphBranchSelection[]
+                }
+                activateWorkflowStep={async () => {
+                  await activateWorkflowStepMutation.mutateAsync({
+                    projectId,
+                    workflowExecutionId,
+                  });
+                }}
+                isActivating={activateWorkflowStepMutation.isPending}
+                {...(detail.completeAction?.enabled
+                  ? { completeWorkflow: () => setOpenCompleteDialog(true) }
+                  : {})}
+                isCompleting={completeWorkflowMutation.isPending}
+              />
+            ) : (
+              <WorkflowStepSurfaceCard
+                projectId={projectId}
+                stepSurface={detail.stepSurface as WorkflowStepSurface}
+                activateWorkflowStep={async () => {
+                  await activateWorkflowStepMutation.mutateAsync({
+                    projectId,
+                    workflowExecutionId,
+                  });
+                }}
+                isActivating={activateWorkflowStepMutation.isPending}
+                {...(detail.completeAction?.enabled
+                  ? { completeWorkflow: () => setOpenCompleteDialog(true) }
+                  : {})}
+                isCompleting={completeWorkflowMutation.isPending}
+              />
+            )}
 
             <Dialog open={openCompleteDialog} onOpenChange={setOpenCompleteDialog}>
               <DialogContent className="max-w-md rounded-none border border-border/80 bg-background">
@@ -2160,6 +2558,7 @@ export function WorkflowExecutionDetailRoute() {
                         workflowOptions,
                         artifactSlotCatalog,
                         artifactSnapshotOptionsBySlot,
+                        boundFactInstanceOptionsByContextFactDefinition,
                         workUnitOptions,
                       })
                     : null;

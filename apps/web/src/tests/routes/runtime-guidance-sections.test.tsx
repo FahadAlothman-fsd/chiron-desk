@@ -123,4 +123,83 @@ describe("runtime guidance sections visuals", () => {
     expect(markup).toContain("Blocked");
     expect(markup).not.toContain("mver_bmad_v1_active");
   });
+
+  it("surfaces ready-to-start transitions in the active section when nothing is active", () => {
+    const markup = renderToStaticMarkup(
+      <RuntimeGuidanceSections
+        projectId="project-1"
+        activeCards={[]}
+        activeLoading={false}
+        activeErrorMessage={null}
+        candidateCards={[
+          {
+            candidateCardId: "future-card-1",
+            source: "future",
+            workUnitContext: {
+              workUnitTypeId: "seed:wut:brainstorming:mver_bmad_v1_active",
+              workUnitTypeKey: "brainstorming",
+              workUnitTypeName: "Brainstorming",
+              currentStateLabel: "Not started",
+            },
+            summaries: {
+              facts: { currentCount: 0, totalCount: 1 },
+              artifactSlots: { currentCount: 0, totalCount: 1 },
+            },
+            transitions: [
+              {
+                candidateId: "future-transition-1",
+                transitionId: "transition-1",
+                transitionKey: "activation_to_done",
+                transitionName: "Brainstorming activation to done",
+                toStateKey: "done",
+                toStateLabel: "Done",
+                source: "future",
+              },
+            ],
+          },
+          {
+            candidateCardId: "future-card-2",
+            source: "future",
+            workUnitContext: {
+              workUnitTypeId: "seed:wut:qa:mver_bmad_v1_active",
+              workUnitTypeKey: "qa",
+              workUnitTypeName: "QA",
+              currentStateLabel: "Not started",
+            },
+            summaries: {
+              facts: { currentCount: 0, totalCount: 1 },
+              artifactSlots: { currentCount: 0, totalCount: 1 },
+            },
+            transitions: [
+              {
+                candidateId: "future-transition-2",
+                transitionId: "transition-2",
+                transitionKey: "activation_to_ready",
+                transitionName: "QA activation to ready",
+                toStateKey: "ready",
+                toStateLabel: "Ready",
+                source: "future",
+              },
+            ],
+          },
+        ]}
+        transitionResults={{
+          "future-transition-1": { result: "available" },
+          "future-transition-2": { result: "blocked", firstReason: "Missing fact" },
+        }}
+        completedCandidateCards={new Set()}
+        streamStatus="done"
+        streamErrorMessage={null}
+        onOpenStartGate={() => {}}
+      />,
+    );
+
+    expect(markup).toContain(
+      "No transition is active. Showing the next transitions ready to start now.",
+    );
+    expect(markup).toContain("Available now");
+    expect(markup).toContain("Brainstorming activation to done");
+    expect(markup).toContain("1 ready");
+    expect(markup).not.toContain("No active transition executions.");
+  });
 });

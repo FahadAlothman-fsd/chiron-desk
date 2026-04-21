@@ -28,7 +28,60 @@ vi.mock("@/features/methodologies/workspace-shell", () => ({
 
 import { ProjectDashboardRoute } from "../../routes/projects.$projectId.index";
 
-function createHarness(options?: { activeWorkflows?: Array<Record<string, unknown>> }) {
+async function* createGuidanceStream(options?: { showAvailableFallback?: boolean }) {
+  yield {
+    type: "bootstrap" as const,
+    version: "1" as const,
+    cards: options?.showAvailableFallback
+      ? [
+          {
+            candidateCardId: "candidate-card-1",
+            source: "future" as const,
+            workUnitContext: {
+              workUnitTypeId: "wut-setup",
+              workUnitTypeKey: "setup",
+              workUnitTypeName: "Setup",
+              currentStateLabel: "Not started",
+            },
+            summaries: {
+              facts: { currentCount: 0, totalCount: 0 },
+              artifactSlots: { currentCount: 0, totalCount: 0 },
+            },
+            transitions: [
+              {
+                candidateId: "candidate-transition-1",
+                transitionId: "transition-1",
+                transitionKey: "activation_to_done",
+                transitionName: "Setup activation to done",
+                toStateKey: "done",
+                toStateLabel: "Done",
+                source: "future" as const,
+              },
+            ],
+          },
+        ]
+      : [],
+  };
+
+  if (options?.showAvailableFallback) {
+    yield {
+      type: "transitionResult" as const,
+      version: "1" as const,
+      candidateId: "candidate-transition-1",
+      result: "available" as const,
+    };
+  }
+
+  yield {
+    type: "done" as const,
+    version: "1" as const,
+  };
+}
+
+function createHarness(options?: {
+  activeWorkflows?: Array<Record<string, unknown>>;
+  showAvailableFallback?: boolean;
+}) {
   const orpc = {
     project: {
       getRuntimeOverview: {
@@ -64,6 +117,54 @@ function createHarness(options?: { activeWorkflows?: Array<Record<string, unknow
             ],
           }),
         }),
+      },
+      getRuntimeGuidanceActive: {
+        queryOptions: () => ({
+          queryKey: ["runtime-guidance-active", "project-1"],
+          queryFn: async () => ({
+            activeWorkUnitCards:
+              options?.activeWorkflows?.length === 0
+                ? []
+                : [
+                    {
+                      projectWorkUnitId: "wu-1",
+                      workUnitTypeId: "wut-1",
+                      workUnitTypeKey: "seed:wut:setup:mver_bmad_v1_active",
+                      workUnitTypeName: "Setup",
+                      currentStateKey: "activation",
+                      currentStateLabel: "Activation",
+                      factSummary: { currentCount: 0, totalCount: 0 },
+                      artifactSummary: { currentCount: 0, totalCount: 0 },
+                      activeTransition: {
+                        transitionExecutionId: "te-1",
+                        transitionId: "tr-1",
+                        transitionKey:
+                          "seed:transition:setup:activation-to-done:mver_bmad_v1_active",
+                        transitionName: "Setup Activation To Done Mver Bmad V1 Active",
+                        toStateKey: "done",
+                        toStateLabel: "Done",
+                        status: "active" as const,
+                        readyForCompletion: true,
+                      },
+                      activePrimaryWorkflow: {
+                        workflowExecutionId: "we-1",
+                        workflowId: "wf-1",
+                        workflowKey: "seed:workflow:setup:setup-project:mver_bmad_v1_active",
+                        workflowName: "Setup Setup Project Mver Bmad V1 Active",
+                        status: "active" as const,
+                      },
+                      actions: {
+                        primary: { kind: "open_workflow" as const, workflowExecutionId: "we-1" },
+                        openTransitionTarget: { transitionExecutionId: "te-1" },
+                        openWorkflowTarget: { workflowExecutionId: "we-1" },
+                      },
+                    },
+                  ],
+          }),
+        }),
+      },
+      streamRuntimeGuidanceCandidates: {
+        call: () => createGuidanceStream({ showAvailableFallback: options?.showAvailableFallback }),
       },
     },
   };
@@ -111,7 +212,7 @@ describe("project dashboard route", () => {
     expect(guidanceLink.getAttribute("href")).toBe("/projects/$projectId/transitions");
   });
 
-  it("renders active workflow rows with canonical runtime identifiers", async () => {
+  it("renders active guidance cards with detail actions", async () => {
     const { queryClient } = createHarness();
 
     render(
@@ -120,15 +221,15 @@ describe("project dashboard route", () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText("Document project")).toBeTruthy();
-    expect(screen.getByText("Active workflows")).toBeTruthy();
-    expect(
-      screen.getByText(/document-project · WU\.PROJECT_CONTEXT · transition start/i),
-    ).toBeTruthy();
+    expect(await screen.findByText("Active guidance")).toBeTruthy();
+    expect(await screen.findByText("Active transition")).toBeTruthy();
+    expect(screen.getByText("Primary workflow")).toBeTruthy();
+    expect(await screen.findByRole("link", { name: /Open transition detail/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Open workflow detail/i })).toBeTruthy();
   });
 
-  it("renders empty-state copy when no workflows are active", async () => {
-    const { queryClient } = createHarness({ activeWorkflows: [] });
+  it("renders available fallback guidance when no transition is active but one is ready", async () => {
+    const { queryClient } = createHarness({ activeWorkflows: [], showAvailableFallback: true });
 
     render(
       <QueryClientProvider client={queryClient}>
@@ -136,6 +237,24 @@ describe("project dashboard route", () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText("No active workflows right now.")).toBeTruthy();
+    expect(
+      await screen.findByText(
+        /No transition is active\. Showing the next transitions ready to start now\./i,
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("Available now")).toBeTruthy();
+    expect(screen.getByText(/Setup activation to done/i)).toBeTruthy();
+  });
+
+  it("renders empty-state copy when no transitions are active and none are ready", async () => {
+    const { queryClient } = createHarness({ activeWorkflows: [], showAvailableFallback: false });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ProjectDashboardRoute />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("No active transitions right now.")).toBeTruthy();
   });
 });

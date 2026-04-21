@@ -1,4 +1,5 @@
 import type {
+  SingletonAutoAttachWarning,
   StartInvokeWorkUnitTargetInput,
   StartInvokeWorkUnitTargetOutput,
 } from "@chiron/contracts/runtime/executions";
@@ -10,10 +11,12 @@ import { Option } from "effect";
 import { RepositoryError } from "../errors";
 import { ExecutionReadRepository } from "../repositories/execution-read-repository";
 import { InvokeExecutionRepository } from "../repositories/invoke-execution-repository";
+import { ProjectWorkUnitRepository } from "../repositories/project-work-unit-repository";
 import {
   StepExecutionRepository,
   type RuntimeWorkflowExecutionContextFactRow,
 } from "../repositories/step-execution-repository";
+import { resolveAutoAttachedProjectWorkUnit } from "./runtime-auto-attach";
 import { unwrapRuntimeBoundFactEnvelope } from "./runtime-bound-fact-value";
 import { WorkflowContextExternalPrefillService } from "./workflow-context-external-prefill-service";
 
@@ -361,6 +364,7 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
     const stepRepo = yield* StepExecutionRepository;
     const readRepo = yield* ExecutionReadRepository;
     const invokeRepo = yield* InvokeExecutionRepository;
+    const projectWorkUnitRepo = yield* Effect.serviceOption(ProjectWorkUnitRepository);
     const contextExternalPrefillService = yield* Effect.serviceOption(
       WorkflowContextExternalPrefillService,
     );
@@ -820,16 +824,21 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
           resolvedWorkUnitFactValuesByDefinitionId.set(destinationFactDefinitionId, resolvedValue);
         }
 
-        const [factSchemas, artifactSlots] = yield* Effect.all([
-          lifecycleRepo.findFactSchemas(
-            projectPin.methodologyVersionId,
-            invokeWorkUnitTarget.workUnitDefinitionId,
-          ),
-          methodologyRepo.findArtifactSlotsByWorkUnitType({
-            versionId: projectPin.methodologyVersionId,
-            workUnitTypeKey: targetWorkUnitType.key,
-          }),
-        ]);
+        const [factSchemas, artifactSlots, availableWorkUnitTypes, projectWorkUnits] =
+          yield* Effect.all([
+            lifecycleRepo.findFactSchemas(
+              projectPin.methodologyVersionId,
+              invokeWorkUnitTarget.workUnitDefinitionId,
+            ),
+            methodologyRepo.findArtifactSlotsByWorkUnitType({
+              versionId: projectPin.methodologyVersionId,
+              workUnitTypeKey: targetWorkUnitType.key,
+            }),
+            lifecycleRepo.findWorkUnitTypes(projectPin.methodologyVersionId),
+            Option.isSome(projectWorkUnitRepo)
+              ? projectWorkUnitRepo.value.listProjectWorkUnitsByProject(input.projectId)
+              : Effect.succeed([]),
+          ]);
 
         const targetFactDefinitionIds = new Set(factSchemas.map((factSchema) => factSchema.id));
         for (const factDefinitionId of resolvedWorkUnitFactValuesByDefinitionId.keys()) {
@@ -860,6 +869,7 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
           initialValueJson?: unknown;
           initialReferencedProjectWorkUnitId?: string | null;
         }> = [];
+        const warnings: SingletonAutoAttachWarning[] = [];
         for (const factSchema of factSchemas) {
           if (resolvedWorkUnitFactValuesByDefinitionId.has(factSchema.id)) {
             const initialFactDefinition = toInitialFactDefinition({
@@ -878,6 +888,26 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
               initialFactDefinitions.push(initialFactDefinition);
             }
             continue;
+          }
+
+          if (factSchema.factType === "work_unit" && factSchema.cardinality === "one") {
+            const resolution = resolveAutoAttachedProjectWorkUnit({
+              targetWorkUnitDefinitionId: factSchema.targetWorkUnitDefinitionId ?? undefined,
+              projectWorkUnits,
+              workUnitTypes: availableWorkUnitTypes,
+              factDefinitionId: factSchema.id,
+            });
+
+            if (resolution.warning) {
+              warnings.push(resolution.warning);
+            }
+
+            if (resolution.projectWorkUnitId) {
+              initialFactDefinitions.push({
+                factDefinitionId: factSchema.id,
+                initialReferencedProjectWorkUnitId: resolution.projectWorkUnitId,
+              });
+            }
           }
 
           continue;
@@ -936,6 +966,8 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
               workflowExecutionId: started.workflowExecutionId,
             });
 
+          warnings.push(...prefillResult.warnings);
+
           yield* Effect.logInfo("invoke work-unit target prefill completed").pipe(
             Effect.annotateLogs({
               ...baseLogContext,
@@ -954,7 +986,7 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
           );
         }
 
-        return started;
+        return warnings.length > 0 ? { ...started, warnings } : started;
       });
 
     return InvokeWorkUnitExecutionService.of({

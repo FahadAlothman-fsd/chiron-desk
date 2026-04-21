@@ -3,6 +3,7 @@ import type { AgentStepDesignTimePayload } from "@chiron/contracts/agent-step/de
 import type { WorkflowAgentStepDefinitionReadModel } from "@chiron/methodology-engine";
 import {
   LifecycleRepository,
+  MethodologyVersionBoundaryService,
   MethodologyRepository,
   type WorkflowEditorDefinitionReadModel,
 } from "@chiron/methodology-engine";
@@ -529,6 +530,11 @@ export function makeAgentStepRuntimeTestContext(options?: {
       ]),
   } as unknown as Context.Tag.Service<typeof MethodologyRepository>);
 
+  const methodologyVersionBoundaryLayer = Layer.succeed(
+    MethodologyVersionBoundaryService,
+    {} as Context.Tag.Service<typeof MethodologyVersionBoundaryService>,
+  );
+
   const stateRepoLayer = Layer.succeed(AgentStepExecutionStateRepository, {
     createState: ({ stepExecutionId, state = "not_started", bootstrapAppliedAt = null }: any) =>
       Effect.sync(() => {
@@ -832,6 +838,7 @@ export function makeAgentStepRuntimeTestContext(options?: {
     projectContextLayer,
     lifecycleLayer,
     methodologyLayer,
+    methodologyVersionBoundaryLayer,
     projectWorkUnitLayer,
     workUnitFactLayer,
     artifactLayer,

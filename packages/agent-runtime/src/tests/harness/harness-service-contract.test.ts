@@ -137,7 +137,32 @@ describe("HarnessService contract", () => {
         ],
       },
     });
-    expect(streamEvents[2]).toMatchObject({
+    const userTimelineEvent = streamEvents.find(
+      (event) =>
+        event.eventType === "timeline" &&
+        event.data?.item?.itemType === "message" &&
+        event.data?.item?.role === "user",
+    );
+    const startedToolEvent = streamEvents.find(
+      (event) =>
+        event.eventType === "tool_activity" &&
+        event.data?.item?.itemType === "tool_activity" &&
+        event.data?.item?.status === "started",
+    );
+    const assistantTimelineEvent = streamEvents.find(
+      (event) =>
+        event.eventType === "timeline" &&
+        event.data?.item?.itemType === "message" &&
+        event.data?.item?.role === "assistant",
+    );
+    const completedToolEvent = streamEvents.find(
+      (event) =>
+        event.eventType === "tool_activity" &&
+        event.data?.item?.itemType === "tool_activity" &&
+        event.data?.item?.status === "completed",
+    );
+
+    expect(userTimelineEvent).toMatchObject({
       eventType: "timeline",
       data: {
         item: expect.objectContaining({
@@ -147,7 +172,7 @@ describe("HarnessService contract", () => {
         }),
       },
     });
-    expect(streamEvents[4]).toMatchObject({
+    expect(assistantTimelineEvent).toMatchObject({
       eventType: "timeline",
       data: {
         item: expect.objectContaining({
@@ -157,23 +182,23 @@ describe("HarnessService contract", () => {
         }),
       },
     });
-    expect(streamEvents[3]).toMatchObject({
+    expect(startedToolEvent).toMatchObject({
       eventType: "tool_activity",
       data: {
         item: expect.objectContaining({
           itemType: "tool_activity",
           status: "started",
-          input: JSON.stringify({ message: "please continue" }),
+          input: "please continue",
         }),
       },
     });
-    expect(streamEvents[5]).toMatchObject({
+    expect(completedToolEvent).toMatchObject({
       eventType: "tool_activity",
       data: {
         item: expect.objectContaining({
           itemType: "tool_activity",
           status: "completed",
-          output: JSON.stringify({ turn: 1, reply: "Fake response 1: PLEASE CONTINUE" }),
+          output: "Fake response 1: PLEASE CONTINUE",
         }),
       },
     });
@@ -190,12 +215,12 @@ describe("HarnessService contract", () => {
     expect(fullPage.items[2]).toMatchObject({
       itemType: "tool_activity",
       status: "started",
-      input: JSON.stringify({ message: "please continue" }),
+      input: "please continue",
     });
     expect(fullPage.items[4]).toMatchObject({
       itemType: "tool_activity",
       status: "completed",
-      output: JSON.stringify({ turn: 1, reply: "Fake response 1: PLEASE CONTINUE" }),
+      output: "Fake response 1: PLEASE CONTINUE",
     });
 
     const startedToolId = fullPage.items[2]?.timelineItemId;

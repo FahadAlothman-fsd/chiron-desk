@@ -3,7 +3,7 @@ import type {
   GetTransitionStartGateDetailsOutput,
 } from "@chiron/contracts/runtime/work-units";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Link, Outlet, createFileRoute, useRouterState } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
 
 import { RuntimeStartGateDialog } from "@/components/runtime/runtime-start-gate-dialog";
@@ -11,6 +11,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
+import { showSingletonAutoAttachWarnings } from "@/features/projects/singleton-auto-attach-warning-toast";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -78,8 +79,12 @@ export const Route = createFileRoute("/projects/$projectId/work-units/$projectWo
 
 export function ProjectWorkUnitOverviewRoute() {
   const { projectId, projectWorkUnitId } = Route.useParams();
+  const navigate = Route.useNavigate();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
   const { orpc, queryClient } = Route.useRouteContext();
   const [startGateSelection, setStartGateSelection] = useState<StartGateSelection | null>(null);
+  const basePath = `/projects/${projectId}/work-units/${projectWorkUnitId}`;
+  const isNestedWorkUnitRoute = pathname !== basePath;
 
   const runtimeWorkUnitOverviewQuery = useQuery({
     ...orpc.project.getRuntimeWorkUnitOverview.queryOptions({
@@ -144,7 +149,17 @@ export function ProjectWorkUnitOverviewRoute() {
 
   const startTransitionExecutionMutation = useMutation(
     orpc.project.startTransitionExecution.mutationOptions({
-      onSuccess: async () => {
+      onSuccess: async (result) => {
+        showSingletonAutoAttachWarnings({
+          warnings: result?.warnings,
+          onOpenWorkUnits: () => {
+            void navigate({
+              to: "/projects/$projectId/work-units",
+              params: { projectId },
+              search: { q: "" },
+            });
+          },
+        });
         await refreshRuntimeWorkUnit();
       },
       onError(error) {
@@ -155,7 +170,17 @@ export function ProjectWorkUnitOverviewRoute() {
 
   const switchActiveTransitionExecutionMutation = useMutation(
     orpc.project.switchActiveTransitionExecution.mutationOptions({
-      onSuccess: async () => {
+      onSuccess: async (result) => {
+        showSingletonAutoAttachWarnings({
+          warnings: result?.warnings,
+          onOpenWorkUnits: () => {
+            void navigate({
+              to: "/projects/$projectId/work-units",
+              params: { projectId },
+              search: { q: "" },
+            });
+          },
+        });
         await refreshRuntimeWorkUnit();
       },
       onError(error) {
@@ -380,11 +405,13 @@ export function ProjectWorkUnitOverviewRoute() {
         { label: overview?.workUnit.workUnitTypeName ?? projectWorkUnitId },
       ]}
     >
-      {runtimeWorkUnitOverviewQuery.isLoading ? (
+      {isNestedWorkUnitRoute ? (
+        <Outlet />
+      ) : runtimeWorkUnitOverviewQuery.isLoading ? (
         <Skeleton className="h-56 w-full rounded-none" />
       ) : null}
 
-      {overview ? (
+      {!isNestedWorkUnitRoute && overview ? (
         <>
           <section className="chiron-frame-flat chiron-tone-navigation space-y-4 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -694,20 +721,22 @@ export function ProjectWorkUnitOverviewRoute() {
         </>
       ) : null}
 
-      <RuntimeStartGateDialog
-        open={startGateSelection !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setStartGateSelection(null);
-          }
-        }}
-        detail={(startGateQuery.data as GetTransitionStartGateDetailsOutput | null) ?? null}
-        isLoading={startGateQuery.isLoading}
-        errorMessage={startGateErrorMessage}
-        onLaunch={handleLaunchTransition}
-        isLaunching={isLaunchingTransition}
-        launchLabel={launchLabel}
-      />
+      {!isNestedWorkUnitRoute ? (
+        <RuntimeStartGateDialog
+          open={startGateSelection !== null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setStartGateSelection(null);
+            }
+          }}
+          detail={(startGateQuery.data as GetTransitionStartGateDetailsOutput | null) ?? null}
+          isLoading={startGateQuery.isLoading}
+          errorMessage={startGateErrorMessage}
+          onLaunch={handleLaunchTransition}
+          isLaunching={isLaunchingTransition}
+          launchLabel={launchLabel}
+        />
+      ) : null}
     </MethodologyWorkspaceShell>
   );
 }

@@ -50,6 +50,8 @@ export interface FactSchemaRow {
   factType: string;
   cardinality: string | null;
   description: string | null;
+  linkTypeDefinitionId?: string | null;
+  targetWorkUnitDefinitionId?: string | null;
   defaultValueJson: unknown;
   guidanceJson: unknown;
   validationJson: unknown;
@@ -93,6 +95,9 @@ export interface TransitionWorkflowBindingRow {
   transitionKey: string;
   workflowId: string;
   workflowKey: string | null;
+  workflowName: string | null;
+  workflowDescription: string | null;
+  workflowHumanGuidance: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

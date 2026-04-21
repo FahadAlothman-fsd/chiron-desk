@@ -4,7 +4,6 @@ import type {
   FactValidation,
   PathValidationConfig,
 } from "@chiron/contracts/methodology/fact";
-import type { WorkflowContextFactDto } from "@chiron/contracts/methodology/workflow";
 import type {
   RuntimeFactCrudError,
   RuntimeFactCrudVerb,
@@ -40,6 +39,14 @@ export interface RuntimeManualFactCrudResult {
   readonly verb: RuntimeFactCrudVerb;
   readonly affectedCount: number;
   readonly affectedInstanceIds: readonly string[];
+}
+
+export interface NormalizeWorkflowContextFactValueInput {
+  readonly projectId: string;
+  readonly methodologyVersionId: string;
+  readonly workflowWorkUnitTypeId: string;
+  readonly definition: CanonicalWorkflowContextFactDefinition;
+  readonly value: unknown;
 }
 
 export type RuntimeManualFactCrudInput =
@@ -631,11 +638,396 @@ const parseWorkUnitDraftSpecFactValue = (
   });
 };
 
+const normalizeDraftArtifactEntries = (
+  value: unknown,
+): ParsedWorkUnitDraftSpecFactValue["artifactValues"] => {
+  if (typeof value === "string") {
+    return [{ relativePath: value, clear: false, slotDefinitionId: "" }];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => normalizeDraftArtifactEntries(entry));
+  }
+
+  if (!isRecord(value)) {
+    return [];
+  }
+
+  if (Array.isArray(value.files)) {
+    return value.files.flatMap((entry) => normalizeDraftArtifactEntries(entry));
+  }
+
+  if (typeof value.relativePath === "string") {
+    return [
+      {
+        relativePath: value.relativePath,
+        ...(typeof value.sourceContextFactDefinitionId === "string"
+          ? { sourceContextFactDefinitionId: value.sourceContextFactDefinitionId }
+          : {}),
+        clear: value.clear === true,
+        slotDefinitionId: "",
+      },
+    ];
+  }
+
+  return [];
+};
+
+const toDraftSpecKeyedPayload = (params: {
+  readonly value: unknown;
+  readonly definition: Extract<
+    CanonicalWorkflowContextFactDefinition,
+    { kind: "work_unit_draft_spec_fact" }
+  >;
+  readonly selectedFactDefinitions: readonly { id: string; key: string }[];
+  readonly selectedArtifactDefinitions: readonly { id: string; key: string }[];
+}): Effect.Effect<ParsedWorkUnitDraftSpecFactValue, RuntimeFactValidationError> => {
+  if (!isRecord(params.value)) {
+    return Effect.fail(
+      toValidationError(
+        params.definition.kind,
+        "Work-unit draft spec facts require a canonical payload or selected fact/artifact keys.",
+      ),
+    );
+  }
+
+  const selectedFactByKey = new Map(
+    params.selectedFactDefinitions.map((definition) => [definition.key, definition.id] as const),
+  );
+  const selectedArtifactByKey = new Map(
+    params.selectedArtifactDefinitions.map(
+      (definition) => [definition.key, definition.id] as const,
+    ),
+  );
+
+  const factValues: ParsedWorkUnitDraftSpecFactValue["factValues"] = [];
+  const artifactValues: ParsedWorkUnitDraftSpecFactValue["artifactValues"] = [];
+  const unexpectedKeys: string[] = [];
+
+  for (const [key, entry] of Object.entries(params.value)) {
+    const factDefinitionId = selectedFactByKey.get(key);
+    if (factDefinitionId) {
+      factValues.push({ workUnitFactDefinitionId: factDefinitionId, value: entry });
+      continue;
+    }
+
+    const slotDefinitionId = selectedArtifactByKey.get(key);
+    if (slotDefinitionId) {
+      const normalizedEntries = normalizeDraftArtifactEntries(entry);
+      if (normalizedEntries.length === 0) {
+        return Effect.fail(
+          toValidationError(
+            params.definition.kind,
+            `Artifact '${key}' must be a relative path string, an artifact entry, or a files array.`,
+          ),
+        );
+      }
+
+      artifactValues.push(
+        ...normalizedEntries.map((artifactValue) => ({
+          ...artifactValue,
+          slotDefinitionId,
+        })),
+      );
+      continue;
+    }
+
+    unexpectedKeys.push(key);
+  }
+
+  if (unexpectedKeys.length > 0) {
+    return Effect.fail(
+      toValidationError(
+        params.definition.kind,
+        `Draft spec contains unexpected key(s): ${unexpectedKeys.join(", ")}. Use only selected fact or artifact keys.`,
+      ),
+    );
+  }
+
+  return Effect.succeed({
+    workUnitDefinitionId: params.definition.workUnitDefinitionId,
+    factValues,
+    artifactValues,
+  });
+};
+
+const resolveBoundFactDefinition = (
+  deps: {
+    readonly methodologyRepo: Pick<MethodologyRepository["Type"], "findFactDefinitionsByVersionId">;
+    readonly lifecycleRepo: Pick<LifecycleRepository["Type"], "findFactSchemas">;
+  },
+  params: {
+    readonly methodologyVersionId: string;
+    readonly workflowWorkUnitTypeId: string;
+    readonly definition: Extract<CanonicalWorkflowContextFactDefinition, { kind: "bound_fact" }>;
+  },
+) =>
+  Effect.gen(function* () {
+    if (params.definition.valueType) {
+      return {
+        valueType: params.definition.valueType,
+        validationJson: undefined,
+      } satisfies PrimitiveDefinition;
+    }
+
+    const [projectDefinitions, workUnitDefinitions] = yield* Effect.all([
+      deps.methodologyRepo.findFactDefinitionsByVersionId(params.methodologyVersionId),
+      deps.lifecycleRepo.findFactSchemas(
+        params.methodologyVersionId,
+        params.workflowWorkUnitTypeId,
+      ),
+    ]);
+
+    const projectDefinition = projectDefinitions.find(
+      (candidate) =>
+        candidate.id === params.definition.factDefinitionId ||
+        candidate.key === params.definition.factDefinitionId,
+    );
+    if (projectDefinition) {
+      return {
+        valueType: normalizeFactType(projectDefinition.valueType),
+        validationJson: projectDefinition.validationJson,
+      } satisfies PrimitiveDefinition;
+    }
+
+    const workUnitDefinition = workUnitDefinitions.find(
+      (candidate) =>
+        candidate.id === params.definition.factDefinitionId ||
+        candidate.key === params.definition.factDefinitionId,
+    );
+    if (workUnitDefinition) {
+      return {
+        valueType: normalizeFactType(workUnitDefinition.factType),
+        validationJson: workUnitDefinition.validationJson,
+      } satisfies PrimitiveDefinition;
+    }
+
+    return yield* Effect.fail(
+      toCrudError(
+        "create",
+        `Bound fact '${params.definition.factDefinitionId}' could not be resolved.`,
+      ),
+    );
+  });
+
+export const normalizeWorkflowContextFactValue = (
+  deps: {
+    readonly methodologyRepo: Pick<
+      MethodologyRepository["Type"],
+      "findArtifactSlotsByWorkUnitType" | "findFactDefinitionsByVersionId"
+    >;
+    readonly lifecycleRepo: Pick<
+      LifecycleRepository["Type"],
+      "findFactSchemas" | "findWorkUnitTypes"
+    >;
+    readonly projectWorkUnitRepo: Pick<ProjectWorkUnitRepository["Type"], "getProjectWorkUnitById">;
+  },
+  params: NormalizeWorkflowContextFactValueInput,
+): Effect.Effect<unknown, RuntimeManualFactCrudServiceError> =>
+  Effect.gen(function* () {
+    switch (params.definition.kind) {
+      case "plain_fact":
+      case "plain_value_fact":
+        return yield* validateValueAgainstDefinition({
+          value: params.value,
+          definition: {
+            valueType: normalizeFactType(
+              getWorkflowContextFactValueType(params.definition) ?? "json",
+            ),
+            validationJson: params.definition.validationJson,
+          },
+        }).pipe(
+          Effect.mapError((error) => toValidationError(params.definition.kind, error.message)),
+        );
+      case "bound_fact": {
+        const envelope = yield* parseRuntimeFactInstanceValue(params.value, params.definition.kind);
+        const boundDefinition = yield* resolveBoundFactDefinition(deps, {
+          methodologyVersionId: params.methodologyVersionId,
+          workflowWorkUnitTypeId: params.workflowWorkUnitTypeId,
+          definition: params.definition,
+        });
+        const normalizedValue = yield* validateValueAgainstDefinition({
+          value: envelope.value,
+          definition: boundDefinition,
+        }).pipe(
+          Effect.mapError((error) => toValidationError(params.definition.kind, error.message)),
+        );
+        return { instanceId: envelope.instanceId, value: normalizedValue };
+      }
+      case "workflow_ref_fact": {
+        const normalized = yield* parseWorkflowRefFactValue(params.value, params.definition.kind);
+        if (
+          params.definition.allowedWorkflowDefinitionIds.length > 0 &&
+          !params.definition.allowedWorkflowDefinitionIds.includes(normalized.workflowDefinitionId)
+        ) {
+          return yield* Effect.fail(
+            toValidationError(
+              params.definition.kind,
+              `Workflow '${normalized.workflowDefinitionId}' is not allowed for this fact.`,
+            ),
+          );
+        }
+        return normalized;
+      }
+      case "artifact_slot_reference_fact": {
+        const normalized = yield* parseArtifactSlotReferenceFactValue(
+          params.value,
+          params.definition.kind,
+        );
+        if (normalized.slotDefinitionId !== params.definition.slotDefinitionId) {
+          return yield* Effect.fail(
+            toValidationError(
+              params.definition.kind,
+              `Artifact snapshot fact must target slot '${params.definition.slotDefinitionId}'.`,
+            ),
+          );
+        }
+        return normalized;
+      }
+      case "work_unit_reference_fact": {
+        if (!isRecord(params.value) || typeof params.value.projectWorkUnitId !== "string") {
+          return yield* Effect.fail(
+            toValidationError(
+              params.definition.kind,
+              "Work-unit reference facts require a projectWorkUnitId.",
+            ),
+          );
+        }
+
+        const referencedWorkUnit = yield* deps.projectWorkUnitRepo.getProjectWorkUnitById(
+          params.value.projectWorkUnitId,
+        );
+        if (!referencedWorkUnit || referencedWorkUnit.projectId !== params.projectId) {
+          return yield* Effect.fail(
+            toValidationError(
+              params.definition.kind,
+              `Referenced work unit '${params.value.projectWorkUnitId}' does not exist in the project.`,
+            ),
+          );
+        }
+
+        return { projectWorkUnitId: params.value.projectWorkUnitId };
+      }
+      case "work_unit_draft_spec_fact": {
+        const targetWorkUnitType = (yield* deps.lifecycleRepo.findWorkUnitTypes(
+          params.methodologyVersionId,
+        )).find((candidate) => candidate.id === params.definition.workUnitDefinitionId);
+        if (!targetWorkUnitType) {
+          return yield* Effect.fail(
+            toValidationError(
+              params.definition.kind,
+              `Draft spec target work unit '${params.definition.workUnitDefinitionId}' could not be resolved.`,
+            ),
+          );
+        }
+
+        const availableFactDefinitions = yield* deps.lifecycleRepo.findFactSchemas(
+          params.methodologyVersionId,
+        );
+        const selectedFactIds = new Set(params.definition.selectedWorkUnitFactDefinitionIds);
+        const selectedArtifactIds = new Set(params.definition.selectedArtifactSlotDefinitionIds);
+        const selectedFactDefinitions = availableFactDefinitions
+          .filter((definition) => selectedFactIds.has(definition.id))
+          .map((definition) => ({ id: definition.id, key: definition.key }));
+        const selectedArtifactDefinitions =
+          (yield* deps.methodologyRepo.findArtifactSlotsByWorkUnitType({
+            versionId: params.methodologyVersionId,
+            workUnitTypeKey: targetWorkUnitType.key,
+          }))
+            .filter((definition) => selectedArtifactIds.has(definition.id))
+            .map((definition) => ({ id: definition.id, key: definition.key }));
+
+        const draftPayload =
+          isRecord(params.value) &&
+          typeof params.value.workUnitDefinitionId !== "string" &&
+          !Array.isArray(params.value.factValues) &&
+          !Array.isArray(params.value.artifactValues)
+            ? yield* toDraftSpecKeyedPayload({
+                value: params.value,
+                definition: params.definition,
+                selectedFactDefinitions,
+                selectedArtifactDefinitions,
+              })
+            : yield* parseWorkUnitDraftSpecFactValue(params.value, params.definition.kind);
+
+        if (draftPayload.workUnitDefinitionId !== params.definition.workUnitDefinitionId) {
+          return yield* Effect.fail(
+            toValidationError(
+              params.definition.kind,
+              `Draft spec must target work unit '${params.definition.workUnitDefinitionId}'.`,
+            ),
+          );
+        }
+
+        const factDefinitionsById = new Map(
+          availableFactDefinitions.map((definition) => [definition.id, definition] as const),
+        );
+
+        const normalizedFactValues = yield* Effect.forEach(draftPayload.factValues, (factValue) =>
+          Effect.gen(function* () {
+            if (!selectedFactIds.has(factValue.workUnitFactDefinitionId)) {
+              return yield* Effect.fail(
+                toValidationError(
+                  params.definition.kind,
+                  `Work-unit fact '${factValue.workUnitFactDefinitionId}' is not selectable for this draft spec.`,
+                ),
+              );
+            }
+
+            const factDefinition = factDefinitionsById.get(factValue.workUnitFactDefinitionId);
+            if (!factDefinition) {
+              return yield* Effect.fail(
+                toValidationError(
+                  params.definition.kind,
+                  `Work-unit fact '${factValue.workUnitFactDefinitionId}' could not be resolved.`,
+                ),
+              );
+            }
+
+            const value = yield* validateValueAgainstDefinition({
+              value: factValue.value,
+              definition: {
+                valueType: normalizeFactType(factDefinition.factType),
+                validationJson: factDefinition.validationJson,
+              },
+            }).pipe(
+              Effect.mapError((error) => toValidationError(params.definition.kind, error.message)),
+            );
+
+            return {
+              workUnitFactDefinitionId: factValue.workUnitFactDefinitionId,
+              value,
+            };
+          }),
+        );
+
+        for (const artifactValue of draftPayload.artifactValues) {
+          if (!selectedArtifactIds.has(artifactValue.slotDefinitionId)) {
+            return yield* Effect.fail(
+              toValidationError(
+                params.definition.kind,
+                `Artifact slot '${artifactValue.slotDefinitionId}' is not selectable for this draft spec.`,
+              ),
+            );
+          }
+        }
+
+        return {
+          ...draftPayload,
+          factValues: normalizedFactValues,
+        };
+      }
+    }
+  });
+
 export class RuntimeManualFactCrudService extends Context.Tag(
   "@chiron/workflow-engine/services/RuntimeManualFactCrudService",
 )<
   RuntimeManualFactCrudService,
   {
+    readonly normalizeWorkflowContextValue: (
+      input: NormalizeWorkflowContextFactValueInput,
+    ) => Effect.Effect<unknown, RuntimeManualFactCrudServiceError>;
     readonly apply: (
       input: RuntimeManualFactCrudInput,
     ) => Effect.Effect<RuntimeManualFactCrudResult, RuntimeManualFactCrudServiceError>;
@@ -759,56 +1151,6 @@ export const RuntimeManualFactCrudServiceLive = Layer.effect(
         }
 
         return { pin, workflowDetail, editor, workUnitType, definition };
-      });
-
-    const resolveBoundFactDefinition = (params: {
-      readonly methodologyVersionId: string;
-      readonly workflowWorkUnitTypeId: string;
-      readonly definition: Extract<WorkflowContextFactDto, { kind: "bound_fact" }>;
-    }) =>
-      Effect.gen(function* () {
-        if (params.definition.valueType) {
-          return {
-            valueType: params.definition.valueType,
-            validationJson: undefined,
-          } satisfies PrimitiveDefinition;
-        }
-
-        const [projectDefinitions, workUnitDefinitions] = yield* Effect.all([
-          methodologyRepo.findFactDefinitionsByVersionId(params.methodologyVersionId),
-          lifecycleRepo.findFactSchemas(params.methodologyVersionId, params.workflowWorkUnitTypeId),
-        ]);
-
-        const projectDefinition = projectDefinitions.find(
-          (candidate) =>
-            candidate.id === params.definition.factDefinitionId ||
-            candidate.key === params.definition.factDefinitionId,
-        );
-        if (projectDefinition) {
-          return {
-            valueType: normalizeFactType(projectDefinition.valueType),
-            validationJson: projectDefinition.validationJson,
-          } satisfies PrimitiveDefinition;
-        }
-
-        const workUnitDefinition = workUnitDefinitions.find(
-          (candidate) =>
-            candidate.id === params.definition.factDefinitionId ||
-            candidate.key === params.definition.factDefinitionId,
-        );
-        if (workUnitDefinition) {
-          return {
-            valueType: normalizeFactType(workUnitDefinition.factType),
-            validationJson: workUnitDefinition.validationJson,
-          } satisfies PrimitiveDefinition;
-        }
-
-        return yield* Effect.fail(
-          toCrudError(
-            "create",
-            `Bound fact '${params.definition.factDefinitionId}' could not be resolved.`,
-          ),
-        );
       });
 
     const normalizeWorkUnitReference = (value: unknown) => {
@@ -1374,12 +1716,20 @@ export const RuntimeManualFactCrudServiceLive = Layer.effect(
         });
 
         const normalizeValue = (value: unknown) =>
-          normalizeWorkflowContextValue({
-            methodologyVersionId: pin.methodologyVersionId,
-            workflowWorkUnitTypeId: workflowDetail.workUnitTypeId,
-            definition,
-            value,
-          });
+          normalizeWorkflowContextFactValue(
+            {
+              methodologyRepo,
+              lifecycleRepo,
+              projectWorkUnitRepo,
+            },
+            {
+              projectId: input.projectId,
+              methodologyVersionId: pin.methodologyVersionId,
+              workflowWorkUnitTypeId: workflowDetail.workUnitTypeId,
+              definition,
+              value,
+            },
+          );
 
         switch (payload.verb) {
           case "create": {
@@ -1498,6 +1848,21 @@ export const RuntimeManualFactCrudServiceLive = Layer.effect(
       }
     };
 
-    return RuntimeManualFactCrudService.of({ apply });
+    const normalizeWorkflowContextValueForService = (
+      input: NormalizeWorkflowContextFactValueInput,
+    ) =>
+      normalizeWorkflowContextFactValue(
+        {
+          methodologyRepo,
+          lifecycleRepo,
+          projectWorkUnitRepo,
+        },
+        input,
+      );
+
+    return RuntimeManualFactCrudService.of({
+      normalizeWorkflowContextValue: normalizeWorkflowContextValueForService,
+      apply,
+    });
   }),
 );

@@ -5,9 +5,10 @@ import React, { type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeConditionEvaluationTree } from "@chiron/contracts/runtime/conditions";
 
-const { useRouteContextMock, useParamsMock } = vi.hoisted(() => ({
+const { useRouteContextMock, useParamsMock, useNavigateMock } = vi.hoisted(() => ({
   useRouteContextMock: vi.fn(),
   useParamsMock: vi.fn(),
+  useNavigateMock: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -15,6 +16,7 @@ vi.mock("@tanstack/react-router", () => ({
     ...options,
     useRouteContext: useRouteContextMock,
     useParams: useParamsMock,
+    useNavigate: () => useNavigateMock,
   }),
   Link: ({ children, to, params, ...props }: any) => (
     <a href={String(to)} data-params={JSON.stringify(params ?? {})} {...props}>
@@ -401,6 +403,11 @@ async function renderHarness(initialDetail = buildDetail()) {
       },
       completeStepExecution: {
         mutationOptions: completeStepExecutionMutationOptionsMock,
+      },
+      activateWorkflowStepExecution: {
+        mutationOptions: vi.fn(() => ({
+          mutationFn: async () => ({ stepExecutionId: "step-next-1" }),
+        })),
       },
     },
   };

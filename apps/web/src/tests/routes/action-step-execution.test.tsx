@@ -10,9 +10,10 @@ process.env.VITE_SERVER_URL ??= "http://localhost:3000";
   VITE_SERVER_URL: "http://localhost:3000",
 };
 
-const { useRouteContextMock, useParamsMock, useSSEMock } = vi.hoisted(() => ({
+const { useRouteContextMock, useParamsMock, useNavigateMock, useSSEMock } = vi.hoisted(() => ({
   useRouteContextMock: vi.fn(),
   useParamsMock: vi.fn(),
+  useNavigateMock: vi.fn(),
   useSSEMock: vi.fn(),
 }));
 
@@ -21,6 +22,7 @@ vi.mock("@tanstack/react-router", () => ({
     ...options,
     useRouteContext: useRouteContextMock,
     useParams: useParamsMock,
+    useNavigate: () => useNavigateMock,
   }),
   Link: ({ children, to, params, ...props }: any) => (
     <a href={String(to)} data-params={JSON.stringify(params ?? {})} {...props}>
@@ -705,6 +707,11 @@ async function renderHarness(initialDetail = buildDetail()) {
         },
         completeActionStepExecution: {
           mutationOptions: completeStepExecutionMutationOptionsMock,
+        },
+        activateWorkflowStepExecution: {
+          mutationOptions: vi.fn(() => ({
+            mutationFn: async () => ({ stepExecutionId: "step-next-1" }),
+          })),
         },
       },
     },

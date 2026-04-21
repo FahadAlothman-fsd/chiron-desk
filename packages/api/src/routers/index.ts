@@ -22,6 +22,7 @@ import {
   ExecutionReadRepository,
   InvokeExecutionRepository,
   ProjectFactRepository,
+  WorkflowContextFactRepository,
   ProjectWorkUnitRepository,
   StepExecutionRepository,
   TransitionExecutionRepository,
@@ -48,6 +49,7 @@ export function createAppRouter(
     | TransitionExecutionRepository
     | WorkflowExecutionRepository
     | ProjectFactRepository
+    | WorkflowContextFactRepository
     | WorkUnitFactRepository
     | ArtifactRepository
     | BranchStepRuntimeRepository
@@ -72,18 +74,24 @@ export function createAppRouter(
     | ProjectContextService
   >;
   const runtimeServiceLayer = Layer.mergeAll(
-    runtimeRepoLayer,
-    repoLayer,
-    lifecycleRepoLayer,
-    projectContextRepoLayer,
-    OpencodeHarnessServiceLive,
+    WorkflowEngineRuntimeLive,
+    WorkflowEngineRuntimeStepServicesLive,
   ).pipe(
-    Layer.provideMerge(WorkflowEngineRuntimeLive),
-    Layer.provideMerge(WorkflowEngineRuntimeStepServicesLive),
+    Layer.provide(
+      Layer.mergeAll(
+        methodologyServiceLayer,
+        runtimeRepoLayer,
+        repoLayer,
+        lifecycleRepoLayer,
+        projectContextRepoLayer,
+        OpencodeHarnessServiceLive,
+      ),
+    ),
   ) as Layer.Layer<any>;
   const runtimeQueryServiceLayer = Layer.provide(
     WorkflowEngineRuntimeLive,
     Layer.mergeAll(
+      methodologyServiceLayer,
       runtimeRepoLayer,
       repoLayer,
       lifecycleRepoLayer,

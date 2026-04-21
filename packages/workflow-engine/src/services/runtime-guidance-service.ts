@@ -243,8 +243,17 @@ const toAvailableWorkflows = (
   bindingRows: readonly {
     readonly workflowId: string;
     readonly workflowKey: string | null;
+    readonly workflowName: string | null;
+    readonly workflowDescription: string | null;
+    readonly workflowHumanGuidance: string | null;
   }[],
-): Array<{ workflowId: string; workflowKey: string; workflowName: string }> =>
+): Array<{
+  workflowId: string;
+  workflowKey: string;
+  workflowName: string;
+  workflowDescription?: string;
+  workflowHumanGuidance?: string;
+}> =>
   bindingRows
     .filter(
       (row): row is { readonly workflowId: string; readonly workflowKey: string } =>
@@ -253,7 +262,9 @@ const toAvailableWorkflows = (
     .map((row) => ({
       workflowId: row.workflowId,
       workflowKey: row.workflowKey,
-      workflowName: row.workflowKey,
+      workflowName: row.workflowName ?? row.workflowKey,
+      ...(row.workflowDescription ? { workflowDescription: row.workflowDescription } : {}),
+      ...(row.workflowHumanGuidance ? { workflowHumanGuidance: row.workflowHumanGuidance } : {}),
     }));
 
 const isSingleCardinality = (cardinality: string): boolean =>

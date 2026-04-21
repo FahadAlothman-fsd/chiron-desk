@@ -254,6 +254,9 @@ const lifecycleLayer = Layer.succeed(LifecycleRepository, {
         transitionKey: "start_setup",
         workflowId: "wf-setup-project",
         workflowKey: "setup_project",
+        workflowName: "Setup Project",
+        workflowDescription: "Set up the project workspace and baseline runtime context.",
+        workflowHumanGuidance: "Review the setup checklist before launching.",
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -264,6 +267,9 @@ const lifecycleLayer = Layer.succeed(LifecycleRepository, {
         transitionKey: "start_setup",
         workflowId: "wf-unresolved",
         workflowKey: null,
+        workflowName: null,
+        workflowDescription: null,
+        workflowHumanGuidance: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -433,6 +439,8 @@ describe("RuntimeGuidanceService", () => {
           workflowId: string;
           workflowKey: string;
           workflowName: string;
+          workflowDescription?: string;
+          workflowHumanGuidance?: string;
         }>;
       };
     };
@@ -448,7 +456,9 @@ describe("RuntimeGuidanceService", () => {
       {
         workflowId: "wf-setup-project",
         workflowKey: "setup_project",
-        workflowName: "setup_project",
+        workflowName: "Setup Project",
+        workflowDescription: "Set up the project workspace and baseline runtime context.",
+        workflowHumanGuidance: "Review the setup checklist before launching.",
       },
     ]);
   });
@@ -480,6 +490,8 @@ describe("RuntimeGuidanceService", () => {
           workflowId: string;
           workflowKey: string;
           workflowName: string;
+          workflowDescription?: string;
+          workflowHumanGuidance?: string;
         }>;
       };
     };
@@ -495,7 +507,9 @@ describe("RuntimeGuidanceService", () => {
       {
         workflowId: "wf-setup-project",
         workflowKey: "setup_project",
-        workflowName: "setup_project",
+        workflowName: "Setup Project",
+        workflowDescription: "Set up the project workspace and baseline runtime context.",
+        workflowHumanGuidance: "Review the setup checklist before launching.",
       },
     ]);
   });

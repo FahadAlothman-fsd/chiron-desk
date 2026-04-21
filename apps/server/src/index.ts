@@ -5,6 +5,7 @@ import { HarnessExecutionError } from "@chiron/contracts/agent-step/errors";
 import type { ActionStepSseEnvelope, AgentStepSseEnvelope } from "@chiron/contracts/sse/envelope";
 import { env } from "@chiron/env/server";
 import { OpencodeHarnessServiceLive } from "@chiron/agent-runtime";
+import { MethodologyEngineL1Live } from "@chiron/methodology-engine";
 import {
   ActionStepEventStreamService,
   AgentStepEventStreamService,
@@ -38,6 +39,7 @@ import {
   createAgentStepExecutionStateRepoLayer,
   createAgentStepExecutionHarnessBindingRepoLayer,
   createAgentStepExecutionAppliedWriteRepoLayer,
+  createRuntimeWorkflowContextFactRepoLayer,
 } from "@chiron/db";
 import { Cause, Effect, Layer, Option, Stream } from "effect";
 
@@ -73,6 +75,12 @@ const runtimeRepoLayer = Layer.mergeAll(
   createAgentStepExecutionStateRepoLayer(db),
   createAgentStepExecutionHarnessBindingRepoLayer(db),
   createAgentStepExecutionAppliedWriteRepoLayer(db),
+  createRuntimeWorkflowContextFactRepoLayer(db),
+);
+
+const methodologyL1ServiceLayer = Layer.provide(
+  MethodologyEngineL1Live,
+  Layer.mergeAll(methodologyRepoLayer, lifecycleRepoLayer, projectContextRepoLayer),
 );
 
 const defaultRuntimeStepServiceLayer = Layer.provide(
@@ -82,6 +90,7 @@ const defaultRuntimeStepServiceLayer = Layer.provide(
     methodologyRepoLayer,
     lifecycleRepoLayer,
     projectContextRepoLayer,
+    methodologyL1ServiceLayer,
     OpencodeHarnessServiceLive,
   ),
 ) as Layer.Layer<any>;
@@ -108,6 +117,7 @@ async function streamActionStepExecutionSse(
       }).pipe(Effect.provide(runtimeStepServiceLayer)),
     );
   } catch (error) {
+    console.error("Failed to start action-step SSE stream", error);
     await stream.writeSSE({
       event: "error",
       data: JSON.stringify({
@@ -139,6 +149,8 @@ async function streamActionStepExecutionSse(
     const failure = Cause.failureOption(exit.cause);
     const error = Option.isSome(failure) ? failure.value : Cause.squash(exit.cause);
 
+    console.error("Action-step SSE stream failed", error);
+
     await stream.writeSSE({
       event: "error",
       data: JSON.stringify({
@@ -169,6 +181,7 @@ async function streamAgentStepSessionSse(
       }).pipe(Effect.provide(runtimeStepServiceLayer)),
     );
   } catch (error) {
+    console.error("Failed to start agent-step SSE stream", error);
     await stream.writeSSE({
       event: "error",
       data: JSON.stringify({
@@ -202,6 +215,8 @@ async function streamAgentStepSessionSse(
   if (exit._tag === "Failure") {
     const failure = Cause.failureOption(exit.cause);
     const error = Option.isSome(failure) ? failure.value : Cause.squash(exit.cause);
+
+    console.error("Agent-step SSE stream failed", error);
 
     await stream.writeSSE({
       event: "error",

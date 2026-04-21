@@ -18,6 +18,7 @@ import {
 } from "@/components/runtime/runtime-guidance-sections";
 import { RuntimeStartGateDialog } from "@/components/runtime/runtime-start-gate-dialog";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
+import { showSingletonAutoAttachWarnings } from "@/features/projects/singleton-auto-attach-warning-toast";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -228,6 +229,7 @@ export function buildStartGateInput(
 
 export function ProjectTransitionsRoute() {
   const { projectId } = Route.useParams();
+  const navigate = Route.useNavigate();
   const { orpc, queryClient } = Route.useRouteContext();
 
   const activeGuidanceQueryOptions = useMemo(
@@ -395,7 +397,17 @@ export function ProjectTransitionsRoute() {
 
   const startTransitionExecutionMutation = useMutation(
     orpc.project.startTransitionExecution.mutationOptions({
-      onSuccess: async () => {
+      onSuccess: async (result) => {
+        showSingletonAutoAttachWarnings({
+          warnings: result?.warnings,
+          onOpenWorkUnits: () => {
+            void navigate({
+              to: "/projects/$projectId/work-units",
+              params: { projectId },
+              search: { q: "" },
+            });
+          },
+        });
         await refreshRuntimeGuidance();
       },
       onError(error) {
@@ -406,7 +418,17 @@ export function ProjectTransitionsRoute() {
 
   const switchActiveTransitionExecutionMutation = useMutation(
     orpc.project.switchActiveTransitionExecution.mutationOptions({
-      onSuccess: async () => {
+      onSuccess: async (result) => {
+        showSingletonAutoAttachWarnings({
+          warnings: result?.warnings,
+          onOpenWorkUnits: () => {
+            void navigate({
+              to: "/projects/$projectId/work-units",
+              params: { projectId },
+              search: { q: "" },
+            });
+          },
+        });
         await refreshRuntimeGuidance();
       },
       onError(error) {

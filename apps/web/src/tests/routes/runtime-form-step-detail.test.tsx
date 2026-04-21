@@ -4,19 +4,28 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { useRouteContextMock, useParamsMock } = vi.hoisted(() => ({
-  useRouteContextMock: vi.fn(),
-  useParamsMock: vi.fn(),
+vi.mock("@tanstack/react-router", () => ({
+  ...(() => {
+    const __routerMocks = {
+      useRouteContextMock: vi.fn(),
+      useParamsMock: vi.fn(),
+      useNavigateMock: vi.fn(),
+    };
+
+    return {
+      __routerMocks,
+      createFileRoute: () => (options: Record<string, unknown>) => ({
+        ...options,
+        useRouteContext: __routerMocks.useRouteContextMock,
+        useParams: __routerMocks.useParamsMock,
+        useNavigate: () => __routerMocks.useNavigateMock,
+      }),
+      Link: ({ children }: { children: ReactNode }) => <a href="/">{children}</a>,
+    };
+  })(),
 }));
 
-vi.mock("@tanstack/react-router", () => ({
-  createFileRoute: () => (options: Record<string, unknown>) => ({
-    ...options,
-    useRouteContext: useRouteContextMock,
-    useParams: useParamsMock,
-  }),
-  Link: ({ children }: { children: ReactNode }) => <a href="/">{children}</a>,
-}));
+import { __routerMocks } from "@tanstack/react-router";
 
 vi.mock("@/features/methodologies/workspace-shell", () => ({
   MethodologyWorkspaceShell: ({ title, children }: { title: string; children: ReactNode }) => (
@@ -305,6 +314,10 @@ function buildDetail(): any {
                 },
               ],
             },
+            lineage: {
+              previousStepExecutionId: undefined,
+              nextStepExecutionId: undefined,
+            },
           },
         ],
       },
@@ -474,6 +487,17 @@ async function renderHarness(params?: { currentDetail?: any }) {
       },
     }),
   );
+  const activateWorkflowStepExecutionCalls: Array<Record<string, unknown>> = [];
+  const activateWorkflowStepExecutionMutationOptionsMock = vi.fn(
+    (options?: { onSuccess?: (result: { stepExecutionId: string }) => Promise<void> | void }) => ({
+      mutationFn: async (input: Record<string, any>) => {
+        activateWorkflowStepExecutionCalls.push(input);
+        const result = { stepExecutionId: "step-2" };
+        await options?.onSuccess?.(result);
+        return result;
+      },
+    }),
+  );
 
   const orpc = {
     project: {
@@ -492,6 +516,9 @@ async function renderHarness(params?: { currentDetail?: any }) {
       completeStepExecution: {
         mutationOptions: completeStepExecutionMutationOptionsMock,
       },
+      activateWorkflowStepExecution: {
+        mutationOptions: activateWorkflowStepExecutionMutationOptionsMock,
+      },
     },
   };
 
@@ -502,11 +529,12 @@ async function renderHarness(params?: { currentDetail?: any }) {
     },
   });
 
-  useParamsMock.mockReturnValue({
+  __routerMocks.useParamsMock.mockReturnValue({
     projectId: "project-1",
     stepExecutionId: "step-1",
   });
-  useRouteContextMock.mockReturnValue({ orpc, queryClient });
+  __routerMocks.useNavigateMock.mockResolvedValue(undefined);
+  __routerMocks.useRouteContextMock.mockReturnValue({ orpc, queryClient });
 
   await queryClient.prefetchQuery({
     ...orpc.project.getRuntimeStepExecutionDetail.queryOptions({
@@ -526,6 +554,7 @@ async function renderHarness(params?: { currentDetail?: any }) {
     saveDraftCalls,
     submitCalls,
     completeCalls,
+    activateWorkflowStepExecutionCalls,
     getRuntimeStepExecutionDetailQueryOptionsMock,
   };
 }
@@ -575,7 +604,7 @@ describe("runtime form step detail route", () => {
     const user = userEvent.setup();
     await renderHarness();
 
-    await user.click(screen.getByRole("button", { name: "Add reference" }));
+    await user.click(screen.getByRole("button", { name: "Add value" }));
     await user.click(screen.getByRole("combobox", { name: "Existing project parts 2" }));
 
     const disabledOption = screen.getByRole("option", { name: /apps\/web/i });
@@ -585,7 +614,7 @@ describe("runtime form step detail route", () => {
     expect(enabledOption.getAttribute("data-disabled")).toBe("false");
   });
 
-  it("shows and clears unavailable bound external selections instead of hiding them behind placeholder text", async () => {
+  it("shows unavailable bound external selections and still allows switching to inline creation", async () => {
     const user = userEvent.setup();
     const detail = buildDetail();
 
@@ -615,14 +644,72 @@ describe("runtime form step detail route", () => {
       screen.getByRole("combobox", { name: "Existing repository type" }).textContent,
     ).toContain("fact-1");
     expect(screen.getByText("Current selection is unavailable")).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Create new" }).length).toBeGreaterThan(0);
 
-    await user.click(screen.getByRole("button", { name: "Clear unavailable selection" }));
+    await user.click(screen.getAllByRole("button", { name: "Create new" })[1]!);
     await user.click(screen.getByRole("button", { name: "Save draft" }));
 
     await waitFor(() => expect(saveDraftCalls).toHaveLength(1));
     expect(saveDraftCalls[0]).toMatchObject({
       values: {
-        existingRepositoryType: null,
+        existingRepositoryType: { value: null },
+      },
+    });
+  });
+
+  it("allows creating a new bound fact value inline when no existing instances are available", async () => {
+    const user = userEvent.setup();
+    const detail = buildDetail();
+
+    if (detail.body.stepType !== "form") {
+      throw new Error("expected form detail");
+    }
+
+    detail.body.page.fields = detail.body.page.fields.map((field: any) => {
+      if (field.fieldKey === "existingRepositoryType") {
+        return {
+          ...field,
+          widget: {
+            ...field.widget,
+            options: [],
+            emptyState:
+              "No eligible existing instances are available yet. Create the required fact first.",
+          },
+        };
+      }
+
+      return field;
+    });
+
+    const { saveDraftCalls } = await renderHarness({ currentDetail: detail });
+
+    await user.click(screen.getAllByRole("button", { name: "Create new" })[1]!);
+    const input = screen.getByRole("textbox", { name: "Existing repository type" });
+    await user.clear(input);
+    await user.type(input, "greenfield");
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    await waitFor(() => expect(saveDraftCalls).toHaveLength(1));
+    expect(saveDraftCalls[0]).toMatchObject({
+      values: {
+        existingRepositoryType: { value: "greenfield" },
+      },
+    });
+  });
+
+  it("preserves existing bound fact binding when selecting an available instance", async () => {
+    const user = userEvent.setup();
+    const { saveDraftCalls } = await renderHarness();
+
+    await user.click(screen.getAllByRole("button", { name: "Bind existing" })[1]!);
+    await user.click(screen.getByRole("combobox", { name: "Existing repository type" }));
+    await user.click(screen.getByRole("option", { name: "multi_part Repository type" }));
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    await waitFor(() => expect(saveDraftCalls).toHaveLength(1));
+    expect(saveDraftCalls[0]).toMatchObject({
+      values: {
+        existingRepositoryType: { factInstanceId: "fact-2" },
       },
     });
   });
@@ -726,7 +813,81 @@ describe("runtime form step detail route", () => {
     }) as HTMLButtonElement;
     expect(brainstormingToggle.getAttribute("disabled")).toBe("");
 
-    const addReferenceButton = screen.getByRole("button", { name: "Add reference" });
+    const addReferenceButton = screen.getByRole("button", { name: "Add value" });
     expect(addReferenceButton.getAttribute("disabled")).toBe("");
+  });
+
+  it("opens the next step directly when a completed step already has an active next step", async () => {
+    const user = userEvent.setup();
+    const detail = buildDetail();
+    if (detail.body.stepType !== "form") {
+      throw new Error("expected form detail");
+    }
+
+    detail.shell.status = "completed";
+    detail.shell.completedAt = "2026-04-01T12:49:08.000Z";
+    detail.shell.completionAction = {
+      kind: "complete_step_execution",
+      visible: false,
+      enabled: false,
+      reasonIfDisabled: "Step execution is already completed.",
+    };
+    detail.body.lineage = {
+      previousStepExecutionId: undefined,
+      nextStepExecutionId: "step-2",
+    };
+    detail.body.nextStep = {
+      state: "active",
+      nextStepDefinitionId: "def-form-2",
+      nextStepExecutionId: "step-2",
+    };
+
+    await renderHarness({ currentDetail: detail });
+
+    await user.click(screen.getByRole("button", { name: "Open next step" }));
+
+    expect(__routerMocks.useNavigateMock).toHaveBeenCalledWith({
+      to: "/projects/$projectId/step-executions/$stepExecutionId",
+      params: { projectId: "project-1", stepExecutionId: "step-2" },
+    });
+  });
+
+  it("activates then opens the next step when a completed step has an inactive next step", async () => {
+    const user = userEvent.setup();
+    const detail = buildDetail();
+    if (detail.body.stepType !== "form") {
+      throw new Error("expected form detail");
+    }
+
+    detail.shell.status = "completed";
+    detail.shell.completedAt = "2026-04-01T12:49:08.000Z";
+    detail.shell.completionAction = {
+      kind: "complete_step_execution",
+      visible: false,
+      enabled: false,
+      reasonIfDisabled: "Step execution is already completed.",
+    };
+    detail.body.lineage = {
+      previousStepExecutionId: undefined,
+      nextStepExecutionId: undefined,
+    };
+    detail.body.nextStep = {
+      state: "inactive",
+      nextStepDefinitionId: "def-form-2",
+    };
+
+    const { activateWorkflowStepExecutionCalls } = await renderHarness({ currentDetail: detail });
+
+    await user.click(screen.getByRole("button", { name: "Activate and open next step" }));
+
+    await waitFor(() => expect(activateWorkflowStepExecutionCalls).toHaveLength(1));
+    expect(activateWorkflowStepExecutionCalls[0]).toEqual({
+      projectId: "project-1",
+      workflowExecutionId: "workflow-1",
+    });
+    expect(__routerMocks.useNavigateMock).toHaveBeenCalledWith({
+      to: "/projects/$projectId/step-executions/$stepExecutionId",
+      params: { projectId: "project-1", stepExecutionId: "step-2" },
+    });
   });
 });

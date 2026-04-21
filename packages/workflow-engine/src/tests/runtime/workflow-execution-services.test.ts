@@ -1,6 +1,9 @@
 import { Context, Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
+import { MethodologyVersionBoundaryService } from "@chiron/methodology-engine";
+import { ProjectContextRepository } from "@chiron/project-context";
 
+import { BranchStepRuntimeRepository } from "../../repositories/branch-step-runtime-repository";
 import { ExecutionReadRepository } from "../../repositories/execution-read-repository";
 import { StepExecutionRepository } from "../../repositories/step-execution-repository";
 import { TransitionExecutionRepository } from "../../repositories/transition-execution-repository";
@@ -452,6 +455,110 @@ describe("WorkflowExecutionDetailService", () => {
           listWorkflowStepDefinitions: () => Effect.succeed([]),
           listWorkflowEdges: () => Effect.succeed([]),
         } as unknown as Context.Tag.Service<typeof StepExecutionRepository>),
+        Layer.succeed(BranchStepRuntimeRepository, {
+          createOnActivation: () => Effect.die("unused"),
+          saveSelection: () => Effect.die("unused"),
+          loadWithRoutes: () => Effect.succeed(null),
+        } as unknown as Context.Tag.Service<typeof BranchStepRuntimeRepository>),
+        Layer.succeed(ProjectContextRepository, {
+          findProjectPin: () =>
+            Effect.succeed({
+              projectId: "proj-1",
+              methodologyVersionId: "version-1",
+              methodologyId: "meth-1",
+              methodologyKey: "test-method",
+              publishedVersion: "v1",
+              actorId: null,
+              createdAt: new Date("2026-03-28T09:00:00.000Z"),
+              updatedAt: new Date("2026-03-28T09:00:00.000Z"),
+            }),
+          hasExecutionHistoryForRepin: () => Effect.succeed(false),
+          pinProjectMethodologyVersion: () => Effect.die("unused"),
+          repinProjectMethodologyVersion: () => Effect.die("unused"),
+          getProjectPinLineage: () => Effect.succeed([]),
+          createProject: () => Effect.die("unused"),
+          listProjects: () => Effect.succeed([]),
+          getProjectById: () => Effect.succeed(null),
+        } as unknown as Context.Tag.Service<typeof ProjectContextRepository>),
+        Layer.succeed(MethodologyVersionBoundaryService, {
+          getVersionWorkspaceSnapshot: () =>
+            Effect.succeed({
+              id: "version-1",
+              methodologyId: "meth-1",
+              version: "v1",
+              status: "active",
+              displayName: "Test",
+              workflows: [],
+              transitionWorkflowBindings: {},
+              guidance: undefined,
+              factDefinitions: [],
+              linkTypeDefinitions: [],
+              agentTypes: [],
+              transitions: [],
+              workUnitTypes: [
+                {
+                  id: "wut-1",
+                  key: "setup",
+                  displayName: "Setup",
+                  cardinality: "one_per_project",
+                  lifecycleStates: [
+                    {
+                      key: "state-a",
+                      displayName: "Activation",
+                    },
+                  ],
+                  lifecycleTransitions: [],
+                  factSchemas: [],
+                },
+              ],
+            }),
+          getVersionWorkspaceStats: () => Effect.die("unused"),
+          getAuthoringSnapshot: () => Effect.die("unused"),
+          createMethodology: () => Effect.die("unused"),
+          updateMethodology: () => Effect.die("unused"),
+          archiveMethodology: () => Effect.die("unused"),
+          listMethodologies: () => Effect.die("unused"),
+          getMethodologyDetails: () => Effect.die("unused"),
+          createDraftVersion: () => Effect.die("unused"),
+          updateDraftVersion: () => Effect.die("unused"),
+          validateDraftVersion: () => Effect.die("unused"),
+          replaceDraftWorkflowSnapshot: () => Effect.die("unused"),
+          getDraftLineage: () => Effect.die("unused"),
+          publishDraftVersion: () => Effect.die("unused"),
+          getPublicationEvidence: () => Effect.die("unused"),
+          getPublishedContractByVersionAndWorkUnitType: () => Effect.die("unused"),
+          createFact: () => Effect.die("unused"),
+          updateFact: () => Effect.die("unused"),
+          deleteFact: () => Effect.die("unused"),
+          createDependencyDefinition: () => Effect.die("unused"),
+          updateDependencyDefinition: () => Effect.die("unused"),
+          deleteDependencyDefinition: () => Effect.die("unused"),
+          listWorkUnitWorkflows: () => Effect.die("unused"),
+          createWorkUnitWorkflow: () => Effect.die("unused"),
+          updateWorkUnitWorkflow: () => Effect.die("unused"),
+          deleteWorkUnitWorkflow: () => Effect.die("unused"),
+          replaceTransitionBindings: () => Effect.die("unused"),
+          deleteWorkUnit: () => Effect.die("unused"),
+          replaceWorkUnitFacts: () => Effect.die("unused"),
+          upsertWorkUnitLifecycleState: () => Effect.die("unused"),
+          deleteWorkUnitLifecycleState: () => Effect.die("unused"),
+          upsertWorkUnitLifecycleTransition: () => Effect.die("unused"),
+          saveWorkUnitLifecycleTransitionDialog: () => Effect.die("unused"),
+          deleteWorkUnitLifecycleTransition: () => Effect.die("unused"),
+          replaceWorkUnitTransitionConditionSets: () => Effect.die("unused"),
+          updateVersionMetadata: () => Effect.die("unused"),
+          createAgent: () => Effect.die("unused"),
+          updateAgent: () => Effect.die("unused"),
+          deleteAgent: () => Effect.die("unused"),
+          createWorkUnitMetadata: () => Effect.die("unused"),
+          updateWorkUnitMetadata: () => Effect.die("unused"),
+          updateDraftLifecycle: () => Effect.die("unused"),
+          getWorkUnitArtifactSlots: () => Effect.die("unused"),
+          createWorkUnitArtifactSlot: () => Effect.die("unused"),
+          updateWorkUnitArtifactSlot: () => Effect.die("unused"),
+          deleteWorkUnitArtifactSlot: () => Effect.die("unused"),
+          replaceWorkUnitArtifactSlots: () => Effect.die("unused"),
+        } as unknown as Context.Tag.Service<typeof MethodologyVersionBoundaryService>),
         stepProgressionLayer,
       ),
     );
@@ -470,6 +577,14 @@ describe("WorkflowExecutionDetailService", () => {
     expect(result?.stepSurface).toEqual({
       state: "invalid_definition",
       reason: "missing_entry_step",
+    });
+    expect(result?.stepGraphRuntime).toEqual({ executions: [], branchSelections: [] });
+    expect(result?.workUnit).toMatchObject({
+      workUnitTypeId: "wut-1",
+      workUnitTypeKey: "setup",
+      workUnitTypeName: "Setup",
+      currentStateKey: "state-a",
+      currentStateLabel: "Activation",
     });
     expect(result?.workflowContextFacts).toEqual({ mode: "read_only_by_definition", groups: [] });
   });

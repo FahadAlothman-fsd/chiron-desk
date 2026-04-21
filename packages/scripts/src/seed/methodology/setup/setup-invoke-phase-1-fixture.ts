@@ -124,6 +124,7 @@ function buildSetupInvokePhase1FixtureSeedRows(
       setupWorkUnit: `seed:work-unit-fact:research:setup-work-unit:${methodologyVersionId}`,
       brainstormingWorkUnit: `seed:work-unit-fact:research:brainstorming-work-unit:${methodologyVersionId}`,
       researchTopic: `seed:work-unit-fact:research:research-topic:${methodologyVersionId}`,
+      researchGoals: `seed:work-unit-fact:research:research-goals:${methodologyVersionId}`,
     },
   } as const;
 
@@ -672,10 +673,10 @@ function buildSetupInvokePhase1FixtureSeedRows(
         sortOrder: 3,
       },
       {
-        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:draft-spec-selection:research:setup-work-unit`,
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:draft-spec-selection:research:research-goals`,
         draftSpecId: draftSpecId.research,
         selectionType: "fact",
-        definitionId: workUnitFactId.research.setupWorkUnit,
+        definitionId: workUnitFactId.research.researchGoals,
         sortOrder: 0,
       },
       {
@@ -1016,9 +1017,9 @@ function buildSetupInvokePhase1FixtureSeedRows(
         objective:
           "Write the minimum setup-owned outputs needed by the phase-1 invoke runtime seed: a project overview artifact reference, both setup follow-up booleans, a branch note, follow-up workflow references, at least one brainstorming draft spec, and at least one research draft spec. Traverse the existing repository first so the generated setup context reflects the real project.",
         instructionsMarkdown:
-          "Create a lightweight PROJECT_OVERVIEW artifact reference in `cf_project_overview_artifact`. Write `cf_setup_requires_brainstorming`, `cf_setup_requires_research`, `cf_setup_branch_note`, and the explicit workflow references in `cf_setup_followup_workflows`. Author at least one brainstorming draft-spec item in `cf_setup_brainstorming_draft_spec` with prefilled `desired_outcome` and `selected_direction`. Author at least one research draft-spec item in `cf_setup_research_draft_spec` with a prefilled `research_topic`. Traverse the existing repository before writing so the setup-owned context facts reflect the real project. Explicitly produce every write-set output this step owns: `cf_project_overview_artifact`, `cf_setup_requires_brainstorming`, `cf_setup_requires_research`, `cf_setup_branch_note`, `cf_setup_followup_workflows`, `cf_setup_brainstorming_draft_spec`, and `cf_setup_research_draft_spec`. Keep the flow lightweight and do not assume richer Plan-B-only payloads.",
+          "Create a lightweight PROJECT_OVERVIEW artifact reference in `cf_project_overview_artifact`. Write `cf_setup_requires_brainstorming`, `cf_setup_requires_research`, `cf_setup_branch_note`, and the explicit workflow references in `cf_setup_followup_workflows`. Author at least one brainstorming draft-spec item in `cf_setup_brainstorming_draft_spec` with prefilled `desired_outcome` and `selected_direction`. Author at least one research draft-spec item in `cf_setup_research_draft_spec` using only the selected draft-spec keys: prefill `research_topic`, optionally include `research_goals`, and do not include `setup_work_unit` because that binding is supplied by the invoke step at runtime. Traverse the existing repository before writing so the setup-owned context facts reflect the real project. Explicitly produce every write-set output this step owns: `cf_project_overview_artifact`, `cf_setup_requires_brainstorming`, `cf_setup_requires_research`, `cf_setup_branch_note`, `cf_setup_followup_workflows`, `cf_setup_brainstorming_draft_spec`, and `cf_setup_research_draft_spec`. Keep the flow lightweight and do not assume richer Plan-B-only payloads.",
         harness: "opencode",
-        agentKey: "Atlas (Plan Executor)",
+        agentKey: "Atlas - Plan Executor",
         modelJson: { provider: "opencode", model: "kimi-2.5" },
         completionRequirementsJson: [
           { contextFactDefinitionId: contextFactId.setup.projectOverviewArtifact },

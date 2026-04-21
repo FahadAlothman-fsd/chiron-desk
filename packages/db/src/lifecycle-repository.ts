@@ -20,6 +20,7 @@ import {
   methodologyAgentTypes,
   methodologyWorkflows,
   methodologyTransitionWorkflowBindings,
+  workUnitFactReferenceDefinitions,
   workUnitLifecycleStates,
   workUnitLifecycleTransitions,
   transitionConditionSets,
@@ -49,6 +50,18 @@ function extractMarkdown(value: unknown): string | null {
 function toMarkdownJson(value: unknown): { markdown: string } | null {
   const markdown = extractMarkdown(value);
   return markdown === null ? null : { markdown };
+}
+
+function extractHumanGuidanceMarkdown(value: unknown): string | null {
+  if (
+    value &&
+    typeof value === "object" &&
+    typeof (value as { human?: { markdown?: unknown } }).human?.markdown === "string"
+  ) {
+    return (value as { human: { markdown: string } }).human.markdown;
+  }
+
+  return null;
 }
 
 function dbEffect<A>(operation: string, fn: () => Promise<A>): Effect.Effect<A, RepositoryError> {
@@ -101,7 +114,23 @@ function toLifecycleTransitionRow(
   };
 }
 
-function toFactSchemaRow(row: typeof workUnitFactDefinitions.$inferSelect): FactSchemaRow {
+function toFactSchemaRow(row: {
+  id: string;
+  methodologyVersionId: string;
+  workUnitTypeId: string;
+  name: string | null;
+  key: string;
+  factType: string;
+  cardinality: string | null;
+  descriptionJson: unknown;
+  linkTypeDefinitionId: string | null;
+  targetWorkUnitDefinitionId: string | null;
+  defaultValueJson: unknown;
+  guidanceJson: unknown;
+  validationJson: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+}): FactSchemaRow {
   return {
     id: row.id,
     methodologyVersionId: row.methodologyVersionId,
@@ -111,6 +140,10 @@ function toFactSchemaRow(row: typeof workUnitFactDefinitions.$inferSelect): Fact
     factType: row.factType,
     cardinality: row.cardinality,
     description: extractMarkdown(row.descriptionJson),
+    ...(row.linkTypeDefinitionId ? { linkTypeDefinitionId: row.linkTypeDefinitionId } : {}),
+    ...(row.targetWorkUnitDefinitionId
+      ? { targetWorkUnitDefinitionId: row.targetWorkUnitDefinitionId }
+      : {}),
     defaultValueJson: row.defaultValueJson,
     guidanceJson: row.guidanceJson,
     validationJson: row.validationJson,
@@ -161,6 +194,9 @@ function toTransitionWorkflowBindingRow(row: {
   transitionKey: string;
   workflowId: string;
   workflowKey: string | null;
+  workflowName: string | null;
+  workflowDescriptionJson: unknown;
+  workflowGuidanceJson: unknown;
   createdAt: Date;
   updatedAt: Date;
 }): TransitionWorkflowBindingRow {
@@ -171,6 +207,9 @@ function toTransitionWorkflowBindingRow(row: {
     transitionKey: row.transitionKey,
     workflowId: row.workflowId,
     workflowKey: row.workflowKey,
+    workflowName: row.workflowName,
+    workflowDescription: extractMarkdown(row.workflowDescriptionJson),
+    workflowHumanGuidance: extractHumanGuidanceMarkdown(row.workflowGuidanceJson),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -264,8 +303,31 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
           conditions.push(eq(workUnitFactDefinitions.workUnitTypeId, workUnitTypeId));
         }
         const rows = await db
-          .select()
+          .select({
+            id: workUnitFactDefinitions.id,
+            methodologyVersionId: workUnitFactDefinitions.methodologyVersionId,
+            workUnitTypeId: workUnitFactDefinitions.workUnitTypeId,
+            name: workUnitFactDefinitions.name,
+            key: workUnitFactDefinitions.key,
+            factType: workUnitFactDefinitions.factType,
+            cardinality: workUnitFactDefinitions.cardinality,
+            descriptionJson: workUnitFactDefinitions.descriptionJson,
+            linkTypeDefinitionId: workUnitFactReferenceDefinitions.linkTypeDefinitionId,
+            targetWorkUnitDefinitionId: workUnitFactReferenceDefinitions.targetWorkUnitDefinitionId,
+            defaultValueJson: workUnitFactDefinitions.defaultValueJson,
+            guidanceJson: workUnitFactDefinitions.guidanceJson,
+            validationJson: workUnitFactDefinitions.validationJson,
+            createdAt: workUnitFactDefinitions.createdAt,
+            updatedAt: workUnitFactDefinitions.updatedAt,
+          })
           .from(workUnitFactDefinitions)
+          .leftJoin(
+            workUnitFactReferenceDefinitions,
+            eq(
+              workUnitFactReferenceDefinitions.workUnitFactDefinitionId,
+              workUnitFactDefinitions.id,
+            ),
+          )
           .where(and(...conditions))
           .orderBy(asc(workUnitFactDefinitions.key));
         return rows.map(toFactSchemaRow) as readonly FactSchemaRow[];
@@ -318,6 +380,9 @@ export function createLifecycleRepoLayer(db: DB): Layer.Layer<LifecycleRepositor
             transitionKey: workUnitLifecycleTransitions.transitionKey,
             workflowId: methodologyTransitionWorkflowBindings.workflowId,
             workflowKey: methodologyWorkflows.key,
+            workflowName: methodologyWorkflows.displayName,
+            workflowDescriptionJson: methodologyWorkflows.descriptionJson,
+            workflowGuidanceJson: methodologyWorkflows.guidanceJson,
             createdAt: methodologyTransitionWorkflowBindings.createdAt,
             updatedAt: methodologyTransitionWorkflowBindings.updatedAt,
           })

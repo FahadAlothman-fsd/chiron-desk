@@ -25,6 +25,7 @@ import {
   type RuntimeWorkflowStepDefinitionRow,
   type UpsertRuntimeFormStepExecutionStateParams,
 } from "../../repositories/step-execution-repository";
+import { ProjectWorkUnitRepository } from "../../repositories/project-work-unit-repository";
 import {
   InvokeWorkUnitExecutionService,
   InvokeWorkUnitExecutionServiceLive,
@@ -105,8 +106,16 @@ function createRuntime(options?: {
     defaultValueJson: unknown;
     guidanceJson: null;
     validationJson: unknown;
+    linkTypeDefinitionId?: string | null;
+    targetWorkUnitDefinitionId?: string | null;
     createdAt: Date;
     updatedAt: Date;
+  }>;
+  existingProjectWorkUnits?: ReadonlyArray<{
+    id: string;
+    projectId: string;
+    workUnitTypeId: string;
+    currentStateId: string | null;
   }>;
 }) {
   const invokeRoot: InvokeStepExecutionStateRow = {
@@ -118,7 +127,7 @@ function createRuntime(options?: {
   };
 
   const state: TestState = {
-    projectWorkUnits: [],
+    projectWorkUnits: [...(options?.existingProjectWorkUnits ?? [])],
     factInstances: [],
     artifactSnapshots: [],
     artifactSnapshotFiles: [],
@@ -523,6 +532,14 @@ function createRuntime(options?: {
       ),
   } as unknown as Context.Tag.Service<typeof InvokeExecutionRepository>);
 
+  const projectWorkUnitRepoLayer = Layer.succeed(ProjectWorkUnitRepository, {
+    createProjectWorkUnit: () => Effect.die("unused"),
+    listProjectWorkUnitsByProject: () => Effect.succeed(state.projectWorkUnits),
+    getProjectWorkUnitById: (projectWorkUnitId: string) =>
+      Effect.succeed(state.projectWorkUnits.find((row) => row.id === projectWorkUnitId) ?? null),
+    updateActiveTransitionExecutionPointer: () => Effect.succeed(null),
+  } as unknown as Context.Tag.Service<typeof ProjectWorkUnitRepository>);
+
   const dependencies = Layer.mergeAll(
     stepRepoLayer,
     readRepoLayer,
@@ -530,6 +547,7 @@ function createRuntime(options?: {
     lifecycleRepoLayer,
     methodologyRepoLayer,
     invokeRepoLayer,
+    projectWorkUnitRepoLayer,
   );
 
   const layer = Layer.provide(InvokeWorkUnitExecutionServiceLive, dependencies);
@@ -1029,5 +1047,110 @@ describe("InvokeWorkUnitExecutionService", () => {
     expect(runtime.state.invokeTarget.projectWorkUnitId).toBeNull();
     expect(runtime.state.invokeTarget.transitionExecutionId).toBeNull();
     expect(runtime.state.invokeTarget.workflowExecutionId).toBeNull();
+  });
+
+  it("auto-attaches singleton referenced work units during child work-unit creation", async () => {
+    const runtime = createRuntime({
+      existingProjectWorkUnits: [
+        {
+          id: "wu-parent-1",
+          projectId: "project-1",
+          workUnitTypeId: "wu-parent",
+          currentStateId: "state-parent-active",
+        },
+      ],
+      factSchemas: [
+        {
+          id: "fact-link",
+          methodologyVersionId: "version-1",
+          workUnitTypeId: "wu-child",
+          name: "Linked Setup",
+          key: "linked_setup",
+          factType: "work_unit",
+          cardinality: "one",
+          description: null,
+          defaultValueJson: null,
+          guidanceJson: null,
+          validationJson: null,
+          targetWorkUnitDefinitionId: "wu-parent",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+    });
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* InvokeWorkUnitExecutionService;
+        return yield* service.startInvokeWorkUnitTarget({
+          projectId: "project-1",
+          stepExecutionId: "step-exec-1",
+          invokeWorkUnitTargetExecutionId: "invoke-wu-target-1",
+          workflowDefinitionId: "wf-child-primary",
+        });
+      }).pipe(Effect.provide(runtime.layer)),
+    );
+
+    expect(result.result).toBe("started");
+    expect(runtime.state.factInstances).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          factDefinitionId: "fact-link",
+          valueJson: null,
+          referencedProjectWorkUnitId: "wu-parent-1",
+        }),
+      ]),
+    );
+  });
+
+  it("returns non-blocking warnings when singleton referenced work units cannot be auto-attached", async () => {
+    const runtime = createRuntime({
+      factSchemas: [
+        {
+          id: "fact-link",
+          methodologyVersionId: "version-1",
+          workUnitTypeId: "wu-child",
+          name: "Linked Setup",
+          key: "linked_setup",
+          factType: "work_unit",
+          cardinality: "one",
+          description: null,
+          defaultValueJson: null,
+          guidanceJson: null,
+          validationJson: null,
+          targetWorkUnitDefinitionId: "wu-parent",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+    });
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* InvokeWorkUnitExecutionService;
+        return yield* service.startInvokeWorkUnitTarget({
+          projectId: "project-1",
+          stepExecutionId: "step-exec-1",
+          invokeWorkUnitTargetExecutionId: "invoke-wu-target-1",
+          workflowDefinitionId: "wf-child-primary",
+        });
+      }).pipe(Effect.provide(runtime.layer)),
+    );
+
+    expect(result.result).toBe("started");
+    expect(result.warnings).toEqual([
+      expect.objectContaining({
+        code: "singleton_auto_attach_no_match",
+        factDefinitionId: "fact-link",
+        targetWorkUnitDefinitionId: "wu-parent",
+      }),
+    ]);
+    expect(runtime.state.projectWorkUnits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          workUnitTypeId: "wu-child",
+        }),
+      ]),
+    );
   });
 });

@@ -13,7 +13,9 @@ import { RepositoryError } from "../../errors";
 import { AgentStepExecutionHarnessBindingRepository } from "../../repositories/agent-step-execution-harness-binding-repository";
 import { AgentStepExecutionStateRepository } from "../../repositories/agent-step-execution-state-repository";
 import { ExecutionReadRepository } from "../../repositories/execution-read-repository";
+import { ProjectWorkUnitRepository } from "../../repositories/project-work-unit-repository";
 import { StepExecutionRepository } from "../../repositories/step-execution-repository";
+import { normalizeWorkflowContextFactValue } from "../runtime-manual-fact-crud-service";
 import { StepContextQueryService } from "../step-context-query-service";
 import { StepExecutionTransactionService } from "../step-execution-transaction-service";
 import {
@@ -53,6 +55,7 @@ export const AgentStepContextWriteServiceLive = Layer.effect(
   Effect.gen(function* () {
     const stepRepo = yield* StepExecutionRepository;
     const readRepo = yield* ExecutionReadRepository;
+    const projectWorkUnitRepo = yield* ProjectWorkUnitRepository;
     const projectContextRepo = yield* ProjectContextRepository;
     const lifecycleRepo = yield* LifecycleRepository;
     const methodologyRepo = yield* MethodologyRepository;
@@ -67,130 +70,209 @@ export const AgentStepContextWriteServiceLive = Layer.effect(
       return typeof stepExecutionId === "string" ? stepExecutionId : null;
     };
 
-    const writeContextValue = (input: WriteContextValueInput) =>
-      Effect.gen(function* () {
-        const hiddenStepExecutionId = resolveHiddenStepExecutionId(input);
+    const logWriteTrace = (phase: string, payload: Record<string, unknown>) =>
+      Effect.annotateLogs({ phase, ...payload })(Effect.logDebug("agent-step write trace"));
 
-        if (!hiddenStepExecutionId) {
-          return yield* new McpToolValidationError({
-            toolName: "write_context_value",
-            message: "write_context_value requires an internal step execution scope.",
+    const writeContextValue = Effect.fn("AgentStepContextWriteService.writeContextValue")(
+      function* (input: WriteContextValueInput) {
+        return yield* Effect.gen(function* () {
+          const hiddenStepExecutionId = resolveHiddenStepExecutionId(input);
+
+          if (!hiddenStepExecutionId) {
+            return yield* new McpToolValidationError({
+              toolName: "write_context_value",
+              message: "write_context_value requires an internal step execution scope.",
+            });
+          }
+
+          const context = yield* ensureAgentStepRuntimeContext(
+            {
+              stepRepo,
+              readRepo,
+              projectContextRepo,
+              lifecycleRepo,
+              methodologyRepo,
+              stateRepo,
+              bindingRepo,
+              contextQuery,
+            },
+            { stepExecutionId: hiddenStepExecutionId },
+          );
+
+          if (
+            context.runtimeState !== "active_idle" &&
+            context.runtimeState !== "active_streaming"
+          ) {
+            return yield* new AgentStepStateTransitionError({
+              fromState: context.runtimeState,
+              toState: context.runtimeState,
+              message: "Context writes are allowed only while the Agent session is active.",
+            });
+          }
+
+          const writeItem = context.writeItems.find(
+            (item) => item.writeItemId === input.writeItemId,
+          );
+          if (!writeItem) {
+            return yield* new McpToolValidationError({
+              toolName: "write_context_value",
+              message: `Write item '${input.writeItemId}' is not available for this Agent step.`,
+            });
+          }
+
+          const contextFactDefinition = context.contextFactById.get(
+            writeItem.contextFactDefinitionId,
+          );
+          if (!contextFactDefinition) {
+            return yield* new RepositoryError({
+              operation: "agent-step-context-write",
+              cause: new Error(
+                `Workflow context fact '${writeItem.contextFactDefinitionId}' was not found for the agent write item.`,
+              ),
+            });
+          }
+
+          yield* logWriteTrace("input", {
+            stepExecutionId: hiddenStepExecutionId,
+            workflowExecutionId: context.workflowDetail.workflowExecution.id,
+            writeItemId: writeItem.writeItemId,
+            contextFactDefinitionId: writeItem.contextFactDefinitionId,
+            contextFactKind: writeItem.contextFactKind,
+            valueJson: input.valueJson,
           });
-        }
 
-        const context = yield* ensureAgentStepRuntimeContext(
-          {
-            stepRepo,
-            readRepo,
-            projectContextRepo,
+          const rawCurrentValues = valueJsonToCurrentValues({
+            contextFactDefinitionId: writeItem.contextFactDefinitionId,
+            valueJson: input.valueJson,
+          });
+          if (rawCurrentValues.length === 0) {
+            return yield* new McpToolValidationError({
+              toolName: "write_context_value",
+              message: "write_context_value requires at least one non-empty value.",
+            });
+          }
+
+          if (contextFactDefinition.cardinality !== "many" && rawCurrentValues.length > 1) {
+            return yield* new McpToolValidationError({
+              toolName: "write_context_value",
+              message: `Context fact '${contextFactDefinition.key}' accepts only one value.`,
+            });
+          }
+
+          yield* logWriteTrace("raw_current_values", {
+            writeItemId: writeItem.writeItemId,
+            rawCurrentValues,
+          });
+
+          const currentValues = yield* resolveCurrentValues({
+            context,
+            writeItem,
+            contextFactDefinition,
+            rawCurrentValues,
+            artifactSnapshotService,
             lifecycleRepo,
             methodologyRepo,
-            stateRepo,
-            bindingRepo,
-            contextQuery,
-          },
-          { stepExecutionId: hiddenStepExecutionId },
-        );
-
-        if (context.runtimeState !== "active_idle" && context.runtimeState !== "active_streaming") {
-          return yield* new AgentStepStateTransitionError({
-            fromState: context.runtimeState,
-            toState: context.runtimeState,
-            message: "Context writes are allowed only while the Agent session is active.",
+            projectWorkUnitRepo,
           });
-        }
 
-        const writeItem = context.writeItems.find((item) => item.writeItemId === input.writeItemId);
-        if (!writeItem) {
-          return yield* new McpToolValidationError({
-            toolName: "write_context_value",
-            message: `Write item '${input.writeItemId}' is not available for this Agent step.`,
+          yield* logWriteTrace("normalized_current_values", {
+            writeItemId: writeItem.writeItemId,
+            currentValues,
           });
-        }
 
-        const rawCurrentValues = valueJsonToCurrentValues({
-          contextFactDefinitionId: writeItem.contextFactDefinitionId,
-          valueJson: input.valueJson,
-        });
-        if (rawCurrentValues.length === 0) {
-          return yield* new McpToolValidationError({
-            toolName: "write_context_value",
-            message: "write_context_value requires at least one non-empty value.",
-          });
-        }
+          const beforeExposedIds = new Set(
+            listExposedWriteItemIds({
+              writeItems: context.writeItems,
+              contextFacts: context.contextFacts,
+            }),
+          );
 
-        const currentValues = yield* resolveCurrentValues({
-          context,
-          writeItem,
-          rawCurrentValues,
-          artifactSnapshotService,
-        });
-
-        const beforeExposedIds = new Set(
-          listExposedWriteItemIds({
-            writeItems: context.writeItems,
+          const unsatisfiedRequirementIds = listUnsatisfiedRequirementIds({
+            writeItem,
             contextFacts: context.contextFacts,
-          }),
-        );
-
-        const unsatisfiedRequirementIds = listUnsatisfiedRequirementIds({
-          writeItem,
-          contextFacts: context.contextFacts,
-        });
-        if (unsatisfiedRequirementIds.length > 0) {
-          return yield* new McpWriteRequirementError({
-            toolName: "write_context_value",
-            writeItemId: writeItem.writeItemId,
-            unsatisfiedContextFactDefinitionIds: [...unsatisfiedRequirementIds],
-            message: `Write item '${writeItem.writeItemId}' is blocked until all required context facts exist.`,
           });
-        }
+          if (unsatisfiedRequirementIds.length > 0) {
+            return yield* new McpWriteRequirementError({
+              toolName: "write_context_value",
+              writeItemId: writeItem.writeItemId,
+              unsatisfiedContextFactDefinitionIds: [...unsatisfiedRequirementIds],
+              message: `Write item '${writeItem.writeItemId}' is blocked until all required context facts exist.`,
+            });
+          }
 
-        const applied = yield* tx.applyAgentStepWrite({
-          workflowExecutionId: context.workflowDetail.workflowExecution.id,
-          stepExecutionId: context.stepExecution.id,
-          writeItemId: writeItem.writeItemId,
-          contextFactDefinitionId: writeItem.contextFactDefinitionId,
-          contextFactKind: writeItem.contextFactKind,
-          currentValues,
-        });
-
-        const latestContextFacts = yield* contextQuery.listContextFacts(
-          context.workflowDetail.workflowExecution.id,
-        );
-        const afterExposedIds = new Set(
-          listExposedWriteItemIds({
-            writeItems: context.writeItems,
-            contextFacts: latestContextFacts,
-          }),
-        );
-
-        const newestAppliedWrite = applied.appliedWrites[0];
-        if (!newestAppliedWrite) {
-          return yield* new RepositoryError({
-            operation: "agent-step-context-write",
-            cause: new Error("No applied writes were persisted for the successful agent write."),
-          });
-        }
-
-        return {
-          output: {
-            status: "applied",
+          const applied = yield* tx.applyAgentStepWrite({
+            workflowExecutionId: context.workflowDetail.workflowExecution.id,
+            stepExecutionId: context.stepExecution.id,
             writeItemId: writeItem.writeItemId,
-            appliedWrite: {
-              appliedWriteId: newestAppliedWrite.id,
-              contextFactDefinitionId: newestAppliedWrite.contextFactDefinitionId,
-              appliedAt: toIso(newestAppliedWrite.createdAt)!,
-              valueJson: newestAppliedWrite.appliedValueJson,
-            },
-          } satisfies WriteContextValueOutput,
-          newlyExposedWriteItems: context.writeItems.filter(
-            (candidate) =>
-              afterExposedIds.has(candidate.writeItemId) &&
-              !beforeExposedIds.has(candidate.writeItemId),
+            contextFactDefinitionId: writeItem.contextFactDefinitionId,
+            contextFactKind: writeItem.contextFactKind,
+            currentValues,
+          });
+
+          const latestContextFacts = yield* contextQuery.listContextFacts(
+            context.workflowDetail.workflowExecution.id,
+          );
+          const afterExposedIds = new Set(
+            listExposedWriteItemIds({
+              writeItems: context.writeItems,
+              contextFacts: latestContextFacts,
+            }),
+          );
+
+          const newestAppliedWrite = applied.appliedWrites[0];
+          if (!newestAppliedWrite) {
+            return yield* new RepositoryError({
+              operation: "agent-step-context-write",
+              cause: new Error("No applied writes were persisted for the successful agent write."),
+            });
+          }
+
+          return {
+            output: {
+              status: "applied",
+              writeItemId: writeItem.writeItemId,
+              appliedWrite: {
+                appliedWriteId: newestAppliedWrite.id,
+                contextFactDefinitionId: newestAppliedWrite.contextFactDefinitionId,
+                appliedAt: toIso(newestAppliedWrite.createdAt)!,
+                valueJson: newestAppliedWrite.appliedValueJson,
+              },
+            } satisfies WriteContextValueOutput,
+            newlyExposedWriteItems: context.writeItems.filter(
+              (candidate) =>
+                afterExposedIds.has(candidate.writeItemId) &&
+                !beforeExposedIds.has(candidate.writeItemId),
+            ),
+          } satisfies AgentStepContextWriteResult;
+        }).pipe(
+          Effect.tap((result) =>
+            logWriteTrace("applied", {
+              writeItemId: result.output.writeItemId,
+              appliedWrite: result.output.appliedWrite,
+              newlyExposedWriteItemIds: result.newlyExposedWriteItems.map(
+                (item) => item.writeItemId,
+              ),
+            }),
           ),
-        } satisfies AgentStepContextWriteResult;
-      });
+          Effect.tapError((error) =>
+            Effect.annotateLogs({
+              toolName: "write_context_value",
+              writeItemId: input.writeItemId,
+              errorTag:
+                error && typeof error === "object" && "_tag" in error
+                  ? String((error as { _tag: unknown })._tag)
+                  : undefined,
+              errorMessage:
+                error instanceof Error
+                  ? error.message
+                  : error && typeof error === "object" && "message" in error
+                    ? String((error as { message: unknown }).message)
+                    : String(error),
+            })(Effect.logError("agent-step write failed")),
+          ),
+        );
+      },
+    );
 
     return AgentStepContextWriteService.of({ writeContextValue });
   }),
@@ -199,16 +281,63 @@ export const AgentStepContextWriteServiceLive = Layer.effect(
 function resolveCurrentValues(params: {
   context: AgentStepRuntimeResolvedContext;
   writeItem: AgentStepRuntimeWriteItem;
+  contextFactDefinition: NonNullable<
+    AgentStepRuntimeResolvedContext["contextFactById"] extends ReadonlyMap<string, infer T>
+      ? T
+      : never
+  >;
   rawCurrentValues: readonly {
     contextFactDefinitionId: string;
     instanceOrder: number;
     valueJson: unknown;
   }[];
   artifactSnapshotService: ArtifactSlotReferenceService["Type"];
+  lifecycleRepo: Pick<LifecycleRepository["Type"], "findFactSchemas" | "findWorkUnitTypes">;
+  methodologyRepo: Pick<
+    MethodologyRepository["Type"],
+    "findArtifactSlotsByWorkUnitType" | "findFactDefinitionsByVersionId"
+  >;
+  projectWorkUnitRepo: Pick<ProjectWorkUnitRepository["Type"], "getProjectWorkUnitById">;
 }) {
   return params.writeItem.contextFactKind === "artifact_slot_reference_fact"
     ? resolveArtifactReferenceValues(params)
-    : Effect.succeed(params.rawCurrentValues);
+    : Effect.forEach(params.rawCurrentValues, (value) =>
+        normalizeWorkflowContextFactValue(
+          {
+            methodologyRepo: params.methodologyRepo,
+            lifecycleRepo: params.lifecycleRepo,
+            projectWorkUnitRepo: params.projectWorkUnitRepo,
+          },
+          {
+            projectId: params.context.workflowDetail.projectId,
+            methodologyVersionId: params.context.projectPin.methodologyVersionId,
+            workflowWorkUnitTypeId: params.context.workUnitType.id,
+            definition: params.contextFactDefinition,
+            value: value.valueJson,
+          },
+        ).pipe(
+          Effect.map((normalizedValue) => ({
+            ...value,
+            valueJson: normalizedValue,
+          })),
+          Effect.mapError((error) => {
+            if (error && typeof error === "object" && "_tag" in error) {
+              const tag = String((error as { _tag: unknown })._tag);
+              if (tag === "RuntimeFactValidationError" || tag === "RuntimeFactCrudError") {
+                return new McpToolValidationError({
+                  toolName: "write_context_value",
+                  message:
+                    error && typeof error === "object" && "message" in error
+                      ? String((error as { message: unknown }).message)
+                      : "Invalid context-fact value.",
+                });
+              }
+            }
+
+            return error;
+          }),
+        ),
+      );
 }
 
 function resolveArtifactReferenceValues(params: {

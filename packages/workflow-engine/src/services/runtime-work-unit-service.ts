@@ -6,7 +6,7 @@ import type {
   GetWorkUnitsInput,
   GetWorkUnitsOutput,
 } from "@chiron/contracts/runtime/work-units";
-import { LifecycleRepository } from "@chiron/methodology-engine";
+import { LifecycleRepository, MethodologyVersionBoundaryService } from "@chiron/methodology-engine";
 import { ProjectContextRepository } from "@chiron/project-context";
 import { Context, Effect, Layer } from "effect";
 
@@ -365,6 +365,7 @@ export const RuntimeWorkUnitServiceLive = Layer.effect(
     const artifactRepository = yield* ArtifactRepository;
     const projectContextRepository = yield* ProjectContextRepository;
     const lifecycleRepository = yield* LifecycleRepository;
+    const methodologyVersionService = yield* MethodologyVersionBoundaryService;
 
     const getLifecycleLookups = (
       projectId: string,
@@ -431,7 +432,15 @@ export const RuntimeWorkUnitServiceLive = Layer.effect(
       input: GetWorkUnitsInput,
     ): Effect.Effect<GetWorkUnitsOutput, RepositoryError> =>
       Effect.gen(function* () {
-        const lookups = yield* getLifecycleLookups(input.projectId);
+        const [lookups, projectPin] = yield* Effect.all([
+          getLifecycleLookups(input.projectId),
+          projectContextRepository.findProjectPin(input.projectId),
+        ]);
+        const workspaceSnapshot = projectPin
+          ? yield* methodologyVersionService
+              .getVersionWorkspaceSnapshot(projectPin.methodologyVersionId)
+              .pipe(Effect.catchAll(() => Effect.succeed(null)))
+          : null;
         const projectWorkUnits = yield* projectWorkUnitRepository.listProjectWorkUnitsByProject(
           input.projectId,
         );
@@ -453,6 +462,10 @@ export const RuntimeWorkUnitServiceLive = Layer.effect(
                 (fact) => fact.referencedProjectWorkUnitId !== null,
               ).length;
               const identity = toWorkUnitIdentity(workUnit, lookups);
+              const workUnitTypeDefinition =
+                workspaceSnapshot?.workUnitTypes.find(
+                  (workUnitType) => workUnitType.id === workUnit.workUnitTypeId,
+                ) ?? null;
 
               return {
                 projectWorkUnitId: workUnit.id,
@@ -489,9 +502,9 @@ export const RuntimeWorkUnitServiceLive = Layer.effect(
                 summaries: {
                   factsDependencies: {
                     factInstancesCurrent: workUnitFacts.length,
-                    factDefinitionsTotal: new Set(
-                      workUnitFacts.map((fact) => fact.factDefinitionId),
-                    ).size,
+                    factDefinitionsTotal:
+                      workUnitTypeDefinition?.factSchemas.length ??
+                      new Set(workUnitFacts.map((fact) => fact.factDefinitionId)).size,
                     inboundDependencyCount: 0,
                     outboundDependencyCount: outboundDependencies,
                   },
@@ -615,8 +628,20 @@ export const RuntimeWorkUnitServiceLive = Layer.effect(
         const outboundDependencies = workUnitFacts.filter(
           (fact) => fact.referencedProjectWorkUnitId !== null,
         ).length;
-        const lookups = yield* getLifecycleLookups(input.projectId);
+        const [lookups, projectPin] = yield* Effect.all([
+          getLifecycleLookups(input.projectId),
+          projectContextRepository.findProjectPin(input.projectId),
+        ]);
+        const workspaceSnapshot = projectPin
+          ? yield* methodologyVersionService
+              .getVersionWorkspaceSnapshot(projectPin.methodologyVersionId)
+              .pipe(Effect.catchAll(() => Effect.succeed(null)))
+          : null;
         const identity = toWorkUnitIdentity(workUnit, lookups);
+        const workUnitTypeDefinition =
+          workspaceSnapshot?.workUnitTypes.find(
+            (candidate) => candidate.id === workUnit.workUnitTypeId,
+          ) ?? null;
 
         const activeTransition = transitionDetail
           ? toOptionalActiveTransition({
@@ -634,8 +659,9 @@ export const RuntimeWorkUnitServiceLive = Layer.effect(
           summaries: {
             factsDependencies: {
               factInstancesCurrent: workUnitFacts.length,
-              factDefinitionsTotal: new Set(workUnitFacts.map((fact) => fact.factDefinitionId))
-                .size,
+              factDefinitionsTotal:
+                workUnitTypeDefinition?.factSchemas.length ??
+                new Set(workUnitFacts.map((fact) => fact.factDefinitionId)).size,
               inboundDependencyCount: 0,
               outboundDependencyCount: outboundDependencies,
               target: {

@@ -31,6 +31,7 @@ vi.mock("@/components/ui/card", () => ({
   CardTitle: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   CardDescription: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   CardContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  CardFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock("@/components/ui/skeleton", () => ({
@@ -97,10 +98,55 @@ async function renderOverviewRoute() {
     }),
   }));
 
+  const getRuntimeGuidanceActiveQueryOptionsMock = vi.fn(
+    (_input?: { input: { projectId: string } }) => ({
+      queryKey: ["runtime-guidance-active", "project-1"],
+      queryFn: async () => ({
+        activeWorkUnitCards: [
+          {
+            projectWorkUnitId: "wu-1",
+            workUnitTypeId: "wut-1",
+            workUnitTypeKey: "seed:wut:setup:mver_bmad_v1_active",
+            workUnitTypeName: "Setup",
+            currentStateKey: "activation",
+            currentStateLabel: "Activation",
+            factSummary: { currentCount: 0, totalCount: 0 },
+            artifactSummary: { currentCount: 0, totalCount: 0 },
+            activeTransition: {
+              transitionExecutionId: "te-1",
+              transitionId: "t-1",
+              transitionKey: "seed:transition:setup:activation-to-done:mver_bmad_v1_active",
+              transitionName: "Setup Activation To Done Mver Bmad V1 Active",
+              toStateKey: "done",
+              toStateLabel: "Done",
+              status: "active",
+              readyForCompletion: true,
+            },
+            activePrimaryWorkflow: {
+              workflowExecutionId: "we-1",
+              workflowId: "wf-1",
+              workflowKey: "seed:workflow:setup:setup-project:mver_bmad_v1_active",
+              workflowName: "Setup Setup Project Mver Bmad V1 Active",
+              status: "active",
+            },
+            actions: {
+              primary: { kind: "open_workflow", workflowExecutionId: "we-1" },
+              openTransitionTarget: { transitionExecutionId: "te-1" },
+              openWorkflowTarget: { workflowExecutionId: "we-1" },
+            },
+          },
+        ],
+      }),
+    }),
+  );
+
   const orpc = {
     project: {
       getRuntimeOverview: {
         queryOptions: getRuntimeOverviewQueryOptionsMock,
+      },
+      getRuntimeGuidanceActive: {
+        queryOptions: getRuntimeGuidanceActiveQueryOptionsMock,
       },
     },
   };
@@ -119,13 +165,21 @@ async function renderOverviewRoute() {
     orpc.project.getRuntimeOverview.queryOptions({ input: { projectId: "project-1" } }),
   );
 
+  await queryClient.prefetchQuery(
+    orpc.project.getRuntimeGuidanceActive.queryOptions({ input: { projectId: "project-1" } }),
+  );
+
   const markup = renderToStaticMarkup(
     <QueryClientProvider client={queryClient}>
       <ProjectDashboardRoute />
     </QueryClientProvider>,
   );
 
-  return { markup, getRuntimeOverviewQueryOptionsMock };
+  return {
+    markup,
+    getRuntimeOverviewQueryOptionsMock,
+    getRuntimeGuidanceActiveQueryOptionsMock,
+  };
 }
 
 describe("runtime project overview route", () => {
@@ -133,23 +187,35 @@ describe("runtime project overview route", () => {
     vi.clearAllMocks();
   });
 
-  it("renders runtime-backed overview cards, active workflows, and guidance CTA", async () => {
-    const { markup, getRuntimeOverviewQueryOptionsMock } = await renderOverviewRoute();
+  it("renders runtime-backed overview cards, active guidance cards, and guidance CTA", async () => {
+    const { markup, getRuntimeOverviewQueryOptionsMock, getRuntimeGuidanceActiveQueryOptionsMock } =
+      await renderOverviewRoute();
 
     expect(markup).toContain("Fact types with instances");
     expect(markup).toContain("Work-unit types with instances");
     expect(markup).toContain("Active transitions");
-    expect(markup).toContain("Active workflows");
-    expect(markup).toContain("Document project");
-    expect(markup).toContain("WU.PROJECT_CONTEXT");
+    expect(markup).toContain("Active guidance");
+    expect(markup).toContain("Active transition");
+    expect(markup).toContain("Primary workflow");
+    expect(markup).toContain("Open transition detail");
+    expect(markup).toContain("Open workflow detail");
     expect(markup).toContain("Go to Guidance");
 
     expect(markup).toContain('href="/projects/$projectId/facts"');
     expect(markup).toContain('href="/projects/$projectId/work-units"');
     expect(markup).toContain('href="/projects/$projectId/transitions"');
+    expect(markup).toContain(
+      'href="/projects/$projectId/transition-executions/$transitionExecutionId"',
+    );
+    expect(markup).toContain(
+      'href="/projects/$projectId/workflow-executions/$workflowExecutionId"',
+    );
     expect(markup).not.toContain("Runtime Execution (Epic 3+)");
 
     expect(getRuntimeOverviewQueryOptionsMock).toHaveBeenCalledWith({
+      input: { projectId: "project-1" },
+    });
+    expect(getRuntimeGuidanceActiveQueryOptionsMock).toHaveBeenCalledWith({
       input: { projectId: "project-1" },
     });
   });

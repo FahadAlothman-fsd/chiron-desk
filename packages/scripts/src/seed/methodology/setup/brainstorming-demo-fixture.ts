@@ -1143,7 +1143,7 @@ function buildBrainstormingDemoFixtureSeedRows(
         instructionsMarkdown:
           "Use the captured brainstorming topic, mode, and constraints to facilitate ideation. Read the selected workflow references, methodology-backed JSON context, and upstream setup/research references as needed. Write the structured brainstorming summary JSON, the ready-for-synthesis flag, the brainstorming session artifact reference, and the research draft spec with artifacts when the session has converged.",
         harness: "opencode",
-        agentKey: "Carson (Brainstorming Specialist)",
+        agentKey: "Carson - Brainstorming Specialist",
         modelJson: null,
         completionRequirementsJson: [
           { contextFactDefinitionId: contextFactId("plain-json") },

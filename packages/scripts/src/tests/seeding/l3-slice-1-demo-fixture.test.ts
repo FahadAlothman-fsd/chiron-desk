@@ -91,7 +91,7 @@ describe("l3 slice-1 demo fixture", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, () =>
       expect.objectContaining({
         stepId: "seed:l3-slice-1:setup-project:mver_bmad_v1_active:step:synthesize-setup-handoff",
         harness: "opencode",
-        agentKey: "Atlas (Plan Executor)",
+        agentKey: "Atlas - Plan Executor",
         modelJson: null,
         completionRequirementsJson: [
           {

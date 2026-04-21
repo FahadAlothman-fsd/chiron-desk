@@ -1,10 +1,12 @@
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, Option } from "effect";
 import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-engine";
 import { ProjectContextRepository } from "@chiron/project-context";
 
 import { RepositoryError } from "../errors";
+import { ArtifactRepository } from "../repositories/artifact-repository";
 import { ExecutionReadRepository } from "../repositories/execution-read-repository";
 import { ProjectFactRepository } from "../repositories/project-fact-repository";
+import { ProjectWorkUnitRepository } from "../repositories/project-work-unit-repository";
 import { StepExecutionRepository } from "../repositories/step-execution-repository";
 import { WorkUnitFactRepository } from "../repositories/work-unit-fact-repository";
 import {
@@ -14,6 +16,12 @@ import {
 } from "./form-step-execution-service";
 import { InvokeCompletionService } from "./invoke-completion-service";
 import { InvokeTargetResolutionService } from "./invoke-target-resolution-service";
+import type { SingletonAutoAttachWarning } from "@chiron/contracts/runtime/executions";
+import {
+  resolveAutoAttachedProjectWorkUnit,
+  runtimeFactValueFromInstance,
+  toArtifactSlotReferenceValue,
+} from "./runtime-auto-attach";
 import { StepProgressionService } from "./step-progression-service";
 import { StepExecutionTransactionService } from "./step-execution-transaction-service";
 import { toCanonicalRuntimeBoundFactEnvelope } from "./runtime-bound-fact-value";
@@ -33,6 +41,7 @@ export interface ActivateWorkflowStepExecutionInput {
 
 export interface ActivateWorkflowStepExecutionOutput {
   stepExecutionId: string;
+  warnings?: readonly SingletonAutoAttachWarning[];
 }
 
 export type ActivateFirstWorkflowStepExecutionInput = ActivateWorkflowStepExecutionInput;
@@ -91,6 +100,8 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
     const lifecycleRepo = yield* LifecycleRepository;
     const projectFactRepo = yield* ProjectFactRepository;
     const workUnitFactRepo = yield* WorkUnitFactRepository;
+    const artifactRepo = yield* Effect.serviceOption(ArtifactRepository);
+    const projectWorkUnitRepo = yield* Effect.serviceOption(ProjectWorkUnitRepository);
     const branchRuntimeRepo = yield* BranchStepRuntimeRepository;
     const formExecution = yield* FormStepExecutionService;
     const invokeTargetResolution = yield* InvokeTargetResolutionService;
@@ -138,17 +149,6 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
         });
       });
 
-    const runtimeFactValueFromInstance = (params: {
-      valueJson: unknown;
-      referencedProjectWorkUnitId?: string | null;
-    }): unknown => {
-      if (typeof params.referencedProjectWorkUnitId === "string") {
-        return { projectWorkUnitId: params.referencedProjectWorkUnitId };
-      }
-
-      return params.valueJson;
-    };
-
     const prepopulateExternalContextFactsAtActivation = (params: {
       projectId: string;
       workflowExecutionId: string;
@@ -185,7 +185,6 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
 
         const externalContextFacts = workflowEditor.contextFacts.flatMap((fact) => {
           if (
-            fact.kind !== "bound_fact" ||
             typeof fact.contextFactDefinitionId !== "string" ||
             fact.cardinality !== "one" ||
             existingContextFactIds.has(fact.contextFactDefinitionId)
@@ -193,25 +192,56 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
             return [];
           }
 
-          return [
-            {
-              contextFactDefinitionId: fact.contextFactDefinitionId,
-              externalFactDefinitionId: fact.factDefinitionId,
-            },
-          ];
+          switch (fact.kind) {
+            case "bound_fact":
+              return [
+                {
+                  kind: fact.kind,
+                  contextFactDefinitionId: fact.contextFactDefinitionId,
+                  externalFactDefinitionId: fact.factDefinitionId,
+                  workUnitDefinitionId: fact.workUnitDefinitionId,
+                } as const,
+              ];
+            case "artifact_slot_reference_fact":
+              return [
+                {
+                  kind: fact.kind,
+                  contextFactDefinitionId: fact.contextFactDefinitionId,
+                  slotDefinitionId: fact.slotDefinitionId,
+                } as const,
+              ];
+            case "work_unit_reference_fact":
+              return [
+                {
+                  kind: fact.kind,
+                  contextFactDefinitionId: fact.contextFactDefinitionId,
+                  targetWorkUnitDefinitionId: fact.targetWorkUnitDefinitionId,
+                } as const,
+              ];
+            default:
+              return [];
+          }
         });
 
         if (externalContextFacts.length === 0) {
-          return;
+          return [] as readonly SingletonAutoAttachWarning[];
         }
 
-        const [factSchemas, factDefinitions, projectFactInstances, workUnitFactInstances] =
-          yield* Effect.all([
-            lifecycleRepo.findFactSchemas(projectPin.methodologyVersionId),
-            methodologyRepo.findFactDefinitionsByVersionId(projectPin.methodologyVersionId),
-            projectFactRepo.listFactsByProject({ projectId: params.projectId }),
-            workUnitFactRepo.listFactsByWorkUnit({ projectWorkUnitId: params.projectWorkUnitId }),
-          ]);
+        const [
+          factSchemas,
+          factDefinitions,
+          projectFactInstances,
+          workUnitFactInstances,
+          projectWorkUnits,
+        ] = yield* Effect.all([
+          lifecycleRepo.findFactSchemas(projectPin.methodologyVersionId),
+          methodologyRepo.findFactDefinitionsByVersionId(projectPin.methodologyVersionId),
+          projectFactRepo.listFactsByProject({ projectId: params.projectId }),
+          workUnitFactRepo.listFactsByWorkUnit({ projectWorkUnitId: params.projectWorkUnitId }),
+          Option.isSome(projectWorkUnitRepo)
+            ? projectWorkUnitRepo.value.listProjectWorkUnitsByProject(params.projectId)
+            : Effect.succeed([]),
+        ]);
 
         const factSchemasOrdered = [...factSchemas].sort((left, right) => {
           const leftPriority = left.workUnitTypeId === params.workUnitTypeId ? 0 : 1;
@@ -245,7 +275,76 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
           }
         }
 
+        const workUnitTypesById = new Map(workUnitTypes.map((entry) => [entry.id, entry] as const));
+        const warnings: SingletonAutoAttachWarning[] = [];
+
+        const boundFactTargetProjectWorkUnitIds = new Set(
+          externalContextFacts.flatMap((contextFact) => {
+            if (contextFact.kind !== "bound_fact" || !contextFact.workUnitDefinitionId) {
+              return [];
+            }
+
+            if (contextFact.workUnitDefinitionId === params.workUnitTypeId) {
+              return [params.projectWorkUnitId];
+            }
+
+            const resolution = resolveAutoAttachedProjectWorkUnit({
+              targetWorkUnitDefinitionId: contextFact.workUnitDefinitionId,
+              projectWorkUnits,
+              workUnitTypes: [...workUnitTypesById.values()],
+              excludedProjectWorkUnitIds: [params.projectWorkUnitId],
+              contextFactDefinitionId: contextFact.contextFactDefinitionId,
+            });
+
+            if (resolution.warning) {
+              warnings.push(resolution.warning);
+            }
+
+            return resolution.projectWorkUnitId ? [resolution.projectWorkUnitId] : [];
+          }),
+        );
+
+        const additionalWorkUnitFactInstances = new Map<string, typeof workUnitFactInstances>();
+        for (const projectWorkUnitId of boundFactTargetProjectWorkUnitIds) {
+          if (projectWorkUnitId === params.projectWorkUnitId) {
+            continue;
+          }
+
+          additionalWorkUnitFactInstances.set(
+            projectWorkUnitId,
+            yield* workUnitFactRepo.listFactsByWorkUnit({ projectWorkUnitId }),
+          );
+        }
+
         const currentValues = externalContextFacts.flatMap((contextFact) => {
+          if (contextFact.kind === "artifact_slot_reference_fact") {
+            return [];
+          }
+
+          if (contextFact.kind === "work_unit_reference_fact") {
+            const resolution = resolveAutoAttachedProjectWorkUnit({
+              targetWorkUnitDefinitionId: contextFact.targetWorkUnitDefinitionId,
+              projectWorkUnits,
+              workUnitTypes: [...workUnitTypesById.values()],
+              excludedProjectWorkUnitIds: [params.projectWorkUnitId],
+              contextFactDefinitionId: contextFact.contextFactDefinitionId,
+            });
+
+            if (resolution.warning) {
+              warnings.push(resolution.warning);
+            }
+
+            return resolution.projectWorkUnitId
+              ? [
+                  {
+                    contextFactDefinitionId: contextFact.contextFactDefinitionId,
+                    instanceOrder: 0,
+                    valueJson: { projectWorkUnitId: resolution.projectWorkUnitId },
+                  },
+                ]
+              : [];
+          }
+
           const externalBindingId = contextFact.externalFactDefinitionId;
 
           const workUnitFactSchemaById = factSchemasById.get(externalBindingId);
@@ -267,7 +366,30 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
               : undefined;
 
           if (workUnitFactSchema && workUnitFactSchema.cardinality === "one") {
-            const workUnitInstance = workUnitFactInstances.find(
+            const targetResolution = contextFact.workUnitDefinitionId
+              ? contextFact.workUnitDefinitionId === params.workUnitTypeId
+                ? { projectWorkUnitId: params.projectWorkUnitId, warning: null }
+                : resolveAutoAttachedProjectWorkUnit({
+                    targetWorkUnitDefinitionId: contextFact.workUnitDefinitionId,
+                    projectWorkUnits,
+                    workUnitTypes: [...workUnitTypesById.values()],
+                    excludedProjectWorkUnitIds: [params.projectWorkUnitId],
+                    contextFactDefinitionId: contextFact.contextFactDefinitionId,
+                  })
+              : { projectWorkUnitId: params.projectWorkUnitId, warning: null };
+
+            if (targetResolution.warning) {
+              warnings.push(targetResolution.warning);
+            }
+
+            const candidateFactInstances =
+              targetResolution.projectWorkUnitId === params.projectWorkUnitId
+                ? workUnitFactInstances
+                : targetResolution.projectWorkUnitId
+                  ? (additionalWorkUnitFactInstances.get(targetResolution.projectWorkUnitId) ?? [])
+                  : [];
+
+            const workUnitInstance = candidateFactInstances.find(
               (instance) => instance.factDefinitionId === workUnitFactSchema.id,
             );
 
@@ -313,18 +435,60 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
           ];
         });
 
-        if (currentValues.length === 0) {
-          return;
+        const artifactValues = yield* Effect.forEach(
+          externalContextFacts.filter(
+            (
+              contextFact,
+            ): contextFact is Extract<
+              (typeof externalContextFacts)[number],
+              { kind: "artifact_slot_reference_fact" }
+            > => contextFact.kind === "artifact_slot_reference_fact",
+          ),
+          (contextFact) =>
+            Effect.gen(function* () {
+              if (Option.isNone(artifactRepo)) {
+                return [] as const;
+              }
+
+              const currentArtifactState = yield* artifactRepo.value.getCurrentSnapshotBySlot({
+                projectWorkUnitId: params.projectWorkUnitId,
+                slotDefinitionId: contextFact.slotDefinitionId,
+              });
+
+              const valueJson = toArtifactSlotReferenceValue(
+                contextFact.slotDefinitionId,
+                currentArtifactState,
+              );
+              if (!valueJson) {
+                return [] as const;
+              }
+
+              return [
+                {
+                  contextFactDefinitionId: contextFact.contextFactDefinitionId,
+                  instanceOrder: 0,
+                  valueJson,
+                },
+              ] as const;
+            }),
+        ).pipe(Effect.map((entries) => entries.flat()));
+
+        const resolvedCurrentValues = [...currentValues, ...artifactValues];
+
+        if (resolvedCurrentValues.length === 0) {
+          return warnings;
         }
 
         yield* stepRepo.replaceWorkflowExecutionContextFacts({
           workflowExecutionId: params.workflowExecutionId,
           sourceStepExecutionId: null,
-          affectedContextFactDefinitionIds: currentValues.map(
+          affectedContextFactDefinitionIds: resolvedCurrentValues.map(
             (entry) => entry.contextFactDefinitionId,
           ),
-          currentValues,
+          currentValues: resolvedCurrentValues,
         });
+
+        return warnings;
       });
 
     const activateWorkflowStepExecution = (input: ActivateWorkflowStepExecutionInput) =>
@@ -333,7 +497,7 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
 
         const existing = yield* stepRepo.listStepExecutionsForWorkflow(input.workflowExecutionId);
         if (existing.length === 0) {
-          yield* prepopulateExternalContextFactsAtActivation({
+          const warnings = yield* prepopulateExternalContextFactsAtActivation({
             projectId: input.projectId,
             workflowExecutionId: input.workflowExecutionId,
             workflowDefinitionId: detail.workflowExecution.workflowId,
@@ -357,7 +521,7 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
             });
           }
 
-          return activated;
+          return warnings.length > 0 ? { ...activated, warnings } : activated;
         }
 
         const currentStepExecutionId = detail.workflowExecution.currentStepExecutionId;
@@ -371,7 +535,7 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
         }
 
         if (currentStepExecution.status === "active") {
-          yield* prepopulateExternalContextFactsAtActivation({
+          const warnings = yield* prepopulateExternalContextFactsAtActivation({
             projectId: input.projectId,
             workflowExecutionId: input.workflowExecutionId,
             workflowDefinitionId: detail.workflowExecution.workflowId,
@@ -389,7 +553,9 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
             });
           }
 
-          return { stepExecutionId: currentStepExecution.id };
+          return warnings.length > 0
+            ? { stepExecutionId: currentStepExecution.id, warnings }
+            : { stepExecutionId: currentStepExecution.id };
         }
 
         const nextStep = yield* progression.getNextStepDefinition({
