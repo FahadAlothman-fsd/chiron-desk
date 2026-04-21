@@ -23,6 +23,8 @@ import {
   type VersionWorkspaceStats,
   type WorkflowSnapshot,
   type DeleteWorkUnitTypeParams,
+  type CreateWorkUnitTypeParams,
+  type UpdateWorkUnitTypeParams,
   type ReplaceWorkUnitFactsParams,
   type ReplaceWorkUnitTransitionConditionSetsParams,
   type UpsertWorkUnitLifecycleStateParams,
@@ -4122,6 +4124,109 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
           await tx
             .delete(methodologyWorkUnitTypes)
             .where(eq(methodologyWorkUnitTypes.id, workUnitTypeId));
+          return true;
+        }),
+      ),
+
+    createWorkUnitType: ({ versionId, workUnitType }: CreateWorkUnitTypeParams) =>
+      dbEffect("methodology.createWorkUnitType", () =>
+        db.transaction(async (tx) => {
+          await tx.insert(methodologyWorkUnitTypes).values({
+            methodologyVersionId: versionId,
+            key: workUnitType.key,
+            displayName: workUnitType.displayName ?? null,
+            descriptionJson: workUnitType.description ?? null,
+            guidanceJson: workUnitType.guidance ?? null,
+            cardinality: workUnitType.cardinality ?? "many_per_project",
+          });
+          return true;
+        }),
+      ),
+
+    updateWorkUnitType: ({ versionId, workUnitTypeKey, workUnitType }: UpdateWorkUnitTypeParams) =>
+      dbEffect("methodology.updateWorkUnitType", () =>
+        db.transaction(async (tx) => {
+          const rows = await tx
+            .select({
+              id: methodologyWorkUnitTypes.id,
+              cardinality: methodologyWorkUnitTypes.cardinality,
+            })
+            .from(methodologyWorkUnitTypes)
+            .where(
+              and(
+                eq(methodologyWorkUnitTypes.methodologyVersionId, versionId),
+                eq(methodologyWorkUnitTypes.key, workUnitTypeKey),
+              ),
+            )
+            .limit(1);
+          const existing = rows[0];
+          if (!existing) {
+            return false;
+          }
+
+          await tx
+            .update(methodologyWorkUnitTypes)
+            .set({
+              key: workUnitType.key,
+              displayName: workUnitType.displayName ?? null,
+              descriptionJson: workUnitType.description ?? null,
+              guidanceJson: workUnitType.guidance ?? null,
+              cardinality: workUnitType.cardinality ?? existing.cardinality,
+            })
+            .where(eq(methodologyWorkUnitTypes.id, existing.id));
+
+          return true;
+        }),
+      ),
+
+    createWorkUnitType: ({ versionId, workUnitType }: CreateWorkUnitTypeParams) =>
+      dbEffect("methodology.createWorkUnitType", () =>
+        db.transaction(async (tx) => {
+          await tx.insert(methodologyWorkUnitTypes).values({
+            methodologyVersionId: versionId,
+            key: workUnitType.key,
+            displayName: workUnitType.displayName ?? null,
+            descriptionJson: workUnitType.description ?? null,
+            guidanceJson: workUnitType.guidance ?? null,
+            cardinality: workUnitType.cardinality ?? "many_per_project",
+          });
+
+          return true;
+        }),
+      ),
+
+    updateWorkUnitType: ({ versionId, workUnitTypeKey, workUnitType }: UpdateWorkUnitTypeParams) =>
+      dbEffect("methodology.updateWorkUnitType", () =>
+        db.transaction(async (tx) => {
+          const rows = await tx
+            .select({
+              id: methodologyWorkUnitTypes.id,
+              cardinality: methodologyWorkUnitTypes.cardinality,
+            })
+            .from(methodologyWorkUnitTypes)
+            .where(
+              and(
+                eq(methodologyWorkUnitTypes.methodologyVersionId, versionId),
+                eq(methodologyWorkUnitTypes.key, workUnitTypeKey),
+              ),
+            )
+            .limit(1);
+          const existing = rows[0];
+          if (!existing) {
+            return false;
+          }
+
+          await tx
+            .update(methodologyWorkUnitTypes)
+            .set({
+              key: workUnitType.key,
+              displayName: workUnitType.displayName ?? null,
+              descriptionJson: workUnitType.description ?? null,
+              guidanceJson: workUnitType.guidance ?? null,
+              cardinality: workUnitType.cardinality ?? existing.cardinality,
+            })
+            .where(eq(methodologyWorkUnitTypes.id, existing.id));
+
           return true;
         }),
       ),

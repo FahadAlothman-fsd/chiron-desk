@@ -12,7 +12,7 @@ import {
   VersionNotFoundError,
 } from "../errors";
 import { MethodologyVersionService } from "./methodology-version-service";
-import type { UpdateDraftLifecycleResult } from "./methodology-version-service";
+import type { UpdateDraftResult } from "../version-service";
 
 export class WorkUnitFactService extends Context.Tag("WorkUnitFactService")<
   WorkUnitFactService,
@@ -27,7 +27,7 @@ export class WorkUnitFactService extends Context.Tag("WorkUnitFactService")<
       input: ReplaceWorkUnitFactsInput,
       actorId: string | null,
     ) => Effect.Effect<
-      UpdateDraftLifecycleResult,
+      UpdateDraftResult,
       VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
     >;
   }
@@ -49,16 +49,9 @@ export const WorkUnitFactServiceLive = Layer.effect(
     const replaceForWorkUnitType = (input: ReplaceWorkUnitFactsInput, actorId: string | null) =>
       Effect.gen(function* () {
         const snapshot = yield* versionService.getAuthoringSnapshot(input.versionId);
-        const workUnitTypes = snapshot.workUnitTypes;
-        const agentTypes = snapshot.agentTypes;
-
-        const nextWorkUnitTypes = workUnitTypes.map((workUnit) =>
-          workUnit.key === input.workUnitTypeKey
-            ? { ...workUnit, factSchemas: input.facts }
-            : workUnit,
+        const found = snapshot.workUnitTypes.some(
+          (workUnit) => workUnit.key === input.workUnitTypeKey,
         );
-
-        const found = nextWorkUnitTypes.some((workUnit) => workUnit.key === input.workUnitTypeKey);
         if (!found) {
           return yield* new RepositoryError({
             operation: "workUnitFact.replaceForWorkUnitType",
@@ -66,11 +59,11 @@ export const WorkUnitFactServiceLive = Layer.effect(
           });
         }
 
-        return yield* versionService.updateDraftLifecycle(
+        return yield* versionService.replaceWorkUnitFacts(
           {
             versionId: input.versionId,
-            workUnitTypes: nextWorkUnitTypes,
-            agentTypes,
+            workUnitTypeKey: input.workUnitTypeKey,
+            facts: input.facts,
           },
           actorId,
         );

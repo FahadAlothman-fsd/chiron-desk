@@ -173,7 +173,7 @@ function createRouteContext(options?: {
             {
               key: "fact.input_path",
               name: "Input Path",
-              factType: "string",
+              valueType: "string",
               validation: { kind: "path", dependencyType: "depends_on" },
               guidance: {
                 human: { markdown: "Provide an input path." },
@@ -183,7 +183,7 @@ function createRouteContext(options?: {
             {
               key: "fact.contract_json",
               name: "Contract JSON",
-              factType: "json",
+              valueType: "json",
               validation: { kind: "json-schema" },
             },
           ],
@@ -2188,12 +2188,134 @@ describe("methodology version shell routes", () => {
         versionId: "draft-v2",
         workUnitTypeKey: "WU.TASK",
         fact: expect.objectContaining({
+          kind: "work_unit_reference_fact",
           key: "fact.upstream_unit",
-          factType: "work_unit",
           cardinality: "many",
         }),
       }),
       expect.anything(),
+    );
+  });
+
+  it("preserves allowed-values validation when creating work-unit facts", async () => {
+    const { MethodologyVersionWorkUnitDetailsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
+    const routeContext = createRouteContext();
+    useParamsMock.mockReturnValue({
+      methodologyId: "equity-core",
+      versionId: "draft-v2",
+      workUnitKey: "WU.TASK",
+    });
+    useSearchMock.mockReturnValue({ tab: "facts" });
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add Fact" }));
+    chooseOption("Fact Type", "string");
+    chooseOptionIn(screen.getByRole("dialog"), "Validation Type", "allowed-values");
+    fireEvent.change(screen.getByLabelText("Fact Key"), {
+      target: { value: "fact.allowed_status" },
+    });
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Allowed Status" },
+    });
+    fireEvent.change(screen.getByLabelText("Allowed value input"), {
+      target: { value: "ready" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add allowed value" }));
+    fireEvent.change(screen.getByLabelText("Allowed value input"), {
+      target: { value: "blocked" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add allowed value" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(routeContext.createWorkUnitFactMock).toHaveBeenCalledTimes(1);
+    });
+
+    expect(routeContext.createWorkUnitFactMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        versionId: "draft-v2",
+        workUnitTypeKey: "WU.TASK",
+        fact: expect.objectContaining({
+          key: "fact.allowed_status",
+          kind: "plain_fact",
+          type: "string",
+          validation: {
+            kind: "allowed-values",
+            values: ["ready", "blocked"],
+          },
+        }),
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("preserves JSON sub-schema key cardinality when creating work-unit facts", async () => {
+    const { MethodologyVersionWorkUnitDetailsRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey");
+    const routeContext = createRouteContext();
+    useParamsMock.mockReturnValue({
+      methodologyId: "equity-core",
+      versionId: "draft-v2",
+      workUnitKey: "WU.TASK",
+    });
+    useSearchMock.mockReturnValue({ tab: "facts" });
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    renderWithQueryClient(<MethodologyVersionWorkUnitDetailsRoute />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add Fact" }));
+    chooseOption("Fact Type", "json");
+    fireEvent.change(screen.getByLabelText("Fact Key"), {
+      target: { value: "fact.contract_json" },
+    });
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Contract JSON" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Add JSON Key" }));
+
+    const jsonSubKeyCard = screen
+      .getByLabelText("Key Display Name")
+      .closest(".space-y-4") as HTMLElement | null;
+    expect(jsonSubKeyCard).toBeTruthy();
+    chooseOptionIn(jsonSubKeyCard as HTMLElement, "Cardinality", "many");
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(routeContext.createWorkUnitFactMock).toHaveBeenCalledTimes(1);
+    });
+
+    const firstCreateCall = routeContext.createWorkUnitFactMock.mock.calls[0]?.[0] as
+      | {
+          fact?: {
+            validation?: {
+              kind?: string;
+              subSchema?: {
+                type?: string;
+                fields?: Array<{ key?: string; type?: string; cardinality?: string }>;
+              };
+            };
+          };
+        }
+      | undefined;
+
+    expect(firstCreateCall?.fact?.validation?.kind).toBe("json-schema");
+    expect(firstCreateCall?.fact?.validation?.subSchema).toEqual(
+      expect.objectContaining({
+        type: "object",
+        fields: expect.arrayContaining([
+          expect.objectContaining({
+            key: "field_1",
+            type: "string",
+            cardinality: "many",
+          }),
+        ]),
+      }),
     );
   });
 

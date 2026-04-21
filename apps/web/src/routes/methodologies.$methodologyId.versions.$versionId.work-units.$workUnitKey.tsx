@@ -494,6 +494,7 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
             const rawValidation = fact.validation as Record<string, unknown> | undefined;
             const rawPath = rawValidation?.path;
             const rawKind = rawValidation?.kind;
+            const isWorkUnitFact = fact.kind === "work_unit_reference_fact";
             const pathValidation =
               rawKind === "path" && rawPath && typeof rawPath === "object"
                 ? (rawPath as {
@@ -502,68 +503,70 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                     safety?: { disallowAbsolute?: boolean; preventTraversal?: boolean };
                   })
                 : undefined;
-            const apiValidation =
-              fact.factType === "work unit"
+            const apiValidation = isWorkUnitFact
+              ? {
+                  kind: "none" as const,
+                  ...(rawValidation?.dependencyType
+                    ? { dependencyType: String(rawValidation.dependencyType) }
+                    : {}),
+                  ...(rawValidation?.workUnitKey
+                    ? { workUnitKey: String(rawValidation.workUnitKey) }
+                    : {}),
+                }
+              : rawKind === "path" && pathValidation?.pathKind
                 ? {
-                    kind: "none" as const,
-                    ...(rawValidation?.dependencyType
-                      ? { dependencyType: String(rawValidation.dependencyType) }
-                      : {}),
-                    ...(rawValidation?.workUnitKey
-                      ? { workUnitKey: String(rawValidation.workUnitKey) }
-                      : {}),
+                    kind: "path" as const,
+                    path: {
+                      pathKind: pathValidation.pathKind,
+                      normalization: pathValidation.normalization,
+                      safety: pathValidation.safety,
+                    },
                   }
-                : rawKind === "path" && pathValidation?.pathKind
+                : rawKind === "allowed-values" && Array.isArray(rawValidation?.values)
                   ? {
-                      kind: "path" as const,
-                      path: {
-                        pathKind: pathValidation.pathKind,
-                        normalization: pathValidation.normalization,
-                        safety: pathValidation.safety,
-                      },
+                      kind: "allowed-values" as const,
+                      values: rawValidation.values,
                     }
                   : rawKind === "json-schema" && typeof rawValidation?.schemaDialect === "string"
                     ? {
                         kind: "json-schema" as const,
                         schemaDialect: rawValidation.schemaDialect,
                         schema: rawValidation.schema,
+                        ...(rawValidation?.subSchema ? { subSchema: rawValidation.subSchema } : {}),
                       }
                     : ({ kind: "none" } as const);
-            const apiFact =
-              fact.factType === "work unit"
-                ? {
-                    kind: "work_unit_reference_fact" as const,
-                    name: fact.name,
-                    key: fact.key ?? "",
-                    factType: "work_unit" as const,
-                    cardinality: fact.cardinality,
-                    guidance:
-                      humanGuidance.length > 0 || agentGuidance.length > 0
-                        ? {
-                            human: { markdown: humanGuidance },
-                            agent: { markdown: agentGuidance },
-                          }
-                        : undefined,
-                    description: { markdown: description },
-                    validation: apiValidation,
-                  }
-                : {
-                    kind: "plain_fact" as const,
-                    name: fact.name,
-                    key: fact.key ?? "",
-                    type: fact.factType as "string" | "number" | "boolean" | "json",
-                    factType: fact.factType as "string" | "number" | "boolean" | "json",
-                    cardinality: fact.cardinality,
-                    guidance:
-                      humanGuidance.length > 0 || agentGuidance.length > 0
-                        ? {
-                            human: { markdown: humanGuidance },
-                            agent: { markdown: agentGuidance },
-                          }
-                        : undefined,
-                    description: { markdown: description },
-                    validation: apiValidation,
-                  };
+            const apiFact = isWorkUnitFact
+              ? {
+                  kind: "work_unit_reference_fact" as const,
+                  name: fact.name,
+                  key: fact.key ?? "",
+                  cardinality: fact.cardinality,
+                  guidance:
+                    humanGuidance.length > 0 || agentGuidance.length > 0
+                      ? {
+                          human: { markdown: humanGuidance },
+                          agent: { markdown: agentGuidance },
+                        }
+                      : undefined,
+                  description: { markdown: description },
+                  validation: apiValidation,
+                }
+              : {
+                  kind: "plain_fact" as const,
+                  name: fact.name,
+                  key: fact.key ?? "",
+                  type: (fact.type ?? "string") as "string" | "number" | "boolean" | "json",
+                  cardinality: fact.cardinality,
+                  guidance:
+                    humanGuidance.length > 0 || agentGuidance.length > 0
+                      ? {
+                          human: { markdown: humanGuidance },
+                          agent: { markdown: agentGuidance },
+                        }
+                      : undefined,
+                  description: { markdown: description },
+                  validation: apiValidation,
+                };
             await createWorkUnitFactMutation.mutateAsync({
               versionId,
               workUnitTypeKey: workUnitKey,
@@ -581,6 +584,7 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
             const rawValidation = fact.validation as Record<string, unknown> | undefined;
             const rawPath = rawValidation?.path;
             const rawKind = rawValidation?.kind;
+            const isWorkUnitFact = fact.kind === "work_unit_reference_fact";
             const pathValidation =
               rawKind === "path" && rawPath && typeof rawPath === "object"
                 ? (rawPath as {
@@ -589,68 +593,70 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
                     safety?: { disallowAbsolute?: boolean; preventTraversal?: boolean };
                   })
                 : undefined;
-            const apiValidation =
-              fact.factType === "work unit"
+            const apiValidation = isWorkUnitFact
+              ? {
+                  kind: "none" as const,
+                  ...(rawValidation?.dependencyType
+                    ? { dependencyType: String(rawValidation.dependencyType) }
+                    : {}),
+                  ...(rawValidation?.workUnitKey
+                    ? { workUnitKey: String(rawValidation.workUnitKey) }
+                    : {}),
+                }
+              : rawKind === "path" && pathValidation?.pathKind
                 ? {
-                    kind: "none" as const,
-                    ...(rawValidation?.dependencyType
-                      ? { dependencyType: String(rawValidation.dependencyType) }
-                      : {}),
-                    ...(rawValidation?.workUnitKey
-                      ? { workUnitKey: String(rawValidation.workUnitKey) }
-                      : {}),
+                    kind: "path" as const,
+                    path: {
+                      pathKind: pathValidation.pathKind,
+                      normalization: pathValidation.normalization,
+                      safety: pathValidation.safety,
+                    },
                   }
-                : rawKind === "path" && pathValidation?.pathKind
+                : rawKind === "allowed-values" && Array.isArray(rawValidation?.values)
                   ? {
-                      kind: "path" as const,
-                      path: {
-                        pathKind: pathValidation.pathKind,
-                        normalization: pathValidation.normalization,
-                        safety: pathValidation.safety,
-                      },
+                      kind: "allowed-values" as const,
+                      values: rawValidation.values,
                     }
                   : rawKind === "json-schema" && typeof rawValidation?.schemaDialect === "string"
                     ? {
                         kind: "json-schema" as const,
                         schemaDialect: rawValidation.schemaDialect,
                         schema: rawValidation.schema,
+                        ...(rawValidation?.subSchema ? { subSchema: rawValidation.subSchema } : {}),
                       }
                     : ({ kind: "none" } as const);
-            const apiFact =
-              fact.factType === "work unit"
-                ? {
-                    kind: "work_unit_reference_fact" as const,
-                    name: fact.name,
-                    key: fact.key ?? "",
-                    factType: "work_unit" as const,
-                    cardinality: fact.cardinality,
-                    guidance:
-                      humanGuidance.length > 0 || agentGuidance.length > 0
-                        ? {
-                            human: { markdown: humanGuidance },
-                            agent: { markdown: agentGuidance },
-                          }
-                        : undefined,
-                    description: { markdown: description },
-                    validation: apiValidation,
-                  }
-                : {
-                    kind: "plain_fact" as const,
-                    name: fact.name,
-                    key: fact.key ?? "",
-                    type: fact.factType as "string" | "number" | "boolean" | "json",
-                    factType: fact.factType as "string" | "number" | "boolean" | "json",
-                    cardinality: fact.cardinality,
-                    guidance:
-                      humanGuidance.length > 0 || agentGuidance.length > 0
-                        ? {
-                            human: { markdown: humanGuidance },
-                            agent: { markdown: agentGuidance },
-                          }
-                        : undefined,
-                    description: { markdown: description },
-                    validation: apiValidation,
-                  };
+            const apiFact = isWorkUnitFact
+              ? {
+                  kind: "work_unit_reference_fact" as const,
+                  name: fact.name,
+                  key: fact.key ?? "",
+                  cardinality: fact.cardinality,
+                  guidance:
+                    humanGuidance.length > 0 || agentGuidance.length > 0
+                      ? {
+                          human: { markdown: humanGuidance },
+                          agent: { markdown: agentGuidance },
+                        }
+                      : undefined,
+                  description: { markdown: description },
+                  validation: apiValidation,
+                }
+              : {
+                  kind: "plain_fact" as const,
+                  name: fact.name,
+                  key: fact.key ?? "",
+                  type: (fact.type ?? "string") as "string" | "number" | "boolean" | "json",
+                  cardinality: fact.cardinality,
+                  guidance:
+                    humanGuidance.length > 0 || agentGuidance.length > 0
+                      ? {
+                          human: { markdown: humanGuidance },
+                          agent: { markdown: agentGuidance },
+                        }
+                      : undefined,
+                  description: { markdown: description },
+                  validation: apiValidation,
+                };
             await updateWorkUnitFactMutation.mutateAsync({
               versionId,
               workUnitTypeKey: workUnitKey,
@@ -802,6 +808,8 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
               ): fact is {
                 key: string;
                 name?: string;
+                valueType?: "string" | "number" | "boolean" | "json" | "work_unit";
+                type?: "string" | "number" | "boolean" | "json";
                 factType?: "string" | "number" | "boolean" | "json" | "work_unit";
               } => {
                 if (!fact || typeof fact !== "object") {
@@ -814,7 +822,10 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
             .map((fact) => ({
               key: fact.key,
               ...(typeof fact.name === "string" ? { name: fact.name } : {}),
-              ...(fact.factType ? { factType: fact.factType } : {}),
+              ...(() => {
+                const valueType = fact.valueType ?? fact.type ?? fact.factType;
+                return valueType ? { valueType } : {};
+              })(),
             }))}
           currentWorkUnitFacts={(Array.isArray(selectedWorkUnit?.factSchemas)
             ? selectedWorkUnit.factSchemas
@@ -826,6 +837,8 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
               ): fact is {
                 key: string;
                 name?: string;
+                valueType?: "string" | "number" | "boolean" | "json" | "work_unit";
+                type?: "string" | "number" | "boolean" | "json";
                 factType?: "string" | "number" | "boolean" | "json" | "work_unit";
               } => {
                 if (!fact || typeof fact !== "object") {
@@ -838,7 +851,10 @@ export function MethodologyVersionWorkUnitDetailsRoute() {
             .map((fact) => ({
               key: fact.key,
               ...(typeof fact.name === "string" ? { name: fact.name } : {}),
-              ...(fact.factType ? { factType: fact.factType } : {}),
+              ...(() => {
+                const valueType = fact.valueType ?? fact.type ?? fact.factType;
+                return valueType ? { valueType } : {};
+              })(),
             }))}
           artifactSlots={(Array.isArray(artifactSlotsQuery.data)
             ? artifactSlotsQuery.data

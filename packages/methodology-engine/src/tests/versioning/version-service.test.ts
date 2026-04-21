@@ -1329,7 +1329,7 @@ describe("MethodologyVersionService", () => {
   });
 
   describe("fact mutations", () => {
-    it("updates draft facts without rewriting the workflow graph", async () => {
+    it("updates draft facts without rewriting lifecycle or workflow graph", async () => {
       const { repo, lifecycleRepo, updateDraftCalls } = makeTestRepo();
       const repoLayer = Layer.succeed(MethodologyRepository, repo);
       const lifecycleRepoLayer = Layer.succeed(LifecycleRepository, lifecycleRepo);
@@ -1385,6 +1385,74 @@ describe("MethodologyVersionService", () => {
         "existing_fact",
         "new_json_fact",
       ]);
+    });
+
+    it("keeps workflow graph rewrite disabled for fact update and delete", async () => {
+      const { repo, lifecycleRepo, updateDraftCalls } = makeTestRepo();
+      const repoLayer = Layer.succeed(MethodologyRepository, repo);
+      const lifecycleRepoLayer = Layer.succeed(LifecycleRepository, lifecycleRepo);
+      const serviceLayer = Layer.effect(MethodologyVersionService, MethodologyVersionServiceLive);
+      const layer = Layer.mergeAll(
+        repoLayer,
+        lifecycleRepoLayer,
+        Layer.provide(serviceLayer, Layer.merge(repoLayer, lifecycleRepoLayer)),
+      );
+
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const svc = yield* MethodologyVersionService;
+          const created = yield* svc.createDraftVersion(
+            {
+              ...MINIMAL_INPUT,
+              methodologyKey: "facts-methodology-update-delete",
+              version: "0.2.1-draft",
+              factDefinitions: [
+                {
+                  key: "existing_fact",
+                  factType: "string",
+                  cardinality: "one",
+                  validation: { kind: "none" as const },
+                },
+              ],
+            },
+            TEST_ACTOR_ID,
+          );
+
+          yield* svc.updateFact(
+            {
+              versionId: created.version.id,
+              factKey: "existing_fact",
+              fact: {
+                key: "existing_fact",
+                factType: "string",
+                cardinality: "one",
+                validation: {
+                  kind: "regex" as const,
+                  pattern: "^ok$",
+                },
+              },
+            },
+            TEST_ACTOR_ID,
+          );
+
+          yield* svc.deleteFact(
+            {
+              versionId: created.version.id,
+              factKey: "existing_fact",
+            },
+            TEST_ACTOR_ID,
+          );
+        }).pipe(Effect.provide(layer)),
+      );
+
+      const updateCall = updateDraftCalls.at(-2);
+      const deleteCall = updateDraftCalls.at(-1);
+
+      expect(updateCall?.rewriteWorkflowGraph).toBe(false);
+      expect(updateCall?.factDefinitions?.map((fact) => fact.key)).toEqual(["existing_fact"]);
+
+      expect(deleteCall?.rewriteWorkflowGraph).toBe(false);
+      expect(deleteCall?.factDefinitions).toEqual([]);
     });
   });
 

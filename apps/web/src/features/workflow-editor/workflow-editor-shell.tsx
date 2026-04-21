@@ -338,7 +338,7 @@ function stepReferencesContextFact(
 
 function summarizeContextFact(fact: WorkflowContextFactDraft | WorkflowContextFactDefinitionItem) {
   const lead = `${fact.kind.replaceAll("_", " ")} · ${fact.cardinality}`;
-  const factValueType = fact.type ?? fact.valueType ?? "string";
+  const factValueType = fact.valueType ?? fact.type ?? "string";
 
   switch (fact.kind) {
     case "plain_fact":
@@ -365,6 +365,124 @@ function summarizeContextFact(fact: WorkflowContextFactDraft | WorkflowContextFa
     default:
       return lead;
   }
+}
+
+function readStringValidationMetadata(validation: unknown): {
+  kind: "none" | "path" | "allowed-values";
+  allowedValues: readonly string[];
+  pathKind: "file" | "directory";
+} {
+  if (typeof validation !== "object" || validation === null) {
+    return { kind: "none", allowedValues: [], pathKind: "file" };
+  }
+
+  const kind = "kind" in validation ? (validation as { kind?: unknown }).kind : undefined;
+  if (kind === "path") {
+    const pathKind =
+      "pathKind" in validation ? (validation as { pathKind?: unknown }).pathKind : undefined;
+    return {
+      kind,
+      allowedValues: [],
+      pathKind: pathKind === "directory" ? "directory" : "file",
+    };
+  }
+
+  if (kind === "allowed-values") {
+    const values = "values" in validation ? (validation as { values?: unknown }).values : undefined;
+    return {
+      kind,
+      allowedValues: Array.isArray(values)
+        ? values.filter((entry): entry is string => typeof entry === "string")
+        : [],
+      pathKind: "file",
+    };
+  }
+
+  return { kind: "none", allowedValues: [], pathKind: "file" };
+}
+
+function readNumberValidationMetadata(validation: unknown): {
+  minimum?: number;
+  maximum?: number;
+} {
+  if (typeof validation !== "object" || validation === null) {
+    return {};
+  }
+
+  const kind = "kind" in validation ? (validation as { kind?: unknown }).kind : undefined;
+  if (kind !== "json-schema") {
+    return {};
+  }
+
+  const schema = "schema" in validation ? (validation as { schema?: unknown }).schema : undefined;
+  if (typeof schema !== "object" || schema === null) {
+    return {};
+  }
+
+  const schemaType = "type" in schema ? (schema as { type?: unknown }).type : undefined;
+  if (schemaType !== "number") {
+    return {};
+  }
+
+  const minimum = "minimum" in schema ? (schema as { minimum?: unknown }).minimum : undefined;
+  const maximum = "maximum" in schema ? (schema as { maximum?: unknown }).maximum : undefined;
+
+  return {
+    ...(typeof minimum === "number" && Number.isFinite(minimum) ? { minimum } : {}),
+    ...(typeof maximum === "number" && Number.isFinite(maximum) ? { maximum } : {}),
+  };
+}
+
+function getPlainFactValidationBadges(
+  valueType: WorkflowContextFactDraft["valueType"] | undefined,
+  validationJson: unknown,
+): WorkflowEditorPickerBadge[] {
+  if (valueType === "string") {
+    const stringValidation = readStringValidationMetadata(validationJson);
+    if (stringValidation.kind === "path") {
+      return [
+        {
+          label: `path:${stringValidation.pathKind}`,
+          tone: "validation-path",
+        },
+      ];
+    }
+
+    if (stringValidation.kind === "allowed-values") {
+      return [
+        {
+          label: `allowed:${stringValidation.allowedValues.length}`,
+          tone: "validation-allowed-values",
+        },
+      ];
+    }
+
+    return [];
+  }
+
+  if (valueType !== "number") {
+    return [];
+  }
+
+  const numberValidation = readNumberValidationMetadata(validationJson);
+  return [
+    ...(typeof numberValidation.minimum === "number"
+      ? ([
+          {
+            label: `min:${numberValidation.minimum}`,
+            tone: "validation-number",
+          } satisfies WorkflowEditorPickerBadge,
+        ] as const)
+      : []),
+    ...(typeof numberValidation.maximum === "number"
+      ? ([
+          {
+            label: `max:${numberValidation.maximum}`,
+            tone: "validation-number",
+          } satisfies WorkflowEditorPickerBadge,
+        ] as const)
+      : []),
+  ];
 }
 
 function getValueTypeBadge(
@@ -409,12 +527,13 @@ function getContextFactBadges(
   workUnitTypesById: ReadonlyMap<string, WorkflowEditorPickerOption>,
 ): WorkflowEditorPickerBadge[] {
   const badges: WorkflowEditorPickerBadge[] = [{ label: fact.cardinality, tone: "cardinality" }];
-  const factValueType = fact.type ?? fact.valueType ?? "string";
+  const factValueType = fact.valueType ?? fact.type ?? "string";
 
   switch (fact.kind) {
     case "plain_fact":
     case "plain_value_fact":
       badges.push(getValueTypeBadge(factValueType));
+      badges.push(...getPlainFactValidationBadges(factValueType, fact.validationJson));
       return badges;
     case "bound_fact": {
       const externalFact = fact.factDefinitionId

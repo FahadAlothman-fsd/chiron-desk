@@ -278,7 +278,7 @@ type MethodologyFactsListResult = {
     id: string;
     key: string;
     name: string;
-    factType: string;
+    valueType: string;
     cardinality: string;
   }>;
 };
@@ -421,7 +421,7 @@ function createRouteContext(
                           id: "wuf-selected-directions",
                           key: "selected_directions",
                           name: "Selected Directions",
-                          factType: "json",
+                          valueType: "json",
                           cardinality: "one",
                           description:
                             "Durable convergence checkpoint capturing the directions selected at the end of brainstorming.",
@@ -430,7 +430,7 @@ function createRouteContext(
                           id: "wuf-desired-outcome",
                           key: "desired_outcome",
                           name: "Desired Outcome",
-                          factType: "string",
+                          valueType: "string",
                           cardinality: "one",
                           description: "What the session should produce when it has succeeded.",
                         },
@@ -455,7 +455,7 @@ function createRouteContext(
                             id: "wuf-selected-directions",
                             key: "selected_directions",
                             name: "Selected Directions",
-                            factType: "json",
+                            valueType: "json",
                             cardinality: "one",
                             description:
                               "Durable convergence checkpoint capturing the directions selected at the end of brainstorming.",
@@ -464,7 +464,7 @@ function createRouteContext(
                             id: "wuf-desired-outcome",
                             key: "desired_outcome",
                             name: "Desired Outcome",
-                            factType: "string",
+                            valueType: "string",
                             cardinality: "one",
                             description: "What the session should produce when it has succeeded.",
                           },
@@ -910,6 +910,326 @@ describe("workflow editor form slice route", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("supports numeric bounds for plain context facts and blocks invalid ranges", async () => {
+    const { WorkflowContextFactDialog } = await import("../../features/workflow-editor/dialogs");
+    const onSave = vi.fn();
+
+    renderRoute(
+      <WorkflowContextFactDialog
+        open
+        mode="create"
+        methodologyFacts={[]}
+        currentWorkUnitFacts={[]}
+        artifactSlots={[]}
+        workUnitTypes={[]}
+        availableWorkflows={[]}
+        workUnitFactsQueryScope="WU.SETUP"
+        loadWorkUnitFacts={async () => []}
+        loadWorkUnitArtifactSlots={async () => []}
+        onOpenChange={vi.fn()}
+        onSave={onSave}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Fact Key"), {
+      target: { value: "estimation_score" },
+    });
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Estimation Score" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Value Semantics" }));
+
+    fireEvent.change(screen.getByLabelText("workflow-editor-context-fact-value-type"), {
+      target: { value: "number" },
+    });
+
+    expect(screen.queryByLabelText("Default Value")).toBeNull();
+
+    fireEvent.change(screen.getByLabelText("Minimum Value"), {
+      target: { value: "10" },
+    });
+    fireEvent.change(screen.getByLabelText("Maximum Value"), {
+      target: { value: "2" },
+    });
+
+    expect(
+      screen.getByText("Maximum value must be greater than or equal to minimum value."),
+    ).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Create" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+
+    fireEvent.change(screen.getByLabelText("Maximum Value"), {
+      target: { value: "20" },
+    });
+    expect(
+      screen.queryByText("Maximum value must be greater than or equal to minimum value."),
+    ).toBeNull();
+    expect((screen.getByRole("button", { name: "Create" }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          key: "estimation_score",
+          type: "number",
+          valueType: "number",
+          validationJson: {
+            kind: "json-schema",
+            schemaDialect: "draft-2020-12",
+            schema: {
+              type: "number",
+              minimum: 10,
+              maximum: 20,
+            },
+          },
+        }),
+      );
+    });
+  });
+
+  it("persists edited plain_fact number type and renders number + bounds badges", async () => {
+    const { MethodologyWorkflowEditorRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId");
+
+    const editorDefinition = createEditorDefinition();
+    const routeContext = createRouteContext(editorDefinition);
+    useRouteContextMock.mockReturnValue(routeContext);
+
+    updateContextFactMutationSpy.mockImplementationOnce(async (payload: unknown) => {
+      const input = payload as {
+        fact?: { type?: string; valueType?: string; validationJson?: unknown };
+      };
+      const current = editorDefinition.contextFacts.find(
+        (entry) => entry.contextFactDefinitionId === "ctx-summary",
+      );
+      if (current && input.fact) {
+        current.type = input.fact.type;
+        current.valueType = input.fact.valueType;
+        current.validationJson = input.fact.validationJson;
+      }
+      return { diagnostics: [] };
+    });
+
+    renderRoute(<MethodologyWorkflowEditorRoute />);
+
+    const summaryFactItem = (await screen.findByText("Summary")).closest("li");
+    if (!summaryFactItem) {
+      throw new Error("Expected Summary context fact card to render.");
+    }
+
+    fireEvent.click(within(summaryFactItem).getByRole("button", { name: "Edit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Value Semantics" }));
+
+    fireEvent.change(screen.getByLabelText("workflow-editor-context-fact-value-type"), {
+      target: { value: "number" },
+    });
+    fireEvent.change(screen.getByLabelText("Minimum Value"), {
+      target: { value: "1" },
+    });
+    fireEvent.change(screen.getByLabelText("Maximum Value"), {
+      target: { value: "11" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      const updateContextFactPayload = (
+        updateContextFactMutationSpy.mock.calls as unknown[][]
+      )[0]?.[0] as
+        | { fact?: { type?: string; valueType?: string; validationJson?: unknown } }
+        | undefined;
+      expect(
+        updateContextFactPayload?.fact?.valueType ?? updateContextFactPayload?.fact?.type,
+      ).toBe("number");
+      expect(updateContextFactPayload?.fact?.validationJson).toEqual(
+        expect.objectContaining({
+          kind: "json-schema",
+          schema: expect.objectContaining({ type: "number", minimum: 1, maximum: 11 }),
+        }),
+      );
+    });
+
+    const updatedSummaryFactItem = (await screen.findByText("Summary")).closest("li");
+    if (!updatedSummaryFactItem) {
+      throw new Error("Expected updated Summary context fact card to render.");
+    }
+
+    expect(within(updatedSummaryFactItem).getByText("number")).toBeTruthy();
+    expect(within(updatedSummaryFactItem).getByText("min:1")).toBeTruthy();
+    expect(within(updatedSummaryFactItem).getByText("max:11")).toBeTruthy();
+  });
+
+  it("renders plain_fact validation badges for path and allowed-values", async () => {
+    const { MethodologyWorkflowEditorRoute } =
+      await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId");
+
+    const editorDefinition = createEditorDefinition();
+    editorDefinition.contextFacts.push(
+      {
+        contextFactDefinitionId: "ctx-path-fact",
+        key: "repo_root",
+        label: "Repo Root",
+        kind: "plain_fact",
+        cardinality: "one",
+        type: "string",
+        valueType: "string",
+        validationJson: {
+          kind: "path",
+          pathKind: "directory",
+          normalization: { mode: "posix", trimWhitespace: true },
+          safety: { disallowAbsolute: true, preventTraversal: true },
+        },
+      },
+      {
+        contextFactDefinitionId: "ctx-allowed-fact",
+        key: "delivery_mode",
+        label: "Delivery Mode",
+        kind: "plain_fact",
+        cardinality: "one",
+        type: "string",
+        valueType: "string",
+        validationJson: {
+          kind: "allowed-values",
+          values: ["fast", "safe"],
+        },
+      },
+    );
+    useRouteContextMock.mockReturnValue(createRouteContext(editorDefinition));
+
+    renderRoute(<MethodologyWorkflowEditorRoute />);
+
+    const repoRootRow = (await screen.findByText("Repo Root")).closest("li");
+    if (!repoRootRow) {
+      throw new Error("Expected Repo Root context fact card to render.");
+    }
+    expect(within(repoRootRow).getByText("path:directory")).toBeTruthy();
+
+    const deliveryModeRow = (await screen.findByText("Delivery Mode")).closest("li");
+    if (!deliveryModeRow) {
+      throw new Error("Expected Delivery Mode context fact card to render.");
+    }
+    expect(within(deliveryModeRow).getByText("allowed:2")).toBeTruthy();
+  });
+
+  it("supports numeric bounds for JSON subfields and blocks invalid ranges", async () => {
+    const { WorkflowContextFactDialog } = await import("../../features/workflow-editor/dialogs");
+    const onSave = vi.fn();
+
+    renderRoute(
+      <WorkflowContextFactDialog
+        open
+        mode="create"
+        methodologyFacts={[]}
+        currentWorkUnitFacts={[]}
+        artifactSlots={[]}
+        workUnitTypes={[]}
+        availableWorkflows={[]}
+        workUnitFactsQueryScope="WU.SETUP"
+        loadWorkUnitFacts={async () => []}
+        loadWorkUnitArtifactSlots={async () => []}
+        onOpenChange={vi.fn()}
+        onSave={onSave}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Fact Key"), {
+      target: { value: "json_metrics" },
+    });
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "JSON Metrics" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Value Semantics" }));
+
+    fireEvent.change(screen.getByLabelText("workflow-editor-context-fact-value-type"), {
+      target: { value: "json" },
+    });
+
+    const valueTypeSelects = screen.getAllByLabelText("Value Type");
+    fireEvent.change(valueTypeSelects[1] as HTMLSelectElement, {
+      target: { value: "number" },
+    });
+
+    const minimumInputs = screen.getAllByLabelText("Minimum Value");
+    const maximumInputs = screen.getAllByLabelText("Maximum Value");
+    fireEvent.change(minimumInputs[0] as HTMLInputElement, {
+      target: { value: "5" },
+    });
+    fireEvent.change(maximumInputs[0] as HTMLInputElement, {
+      target: { value: "1" },
+    });
+
+    expect((screen.getByRole("button", { name: "Create" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+
+    fireEvent.change(maximumInputs[0] as HTMLInputElement, {
+      target: { value: "10" },
+    });
+    expect((screen.getByRole("button", { name: "Create" }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => {
+      const saved = onSave.mock.calls[0]?.[0] as
+        | {
+            validationJson?: {
+              kind?: string;
+              schema?: {
+                properties?: Record<
+                  string,
+                  {
+                    type?: string;
+                    minimum?: number;
+                    maximum?: number;
+                    [key: string]: unknown;
+                  }
+                >;
+              };
+              subSchema?: {
+                fields?: Array<{
+                  key?: string;
+                  type?: string;
+                  cardinality?: string;
+                  validation?: unknown;
+                }>;
+              };
+            };
+          }
+        | undefined;
+
+      expect(saved?.validationJson?.kind).toBe("json-schema");
+      expect(saved?.validationJson?.subSchema?.fields).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: "field_1",
+            type: "number",
+            cardinality: "one",
+          }),
+        ]),
+      );
+
+      const fieldOne = saved?.validationJson?.subSchema?.fields?.find(
+        (field) => field.key === "field_1",
+      );
+      expect(fieldOne).toBeTruthy();
+      expect(fieldOne).not.toHaveProperty("validation");
+
+      expect(saved?.validationJson?.schema?.properties?.field_1).toEqual(
+        expect.objectContaining({
+          type: "number",
+          minimum: 5,
+          maximum: 10,
+        }),
+      );
+    });
+  });
+
   it("preloads linked external fact selections when editing external context facts", async () => {
     const { WorkflowContextFactDialog } = await import("../../features/workflow-editor/dialogs");
 
@@ -1021,14 +1341,14 @@ describe("workflow editor form slice route", () => {
             id: "seed:fact-def:existing-documentation-inventory:mver_bmad_v1_draft",
             key: "existing_documentation_inventory",
             name: "Existing Documentation Inventory",
-            factType: "json",
+            valueType: "json",
             cardinality: "many",
           },
           {
             id: "seed:fact-def:communication-language:mver_bmad_v1_draft",
             key: "communication_language",
             name: "Communication Language",
-            factType: "string",
+            valueType: "string",
             cardinality: "one",
           },
         ],
@@ -1271,9 +1591,23 @@ describe("workflow editor form slice route", () => {
               validationJson?: {
                 kind?: string;
                 schemaDialect?: string;
+                schema?: {
+                  properties?: Record<
+                    string,
+                    {
+                      type?: string;
+                      [key: string]: unknown;
+                    }
+                  >;
+                };
                 subSchema?: {
                   type?: string;
-                  fields?: Array<{ key?: string; type?: string; cardinality?: string }>;
+                  fields?: Array<{
+                    key?: string;
+                    type?: string;
+                    cardinality?: string;
+                    validation?: unknown;
+                  }>;
                 };
               };
             };
@@ -1289,6 +1623,24 @@ describe("workflow editor form slice route", () => {
           expect.objectContaining({ key: "field_2", type: "number", cardinality: "one" }),
           expect.objectContaining({ key: "field_3", type: "boolean", cardinality: "one" }),
         ]),
+      );
+
+      const fieldOne = updatePayload?.fact?.validationJson?.subSchema?.fields?.find(
+        (field) => field.key === "field_1",
+      );
+      expect(fieldOne).toBeTruthy();
+      expect(fieldOne).not.toHaveProperty("validation");
+
+      expect(updatePayload?.fact?.validationJson?.schema?.properties?.field_1).toEqual(
+        expect.objectContaining({
+          type: "string",
+          "x-validation": {
+            kind: "path",
+            pathKind: "directory",
+            normalization: { mode: "posix", trimWhitespace: true },
+            safety: { disallowAbsolute: true, preventTraversal: true },
+          },
+        }),
       );
     });
   });

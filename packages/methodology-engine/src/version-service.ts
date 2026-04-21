@@ -1258,8 +1258,12 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       return archived;
     });
 
-  const createFact = (
-    input: CreateMethodologyFactInput,
+  const updateMethodologyFacts = (
+    input: {
+      versionId: string;
+      nextFactDefinitions: readonly MethodologyFactDefinitionInput[];
+      previousFactDefinitions: readonly MethodologyFactDefinitionInput[];
+    },
     actorId: string | null,
   ): Effect.Effect<
     UpdateDraftResult,
@@ -1274,29 +1278,73 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
       yield* ensureVersionIsDraft(existing);
 
       const snapshot = yield* repo.findWorkflowSnapshot(existing.id);
-      const existingFacts = yield* repo.findFactDefinitionsByVersionId(existing.id);
-
       const lifecycleDefinition = yield* resolveLifecycleDefinition(existing, lifecycleRepo);
-
-      return yield* updateDraftVersion(
+      const timestamp = new Date().toISOString();
+      const diagnostics = validateDraftDefinition(
         {
-          versionId: existing.id,
-          displayName: existing.displayName,
-          version: existing.version,
-          definition: {
-            workUnitTypes: lifecycleDefinition.workUnitTypes,
-            agentTypes: lifecycleDefinition.agentTypes,
-            transitions: lifecycleDefinition.transitions,
-            workflows: snapshot.workflows,
-            transitionWorkflowBindings: flattenTransitionWorkflowBindingsByWorkUnit(
-              snapshot.transitionWorkflowBindings,
-            ),
-            guidance: snapshot.guidance,
+          workUnitTypes: lifecycleDefinition.workUnitTypes,
+          agentTypes: lifecycleDefinition.agentTypes,
+          transitions: lifecycleDefinition.transitions,
+          workflows: snapshot.workflows,
+          transitionWorkflowBindings: flattenTransitionWorkflowBindingsByWorkUnit(
+            snapshot.transitionWorkflowBindings,
+          ),
+          guidance: snapshot.guidance,
+        },
+        timestamp,
+      );
+
+      const { version } = yield* repo.updateDraft({
+        versionId: input.versionId,
+        displayName: existing.displayName,
+        version: existing.version,
+        definitionExtensions: toDefinitionExtensions({
+          workUnitTypes: lifecycleDefinition.workUnitTypes,
+          agentTypes: lifecycleDefinition.agentTypes,
+          transitions: lifecycleDefinition.transitions,
+          workflows: snapshot.workflows,
+          transitionWorkflowBindings: flattenTransitionWorkflowBindingsByWorkUnit(
+            snapshot.transitionWorkflowBindings,
+          ),
+          guidance: snapshot.guidance,
+        }),
+        workflows: snapshot.workflows,
+        rewriteWorkflowGraph: false,
+        transitionWorkflowBindings: flattenTransitionWorkflowBindingsByWorkUnit(
+          snapshot.transitionWorkflowBindings,
+        ),
+        ...(snapshot.guidance !== undefined ? { guidance: snapshot.guidance } : {}),
+        factDefinitions: input.nextFactDefinitions,
+        actorId,
+        changedFieldsJson: {
+          factDefinitions: {
+            from: input.previousFactDefinitions,
+            to: input.nextFactDefinitions,
           },
-          factDefinitions: [...existingFacts.map(mapFactDefinitionRowToInput), input.fact],
+        },
+        validationDiagnostics: diagnostics,
+      } satisfies UpdateDraftParams);
+
+      return { version, diagnostics };
+    });
+
+  const createFact = (
+    input: CreateMethodologyFactInput,
+    actorId: string | null,
+  ): Effect.Effect<
+    UpdateDraftResult,
+    VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
+  > =>
+    Effect.gen(function* () {
+      const existingFacts = yield* repo.findFactDefinitionsByVersionId(input.versionId);
+
+      return yield* updateMethodologyFacts(
+        {
+          versionId: input.versionId,
+          previousFactDefinitions: existingFacts.map(mapFactDefinitionRowToInput),
+          nextFactDefinitions: [...existingFacts.map(mapFactDefinitionRowToInput), input.fact],
         },
         actorId,
-        { rewriteWorkflowGraph: false },
       );
     });
 
@@ -1308,39 +1356,18 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
   > =>
     Effect.gen(function* () {
-      const existing = yield* repo.findVersionById(input.versionId);
-      if (!existing) {
-        return yield* new VersionNotFoundError({ versionId: input.versionId });
-      }
+      const existingFacts = yield* repo.findFactDefinitionsByVersionId(input.versionId);
 
-      yield* ensureVersionIsDraft(existing);
-
-      const snapshot = yield* repo.findWorkflowSnapshot(existing.id);
-      const existingFacts = yield* repo.findFactDefinitionsByVersionId(existing.id);
-
-      const lifecycleDefinition = yield* resolveLifecycleDefinition(existing, lifecycleRepo);
-
-      return yield* updateDraftVersion(
+      const previousFactDefinitions = existingFacts.map(mapFactDefinitionRowToInput);
+      return yield* updateMethodologyFacts(
         {
-          versionId: existing.id,
-          displayName: existing.displayName,
-          version: existing.version,
-          definition: {
-            workUnitTypes: lifecycleDefinition.workUnitTypes,
-            agentTypes: lifecycleDefinition.agentTypes,
-            transitions: lifecycleDefinition.transitions,
-            workflows: snapshot.workflows,
-            transitionWorkflowBindings: flattenTransitionWorkflowBindingsByWorkUnit(
-              snapshot.transitionWorkflowBindings,
-            ),
-            guidance: snapshot.guidance,
-          },
-          factDefinitions: existingFacts.map((fact) =>
+          versionId: input.versionId,
+          previousFactDefinitions,
+          nextFactDefinitions: existingFacts.map((fact) =>
             fact.key === input.factKey ? input.fact : mapFactDefinitionRowToInput(fact),
           ),
         },
         actorId,
-        { rewriteWorkflowGraph: false },
       );
     });
 
@@ -1352,39 +1379,18 @@ export const MethodologyVersionServiceLive = Effect.gen(function* () {
     VersionNotFoundError | VersionNotDraftError | ValidationDecodeError | RepositoryError
   > =>
     Effect.gen(function* () {
-      const existing = yield* repo.findVersionById(input.versionId);
-      if (!existing) {
-        return yield* new VersionNotFoundError({ versionId: input.versionId });
-      }
+      const existingFacts = yield* repo.findFactDefinitionsByVersionId(input.versionId);
 
-      yield* ensureVersionIsDraft(existing);
-
-      const snapshot = yield* repo.findWorkflowSnapshot(existing.id);
-      const existingFacts = yield* repo.findFactDefinitionsByVersionId(existing.id);
-
-      const lifecycleDefinition = yield* resolveLifecycleDefinition(existing, lifecycleRepo);
-
-      return yield* updateDraftVersion(
+      const previousFactDefinitions = existingFacts.map(mapFactDefinitionRowToInput);
+      return yield* updateMethodologyFacts(
         {
-          versionId: existing.id,
-          displayName: existing.displayName,
-          version: existing.version,
-          definition: {
-            workUnitTypes: lifecycleDefinition.workUnitTypes,
-            agentTypes: lifecycleDefinition.agentTypes,
-            transitions: lifecycleDefinition.transitions,
-            workflows: snapshot.workflows,
-            transitionWorkflowBindings: flattenTransitionWorkflowBindingsByWorkUnit(
-              snapshot.transitionWorkflowBindings,
-            ),
-            guidance: snapshot.guidance,
-          },
-          factDefinitions: existingFacts
+          versionId: input.versionId,
+          previousFactDefinitions,
+          nextFactDefinitions: existingFacts
             .filter((fact) => fact.key !== input.factKey)
             .map(mapFactDefinitionRowToInput),
         },
         actorId,
-        { rewriteWorkflowGraph: false },
       );
     });
 

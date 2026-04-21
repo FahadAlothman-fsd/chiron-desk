@@ -116,7 +116,7 @@ export type FactEditorValue = {
   __uiId?: string;
   name?: string;
   key: string;
-  factType: FactTypeValue;
+  valueType: FactTypeValue;
   cardinality?: "one" | "many";
   defaultValue?: unknown;
   description?: { markdown?: string };
@@ -181,8 +181,13 @@ function parseJsonSafely(value: string): unknown {
 
 function toFactEditorValue(input: unknown, fallbackId?: string): FactEditorValue {
   const value = isRecord(input) ? input : {};
-  const factType = FACT_TYPES.includes(value.factType as FactTypeValue)
-    ? (value.factType as FactTypeValue)
+  const rawValueType =
+    value.valueType ??
+    value.type ??
+    value.factType ??
+    (value.kind === "work_unit_reference_fact" ? "work_unit" : undefined);
+  const valueType = FACT_TYPES.includes(rawValueType as FactTypeValue)
+    ? (rawValueType as FactTypeValue)
     : "string";
   const cardinality = value.cardinality === "many" ? "many" : "one";
 
@@ -290,7 +295,7 @@ function toFactEditorValue(input: unknown, fallbackId?: string): FactEditorValue
     __uiId: typeof value.__uiId === "string" ? value.__uiId : (fallbackId ?? createFactEditorId()),
     ...(name ? { name } : {}),
     key: typeof value.key === "string" ? value.key : "",
-    factType,
+    valueType,
     cardinality,
     defaultValue: value.defaultValue,
     ...(description ? { description } : {}),
@@ -327,27 +332,27 @@ function factDefaultToInputValue(fact: FactEditorValue): string {
   if (fact.defaultValue === undefined || fact.defaultValue === null) {
     return "";
   }
-  if (fact.factType === "json") {
+  if (fact.valueType === "json") {
     return JSON.stringify(fact.defaultValue, null, 2);
   }
   return String(fact.defaultValue);
 }
 
-function inputValueToFactDefault(factType: FactTypeValue, rawValue: string): unknown {
+function inputValueToFactDefault(valueType: FactTypeValue, rawValue: string): unknown {
   if (rawValue.trim().length === 0) {
     return undefined;
   }
-  if (factType === "string") {
+  if (valueType === "string") {
     return rawValue;
   }
-  if (factType === "work_unit") {
+  if (valueType === "work_unit") {
     return rawValue;
   }
-  if (factType === "number") {
+  if (valueType === "number") {
     const parsed = Number(rawValue);
     return Number.isFinite(parsed) ? parsed : undefined;
   }
-  if (factType === "boolean") {
+  if (valueType === "boolean") {
     if (rawValue === "true") {
       return true;
     }
@@ -416,7 +421,7 @@ function sanitizeFact(fact: FactEditorValue): FactEditorValue {
   return {
     ...(name && name.length > 0 ? { name } : {}),
     key,
-    factType: fact.factType,
+    valueType: fact.valueType,
     cardinality: fact.cardinality === "many" ? "many" : "one",
     defaultValue: fact.defaultValue,
     ...(descriptionValue ? { description: descriptionValue } : {}),
@@ -836,7 +841,7 @@ export function createEmptyFact(): FactEditorValue {
     __uiId: createFactEditorId(),
     name: "",
     key: "",
-    factType: "string",
+    valueType: "string",
     cardinality: "one",
     description: { markdown: "" },
     guidance: {
@@ -975,7 +980,7 @@ export function FactListEditor({
                       </div>
 
                       <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-                        <form.Field name={`facts[${index}].factType` as never}>
+                        <form.Field name={`facts[${index}].valueType` as never}>
                           {(typeField) => (
                             <select
                               className="h-8 border border-border/70 bg-background px-2 text-xs"
@@ -989,9 +994,9 @@ export function FactListEditor({
                                 );
                               }}
                             >
-                              {FACT_TYPES.map((factType) => (
-                                <option key={factType} value={factType}>
-                                  {factType}
+                              {FACT_TYPES.map((valueType) => (
+                                <option key={valueType} value={valueType}>
+                                  {valueType}
                                 </option>
                               ))}
                             </select>
@@ -1014,14 +1019,14 @@ export function FactListEditor({
                           <Input
                             value={factDefaultToInputValue(fact)}
                             placeholder={
-                              fact.factType === "json" ? "JSON default" : "Default value"
+                              fact.valueType === "json" ? "JSON default" : "Default value"
                             }
                             onBlur={defaultField.handleBlur}
                             onChange={(event) => {
                               defaultField.handleChange(
                                 () =>
                                   inputValueToFactDefault(
-                                    fact.factType,
+                                    fact.valueType,
                                     event.target.value,
                                   ) as never,
                               );

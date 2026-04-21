@@ -562,7 +562,7 @@ function createRouteContext(editorDefinition = createEditorDefinition()) {
                       id: "ext-bound-json",
                       key: "existing_documentation_inventory",
                       name: "Existing Documentation Inventory",
-                      factType: "json",
+                      valueType: "json",
                       cardinality: "many",
                       validation: {
                         kind: "json-schema",
@@ -628,14 +628,14 @@ function createRouteContext(editorDefinition = createEditorDefinition()) {
                           id: "wuf-story-title",
                           key: "story_title",
                           name: "Story Title",
-                          factType: "string",
+                          valueType: "string",
                           cardinality: "one",
                         },
                         {
                           id: "ext-current-story",
                           key: "current_story_ref",
                           name: "Current Story Ref",
-                          factType: "work_unit",
+                          valueType: "work_unit",
                           cardinality: "one",
                         },
                       ],
@@ -664,14 +664,14 @@ function createRouteContext(editorDefinition = createEditorDefinition()) {
                             id: "wuf-story-title",
                             key: "story_title",
                             name: "Story Title",
-                            factType: "string",
+                            valueType: "string",
                             cardinality: "one",
                           },
                           {
                             id: "ext-current-story",
                             key: "current_story_ref",
                             name: "Current Story Ref",
-                            factType: "work_unit",
+                            valueType: "work_unit",
                             cardinality: "one",
                           },
                         ],
@@ -923,7 +923,7 @@ describe("workflow editor invoke route", () => {
             id: "wuf-story-title",
             key: "story_title",
             label: "Story Title",
-            factType: "string",
+            valueType: "string",
             cardinality: "one",
             validationJson: { kind: "none" },
           },
@@ -1321,6 +1321,44 @@ describe("workflow editor invoke route", () => {
   it("branch stacked route dialog uses a select for allowed-values JSON subfield comparisons", async () => {
     const { RouteDialog } = await import("../../features/workflow-editor/dialogs");
     const onSave = vi.fn();
+    const allowedValuesValidationJson = {
+      kind: "json-schema",
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          status: {
+            type: "string",
+            "x-validation": {
+              kind: "allowed-values",
+              values: ["draft", "ready"],
+            },
+          },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          {
+            key: "status",
+            type: "string",
+            cardinality: "one",
+          },
+        ],
+      },
+    } as const;
+
+    expect(allowedValuesValidationJson.subSchema.fields[0]).not.toHaveProperty("validation");
+    expect(allowedValuesValidationJson.schema.properties.status).toEqual(
+      expect.objectContaining({
+        type: "string",
+        "x-validation": {
+          kind: "allowed-values",
+          values: ["draft", "ready"],
+        },
+      }),
+    );
 
     renderRoute(
       <RouteDialog
@@ -1365,23 +1403,7 @@ describe("workflow editor invoke route", () => {
             selectedArtifactSlotDefinitionIds: [],
             summary: "plain value fact · one · json",
             valueType: "json",
-            validationJson: {
-              kind: "json-schema",
-              subSchema: {
-                type: "object",
-                fields: [
-                  {
-                    key: "status",
-                    type: "string",
-                    cardinality: "one",
-                    validation: {
-                      kind: "allowed-values",
-                      values: ["draft", "ready"],
-                    },
-                  },
-                ],
-              },
-            },
+            validationJson: allowedValuesValidationJson,
           },
         ]}
         conditionOperators={[
@@ -1731,6 +1753,57 @@ describe("workflow editor invoke route", () => {
       await import("../../routes/methodologies.$methodologyId.versions.$versionId.work-units.$workUnitKey.workflow-editor.$workflowDefinitionId");
 
     const editorDefinition = createEditorDefinition();
+    const pathValidationJson = {
+      kind: "json-schema",
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          project_root: {
+            type: "string",
+            "x-validation": {
+              kind: "path",
+              pathKind: "directory",
+              normalization: { mode: "posix", trimWhitespace: true },
+              safety: { disallowAbsolute: true, preventTraversal: true },
+            },
+          },
+          estimate_hours: { type: "number" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          {
+            key: "project_root",
+            displayName: "Project Root",
+            type: "string",
+            cardinality: "one",
+          },
+          {
+            key: "estimate_hours",
+            displayName: "Estimate Hours",
+            type: "number",
+            cardinality: "one",
+          },
+        ],
+      },
+    } as const;
+
+    expect(pathValidationJson.subSchema.fields[0]).not.toHaveProperty("validation");
+    expect(pathValidationJson.schema.properties.project_root).toEqual(
+      expect.objectContaining({
+        type: "string",
+        "x-validation": {
+          kind: "path",
+          pathKind: "directory",
+          normalization: { mode: "posix", trimWhitespace: true },
+          safety: { disallowAbsolute: true, preventTraversal: true },
+        },
+      }),
+    );
+
     editorDefinition.contextFacts = [
       ...editorDefinition.contextFacts,
       {
@@ -1741,41 +1814,7 @@ describe("workflow editor invoke route", () => {
         kind: "plain_value_fact",
         cardinality: "one",
         valueType: "json",
-        validationJson: {
-          kind: "json-schema",
-          schemaDialect: "draft-2020-12",
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              project_root: { type: "string" },
-              estimate_hours: { type: "number" },
-            },
-          },
-          subSchema: {
-            type: "object",
-            fields: [
-              {
-                key: "project_root",
-                displayName: "Project Root",
-                type: "string",
-                cardinality: "one",
-                validation: {
-                  kind: "path",
-                  pathKind: "directory",
-                  normalization: { mode: "posix", trimWhitespace: true },
-                  safety: { disallowAbsolute: true, preventTraversal: true },
-                },
-              },
-              {
-                key: "estimate_hours",
-                displayName: "Estimate Hours",
-                type: "number",
-                cardinality: "one",
-              },
-            ],
-          },
-        },
+        validationJson: pathValidationJson,
       },
     ];
 

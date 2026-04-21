@@ -73,7 +73,7 @@ function createTestHarness() {
       {
         name: "Repository URL",
         key: "repo_url",
-        factType: "string",
+        valueType: "string",
         defaultValue: "https://example.com/repo.git",
         description: "Canonical repository source.",
         guidance: {

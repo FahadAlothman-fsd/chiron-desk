@@ -30,12 +30,12 @@ const SAMPLE_DRAFT: MethodologyVersionWorkspaceDraft = {
           requiredLinks: [],
         },
       ],
-      factSchemas: [{ key: "goal", factType: "string", required: true }],
+      factSchemas: [{ key: "goal", valueType: "string", required: true }],
     },
   ]),
   agentTypesJson: toDeterministicJson([]),
   factSchemasJson: toDeterministicJson({
-    "WU.PRD": [{ key: "goal", factType: "string", required: true }],
+    "WU.PRD": [{ key: "goal", valueType: "string", required: true }],
   }),
   transitionsJson: toDeterministicJson([{ key: "start" }]),
   workflowsJson: toDeterministicJson([

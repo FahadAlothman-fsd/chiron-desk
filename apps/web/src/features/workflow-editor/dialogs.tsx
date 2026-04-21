@@ -221,7 +221,7 @@ type InvokeBindingDestinationOption = {
   label: string;
   key: string;
   cardinality: "one" | "many";
-  factType?: WorkflowInvokeWorkUnitFactDefinition["factType"];
+  valueType?: WorkflowInvokeWorkUnitFactDefinition["valueType"];
   validationJson?: unknown;
   summary: string;
   literalAllowed: boolean;
@@ -254,6 +254,8 @@ type JsonSubSchemaDraft = {
   stringTrimWhitespace: boolean;
   stringDisallowAbsolute: boolean;
   stringPreventTraversal: boolean;
+  numberMinimum: string;
+  numberMaximum: string;
 };
 
 type PlainStringValidationType = "none" | "path" | "allowed-values";
@@ -282,7 +284,8 @@ type WorkflowContextFactDialogSnapshot = {
     workUnitDefinitionId: string;
     selectedWorkUnitFactDefinitionIds: string[];
     selectedArtifactSlotDefinitionIds: string[];
-    plainStringDefaultValue: string;
+    plainNumberMinimum: string;
+    plainNumberMaximum: string;
     plainStringValidationType: PlainStringValidationType;
     plainStringPathKind: "file" | "directory";
     plainStringTrimWhitespace: boolean;
@@ -334,7 +337,7 @@ function toContextFactDraft(
     kind: fact?.kind ?? kind,
     cardinality: fact?.cardinality ?? "one",
     guidance: normalizeGuidance(fact?.guidance),
-    type: fact?.type ?? "string",
+    type: fact?.valueType ?? fact?.type ?? "string",
     valueType: fact?.valueType ?? fact?.type ?? "string",
     factDefinitionId: fact?.factDefinitionId ?? "",
     allowedWorkflowDefinitionIds: fact?.allowedWorkflowDefinitionIds ?? [],
@@ -350,7 +353,8 @@ function toContextFactDraft(
 
 function toWorkflowContextFactDialogSnapshot(params: {
   draft: WorkflowContextFactDraft;
-  plainStringDefaultValue: string;
+  plainNumberMinimum: string;
+  plainNumberMaximum: string;
   plainStringValidationType: PlainStringValidationType;
   plainStringPathKind: "file" | "directory";
   plainStringTrimWhitespace: boolean;
@@ -380,7 +384,8 @@ function toWorkflowContextFactDialogSnapshot(params: {
         (entry) => entry.factDefinitionId,
       ),
       selectedArtifactSlotDefinitionIds: [...params.draft.selectedArtifactSlotDefinitionIds],
-      plainStringDefaultValue: params.plainStringDefaultValue,
+      plainNumberMinimum: params.plainNumberMinimum,
+      plainNumberMaximum: params.plainNumberMaximum,
       plainStringValidationType: params.plainStringValidationType,
       plainStringPathKind: params.plainStringPathKind,
       plainStringTrimWhitespace: params.plainStringTrimWhitespace,
@@ -488,7 +493,55 @@ function createEmptyJsonSubSchemaDraft(
     stringTrimWhitespace: true,
     stringDisallowAbsolute: true,
     stringPreventTraversal: true,
+    numberMinimum: "",
+    numberMaximum: "",
   };
+}
+
+function toNumberValidationState(validationJson: unknown): {
+  minimum: string;
+  maximum: string;
+} {
+  if (typeof validationJson !== "object" || validationJson === null) {
+    return { minimum: "", maximum: "" };
+  }
+
+  const kind = "kind" in validationJson ? (validationJson as { kind?: unknown }).kind : undefined;
+  const schema =
+    "schema" in validationJson ? (validationJson as { schema?: unknown }).schema : undefined;
+
+  if (kind !== "json-schema" || typeof schema !== "object" || schema === null) {
+    return { minimum: "", maximum: "" };
+  }
+
+  const type = "type" in schema ? (schema as { type?: unknown }).type : undefined;
+  if (type !== "number") {
+    return { minimum: "", maximum: "" };
+  }
+
+  const minimum = "minimum" in schema ? (schema as { minimum?: unknown }).minimum : undefined;
+  const maximum = "maximum" in schema ? (schema as { maximum?: unknown }).maximum : undefined;
+
+  return {
+    minimum: typeof minimum === "number" && Number.isFinite(minimum) ? String(minimum) : "",
+    maximum: typeof maximum === "number" && Number.isFinite(maximum) ? String(maximum) : "",
+  };
+}
+
+function parseOptionalNumberInput(raw: string): number | undefined {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    return undefined;
+  }
+
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function hasInvalidNumberRange(minimumRaw: string, maximumRaw: string): boolean {
+  const minimum = parseOptionalNumberInput(minimumRaw);
+  const maximum = parseOptionalNumberInput(maximumRaw);
+  return typeof minimum === "number" && typeof maximum === "number" && maximum < minimum;
 }
 
 function toStringValidationState(validationJson: unknown): {
@@ -584,6 +637,8 @@ function toJsonSubSchemaDraftsFromValidation(validationJson: unknown): JsonSubSc
     "subSchema" in validationJson
       ? (validationJson as { subSchema?: unknown }).subSchema
       : undefined;
+  const schema =
+    "schema" in validationJson ? (validationJson as { schema?: unknown }).schema : undefined;
   if (kind !== "json-schema" || typeof subSchema !== "object" || subSchema === null) {
     return [];
   }
@@ -592,6 +647,15 @@ function toJsonSubSchemaDraftsFromValidation(validationJson: unknown): JsonSubSc
     "fields" in subSchema && Array.isArray((subSchema as { fields?: unknown }).fields)
       ? ((subSchema as { fields: unknown[] }).fields ?? [])
       : [];
+
+  const propertyByKey =
+    typeof schema === "object" &&
+    schema !== null &&
+    "properties" in schema &&
+    typeof (schema as { properties?: unknown }).properties === "object" &&
+    (schema as { properties?: unknown }).properties !== null
+      ? ((schema as { properties: Record<string, unknown> }).properties ?? {})
+      : {};
 
   return fields
     .map((field, index) => {
@@ -605,8 +669,16 @@ function toJsonSubSchemaDraftsFromValidation(validationJson: unknown): JsonSubSc
         return null;
       }
 
+      const property = asRecord(propertyByKey[key]);
+
       const valueType =
-        type === "string" || type === "number" || type === "boolean" ? type : "string";
+        type === "string" || type === "number" || type === "boolean"
+          ? type
+          : property?.type === "string" ||
+              property?.type === "number" ||
+              property?.type === "boolean"
+            ? property.type
+            : "string";
       const cardinality =
         "cardinality" in field && (field as { cardinality?: unknown }).cardinality === "many"
           ? "many"
@@ -615,14 +687,38 @@ function toJsonSubSchemaDraftsFromValidation(validationJson: unknown): JsonSubSc
         "displayName" in field ? (field as { displayName?: unknown }).displayName : undefined;
       const validation =
         "validation" in field ? (field as { validation?: unknown }).validation : undefined;
-      const stringValidation = toStringValidationState(validation);
+      const propertyValidation =
+        valueType === "string"
+          ? property && typeof property["x-validation"] !== "undefined"
+            ? property["x-validation"]
+            : undefined
+          : valueType === "number"
+            ? {
+                kind: "json-schema",
+                schemaDialect: "draft-2020-12",
+                schema: {
+                  type: "number",
+                  ...(typeof property?.minimum === "number" ? { minimum: property.minimum } : {}),
+                  ...(typeof property?.maximum === "number" ? { maximum: property.maximum } : {}),
+                },
+              }
+            : undefined;
+      const effectiveValidation =
+        typeof validation !== "undefined" ? validation : propertyValidation;
+      const stringValidation = toStringValidationState(effectiveValidation);
+      const numberValidation = toNumberValidationState(effectiveValidation);
 
       return {
         localId: createLocalId(`json-sub-schema-${index + 1}`),
         key,
         valueType,
         cardinality,
-        displayName: typeof displayName === "string" ? displayName : "",
+        displayName:
+          typeof displayName === "string"
+            ? displayName
+            : typeof property?.title === "string"
+              ? property.title
+              : "",
         stringValidationType: stringValidation.kind,
         stringAllowedValues: stringValidation.allowedValues,
         pendingStringAllowedValueTag: "",
@@ -630,12 +726,31 @@ function toJsonSubSchemaDraftsFromValidation(validationJson: unknown): JsonSubSc
         stringTrimWhitespace: stringValidation.trimWhitespace,
         stringDisallowAbsolute: stringValidation.disallowAbsolute,
         stringPreventTraversal: stringValidation.preventTraversal,
+        numberMinimum: numberValidation.minimum,
+        numberMaximum: numberValidation.maximum,
       } satisfies JsonSubSchemaDraft;
     })
     .filter((entry): entry is JsonSubSchemaDraft => entry !== null);
 }
 
-function buildJsonSubSchemaStringValidation(entry: JsonSubSchemaDraft): unknown {
+function buildJsonSubSchemaValidation(entry: JsonSubSchemaDraft): unknown {
+  if (entry.valueType === "number") {
+    const minimum = parseOptionalNumberInput(entry.numberMinimum);
+    const maximum = parseOptionalNumberInput(entry.numberMaximum);
+
+    return typeof minimum === "number" || typeof maximum === "number"
+      ? {
+          kind: "json-schema",
+          schemaDialect: "draft-2020-12",
+          schema: {
+            type: "number",
+            ...(typeof minimum === "number" ? { minimum } : {}),
+            ...(typeof maximum === "number" ? { maximum } : {}),
+          },
+        }
+      : undefined;
+  }
+
   if (entry.valueType !== "string") {
     return undefined;
   }
@@ -671,6 +786,8 @@ function buildJsonSubSchemaStringValidation(entry: JsonSubSchemaDraft): unknown 
 
 function buildPlainValueValidationJson(params: {
   valueType: "string" | "number" | "boolean" | "json";
+  plainNumberMinimum: string;
+  plainNumberMaximum: string;
   plainStringValidationType: PlainStringValidationType;
   plainStringPathKind: "file" | "directory";
   plainStringTrimWhitespace: boolean;
@@ -710,6 +827,23 @@ function buildPlainValueValidationJson(params: {
     return undefined;
   }
 
+  if (params.valueType === "number") {
+    const minimum = parseOptionalNumberInput(params.plainNumberMinimum);
+    const maximum = parseOptionalNumberInput(params.plainNumberMaximum);
+
+    return typeof minimum === "number" || typeof maximum === "number"
+      ? {
+          kind: "json-schema" as const,
+          schemaDialect: "draft-2020-12",
+          schema: {
+            type: "number",
+            ...(typeof minimum === "number" ? { minimum } : {}),
+            ...(typeof maximum === "number" ? { maximum } : {}),
+          },
+        }
+      : undefined;
+  }
+
   if (params.valueType !== "json") {
     return undefined;
   }
@@ -721,14 +855,12 @@ function buildPlainValueValidationJson(params: {
         return null;
       }
 
+      const displayName = entry.displayName.trim();
       return {
         key,
-        ...(entry.displayName.trim().length > 0 ? { displayName: entry.displayName.trim() } : {}),
+        ...(displayName.length > 0 ? { displayName } : {}),
         type: entry.valueType,
         cardinality: entry.cardinality,
-        ...(typeof buildJsonSubSchemaStringValidation(entry) === "undefined"
-          ? {}
-          : { validation: buildJsonSubSchemaStringValidation(entry) }),
       };
     })
     .filter(
@@ -743,7 +875,46 @@ function buildPlainValueValidationJson(params: {
       } => entry !== null,
     );
 
-  const properties = Object.fromEntries(fields.map((entry) => [entry.key, { type: entry.type }]));
+  const properties = Object.fromEntries(
+    fields.map((entry) => {
+      const property: Record<string, unknown> = {
+        type: entry.type,
+      };
+
+      if (typeof entry.displayName === "string" && entry.displayName.length > 0) {
+        property.title = entry.displayName;
+      }
+
+      const draft = params.jsonSubSchemaDrafts.find(
+        (candidate) => candidate.key.trim() === entry.key,
+      );
+      const entryValidation = draft ? buildJsonSubSchemaValidation(draft) : undefined;
+      if (entry.type === "string" && typeof entryValidation !== "undefined") {
+        property["x-validation"] = entryValidation;
+      }
+
+      if (
+        entry.type === "number" &&
+        typeof entryValidation === "object" &&
+        entryValidation !== null &&
+        "kind" in entryValidation &&
+        (entryValidation as { kind?: unknown }).kind === "json-schema" &&
+        "schema" in entryValidation &&
+        typeof (entryValidation as { schema?: unknown }).schema === "object" &&
+        (entryValidation as { schema?: unknown }).schema !== null
+      ) {
+        const schemaValidation = (entryValidation as { schema: Record<string, unknown> }).schema;
+        if (typeof schemaValidation.minimum === "number") {
+          property.minimum = schemaValidation.minimum;
+        }
+        if (typeof schemaValidation.maximum === "number") {
+          property.maximum = schemaValidation.maximum;
+        }
+      }
+
+      return [entry.key, property];
+    }),
+  );
 
   return {
     kind: "json-schema" as const,
@@ -1044,7 +1215,13 @@ export function getPickerBadgeClassName(badge: WorkflowEditorPickerBadge) {
                         ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200"
                         : badge.tone === "type-work-unit"
                           ? "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-200"
-                          : "border-border/70 bg-background/70 text-muted-foreground",
+                          : badge.tone === "validation-path"
+                            ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200"
+                            : badge.tone === "validation-allowed-values"
+                              ? "border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-200"
+                              : badge.tone === "validation-number"
+                                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200"
+                                : "border-border/70 bg-background/70 text-muted-foreground",
   );
 }
 
@@ -1240,7 +1417,7 @@ const INVOKE_BINDING_SOURCE_OPTIONS = [
 function isLiteralCapableFactDefinition(
   definition: Pick<
     WorkflowInvokeWorkUnitFactDefinition,
-    "factType" | "cardinality" | "validationJson"
+    "valueType" | "cardinality" | "validationJson"
   >,
 ) {
   if (definition.cardinality !== "one") {
@@ -1248,9 +1425,9 @@ function isLiteralCapableFactDefinition(
   }
 
   if (
-    definition.factType !== "string" &&
-    definition.factType !== "number" &&
-    definition.factType !== "boolean"
+    definition.valueType !== "string" &&
+    definition.valueType !== "number" &&
+    definition.valueType !== "boolean"
   ) {
     return false;
   }
@@ -1265,7 +1442,7 @@ function isLiteralCapableFactDefinition(
 
 function getContextFactValueType(
   fact: WorkflowContextFactDefinitionItem,
-): WorkflowInvokeWorkUnitFactDefinition["factType"] | "artifact_snapshot" | null {
+): WorkflowInvokeWorkUnitFactDefinition["valueType"] | "artifact_snapshot" | null {
   switch (fact.kind) {
     case "plain_value_fact":
       return fact.valueType ?? "string";
@@ -1290,7 +1467,7 @@ function isContextFactCompatibleWithDestination(
     return fact.kind === "artifact_slot_reference_fact";
   }
 
-  return getContextFactValueType(fact) === (destination.factType ?? null);
+  return getContextFactValueType(fact) === (destination.valueType ?? null);
 }
 
 function createEmptyInvokeActivationTransitionDraft(): InvokeActivationTransitionDraft {
@@ -1446,9 +1623,9 @@ function toWorkflowInvokePayload(params: {
     const destinationKey = `${binding.destinationKind}:${binding.destinationDefinitionId.trim()}`;
     const destinationDefinition = params.bindingDestinationsByKey.get(destinationKey);
     const literalValue =
-      destinationDefinition?.factType === "number"
+      destinationDefinition?.valueType === "number"
         ? Number(binding.literalValue)
-        : destinationDefinition?.factType === "boolean"
+        : destinationDefinition?.valueType === "boolean"
           ? binding.literalValue === "true"
           : binding.literalValue;
 
@@ -1664,9 +1841,9 @@ export function InvokeStepDialog({
             label: definition.label,
             key: definition.key,
             cardinality: definition.cardinality,
-            factType: definition.factType,
+            valueType: definition.valueType,
             validationJson: definition.validationJson,
-            summary: `work unit fact · ${definition.factType} · ${definition.cardinality}`,
+            summary: `work unit fact · ${definition.valueType} · ${definition.cardinality}`,
             literalAllowed: isLiteralCapableFactDefinition(definition),
           }) satisfies InvokeBindingDestinationOption,
       );
@@ -2043,12 +2220,12 @@ export function InvokeStepDialog({
             return;
           }
 
-          if (destination.factType === "number" && binding.literalValue.trim().length === 0) {
+          if (destination.valueType === "number" && binding.literalValue.trim().length === 0) {
             errors.push(`Provide a numeric literal for invoke binding ${index + 1}.`);
             return;
           }
 
-          if (destination.factType === "number" && Number.isNaN(Number(binding.literalValue))) {
+          if (destination.valueType === "number" && Number.isNaN(Number(binding.literalValue))) {
             errors.push(`Invoke binding ${index + 1} requires a valid numeric literal.`);
           }
         }
@@ -2693,7 +2870,7 @@ export function InvokeStepDialog({
                                       {(() => {
                                         const selectedDestinationFactType =
                                           selectedDestination.kind === "work_unit_fact"
-                                            ? selectedDestination.factType
+                                            ? selectedDestination.valueType
                                             : null;
 
                                         return (
@@ -3767,7 +3944,8 @@ export function WorkflowContextFactDialog({
   );
   const [activeTab, setActiveTab] = useState<WorkflowContextFactDialogTab>("contract");
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
-  const [plainStringDefaultValue, setPlainStringDefaultValue] = useState("");
+  const [plainNumberMinimum, setPlainNumberMinimum] = useState("");
+  const [plainNumberMaximum, setPlainNumberMaximum] = useState("");
   const [plainStringValidationType, setPlainStringValidationType] =
     useState<PlainStringValidationType>("none");
   const [plainStringPathKind, setPlainStringPathKind] = useState<"file" | "directory">("file");
@@ -3913,7 +4091,9 @@ export function WorkflowContextFactDialog({
 
     const nextDraft = toContextFactDraft(fact);
     const nextStringValidation = toStringValidationState(nextDraft.validationJson);
-    const nextPlainStringDefaultValue = "";
+    const nextNumberValidation = toNumberValidationState(nextDraft.validationJson);
+    const nextPlainNumberMinimum = nextNumberValidation.minimum;
+    const nextPlainNumberMaximum = nextNumberValidation.maximum;
     const nextPlainStringValidationType = nextStringValidation.kind;
     const nextPlainStringPathKind = nextStringValidation.pathKind;
     const nextPlainStringTrimWhitespace = nextStringValidation.trimWhitespace;
@@ -3938,7 +4118,8 @@ export function WorkflowContextFactDialog({
     ).map((factDefinitionId) => createWorkUnitDraftFactCard(factDefinitionId, []));
 
     setDraft(nextDraft);
-    setPlainStringDefaultValue(nextPlainStringDefaultValue);
+    setPlainNumberMinimum(nextPlainNumberMinimum);
+    setPlainNumberMaximum(nextPlainNumberMaximum);
     setPlainStringValidationType(nextPlainStringValidationType);
     setPlainStringPathKind(nextPlainStringPathKind);
     setPlainStringTrimWhitespace(nextPlainStringTrimWhitespace);
@@ -3953,7 +4134,8 @@ export function WorkflowContextFactDialog({
     setInitialSnapshot(
       toWorkflowContextFactDialogSnapshot({
         draft: nextDraft,
-        plainStringDefaultValue: nextPlainStringDefaultValue,
+        plainNumberMinimum: nextPlainNumberMinimum,
+        plainNumberMaximum: nextPlainNumberMaximum,
         plainStringValidationType: nextPlainStringValidationType,
         plainStringPathKind: nextPlainStringPathKind,
         plainStringTrimWhitespace: nextPlainStringTrimWhitespace,
@@ -4049,7 +4231,8 @@ export function WorkflowContextFactDialog({
     () =>
       toWorkflowContextFactDialogSnapshot({
         draft,
-        plainStringDefaultValue,
+        plainNumberMinimum,
+        plainNumberMaximum,
         plainStringValidationType,
         plainStringPathKind,
         plainStringTrimWhitespace,
@@ -4068,7 +4251,8 @@ export function WorkflowContextFactDialog({
       jsonSubSchemaDrafts,
       pendingAllowedValueTag,
       pendingIncludedFactDefinitionId,
-      plainStringDefaultValue,
+      plainNumberMaximum,
+      plainNumberMinimum,
       plainStringDisallowAbsolute,
       plainStringPathKind,
       plainStringPreventTraversal,
@@ -4093,7 +4277,19 @@ export function WorkflowContextFactDialog({
       : false;
   const isDialogDirty = isContractDirty || isValueSemanticsDirty || isGuidanceDirty;
 
-  const canSave = draft.key.trim().length > 0;
+  const hasInvalidPlainNumberRange =
+    (draft.kind === "plain_fact" || draft.kind === "plain_value_fact") &&
+    draft.valueType === "number" &&
+    hasInvalidNumberRange(plainNumberMinimum, plainNumberMaximum);
+  const hasInvalidJsonSubSchemaNumberRange = jsonSubSchemaDrafts.some(
+    (entry) =>
+      entry.valueType === "number" &&
+      hasInvalidNumberRange(entry.numberMinimum, entry.numberMaximum),
+  );
+  const canSave =
+    draft.key.trim().length > 0 &&
+    !hasInvalidPlainNumberRange &&
+    !hasInvalidJsonSubSchemaNumberRange;
 
   const closeDialog = () => {
     setIsDiscardDialogOpen(false);
@@ -4149,6 +4345,8 @@ export function WorkflowContextFactDialog({
                         draft.valueType === "json"
                           ? draft.valueType
                           : "string",
+                      plainNumberMinimum,
+                      plainNumberMaximum,
                       plainStringValidationType,
                       plainStringPathKind,
                       plainStringTrimWhitespace,
@@ -4275,7 +4473,8 @@ export function WorkflowContextFactDialog({
                       onValueChange={(value) =>
                         setDraft((previous) => {
                           const nextKind = value as WorkflowContextFactDraft["kind"];
-                          setPlainStringDefaultValue("");
+                          setPlainNumberMinimum("");
+                          setPlainNumberMaximum("");
                           setPlainStringValidationType("none");
                           setPlainStringPathKind("file");
                           setPlainStringTrimWhitespace(true);
@@ -4379,8 +4578,14 @@ export function WorkflowContextFactDialog({
 
                             setDraft((previous) => ({
                               ...previous,
+                              type: nextValueType,
                               valueType: nextValueType,
                             }));
+
+                            if (nextValueType !== "number") {
+                              setPlainNumberMinimum("");
+                              setPlainNumberMaximum("");
+                            }
 
                             if (nextValueType === "json") {
                               setJsonSubSchemaDrafts((current) =>
@@ -4416,19 +4621,6 @@ export function WorkflowContextFactDialog({
                             </CardDescription>
                           </CardHeader>
                           <CardContent className="grid gap-4 py-4 lg:grid-cols-2">
-                            <div className="grid gap-2 lg:col-span-2">
-                              <Label htmlFor="workflow-editor-context-fact-string-default-value">
-                                Default Value
-                              </Label>
-                              <Input
-                                id="workflow-editor-context-fact-string-default-value"
-                                className="rounded-none border-border/70 bg-background/50"
-                                value={plainStringDefaultValue}
-                                onChange={(event) => setPlainStringDefaultValue(event.target.value)}
-                                placeholder="Enter a default string value"
-                              />
-                            </div>
-
                             <div className="grid gap-2">
                               <Label htmlFor="workflow-editor-context-fact-string-validation-type">
                                 Validation Type
@@ -4583,6 +4775,52 @@ export function WorkflowContextFactDialog({
                                   </div>
                                 </div>
                               </div>
+                            ) : null}
+                          </CardContent>
+                        </Card>
+                      ) : null}
+
+                      {draft.valueType === "number" ? (
+                        <Card frame="cut-thick" tone="context" className="shadow-none">
+                          <CardHeader className="border-b border-border/70">
+                            <CardTitle className="font-geist-pixel-square text-sm uppercase tracking-[0.12em]">
+                              Number Validation
+                            </CardTitle>
+                            <CardDescription>
+                              Configure optional numeric bounds for runtime/operator validation.
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent className="grid gap-4 py-4 lg:grid-cols-2">
+                            <div className="grid gap-2">
+                              <Label htmlFor="workflow-editor-context-fact-number-minimum">
+                                Minimum Value
+                              </Label>
+                              <Input
+                                id="workflow-editor-context-fact-number-minimum"
+                                type="number"
+                                className="rounded-none border-border/70 bg-background/50"
+                                value={plainNumberMinimum}
+                                onChange={(event) => setPlainNumberMinimum(event.target.value)}
+                                placeholder="Optional minimum"
+                              />
+                            </div>
+                            <div className="grid gap-2">
+                              <Label htmlFor="workflow-editor-context-fact-number-maximum">
+                                Maximum Value
+                              </Label>
+                              <Input
+                                id="workflow-editor-context-fact-number-maximum"
+                                type="number"
+                                className="rounded-none border-border/70 bg-background/50"
+                                value={plainNumberMaximum}
+                                onChange={(event) => setPlainNumberMaximum(event.target.value)}
+                                placeholder="Optional maximum"
+                              />
+                            </div>
+                            {hasInvalidPlainNumberRange ? (
+                              <p className="text-xs text-destructive lg:col-span-2">
+                                Maximum value must be greater than or equal to minimum value.
+                              </p>
                             ) : null}
                           </CardContent>
                         </Card>
@@ -5060,6 +5298,74 @@ export function WorkflowContextFactDialog({
                                               </div>
                                             </div>
                                           </div>
+                                        ) : null}
+                                      </div>
+                                    ) : null}
+
+                                    {entry.valueType === "number" ? (
+                                      <div className="grid gap-3 lg:col-span-2">
+                                        <div className="grid gap-2 md:grid-cols-2">
+                                          <div className="grid gap-2">
+                                            <Label
+                                              htmlFor={`workflow-editor-json-number-minimum-${entry.localId}`}
+                                            >
+                                              Minimum Value
+                                            </Label>
+                                            <Input
+                                              id={`workflow-editor-json-number-minimum-${entry.localId}`}
+                                              type="number"
+                                              className="rounded-none border-border/70 bg-background/50"
+                                              value={entry.numberMinimum}
+                                              onChange={(event) =>
+                                                setJsonSubSchemaDrafts((current) =>
+                                                  current.map((currentEntry) =>
+                                                    currentEntry.localId === entry.localId
+                                                      ? {
+                                                          ...currentEntry,
+                                                          numberMinimum: event.target.value,
+                                                        }
+                                                      : currentEntry,
+                                                  ),
+                                                )
+                                              }
+                                              placeholder="Optional minimum"
+                                            />
+                                          </div>
+                                          <div className="grid gap-2">
+                                            <Label
+                                              htmlFor={`workflow-editor-json-number-maximum-${entry.localId}`}
+                                            >
+                                              Maximum Value
+                                            </Label>
+                                            <Input
+                                              id={`workflow-editor-json-number-maximum-${entry.localId}`}
+                                              type="number"
+                                              className="rounded-none border-border/70 bg-background/50"
+                                              value={entry.numberMaximum}
+                                              onChange={(event) =>
+                                                setJsonSubSchemaDrafts((current) =>
+                                                  current.map((currentEntry) =>
+                                                    currentEntry.localId === entry.localId
+                                                      ? {
+                                                          ...currentEntry,
+                                                          numberMaximum: event.target.value,
+                                                        }
+                                                      : currentEntry,
+                                                  ),
+                                                )
+                                              }
+                                              placeholder="Optional maximum"
+                                            />
+                                          </div>
+                                        </div>
+                                        {hasInvalidNumberRange(
+                                          entry.numberMinimum,
+                                          entry.numberMaximum,
+                                        ) ? (
+                                          <p className="text-xs text-destructive">
+                                            Maximum value must be greater than or equal to minimum
+                                            value.
+                                          </p>
                                         ) : null}
                                       </div>
                                     ) : null}
@@ -5698,6 +6004,15 @@ function getPlainJsonSubFieldOptions(fact: WorkflowContextFactDefinitionItem | u
       ? ((subSchema as { fields: unknown[] }).fields ?? [])
       : [];
 
+  const propertyByKey =
+    typeof schema === "object" &&
+    schema !== null &&
+    "properties" in schema &&
+    typeof (schema as { properties?: unknown }).properties === "object" &&
+    (schema as { properties?: unknown }).properties !== null
+      ? ((schema as { properties: Record<string, unknown> }).properties ?? {})
+      : {};
+
   const legacyPropertyFields =
     typeof schema === "object" && schema !== null && "properties" in schema
       ? Object.entries((schema as { properties?: Record<string, unknown> }).properties ?? {}).map(
@@ -5735,8 +6050,16 @@ function getPlainJsonSubFieldOptions(fact: WorkflowContextFactDefinitionItem | u
         return null;
       }
 
+      const property = asRecord(propertyByKey[key]);
+
       const normalizedType =
-        type === "string" || type === "number" || type === "boolean" ? type : null;
+        type === "string" || type === "number" || type === "boolean"
+          ? type
+          : property?.type === "string" ||
+              property?.type === "number" ||
+              property?.type === "boolean"
+            ? property.type
+            : null;
       if (!normalizedType) {
         return null;
       }
@@ -5744,7 +6067,13 @@ function getPlainJsonSubFieldOptions(fact: WorkflowContextFactDefinitionItem | u
       const displayName =
         "displayName" in entry ? (entry as { displayName?: unknown }).displayName : undefined;
       const validation =
-        "validation" in entry ? (entry as { validation?: unknown }).validation : undefined;
+        "validation" in entry
+          ? (entry as { validation?: unknown }).validation
+          : typeof property?.validation !== "undefined"
+            ? property.validation
+            : typeof property?.["x-validation"] !== "undefined"
+              ? property["x-validation"]
+              : undefined;
       const stringValidation =
         normalizedType === "string" ? toStringValidationState(validation) : null;
       const validationKind = stringValidation?.kind ?? "none";
@@ -5752,7 +6081,12 @@ function getPlainJsonSubFieldOptions(fact: WorkflowContextFactDefinitionItem | u
       return {
         value: key,
         operandType: normalizedType,
-        label: typeof displayName === "string" && displayName.trim().length > 0 ? displayName : key,
+        label:
+          typeof displayName === "string" && displayName.trim().length > 0
+            ? displayName
+            : typeof property?.title === "string" && property.title.trim().length > 0
+              ? property.title
+              : key,
         description: `${normalizedType.toUpperCase()} · ${key}`,
         validationKind,
         allowedValues: stringValidation?.allowedValues ?? [],

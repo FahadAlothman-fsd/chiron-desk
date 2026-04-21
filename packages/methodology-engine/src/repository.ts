@@ -367,6 +367,29 @@ export interface DeleteWorkUnitTypeParams {
   workUnitTypeKey: string;
 }
 
+export interface CreateWorkUnitTypeParams {
+  versionId: string;
+  workUnitType: {
+    key: string;
+    displayName?: string;
+    description?: unknown;
+    guidance?: unknown;
+    cardinality?: "one_per_project" | "many_per_project";
+  };
+}
+
+export interface UpdateWorkUnitTypeParams {
+  versionId: string;
+  workUnitTypeKey: string;
+  workUnitType: {
+    key: string;
+    displayName?: string;
+    description?: unknown;
+    guidance?: unknown;
+    cardinality?: "one_per_project" | "many_per_project";
+  };
+}
+
 export interface ReplaceWorkUnitFactsParams {
   versionId: string;
   workUnitTypeKey: string;
@@ -689,6 +712,12 @@ export class MethodologyRepository extends Context.Tag("MethodologyRepository")<
     ) => Effect.Effect<void, RepositoryError>;
     readonly deleteWorkUnitType?: (
       params: DeleteWorkUnitTypeParams,
+    ) => Effect.Effect<boolean, RepositoryError>;
+    readonly createWorkUnitType?: (
+      params: CreateWorkUnitTypeParams,
+    ) => Effect.Effect<boolean, RepositoryError>;
+    readonly updateWorkUnitType?: (
+      params: UpdateWorkUnitTypeParams,
     ) => Effect.Effect<boolean, RepositoryError>;
     readonly replaceWorkUnitFacts?: (
       params: ReplaceWorkUnitFactsParams,

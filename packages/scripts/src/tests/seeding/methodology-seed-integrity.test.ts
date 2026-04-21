@@ -1349,6 +1349,32 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
       expect(["one", "many"]).toContain(factDefinition.cardinality);
     }
 
+    const researchSetupWorkUnitFactRows = researchWorkUnitFactDefinitions.filter(
+      (fact) => fact.key === "setup_work_unit",
+    );
+    expect(researchSetupWorkUnitFactRows).toHaveLength(2);
+    for (const setupWorkUnitFact of researchSetupWorkUnitFactRows) {
+      expect(setupWorkUnitFact.factType).toBe("work_unit");
+      expect(setupWorkUnitFact.validationJson).toMatchObject({
+        kind: "none",
+        dependencyType: "requires_setup_context",
+        workUnitKey: "setup",
+      });
+    }
+
+    const researchBrainstormingWorkUnitFactRows = researchWorkUnitFactDefinitions.filter(
+      (fact) => fact.key === "brainstorming_work_unit",
+    );
+    expect(researchBrainstormingWorkUnitFactRows).toHaveLength(2);
+    for (const brainstormingWorkUnitFact of researchBrainstormingWorkUnitFactRows) {
+      expect(brainstormingWorkUnitFact.factType).toBe("work_unit");
+      expect(brainstormingWorkUnitFact.validationJson).toMatchObject({
+        kind: "none",
+        dependencyType: "informed_by_brainstorming",
+        workUnitKey: "brainstorming",
+      });
+    }
+
     const objectivesFactRows = brainstormingWorkUnitFactDefinitions.filter(
       (fact) => fact.key === "objectives",
     );

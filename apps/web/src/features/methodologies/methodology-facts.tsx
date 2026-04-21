@@ -31,7 +31,7 @@ export type MethodologyFactRow = {
   id: string;
   displayName: string;
   factKey: string;
-  factType: FactEditorValue["factType"];
+  valueType: FactEditorValue["valueType"];
   cardinality: "one" | "many";
   guidanceLabel: string;
   validationLabel: string;
@@ -64,11 +64,11 @@ function createFactInventoryColumns({
       ),
     },
     {
-      accessorKey: "factType",
+      accessorKey: "valueType",
       header: "Type",
       cell: ({ row }) => (
         <span className="inline-flex items-center rounded-full border border-border/70 px-2 py-0.5 text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
-          {row.original.factType}
+          {row.original.valueType}
         </span>
       ),
     },
@@ -229,7 +229,7 @@ export function buildMethodologyFactRows(facts: readonly FactEditorValue[]): Met
     id: fact.__uiId ?? `fact-row-${index}`,
     displayName: fact.name?.trim() || fact.key || "Untitled fact",
     factKey: fact.key || "-",
-    factType: fact.factType,
+    valueType: fact.valueType,
     cardinality: fact.cardinality ?? "one",
     guidanceLabel: summarizeGuidance(fact),
     validationLabel: summarizeValidation(fact),

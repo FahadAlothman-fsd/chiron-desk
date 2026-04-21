@@ -49,7 +49,7 @@ test("createDraftFromProjection derives fact-schema and workflow-step editors", 
         cardinality: "one_per_project",
         lifecycleStates: [{ key: "draft" }],
         lifecycleTransitions: [],
-        factSchemas: [{ key: "goal", factType: "string", required: true }],
+        factSchemas: [{ key: "goal", valueType: "string", required: true }],
       },
     ],
     agentTypes: [],
@@ -72,7 +72,7 @@ test("createDraftFromProjection derives fact-schema and workflow-step editors", 
   assert.equal(
     draft.factSchemasJson,
     toDeterministicJson({
-      "WU.PRD": [{ key: "goal", factType: "string", required: true }],
+      "WU.PRD": [{ key: "goal", valueType: "string", required: true }],
     }),
   );
   assert.equal(
@@ -99,7 +99,7 @@ test("parseWorkspaceDraftForPersistence merges fact schemas and workflow steps",
       },
     ]),
     factSchemasJson: toDeterministicJson({
-      "WU.PRD": [{ key: "goal", factType: "string", required: true }],
+      "WU.PRD": [{ key: "goal", valueType: "string", required: true }],
     }),
     transitionsJson: toDeterministicJson([{ key: "start" }]),
     workflowsJson: toDeterministicJson([
@@ -145,11 +145,11 @@ test("parseWorkspaceDraftForPersistence prefers canonical nested work-unit lifec
             conditionSets: [{ key: "gate.complete", phase: "completion", mode: "all", groups: [] }],
           },
         ],
-        factSchemas: [{ key: "goal", factType: "string", required: true }],
+        factSchemas: [{ key: "goal", valueType: "string", required: true }],
       },
     ]),
     factSchemasJson: toDeterministicJson({
-      "WU.PRD": [{ key: "wrong", factType: "string", required: false }],
+      "WU.PRD": [{ key: "wrong", valueType: "string", required: false }],
     }),
     transitionsJson: toDeterministicJson([
       {
@@ -276,7 +276,7 @@ test("workspace edits persist and rebuild deterministic draft state after reload
             requiredLinks: [],
           },
         ],
-        factSchemas: [{ key: "goal", factType: "string", required: true }],
+        factSchemas: [{ key: "goal", valueType: "string", required: true }],
       },
     ],
     agentTypes: [],

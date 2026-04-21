@@ -1661,7 +1661,7 @@ const canonicalResearchFactDefinitions = [
     idSuffix: "setup-work-unit",
     key: "setup_work_unit",
     name: "Setup Work Unit",
-    factType: "string",
+    factType: "work_unit",
     cardinality: "one" as const,
     defaultValueJson: null,
     descriptionJson: toDescriptionJson(
@@ -1681,7 +1681,7 @@ const canonicalResearchFactDefinitions = [
     idSuffix: "brainstorming-work-unit",
     key: "brainstorming_work_unit",
     name: "Brainstorming Work Unit",
-    factType: "string",
+    factType: "work_unit",
     cardinality: "one" as const,
     defaultValueJson: null,
     descriptionJson: toDescriptionJson(

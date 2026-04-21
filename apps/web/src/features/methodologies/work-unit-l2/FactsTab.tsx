@@ -67,7 +67,8 @@ type RawFact = {
   name?: string;
   key: string;
   type?: "string" | "number" | "boolean" | "json";
-  factType: CanonicalFactType;
+  valueType?: CanonicalFactType;
+  factType?: CanonicalFactType;
   cardinality?: FactCardinality;
   defaultValue?: unknown;
   guidance?: {
@@ -104,7 +105,7 @@ type UiFact = {
   id: string;
   name: string;
   key: string;
-  factType: FactType;
+  valueType: FactType;
   cardinality: FactCardinality;
   validationKind: ValidationKind;
   defaultValue: unknown;
@@ -126,7 +127,7 @@ type UiFact = {
 type FactFormState = {
   name: string;
   key: string;
-  factType: FactType;
+  valueType: FactType;
   cardinality: FactCardinality;
   validationKind: ValidationKind;
   defaultValue: string;
@@ -356,7 +357,7 @@ function toUiFactType(fact: RawFact): FactType {
     return "work unit";
   }
 
-  const value = fact.factType;
+  const value = fact.valueType ?? fact.type ?? fact.factType;
 
   if (value === "work unit" || value === "work_unit" || value === "work_unit_ref") {
     return "work unit";
@@ -422,7 +423,7 @@ function normalizeFact(source: unknown, index: number): UiFact {
   const fact = (source ?? {}) as RawFact;
   const name = fact.name?.trim() || fact.key?.trim() || `Fact ${index + 1}`;
   const key = fact.key?.trim() || `fact.${index + 1}`;
-  const factType = toUiFactType(fact);
+  const valueType = toUiFactType(fact);
   const validationKind = getUiValidationKind(fact.validation);
   const dependencyType =
     fact.validation?.dependencyType?.trim() || fact.dependencyType?.trim() || "";
@@ -447,7 +448,7 @@ function normalizeFact(source: unknown, index: number): UiFact {
     id: createFactId(index),
     name,
     key,
-    factType,
+    valueType,
     cardinality: fact.cardinality === "many" ? "many" : "one",
     validationKind,
     defaultValue,
@@ -475,7 +476,7 @@ function toFormState(fact?: UiFact): FactFormState {
   return {
     name: fact?.name ?? "",
     key: fact?.key ?? "",
-    factType: fact?.factType ?? "string",
+    valueType: fact?.valueType ?? "string",
     cardinality: fact?.cardinality ?? "one",
     validationKind: fact?.validationKind ?? "none",
     defaultValue: fact?.defaultValue === undefined ? "" : String(fact.defaultValue),
@@ -560,15 +561,15 @@ function toMutationFact(formState: FactFormState, jsonSubKeys: readonly JsonSubK
   const numberMaximum = parseOptionalNumber(formState.numberMax);
   const trimmedDescription = formState.description.trim();
   const validation: RawFactValidation =
-    formState.factType === "work unit"
+    formState.valueType === "work unit"
       ? {
           kind: "none",
           ...(dependencyType.length > 0 ? { dependencyType } : {}),
           ...(workUnitKey.length > 0 ? { workUnitKey } : {}),
         }
-      : formState.factType === "json"
+      : formState.valueType === "json"
         ? jsonSubKeysToJsonSchemaValidation(jsonSubKeys)
-        : formState.factType === "number"
+        : formState.valueType === "number"
           ? typeof numberMinimum === "number" || typeof numberMaximum === "number"
             ? {
                 kind: "json-schema",
@@ -580,7 +581,7 @@ function toMutationFact(formState: FactFormState, jsonSubKeys: readonly JsonSubK
                 },
               }
             : { kind: "none" }
-          : formState.factType === "string"
+          : formState.valueType === "string"
             ? formState.validationKind === "path"
               ? {
                   kind: "path",
@@ -604,11 +605,10 @@ function toMutationFact(formState: FactFormState, jsonSubKeys: readonly JsonSubK
             : { kind: "none" };
 
   return {
-    kind: formState.factType === "work unit" ? "work_unit_reference_fact" : "plain_fact",
+    kind: formState.valueType === "work unit" ? "work_unit_reference_fact" : "plain_fact",
     name: trimmedName,
     key: resolvedKey,
-    ...(formState.factType === "work unit" ? {} : { type: formState.factType }),
-    factType: formState.factType,
+    ...(formState.valueType === "work unit" ? {} : { type: formState.valueType }),
     cardinality: formState.cardinality,
     ...(trimmedDescription.length > 0
       ? {
@@ -744,13 +744,13 @@ export function FactsTab({
     const numberMinimum = parseOptionalNumber(formState.numberMin);
     const numberMaximum = parseOptionalNumber(formState.numberMax);
     if (
-      formState.factType === "number" &&
+      formState.valueType === "number" &&
       hasInvalidNumberRange(formState.numberMin, formState.numberMax)
     ) {
       toast.error("Maximum value cannot be less than minimum value.");
       return;
     }
-    if (formState.factType === "json" && hasInvalidJsonSubKeyNumberRange(jsonSubKeys)) {
+    if (formState.valueType === "json" && hasInvalidJsonSubKeyNumberRange(jsonSubKeys)) {
       toast.error("JSON number field maximum value cannot be less than minimum value.");
       return;
     }
@@ -760,16 +760,16 @@ export function FactsTab({
         : (editingFact?.id ?? createFactId(facts.length + 1)),
       name: formState.name.trim() || key,
       key,
-      factType: formState.factType,
+      valueType: formState.valueType,
       cardinality: formState.cardinality,
       validationKind:
-        formState.factType === "string"
+        formState.valueType === "string"
           ? formState.validationKind
-          : formState.factType === "json"
+          : formState.valueType === "json"
             ? "json-schema"
-            : formState.factType === "work unit"
+            : formState.valueType === "work unit"
               ? "none"
-              : formState.factType === "number"
+              : formState.valueType === "number"
                 ? typeof numberMinimum === "number" || typeof numberMaximum === "number"
                   ? "json-schema"
                   : "none"
@@ -863,10 +863,10 @@ export function FactsTab({
                     <span
                       className={[
                         "inline-flex items-center border px-2 py-1 text-[0.65rem] uppercase tracking-[0.12em]",
-                        getTypeBadgeClass(fact.factType),
+                        getTypeBadgeClass(fact.valueType),
                       ].join(" ")}
                     >
-                      {fact.factType}
+                      {fact.valueType}
                     </span>
                   </td>
                   <td className="px-3 py-3">
@@ -1005,11 +1005,11 @@ export function FactsTab({
                 <div className="space-y-2">
                   <Label>Fact Type</Label>
                   <Select
-                    value={formState.factType}
+                    value={formState.valueType}
                     onValueChange={(value) =>
                       setFormState((prev) => ({
                         ...prev,
-                        factType: value as FactType,
+                        valueType: value as FactType,
                         validationKind: value === "string" ? prev.validationKind : "none",
                       }))
                     }
@@ -1046,7 +1046,7 @@ export function FactsTab({
                     </SelectContent>
                   </Select>
                 </div>
-                {formState.factType === "string" ? (
+                {formState.valueType === "string" ? (
                   <div className="space-y-2">
                     <Label>Validation Type</Label>
                     <Select
@@ -1069,7 +1069,7 @@ export function FactsTab({
                     </Select>
                   </div>
                 ) : null}
-                {formState.factType === "number" ? (
+                {formState.valueType === "number" ? (
                   <div className="col-span-2 grid gap-4 border border-border/70 p-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="wu-fact-number-min">Minimum Value</Label>
@@ -1105,7 +1105,7 @@ export function FactsTab({
                     ) : null}
                   </div>
                 ) : null}
-                {formState.factType === "string" && formState.validationKind === "path" ? (
+                {formState.valueType === "string" && formState.validationKind === "path" ? (
                   <div className="col-span-2 grid gap-4 border border-border/70 p-4">
                     <div className="space-y-2">
                       <Label>Path Kind</Label>
@@ -1185,7 +1185,7 @@ export function FactsTab({
                     </div>
                   </div>
                 ) : null}
-                {formState.factType === "string" &&
+                {formState.valueType === "string" &&
                 formState.validationKind === "allowed-values" ? (
                   <div className="col-span-2 space-y-2">
                     <Label className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
@@ -1202,7 +1202,7 @@ export function FactsTab({
                     />
                   </div>
                 ) : null}
-                {formState.factType === "json" ? (
+                {formState.valueType === "json" ? (
                   <div className="col-span-2 space-y-4">
                     <div className="flex items-center justify-between">
                       <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
@@ -1621,7 +1621,7 @@ export function FactsTab({
                     )}
                   </div>
                 ) : null}
-                {formState.factType === "work unit" ? (
+                {formState.valueType === "work unit" ? (
                   <div className="col-span-2 space-y-2">
                     <Label id="wu-fact-work-unit-label">Work Unit</Label>
                     <Popover open={isWorkUnitOpen} onOpenChange={setIsWorkUnitOpen}>
@@ -1685,7 +1685,7 @@ export function FactsTab({
                     </Popover>
                   </div>
                 ) : null}
-                {formState.factType === "work unit" ? (
+                {formState.valueType === "work unit" ? (
                   <div className="col-span-2 space-y-2">
                     <Label id="wu-fact-dependency-type-label">Dependency Type</Label>
                     <Popover open={isDependencyTypeOpen} onOpenChange={setIsDependencyTypeOpen}>
@@ -1809,9 +1809,9 @@ export function FactsTab({
               className="rounded-none"
               onClick={() => void saveFact()}
               disabled={
-                (formState.factType === "number" &&
+                (formState.valueType === "number" &&
                   hasInvalidNumberRange(formState.numberMin, formState.numberMax)) ||
-                (formState.factType === "json" && hasInvalidJsonSubKeyNumberRange(jsonSubKeys))
+                (formState.valueType === "json" && hasInvalidJsonSubKeyNumberRange(jsonSubKeys))
               }
             >
               Save

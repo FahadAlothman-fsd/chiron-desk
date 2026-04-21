@@ -67,7 +67,7 @@ type FactEditorStep = "contract" | "guidance";
 type FactEditorFormValues = {
   displayName: string;
   factKey: string;
-  factType: FactEditorValue["factType"];
+  valueType: FactEditorValue["valueType"];
   cardinality: "one" | "many";
   description: string;
   humanMarkdown: string;
@@ -403,7 +403,7 @@ function factToFormValues(fact: FactEditorValue): FactEditorFormValues {
   return {
     displayName: fact.name ?? "",
     factKey: fact.key,
-    factType: fact.factType,
+    valueType: fact.valueType,
     cardinality: fact.cardinality === "many" ? "many" : "one",
     description,
     humanMarkdown: humanGuidance,
@@ -419,18 +419,18 @@ function factToFormValues(fact: FactEditorValue): FactEditorFormValues {
   };
 }
 
-function normalizeFactType(factType: FactEditorValue["factType"]): FactEditorValue["factType"] {
+function normalizeFactType(valueType: FactEditorValue["valueType"]): FactEditorValue["valueType"] {
   if (
-    factType === "string" ||
-    factType === "number" ||
-    factType === "boolean" ||
-    factType === "json" ||
-    factType === "work_unit"
+    valueType === "string" ||
+    valueType === "number" ||
+    valueType === "boolean" ||
+    valueType === "json" ||
+    valueType === "work_unit"
   ) {
-    return factType;
+    return valueType;
   }
 
-  if (typeof factType === "string" && factType === "work unit") {
+  if (typeof valueType === "string" && valueType === "work unit") {
     return "work_unit";
   }
 
@@ -442,7 +442,7 @@ function formValuesToFact(
   baseFact: FactEditorValue,
   jsonSubKeys: readonly JsonSubKey[],
 ): FactEditorValue {
-  const factType = normalizeFactType(values.factType);
+  const valueType = normalizeFactType(values.valueType);
   const key = values.factKey.trim();
   const displayName = values.displayName.trim();
   const description = values.description.trim();
@@ -456,9 +456,9 @@ function formValuesToFact(
   const numberMaximum = parseOptionalNumber(values.numberMax);
 
   const validation: FactEditorValue["validation"] =
-    factType === "json"
+    valueType === "json"
       ? jsonSubKeysToJsonSchemaValidation(jsonSubKeys)
-      : factType === "number"
+      : valueType === "number"
         ? typeof numberMinimum === "number" || typeof numberMaximum === "number"
           ? {
               kind: "json-schema",
@@ -470,7 +470,7 @@ function formValuesToFact(
               },
             }
           : { kind: "none" }
-        : factType === "string"
+        : valueType === "string"
           ? values.validationType === "path"
             ? {
                 kind: "path",
@@ -495,7 +495,7 @@ function formValuesToFact(
     ...(baseFact.__uiId ? { __uiId: baseFact.__uiId } : {}),
     ...(displayName.length > 0 ? { name: displayName } : {}),
     key,
-    factType,
+    valueType,
     cardinality: values.cardinality,
     description: { markdown: description },
     guidance: {
@@ -510,7 +510,7 @@ function formValuesToFact(
 }
 
 function factToMutationInput(fact: FactEditorValue): Record<string, unknown> {
-  const normalizedFactType = normalizeFactType(fact.factType);
+  const normalizedFactType = normalizeFactType(fact.valueType);
   const trimmedKey = fact.key.trim();
   const factRecord = fact as unknown as Record<string, unknown>;
   const guidanceRecord = isRecord(factRecord.guidance) ? factRecord.guidance : {};
@@ -523,7 +523,6 @@ function factToMutationInput(fact: FactEditorValue): Record<string, unknown> {
     name: fact.name,
     key: trimmedKey,
     type: normalizedFactType,
-    factType: normalizedFactType,
     cardinality: (fact as unknown as { cardinality?: "one" | "many" }).cardinality ?? "one",
     description: { markdown: description },
     guidance: {
@@ -609,7 +608,7 @@ function FactEditorDialog({
               return;
             }
 
-            const nextFactType = form.getFieldValue("factType");
+            const nextFactType = form.getFieldValue("valueType");
             const nextNumberMin = form.getFieldValue("numberMin");
             const nextNumberMax = form.getFieldValue("numberMax");
             if (
@@ -726,7 +725,7 @@ function FactEditorDialog({
                       </div>
                     )}
                   </form.Field>
-                  <form.Field name="factType">
+                  <form.Field name="valueType">
                     {(field) => (
                       <div className="space-y-2">
                         <Label
@@ -738,7 +737,7 @@ function FactEditorDialog({
                         <Select
                           value={field.state.value}
                           onValueChange={(v) =>
-                            field.handleChange(v as FactEditorValue["factType"])
+                            field.handleChange(v as FactEditorValue["valueType"])
                           }
                         >
                           <SelectTrigger className="h-9 rounded-none border-border/70 bg-background/50 text-xs tracking-[0.04em]">
@@ -781,12 +780,12 @@ function FactEditorDialog({
                       </div>
                     )}
                   </form.Field>
-                  <form.Subscribe selector={(state) => state.values.factType}>
-                    {(factType) => (factType !== "json" ? null : null)}
+                  <form.Subscribe selector={(state) => state.values.valueType}>
+                    {(valueType) => (valueType !== "json" ? null : null)}
                   </form.Subscribe>
-                  <form.Subscribe selector={(state) => state.values.factType}>
-                    {(factType) =>
-                      factType === "string" ? (
+                  <form.Subscribe selector={(state) => state.values.valueType}>
+                    {(valueType) =>
+                      valueType === "string" ? (
                         <div className="col-span-2 space-y-6">
                           <form.Field name="validationType">
                             {(field) => (
@@ -933,7 +932,7 @@ function FactEditorDialog({
                             }
                           </form.Subscribe>
                         </div>
-                      ) : factType === "number" ? (
+                      ) : valueType === "number" ? (
                         <div className="col-span-2 grid gap-4 border border-border/70 p-4 md:grid-cols-2">
                           <form.Field name="numberMin">
                             {(field) => (
@@ -995,7 +994,7 @@ function FactEditorDialog({
                             }
                           </form.Subscribe>
                         </div>
-                      ) : factType === "json" ? (
+                      ) : valueType === "json" ? (
                         <div className="col-span-2 space-y-4">
                           <div className="flex items-center justify-between">
                             <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
@@ -1498,19 +1497,19 @@ function FactEditorDialog({
               <form.Subscribe
                 selector={(state) => ({
                   factKey: state.values.factKey,
-                  factType: state.values.factType,
+                  valueType: state.values.valueType,
                   numberMin: state.values.numberMin,
                   numberMax: state.values.numberMax,
                 })}
               >
-                {({ factKey, factType, numberMin, numberMax }) => (
+                {({ factKey, valueType, numberMin, numberMax }) => (
                   <Button
                     className="rounded-none px-8"
                     type="submit"
                     disabled={
                       factKey.trim().length === 0 ||
-                      (factType === "number" && hasInvalidNumberRange(numberMin, numberMax)) ||
-                      (factType === "json" && hasInvalidJsonSubKeyNumberRange(jsonSubKeys))
+                      (valueType === "number" && hasInvalidNumberRange(numberMin, numberMax)) ||
+                      (valueType === "json" && hasInvalidJsonSubKeyNumberRange(jsonSubKeys))
                     }
                   >
                     Save

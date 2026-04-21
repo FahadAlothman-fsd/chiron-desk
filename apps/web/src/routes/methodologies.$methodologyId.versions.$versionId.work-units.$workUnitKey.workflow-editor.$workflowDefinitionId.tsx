@@ -1250,9 +1250,10 @@ function toContextFactDefinitions(
         summary: typeof value.summary === "string" ? value.summary : "",
       };
 
-      const itemValueType = normalizeWorkflowValueType(value.valueType);
+      const itemValueType = normalizeWorkflowValueType(value.valueType ?? value.type);
       if (itemValueType) {
         item.valueType = itemValueType;
+        item.type = itemValueType;
       }
 
       if (typeof value.factDefinitionId === "string") {
@@ -1374,7 +1375,7 @@ function toContextFactMutationPayload(draft: WorkflowContextFactDraft) {
     case "plain_fact":
       return {
         ...base,
-        type: draft.type ?? draft.valueType ?? "string",
+        type: draft.valueType ?? draft.type ?? "string",
         ...(typeof draft.validationJson === "undefined"
           ? {}
           : {
@@ -1994,9 +1995,7 @@ function getExternalFactDefinitionMetadata(params: {
     );
 
   if (methodologyFact) {
-    const valueType = normalizeWorkflowValueType(
-      methodologyFact.valueType ?? methodologyFact.factType,
-    );
+    const valueType = normalizeWorkflowValueType(methodologyFact.valueType ?? methodologyFact.type);
     const workUnitDefinitionId =
       typeof methodologyFact.workUnitTypeId === "string" &&
       methodologyFact.workUnitTypeId.trim().length > 0
@@ -2038,7 +2037,7 @@ function getExternalFactDefinitionMetadata(params: {
     return null;
   }
 
-  const valueType = normalizeWorkflowValueType(workUnitFact.factType);
+  const valueType = normalizeWorkflowValueType(workUnitFact.valueType ?? workUnitFact.type);
 
   return {
     ...(valueType ? { valueType } : {}),
@@ -2098,13 +2097,13 @@ function toFactOptions(
     const description = readMarkdown(value.descriptionJson) || readMarkdown(value.description);
     const cardinality =
       value.cardinality === "one" || value.cardinality === "many" ? value.cardinality : null;
-    const factType = normalizePickerFactType(value.valueType ?? value.factType);
+    const pickerValueType = normalizePickerFactType(value.valueType ?? value.type);
     const workUnitTypeKey =
       typeof value.workUnitTypeKey === "string" && value.workUnitTypeKey.trim().length > 0
         ? value.workUnitTypeKey.trim()
         : null;
     const workUnitTypeLabel =
-      factType === "work unit" && workUnitTypeKey
+      pickerValueType === "work unit" && workUnitTypeKey
         ? getWorkUnitTypeLabel(rawWorkUnits, workUnitTypeKey)
         : null;
     const badges: WorkflowEditorPickerBadge[] = [
@@ -2113,7 +2112,9 @@ function toFactOptions(
         tone: source === "methodology" ? "source-methodology" : "source-current-work-unit",
       },
       ...(cardinality ? [{ label: cardinality, tone: "cardinality" as const }] : []),
-      ...(factType ? [{ label: factType, tone: getFactTypeBadgeTone(factType) }] : []),
+      ...(pickerValueType
+        ? [{ label: pickerValueType, tone: getFactTypeBadgeTone(pickerValueType) }]
+        : []),
       ...(workUnitTypeLabel
         ? [{ label: workUnitTypeLabel, tone: "work-unit-definition" as const }]
         : []),
@@ -2136,13 +2137,13 @@ function toFactOptions(
       description: description || fallbackDescription,
       searchText,
       badges,
-      ...(factType === "work unit"
+      ...(pickerValueType === "work unit"
         ? { valueType: "work_unit" as const }
-        : factType === "string" ||
-            factType === "number" ||
-            factType === "boolean" ||
-            factType === "json"
-          ? { valueType: factType }
+        : pickerValueType === "string" ||
+            pickerValueType === "number" ||
+            pickerValueType === "boolean" ||
+            pickerValueType === "json"
+          ? { valueType: pickerValueType }
           : {}),
       ...(typeof value.validationJson !== "undefined"
         ? { validationJson: value.validationJson }
@@ -2201,15 +2202,19 @@ function toInvokeWorkUnitFactDefinitions(
       return [];
     }
 
-    const factType =
-      fact.factType === "string" ||
-      fact.factType === "number" ||
-      fact.factType === "boolean" ||
-      fact.factType === "json" ||
-      fact.factType === "work_unit"
-        ? fact.factType
+    const rawValueType =
+      fact.valueType ??
+      fact.type ??
+      (fact.kind === "work_unit_reference_fact" ? "work_unit" : null);
+    const valueType =
+      rawValueType === "string" ||
+      rawValueType === "number" ||
+      rawValueType === "boolean" ||
+      rawValueType === "json" ||
+      rawValueType === "work_unit"
+        ? rawValueType
         : null;
-    if (!factType) {
+    if (!valueType) {
       return [];
     }
 
@@ -2228,7 +2233,7 @@ function toInvokeWorkUnitFactDefinitions(
             : typeof fact.label === "string" && fact.label.trim().length > 0
               ? fact.label.trim()
               : fact.key,
-        factType,
+        valueType,
         cardinality: fact.cardinality === "many" ? "many" : "one",
         validationJson: fact.validationJson ?? fact.validation ?? null,
       } satisfies WorkflowInvokeWorkUnitFactDefinition,

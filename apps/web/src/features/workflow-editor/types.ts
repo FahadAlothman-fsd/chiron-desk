@@ -128,7 +128,7 @@ export type WorkflowInvokeWorkUnitFactDefinition = {
   id: string;
   key: string;
   label: string;
-  factType: "string" | "number" | "boolean" | "json" | "work_unit";
+  valueType: "string" | "number" | "boolean" | "json" | "work_unit";
   cardinality: "one" | "many";
   validationJson?: unknown;
 };
@@ -292,6 +292,9 @@ export type WorkflowEditorPickerBadge = {
     | "type-boolean"
     | "type-json"
     | "type-work-unit"
+    | "validation-path"
+    | "validation-allowed-values"
+    | "validation-number"
     | "work-unit-definition";
 };
 

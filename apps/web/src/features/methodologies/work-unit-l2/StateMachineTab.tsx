@@ -73,7 +73,7 @@ type WorkflowOption = {
 type FactOption = {
   key: string;
   name?: string;
-  factType?: "string" | "number" | "boolean" | "json" | "work_unit";
+  valueType?: "string" | "number" | "boolean" | "json" | "work_unit";
 };
 
 type ArtifactSlotOption = {
@@ -694,7 +694,7 @@ export function StateMachineTab({
           ): fact is {
             key: string;
             name?: string;
-            factType?: "string" | "number" | "boolean" | "json" | "work_unit";
+            valueType?: "string" | "number" | "boolean" | "json" | "work_unit";
           } => typeof fact.key === "string" && fact.key.trim().length > 0,
         )
         .map((fact) => ({
@@ -703,8 +703,8 @@ export function StateMachineTab({
           ...(() => {
             const subtitle =
               (fact.name?.trim().length ?? 0) > 0
-                ? `${fact.name} ${fact.factType ? `(${fact.factType})` : ""}`
-                : fact.factType;
+                ? `${fact.name} ${fact.valueType ? `(${fact.valueType})` : ""}`
+                : fact.valueType;
             return subtitle ? { subtitle } : {};
           })(),
         })),
@@ -720,7 +720,7 @@ export function StateMachineTab({
           ): fact is {
             key: string;
             name?: string;
-            factType?: "string" | "number" | "boolean" | "json" | "work_unit";
+            valueType?: "string" | "number" | "boolean" | "json" | "work_unit";
           } => typeof fact.key === "string" && fact.key.trim().length > 0,
         )
         .map((fact) => ({
@@ -729,8 +729,8 @@ export function StateMachineTab({
           ...(() => {
             const subtitle =
               (fact.name?.trim().length ?? 0) > 0
-                ? `${fact.name} ${fact.factType ? `(${fact.factType})` : ""}`
-                : fact.factType;
+                ? `${fact.name} ${fact.valueType ? `(${fact.valueType})` : ""}`
+                : fact.valueType;
             return subtitle ? { subtitle } : {};
           })(),
         })),

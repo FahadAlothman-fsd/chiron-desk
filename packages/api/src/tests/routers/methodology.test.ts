@@ -978,6 +978,106 @@ function makeServiceLayer() {
     );
 
   Object.assign(repo, {
+    createWorkUnitType: ({
+      versionId,
+      workUnitType,
+    }: {
+      versionId: string;
+      workUnitType: {
+        key: string;
+        displayName?: string;
+        description?: unknown;
+        guidance?: unknown;
+        cardinality?: "one_per_project" | "many_per_project";
+      };
+    }) =>
+      Effect.sync(() => {
+        const rows = lifecycleDataByVersion.get(versionId);
+        if (!rows) {
+          return false;
+        }
+
+        const nextWorkUnitId = `${versionId}:wut:${workUnitType.key}`;
+        const now = buildDate();
+        lifecycleDataByVersion.set(versionId, {
+          ...rows,
+          workUnitTypes: [
+            ...rows.workUnitTypes,
+            {
+              id: nextWorkUnitId,
+              methodologyVersionId: versionId,
+              key: workUnitType.key,
+              displayName: workUnitType.displayName ?? null,
+              descriptionJson: workUnitType.description ?? null,
+              guidanceJson: workUnitType.guidance ?? null,
+              cardinality: workUnitType.cardinality ?? "many_per_project",
+              createdAt: now,
+              updatedAt: now,
+            },
+          ],
+          states: [
+            ...rows.states,
+            {
+              id: `${versionId}:state:${workUnitType.key}:draft`,
+              methodologyVersionId: versionId,
+              workUnitTypeId: nextWorkUnitId,
+              key: "draft",
+              displayName: "Draft",
+              descriptionJson: null,
+              guidanceJson: null,
+              createdAt: now,
+              updatedAt: now,
+            },
+          ],
+        });
+
+        return true;
+      }),
+    updateWorkUnitType: ({
+      versionId,
+      workUnitTypeKey,
+      workUnitType,
+    }: {
+      versionId: string;
+      workUnitTypeKey: string;
+      workUnitType: {
+        key: string;
+        displayName?: string;
+        description?: unknown;
+        guidance?: unknown;
+        cardinality?: "one_per_project" | "many_per_project";
+      };
+    }) =>
+      Effect.sync(() => {
+        const rows = lifecycleDataByVersion.get(versionId);
+        if (!rows) {
+          return false;
+        }
+
+        const target = rows.workUnitTypes.find((workUnit) => workUnit.key === workUnitTypeKey);
+        if (!target) {
+          return false;
+        }
+
+        lifecycleDataByVersion.set(versionId, {
+          ...rows,
+          workUnitTypes: rows.workUnitTypes.map((workUnit) =>
+            workUnit.id === target.id
+              ? {
+                  ...workUnit,
+                  key: workUnitType.key,
+                  displayName: workUnitType.displayName ?? null,
+                  descriptionJson: workUnitType.description ?? null,
+                  guidanceJson: workUnitType.guidance ?? null,
+                  cardinality: workUnitType.cardinality ?? workUnit.cardinality,
+                  updatedAt: buildDate(),
+                }
+              : workUnit,
+          ),
+        });
+
+        return true;
+      }),
     deleteWorkUnitType: ({
       versionId,
       workUnitTypeKey,
@@ -3312,7 +3412,6 @@ describe("methodology router", () => {
             key: "customer_name",
             name: "Customer Name",
             type: "string",
-            factType: "string",
             description: "Customer-facing name",
           },
         },
@@ -3346,7 +3445,6 @@ describe("methodology router", () => {
             key: "customer_name",
             name: "Legal Customer Name",
             type: "string",
-            factType: "string",
             description: "Legal customer name",
           },
         },
@@ -3388,6 +3486,50 @@ describe("methodology router", () => {
       expect(afterDelete.factDefinitions ?? []).not.toEqual(
         expect.arrayContaining([expect.objectContaining({ key: "customer_name" })]),
       );
+    });
+
+    it("rejects legacy factType input at the fact.create boundary", async () => {
+      const router = createMethodologyRouter(
+        makeServiceLayer(),
+      ) as typeof createMethodologyRouter extends (...args: any[]) => infer T
+        ? T & {
+            version?: {
+              create?: unknown;
+              fact?: {
+                create?: unknown;
+              };
+            };
+          }
+        : never;
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "fact-crud-reject-legacy-input",
+          displayName: "Fact CRUD Reject Legacy Input",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await expect(
+        call(
+          router.version?.fact?.create as unknown as Parameters<typeof call>[0],
+          {
+            versionId: created.version.id,
+            fact: {
+              kind: "plain_fact",
+              key: "legacy_fact_type_only",
+              name: "Legacy FactType Only",
+              factType: "string",
+            },
+          } as unknown as Parameters<typeof call>[1],
+          AUTHENTICATED_CTX,
+        ),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     });
   });
 
@@ -3431,7 +3573,6 @@ describe("methodology router", () => {
             key: "task_owner",
             name: "Task Owner",
             type: "string",
-            factType: "string",
             cardinality: "many",
           },
         },
@@ -3504,7 +3645,6 @@ describe("methodology router", () => {
             key: "task_scorecard",
             name: "Task Scorecard",
             type: "json",
-            factType: "json",
             cardinality: "one",
             validation: {
               kind: "json-schema",
@@ -3566,6 +3706,53 @@ describe("methodology router", () => {
           }),
         ]),
       );
+    });
+
+    it("rejects legacy factType input at the workUnit.fact.create boundary", async () => {
+      const router = createMethodologyRouter(
+        makeServiceLayer(),
+      ) as typeof createMethodologyRouter extends (...args: any[]) => infer T
+        ? T & {
+            version?: {
+              create?: unknown;
+              workUnit?: {
+                fact?: {
+                  create?: unknown;
+                };
+              };
+            };
+          }
+        : never;
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "work-unit-fact-crud-reject-legacy-input",
+          displayName: "Work Unit Fact CRUD Reject Legacy Input",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      await expect(
+        call(
+          router.version?.workUnit?.fact?.create as unknown as Parameters<typeof call>[0],
+          {
+            versionId: created.version.id,
+            workUnitTypeKey: "task",
+            fact: {
+              kind: "plain_fact",
+              key: "legacy_work_unit_fact_type_only",
+              name: "Legacy Work Unit FactType Only",
+              factType: "string",
+            },
+          } as unknown as Parameters<typeof call>[1],
+          AUTHENTICATED_CTX,
+        ),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     });
   });
 
@@ -4246,6 +4433,67 @@ describe("methodology router", () => {
           }),
         ]),
       );
+    });
+
+    it("does not persist work-unit create when route returns lifecycle validation failure", async () => {
+      const router = createMethodologyRouter(
+        makeServiceLayer(),
+      ) as typeof createMethodologyRouter extends (...args: any[]) => infer T
+        ? T & {
+            version?: {
+              workUnit?: {
+                list?: unknown;
+                create?: unknown;
+              };
+            };
+          }
+        : never;
+
+      const created = await call(
+        router.version.create,
+        {
+          methodologyKey: "work-unit-create-non-persist-method",
+          displayName: "Work Unit Create Non Persist Method",
+          version: "0.1.0-draft",
+          workUnitTypes: VALID_DEFINITION.workUnitTypes,
+          transitions: VALID_DEFINITION.transitions,
+          agentTypes: VALID_DEFINITION.agentTypes,
+        },
+        AUTHENTICATED_CTX,
+      );
+
+      const before = await call(
+        router.version?.workUnit?.list as unknown as Parameters<typeof call>[0],
+        { versionId: created.version.id },
+        PUBLIC_CTX,
+      );
+
+      await expect(
+        call(
+          router.version?.workUnit?.create as unknown as Parameters<typeof call>[0],
+          {
+            versionId: created.version.id,
+            workUnitType: {
+              key: "task",
+              displayName: "Duplicate Task",
+              cardinality: "many_per_project",
+            },
+          },
+          AUTHENTICATED_CTX,
+        ),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+        message: "Work-unit lifecycle validation failed",
+      });
+
+      const after = await call(
+        router.version?.workUnit?.list as unknown as Parameters<typeof call>[0],
+        { versionId: created.version.id },
+        PUBLIC_CTX,
+      );
+
+      expect(after.workUnitTypes).toHaveLength(before.workUnitTypes.length);
+      expect(after.workUnitTypes.filter((workUnit) => workUnit.key === "task")).toHaveLength(1);
     });
   });
 

@@ -836,7 +836,6 @@ const guidanceSchema = z
   .optional();
 
 const markdownContentSchema = z.object({ markdown: z.string() });
-const factValueTypeSchema = z.enum(["string", "number", "boolean", "json", "work_unit"]);
 const jsonSubSchemaFieldTypeSchema = z.enum(["string", "number", "boolean"]);
 const factCardinalitySchema = z.enum(["one", "many"]);
 const jsonSubSchemaFieldSchema = z.object({
@@ -890,37 +889,57 @@ const factValidationSchema = z
   ])
   .default({ kind: "none" });
 
-const plainVariableDefinitionSchema = z.object({
-  kind: z.literal("plain_fact").default("plain_fact"),
-  name: z.string().optional(),
-  key: z.string().min(1),
-  type: z.enum(["string", "number", "boolean", "json"]).optional(),
-  factType: factValueTypeSchema,
-  cardinality: factCardinalitySchema.optional(),
-  defaultValue: z.unknown().optional(),
-  description: z.union([z.string(), markdownContentSchema]).optional(),
-  guidance: factGuidanceSchema,
-  validation: factValidationSchema,
-});
+const plainVariableDefinitionSchema = z
+  .object({
+    kind: z.literal("plain_fact").default("plain_fact"),
+    name: z.string().optional(),
+    key: z.string().min(1),
+    type: z.enum(["string", "number", "boolean", "json"]),
+    cardinality: factCardinalitySchema.optional(),
+    defaultValue: z.unknown().optional(),
+    description: z.union([z.string(), markdownContentSchema]).optional(),
+    guidance: factGuidanceSchema,
+    validation: factValidationSchema,
+  })
+  .strict();
 
-const workUnitReferenceVariableDefinitionSchema = z.object({
-  kind: z.literal("work_unit_reference_fact"),
-  name: z.string().optional(),
-  key: z.string().min(1),
-  factType: z.literal("work_unit"),
-  linkTypeDefinitionId: z.string().min(1).optional(),
-  targetWorkUnitDefinitionId: z.string().min(1).optional(),
-  cardinality: factCardinalitySchema.optional(),
-  defaultValue: z.unknown().optional(),
-  description: z.union([z.string(), markdownContentSchema]).optional(),
-  guidance: factGuidanceSchema,
-  validation: factValidationSchema,
-});
+const workUnitReferenceVariableDefinitionSchema = z
+  .object({
+    kind: z.literal("work_unit_reference_fact"),
+    name: z.string().optional(),
+    key: z.string().min(1),
+    linkTypeDefinitionId: z.string().min(1).optional(),
+    targetWorkUnitDefinitionId: z.string().min(1).optional(),
+    cardinality: factCardinalitySchema.optional(),
+    defaultValue: z.unknown().optional(),
+    description: z.union([z.string(), markdownContentSchema]).optional(),
+    guidance: factGuidanceSchema,
+    validation: factValidationSchema,
+  })
+  .strict();
 
 const variableDefinitionSchema = z.discriminatedUnion("kind", [
   plainVariableDefinitionSchema,
   workUnitReferenceVariableDefinitionSchema,
 ]);
+
+function toCanonicalVariableDefinition(
+  definition: z.infer<typeof variableDefinitionSchema>,
+): CreateMethodologyFactInput["fact"] {
+  if (definition.kind === "work_unit_reference_fact") {
+    return {
+      ...definition,
+      factType: "work_unit",
+    };
+  }
+
+  const inferredValueType = definition.type;
+  return {
+    ...definition,
+    type: inferredValueType,
+    factType: inferredValueType,
+  };
+}
 
 const linkTypeDefinitionSchema = z
   .object({
@@ -1185,28 +1204,30 @@ const listWorkUnitTransitionConditionSetsInput = z.object({
   transitionKey: z.string().min(1),
 });
 
-const plainFactSchemaDefinition = z.object({
-  kind: z.literal("plain_fact").default("plain_fact"),
-  name: z.string().optional(),
-  key: z.string().min(1),
-  type: z.enum(["string", "number", "boolean", "json"]).optional(),
-  factType: z.enum(["string", "number", "boolean", "json", "work_unit"]),
-  description: z.string().optional(),
-  guidance: factGuidanceSchema,
-  validation: factValidationSchema,
-});
+const plainFactSchemaDefinition = z
+  .object({
+    kind: z.literal("plain_fact").default("plain_fact"),
+    name: z.string().optional(),
+    key: z.string().min(1),
+    type: z.enum(["string", "number", "boolean", "json"]),
+    description: z.string().optional(),
+    guidance: factGuidanceSchema,
+    validation: factValidationSchema,
+  })
+  .strict();
 
-const workUnitReferenceFactSchemaDefinition = z.object({
-  kind: z.literal("work_unit_reference_fact"),
-  name: z.string().optional(),
-  key: z.string().min(1),
-  factType: z.literal("work_unit"),
-  linkTypeDefinitionId: z.string().min(1).optional(),
-  targetWorkUnitDefinitionId: z.string().min(1).optional(),
-  description: z.string().optional(),
-  guidance: factGuidanceSchema,
-  validation: factValidationSchema,
-});
+const workUnitReferenceFactSchemaDefinition = z
+  .object({
+    kind: z.literal("work_unit_reference_fact"),
+    name: z.string().optional(),
+    key: z.string().min(1),
+    linkTypeDefinitionId: z.string().min(1).optional(),
+    targetWorkUnitDefinitionId: z.string().min(1).optional(),
+    description: z.string().optional(),
+    guidance: factGuidanceSchema,
+    validation: factValidationSchema,
+  })
+  .strict();
 
 const factSchemaDefinition = z.discriminatedUnion("kind", [
   plainFactSchemaDefinition,
@@ -3229,7 +3250,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
       const actorId = context.session.user.id;
       const factPayload: CreateMethodologyFactInput = {
         versionId: input.versionId,
-        fact: input.fact,
+        fact: toCanonicalVariableDefinition(input.fact),
       };
 
       const result = await runEffect(
@@ -3251,7 +3272,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
       const factPayload: UpdateMethodologyFactInput = {
         versionId: input.versionId,
         factKey: input.factKey,
-        fact: input.fact,
+        fact: toCanonicalVariableDefinition(input.fact),
       };
 
       const result = await runEffect(
@@ -3319,20 +3340,27 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           });
         }
 
-        const plainFactFields = input.fact as { type?: "string" | "number" | "boolean" | "json" };
-        const mappedFactBase: FactSchema = {
-          kind: input.fact.kind,
-          key: input.fact.key,
-          name: input.fact.name,
-          ...(plainFactFields.type ? { type: plainFactFields.type } : {}),
-          factType: input.fact.factType,
-          cardinality: input.fact.cardinality,
-          defaultValue: input.fact.defaultValue,
-          description: input.fact.description,
-          guidance: input.fact.guidance,
-          validation: input.fact.validation,
+        const canonicalInputFact = toCanonicalVariableDefinition(input.fact);
+        const plainFactFields = canonicalInputFact as {
+          type?: "string" | "number" | "boolean" | "json";
         };
-        const workUnitReferenceFields = input.fact as {
+        const mappedFactType: FactSchema["factType"] =
+          canonicalInputFact.kind === "work_unit_reference_fact"
+            ? "work_unit"
+            : (plainFactFields.type ?? "string");
+        const mappedFactBase: FactSchema = {
+          kind: canonicalInputFact.kind,
+          key: canonicalInputFact.key,
+          name: canonicalInputFact.name,
+          ...(plainFactFields.type ? { type: plainFactFields.type } : {}),
+          factType: mappedFactType,
+          cardinality: canonicalInputFact.cardinality,
+          defaultValue: canonicalInputFact.defaultValue,
+          description: canonicalInputFact.description,
+          guidance: canonicalInputFact.guidance,
+          validation: canonicalInputFact.validation,
+        };
+        const workUnitReferenceFields = canonicalInputFact as {
           linkTypeDefinitionId?: string;
           targetWorkUnitDefinitionId?: string;
         };
@@ -3399,20 +3427,27 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           });
         }
 
-        const plainFactFields = input.fact as { type?: "string" | "number" | "boolean" | "json" };
-        const mappedFactBase: FactSchema = {
-          kind: input.fact.kind,
-          key: input.fact.key,
-          name: input.fact.name,
-          ...(plainFactFields.type ? { type: plainFactFields.type } : {}),
-          factType: input.fact.factType,
-          cardinality: input.fact.cardinality,
-          defaultValue: input.fact.defaultValue,
-          description: input.fact.description,
-          guidance: input.fact.guidance,
-          validation: input.fact.validation,
+        const canonicalInputFact = toCanonicalVariableDefinition(input.fact);
+        const plainFactFields = canonicalInputFact as {
+          type?: "string" | "number" | "boolean" | "json";
         };
-        const workUnitReferenceFields = input.fact as {
+        const mappedFactType: FactSchema["factType"] =
+          canonicalInputFact.kind === "work_unit_reference_fact"
+            ? "work_unit"
+            : (plainFactFields.type ?? "string");
+        const mappedFactBase: FactSchema = {
+          kind: canonicalInputFact.kind,
+          key: canonicalInputFact.key,
+          name: canonicalInputFact.name,
+          ...(plainFactFields.type ? { type: plainFactFields.type } : {}),
+          factType: mappedFactType,
+          cardinality: canonicalInputFact.cardinality,
+          defaultValue: canonicalInputFact.defaultValue,
+          description: canonicalInputFact.description,
+          guidance: canonicalInputFact.guidance,
+          validation: canonicalInputFact.validation,
+        };
+        const workUnitReferenceFields = canonicalInputFact as {
           linkTypeDefinitionId?: string;
           targetWorkUnitDefinitionId?: string;
         };

@@ -915,15 +915,60 @@ export const MethodologyVersionServiceLive = Layer.effect(
           lifecycleTransitions: [],
           factSchemas: [],
         };
-
-        return yield* updateDraftLifecycle(
-          {
-            versionId: input.versionId,
-            workUnitTypes: [...previousDefinition.workUnitTypes, nextWorkUnit],
-            agentTypes: previousDefinition.agentTypes,
-          },
-          actorId,
+        const nextWorkUnitTypes = [...previousDefinition.workUnitTypes, nextWorkUnit];
+        const definedLinkTypeKeys = yield* repo.findLinkTypeKeys(input.versionId);
+        const validation = validateLifecycleDefinition(
+          nextWorkUnitTypes,
+          new Date().toISOString(),
+          Array.from(definedLinkTypeKeys),
+          previousDefinition.agentTypes,
         );
+
+        if (!validation.valid) {
+          yield* lifecycleRepo.recordLifecycleEvent({
+            methodologyVersionId: input.versionId,
+            eventType: "validated",
+            actorId,
+            changedFieldsJson: computeLifecycleChanges(previousDefinition, {
+              workUnitTypes: nextWorkUnitTypes,
+              agentTypes: previousDefinition.agentTypes,
+            }),
+            diagnosticsJson: validation,
+          });
+
+          return { version: existing, validation };
+        }
+
+        if (!repo.createWorkUnitType) {
+          return yield* new RepositoryError({
+            operation: "methodology.createWorkUnit",
+            cause: new Error("Work unit create repository capability is not configured"),
+          });
+        }
+
+        yield* repo.createWorkUnitType({
+          versionId: input.versionId,
+          workUnitType: {
+            key: input.workUnitType.key,
+            displayName: input.workUnitType.displayName,
+            description: input.workUnitType.description,
+            guidance: input.workUnitType.guidance,
+            cardinality: input.workUnitType.cardinality,
+          },
+        });
+
+        yield* repo.recordEvent({
+          methodologyVersionId: input.versionId,
+          eventType: "lifecycle_updated",
+          actorId,
+          changedFieldsJson: {
+            operation: "create_work_unit",
+            workUnitTypeKey: input.workUnitType.key,
+          },
+          diagnosticsJson: null,
+        });
+
+        return { version: existing, validation };
       });
 
     const updateAgent = (
@@ -976,25 +1021,73 @@ export const MethodologyVersionServiceLive = Layer.effect(
           input.versionId,
           lifecycleRepo,
         );
-        return yield* updateDraftLifecycle(
-          {
-            versionId: input.versionId,
-            workUnitTypes: previousDefinition.workUnitTypes.map((workUnit) =>
-              workUnit.key === input.workUnitKey
-                ? {
-                    ...workUnit,
-                    key: input.workUnitType.key,
-                    displayName: input.workUnitType.displayName,
-                    description: input.workUnitType.description,
-                    guidance: input.workUnitType.guidance,
-                    cardinality: input.workUnitType.cardinality ?? workUnit.cardinality,
-                  }
-                : workUnit,
-            ),
-            agentTypes: previousDefinition.agentTypes,
-          },
-          actorId,
+        const nextWorkUnitTypes = previousDefinition.workUnitTypes.map((workUnit) =>
+          workUnit.key === input.workUnitKey
+            ? {
+                ...workUnit,
+                key: input.workUnitType.key,
+                displayName: input.workUnitType.displayName,
+                description: input.workUnitType.description,
+                guidance: input.workUnitType.guidance,
+                cardinality: input.workUnitType.cardinality ?? workUnit.cardinality,
+              }
+            : workUnit,
         );
+        const definedLinkTypeKeys = yield* repo.findLinkTypeKeys(input.versionId);
+        const validation = validateLifecycleDefinition(
+          nextWorkUnitTypes,
+          new Date().toISOString(),
+          Array.from(definedLinkTypeKeys),
+          previousDefinition.agentTypes,
+        );
+
+        if (!validation.valid) {
+          yield* lifecycleRepo.recordLifecycleEvent({
+            methodologyVersionId: input.versionId,
+            eventType: "validated",
+            actorId,
+            changedFieldsJson: computeLifecycleChanges(previousDefinition, {
+              workUnitTypes: nextWorkUnitTypes,
+              agentTypes: previousDefinition.agentTypes,
+            }),
+            diagnosticsJson: validation,
+          });
+
+          return { version: existing, validation };
+        }
+
+        if (!repo.updateWorkUnitType) {
+          return yield* new RepositoryError({
+            operation: "methodology.updateWorkUnit",
+            cause: new Error("Work unit update repository capability is not configured"),
+          });
+        }
+
+        yield* repo.updateWorkUnitType({
+          versionId: input.versionId,
+          workUnitTypeKey: input.workUnitKey,
+          workUnitType: {
+            key: input.workUnitType.key,
+            displayName: input.workUnitType.displayName,
+            description: input.workUnitType.description,
+            guidance: input.workUnitType.guidance,
+            cardinality: input.workUnitType.cardinality,
+          },
+        });
+
+        yield* repo.recordEvent({
+          methodologyVersionId: input.versionId,
+          eventType: "lifecycle_updated",
+          actorId,
+          changedFieldsJson: {
+            operation: "update_work_unit",
+            workUnitTypeKey: input.workUnitKey,
+            nextWorkUnitTypeKey: input.workUnitType.key,
+          },
+          diagnosticsJson: null,
+        });
+
+        return { version: existing, validation };
       });
 
     const deleteAgent = (

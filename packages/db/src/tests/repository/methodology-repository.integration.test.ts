@@ -1252,6 +1252,96 @@ describe("methodology repository integration", () => {
     expect(pinRows[0]?.publishedVersion).toBe("1.0.0");
   });
 
+  it("creates work-unit metadata without lifecycle full-rewrite", async () => {
+    const created = await runRepo((repo) =>
+      repo.createDraft({
+        methodologyKey: "work-unit-metadata-create-methodology",
+        displayName: "Work Unit Metadata Create Methodology",
+        version: "0.1.0",
+        definitionExtensions: {},
+        workflows: [],
+        transitionWorkflowBindings: {},
+        actorId: "user-1",
+        validationDiagnostics: VALIDATION_OK,
+      }),
+    );
+
+    const didCreate = await runRepo(
+      (repo) =>
+        repo.createWorkUnitType?.({
+          versionId: created.version.id,
+          workUnitType: {
+            key: "story",
+            displayName: "Story",
+            description: { markdown: "Story work unit" },
+            guidance: [{ audience: "human", markdown: "Create and review" }],
+            cardinality: "many_per_project",
+          },
+        }) ?? Effect.succeed(false),
+    );
+
+    expect(didCreate).toBe(true);
+
+    const rows = await db
+      .select()
+      .from(methodologyWorkUnitTypes)
+      .where(eq(methodologyWorkUnitTypes.methodologyVersionId, created.version.id));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.key).toBe("story");
+    expect(rows[0]?.displayName).toBe("Story");
+    expect(rows[0]?.cardinality).toBe("many_per_project");
+  });
+
+  it("updates work-unit metadata in place by key", async () => {
+    const created = await runRepo((repo) =>
+      repo.createDraft({
+        methodologyKey: "work-unit-metadata-update-methodology",
+        displayName: "Work Unit Metadata Update Methodology",
+        version: "0.1.0",
+        definitionExtensions: {},
+        workflows: [],
+        transitionWorkflowBindings: {},
+        actorId: "user-1",
+        validationDiagnostics: VALIDATION_OK,
+      }),
+    );
+
+    await db.insert(methodologyWorkUnitTypes).values({
+      methodologyVersionId: created.version.id,
+      key: "story",
+      displayName: "Story",
+      descriptionJson: { markdown: "Initial" },
+      guidanceJson: null,
+      cardinality: "many_per_project",
+    });
+
+    const didUpdate = await runRepo(
+      (repo) =>
+        repo.updateWorkUnitType?.({
+          versionId: created.version.id,
+          workUnitTypeKey: "story",
+          workUnitType: {
+            key: "story_v2",
+            displayName: "Story V2",
+            description: { markdown: "Updated" },
+            guidance: [{ audience: "human", markdown: "Updated guidance" }],
+            cardinality: "one_per_project",
+          },
+        }) ?? Effect.succeed(false),
+    );
+
+    expect(didUpdate).toBe(true);
+
+    const rows = await db
+      .select()
+      .from(methodologyWorkUnitTypes)
+      .where(eq(methodologyWorkUnitTypes.methodologyVersionId, created.version.id));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.key).toBe("story_v2");
+    expect(rows[0]?.displayName).toBe("Story V2");
+    expect(rows[0]?.cardinality).toBe("one_per_project");
+  });
+
   it("aborts pin atomically when pin-event persistence fails", async () => {
     const v1 = await createAndPublishVersion("pin-atomicity-methodology", "0.1.0-draft", "1.0.0");
 

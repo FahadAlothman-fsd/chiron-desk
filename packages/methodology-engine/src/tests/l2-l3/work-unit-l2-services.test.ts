@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { LifecycleRepository } from "../../lifecycle-repository";
 import { MethodologyRepository } from "../../repository";
 import { MethodologyVersionService } from "../../services/methodology-version-service";
+import { MethodologyVersionServiceLive } from "../../services/methodology-version-service";
 import {
   WorkUnitFactService,
   WorkUnitFactServiceLive,
@@ -63,14 +64,14 @@ function makeAuthoringSnapshot() {
 
 describe("WorkUnitFactService", () => {
   it("replaces fact schemas for one work-unit type", async () => {
-    let capturedWorkUnitTypes: unknown = null;
+    let capturedReplaceFactsPayload: unknown = null;
 
     const layer = Layer.provide(
       WorkUnitFactServiceLive,
       Layer.succeed(MethodologyVersionService, {
         getAuthoringSnapshot: () => Effect.succeed(makeAuthoringSnapshot()),
-        updateDraftLifecycle: (input: { workUnitTypes: unknown }) => {
-          capturedWorkUnitTypes = input.workUnitTypes;
+        replaceWorkUnitFacts: (input: unknown) => {
+          capturedReplaceFactsPayload = input;
           return Effect.succeed({
             version: versionRow,
             validation: { valid: true, diagnostics: [] },
@@ -93,12 +94,11 @@ describe("WorkUnitFactService", () => {
       }).pipe(Effect.provide(layer)),
     );
 
-    expect(capturedWorkUnitTypes).toEqual([
-      expect.objectContaining({
-        key: "project_context",
-        factSchemas: [{ key: "repo_path", factType: "string", validation: { kind: "none" } }],
-      }),
-    ]);
+    expect(capturedReplaceFactsPayload).toEqual({
+      versionId: "ver-1",
+      workUnitTypeKey: "project_context",
+      facts: [{ key: "repo_path", factType: "string", validation: { kind: "none" } }],
+    });
   });
 });
 
@@ -365,5 +365,231 @@ describe("WorkUnitStateMachineService", () => {
       transitionKey: "to-ready",
       workflowKeys: ["wf-b", "wf-c"],
     });
+  });
+});
+
+describe("WorkUnit metadata mutations", () => {
+  it("create/update metadata avoid lifecycle full-rewrite save path", async () => {
+    let capturedCreatePayload: unknown = null;
+    let capturedUpdatePayload: unknown = null;
+    let saveLifecycleDefinitionCalls = 0;
+
+    const repoLayer = Layer.succeed(MethodologyRepository, {
+      findVersionById: () => Effect.succeed(versionRow),
+      createWorkUnitType: (params: unknown) => {
+        capturedCreatePayload = params;
+        return Effect.succeed(true);
+      },
+      updateWorkUnitType: (params: unknown) => {
+        capturedUpdatePayload = params;
+        return Effect.succeed(true);
+      },
+      findWorkflowSnapshot: () =>
+        Effect.succeed({
+          workflows: [],
+          transitionWorkflowBindings: {},
+          guidance: undefined,
+        }),
+      findLinkTypeKeys: () => Effect.succeed([]),
+      recordEvent: () =>
+        Effect.succeed({
+          id: "evt-work-unit-1",
+          methodologyVersionId: "ver-1",
+          eventType: "lifecycle_updated",
+          actorId: "tester",
+          changedFieldsJson: {},
+          diagnosticsJson: null,
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        }),
+      findFactDefinitionsByVersionId: () => Effect.succeed([]),
+      findLinkTypeDefinitionsByVersionId: () => Effect.succeed([]),
+    } as unknown as Context.Tag.Service<typeof MethodologyRepository>);
+
+    const lifecycleLayer = Layer.succeed(LifecycleRepository, {
+      findWorkUnitTypes: () => Effect.succeed([]),
+      findLifecycleStates: () => Effect.succeed([]),
+      findLifecycleTransitions: () => Effect.succeed([]),
+      findFactSchemas: () => Effect.succeed([]),
+      findTransitionConditionSets: () => Effect.succeed([]),
+      findAgentTypes: () => Effect.succeed([]),
+      findTransitionWorkflowBindings: () => Effect.succeed([]),
+      saveLifecycleDefinition: () => {
+        saveLifecycleDefinitionCalls += 1;
+        return Effect.succeed({
+          version: versionRow,
+          events: [],
+        });
+      },
+      recordLifecycleEvent: () =>
+        Effect.succeed({
+          id: "evt-lifecycle-work-unit-1",
+          methodologyVersionId: "ver-1",
+          eventType: "lifecycle_updated",
+          actorId: "tester",
+          changedFieldsJson: {},
+          diagnosticsJson: null,
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        }),
+    } as unknown as Context.Tag.Service<typeof LifecycleRepository>);
+
+    const layer = Layer.provide(
+      MethodologyVersionServiceLive,
+      Layer.mergeAll(repoLayer, lifecycleLayer),
+    );
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* MethodologyVersionService;
+
+        yield* service.createWorkUnitMetadata(
+          {
+            versionId: "ver-1",
+            workUnitType: {
+              key: "story",
+              displayName: "Story",
+              cardinality: "many_per_project",
+            },
+          },
+          "tester",
+        );
+
+        yield* service.updateWorkUnitMetadata(
+          {
+            versionId: "ver-1",
+            workUnitKey: "story",
+            workUnitType: {
+              key: "story_v2",
+              displayName: "Story V2",
+              cardinality: "one_per_project",
+            },
+          },
+          "tester",
+        );
+      }).pipe(Effect.provide(layer)),
+    );
+
+    expect(capturedCreatePayload).toEqual({
+      versionId: "ver-1",
+      workUnitType: {
+        key: "story",
+        displayName: "Story",
+        description: undefined,
+        guidance: undefined,
+        cardinality: "many_per_project",
+      },
+    });
+
+    expect(capturedUpdatePayload).toEqual({
+      versionId: "ver-1",
+      workUnitTypeKey: "story",
+      workUnitType: {
+        key: "story_v2",
+        displayName: "Story V2",
+        description: undefined,
+        guidance: undefined,
+        cardinality: "one_per_project",
+      },
+    });
+
+    expect(saveLifecycleDefinitionCalls).toBe(0);
+  });
+
+  it("does not persist create when lifecycle validation fails", async () => {
+    let createCalls = 0;
+
+    const repoLayer = Layer.succeed(MethodologyRepository, {
+      findVersionById: () => Effect.succeed(versionRow),
+      createWorkUnitType: () => {
+        createCalls += 1;
+        return Effect.succeed(true);
+      },
+      findLinkTypeKeys: () => Effect.succeed([]),
+      recordEvent: () =>
+        Effect.succeed({
+          id: "evt-work-unit-2",
+          methodologyVersionId: "ver-1",
+          eventType: "lifecycle_updated",
+          actorId: "tester",
+          changedFieldsJson: {},
+          diagnosticsJson: null,
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        }),
+    } as unknown as Context.Tag.Service<typeof MethodologyRepository>);
+
+    const lifecycleLayer = Layer.succeed(LifecycleRepository, {
+      findWorkUnitTypes: () =>
+        Effect.succeed([
+          {
+            id: "wut-1",
+            methodologyVersionId: "ver-1",
+            key: "story",
+            displayName: "Story",
+            descriptionJson: null,
+            guidanceJson: null,
+            cardinality: "many_per_project",
+            createdAt: new Date("2026-01-01T00:00:00.000Z"),
+            updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+          },
+        ]),
+      findLifecycleStates: () =>
+        Effect.succeed([
+          {
+            id: "state-1",
+            methodologyVersionId: "ver-1",
+            workUnitTypeId: "wut-1",
+            key: "draft",
+            displayName: "Draft",
+            descriptionJson: null,
+            guidanceJson: null,
+            createdAt: new Date("2026-01-01T00:00:00.000Z"),
+            updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+          },
+        ]),
+      findLifecycleTransitions: () => Effect.succeed([]),
+      findFactSchemas: () => Effect.succeed([]),
+      findTransitionConditionSets: () => Effect.succeed([]),
+      findAgentTypes: () => Effect.succeed([]),
+      findTransitionWorkflowBindings: () => Effect.succeed([]),
+      saveLifecycleDefinition: () =>
+        Effect.succeed({
+          version: versionRow,
+          events: [],
+        }),
+      recordLifecycleEvent: () =>
+        Effect.succeed({
+          id: "evt-lifecycle-work-unit-2",
+          methodologyVersionId: "ver-1",
+          eventType: "validated",
+          actorId: "tester",
+          changedFieldsJson: {},
+          diagnosticsJson: null,
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        }),
+    } as unknown as Context.Tag.Service<typeof LifecycleRepository>);
+
+    const layer = Layer.provide(
+      MethodologyVersionServiceLive,
+      Layer.mergeAll(repoLayer, lifecycleLayer),
+    );
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* MethodologyVersionService;
+        return yield* service.createWorkUnitMetadata(
+          {
+            versionId: "ver-1",
+            workUnitType: {
+              key: "story",
+              displayName: "Story Duplicate",
+              cardinality: "many_per_project",
+            },
+          },
+          "tester",
+        );
+      }).pipe(Effect.provide(layer)),
+    );
+
+    expect(result.validation.valid).toBe(false);
+    expect(createCalls).toBe(0);
   });
 });
