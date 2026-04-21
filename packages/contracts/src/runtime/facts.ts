@@ -117,6 +117,7 @@ export const GetProjectFactsOutput = Schema.Struct({
       factName: Schema.optional(Schema.String),
       factType: RuntimeFactPrimitiveType,
       cardinality: RuntimeFactCardinality,
+      validation: Schema.optional(Schema.Unknown),
       exists: Schema.Boolean,
       currentCount: Schema.Number,
       currentValues: Schema.Array(RuntimeFactInstanceValue),

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useForm } from "@tanstack/react-form";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -70,6 +71,7 @@ export type RuntimeDialogEditor =
       readonly kind: "bound_fact";
       readonly definition: RuntimePrimitiveDefinition;
       readonly instanceLabel: string;
+      readonly instanceOptions?: readonly RuntimeFactOption[];
       readonly workUnitOptions?: readonly RuntimeFactOption[];
     }
   | {
@@ -95,7 +97,19 @@ type RuntimePrimitiveDraft = {
   readonly factType: RuntimePrimitiveFactType;
   readonly textValue: string;
   readonly booleanValue: boolean;
+  readonly booleanMode?: "unset" | "true" | "false";
   readonly workUnitId: string;
+  readonly jsonFields?: RuntimeJsonFieldDraft[];
+};
+
+type RuntimeJsonFieldDraft = {
+  readonly key: string;
+  readonly label: string;
+  readonly type: "string" | "number" | "boolean";
+  readonly cardinality: "one" | "many";
+  readonly description?: string;
+  readonly validation?: unknown;
+  readonly values: string[];
 };
 
 type RuntimeDraftSpecFieldDraft = {
@@ -214,6 +228,93 @@ const getAllowedPrimitiveOptions = (
   });
 };
 
+const getStructuredJsonFields = (
+  definition: RuntimePrimitiveDefinition,
+): ReadonlyArray<{
+  key: string;
+  type: "string" | "number" | "boolean";
+  cardinality: "one" | "many";
+  description?: string;
+  validation?: unknown;
+}> => {
+  if (!isRecord(definition.validation) || definition.validation.kind !== "json-schema") {
+    return [];
+  }
+
+  const subSchema = isRecord(definition.validation.subSchema)
+    ? definition.validation.subSchema
+    : null;
+  if (!subSchema || subSchema.type !== "object" || !Array.isArray(subSchema.fields)) {
+    return [];
+  }
+
+  return subSchema.fields.flatMap((field) => {
+    if (!isRecord(field) || typeof field.key !== "string") {
+      return [];
+    }
+
+    if (field.type !== "string" && field.type !== "number" && field.type !== "boolean") {
+      return [];
+    }
+
+    return [
+      {
+        key: field.key,
+        type: field.type,
+        cardinality: field.cardinality === "many" ? "many" : "one",
+        ...(isRecord(field.description) && typeof field.description.markdown === "string"
+          ? { description: field.description.markdown }
+          : {}),
+        ...(field.validation !== undefined ? { validation: field.validation } : {}),
+      },
+    ];
+  });
+};
+
+const stringifyStructuredJsonValue = (
+  value: unknown,
+  fieldType: "string" | "number" | "boolean",
+): string => {
+  if (fieldType === "boolean") {
+    return value === true ? "true" : value === false ? "false" : "";
+  }
+
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  return typeof value === "string" ? value : String(value);
+};
+
+const parseStructuredJsonFieldValue = (
+  value: string,
+  fieldType: "string" | "number" | "boolean",
+): RuntimeParseResult => {
+  if (fieldType === "string") {
+    return { ok: true, value };
+  }
+
+  if (fieldType === "number") {
+    if (value.trim().length === 0) {
+      return { ok: false, error: "Enter a number before continuing." };
+    }
+
+    const parsed = Number(value);
+    return Number.isNaN(parsed)
+      ? { ok: false, error: "Enter a valid number before continuing." }
+      : { ok: true, value: parsed };
+  }
+
+  if (value === "true") {
+    return { ok: true, value: true };
+  }
+  if (value === "false") {
+    return { ok: true, value: false };
+  }
+
+  return { ok: false, error: "Select true or false before continuing." };
+};
+
 const createPrimitiveDraft = (
   definition: RuntimePrimitiveDefinition,
   value: unknown,
@@ -237,14 +338,48 @@ const createPrimitiveDraft = (
       factType: definition.factType,
       textValue: String(Boolean(value)),
       booleanValue: Boolean(value),
+      booleanMode: value === true ? "true" : value === false ? "false" : "unset",
       workUnitId: "",
     };
+  }
+
+  if (definition.factType === "json") {
+    const structuredFields = getStructuredJsonFields(definition);
+    if (structuredFields.length > 0) {
+      const currentValue = isRecord(value) ? value : {};
+
+      return {
+        factType: definition.factType,
+        textValue: formatPrimitiveText(value),
+        booleanValue: false,
+        booleanMode: "unset",
+        workUnitId: "",
+        jsonFields: structuredFields.map((field) => {
+          const raw = currentValue[field.key];
+          const entries = field.cardinality === "many" ? (Array.isArray(raw) ? raw : []) : [raw];
+
+          return {
+            key: field.key,
+            label: field.key.replaceAll("_", " "),
+            type: field.type,
+            cardinality: field.cardinality,
+            ...(field.description ? { description: field.description } : {}),
+            ...(field.validation !== undefined ? { validation: field.validation } : {}),
+            values:
+              entries.length > 0
+                ? entries.map((entry) => stringifyStructuredJsonValue(entry, field.type))
+                : [""],
+          };
+        }),
+      };
+    }
   }
 
   return {
     factType: definition.factType,
     textValue: formatPrimitiveText(value),
     booleanValue: false,
+    booleanMode: "unset",
     workUnitId: "",
   };
 };
@@ -292,8 +427,47 @@ const parsePrimitiveDraft = (
       return { ok: true, value: parsed };
     }
     case "boolean":
-      return { ok: true, value: draft.booleanValue };
+      if (draft.booleanMode === "unset") {
+        return { ok: false, error: "Select true or false before continuing." };
+      }
+      return { ok: true, value: draft.booleanMode === "true" };
     case "json": {
+      if (draft.jsonFields && draft.jsonFields.length > 0) {
+        const value: Record<string, unknown> = {};
+
+        for (const field of draft.jsonFields) {
+          const populatedValues = field.values.filter((entry) => entry.trim().length > 0);
+          if (field.cardinality === "many") {
+            const parsedValues: unknown[] = [];
+            for (const entry of populatedValues) {
+              const parsed = parseStructuredJsonFieldValue(entry, field.type);
+              if (!parsed.ok) {
+                return { ok: false, error: `${field.label}: ${parsed.error}` };
+              }
+              parsedValues.push(parsed.value);
+            }
+
+            if (parsedValues.length > 0) {
+              value[field.key] = parsedValues;
+            }
+            continue;
+          }
+
+          const firstValue = field.values[0] ?? "";
+          if (firstValue.trim().length === 0) {
+            continue;
+          }
+
+          const parsed = parseStructuredJsonFieldValue(firstValue, field.type);
+          if (!parsed.ok) {
+            return { ok: false, error: `${field.label}: ${parsed.error}` };
+          }
+          value[field.key] = parsed.value;
+        }
+
+        return { ok: true, value };
+      }
+
       if (draft.textValue.trim().length === 0) {
         return { ok: false, error: "Enter a JSON value before continuing." };
       }
@@ -325,7 +499,10 @@ const createDialogDraft = (editor: RuntimeDialogEditor, value: unknown): Runtime
       const envelope = isRecord(value) ? value : null;
       return {
         kind: editor.kind,
-        instanceId: typeof envelope?.instanceId === "string" ? envelope.instanceId : "",
+        instanceId:
+          typeof envelope?.instanceId === "string"
+            ? envelope.instanceId
+            : (editor.instanceOptions?.[0]?.value ?? ""),
         primitive: createPrimitiveDraft(editor.definition, envelope?.value),
       };
     }
@@ -418,7 +595,7 @@ const parseDialogDraft = (
     case "bound_fact": {
       const instanceId = (draft.instanceId ?? "").trim();
       if (instanceId.length === 0) {
-        return { ok: false, error: "Enter the bound fact instance ID before continuing." };
+        return { ok: false, error: "Select the bound fact instance before continuing." };
       }
 
       const primitiveResult = parsePrimitiveDraft(
@@ -597,13 +774,20 @@ function PrimitiveEditor({
         <FieldLabel>{label}</FieldLabel>
         <FieldContent>
           <Select
-            value={draft.booleanValue ? "true" : "false"}
-            onValueChange={(value) => onChange({ ...draft, booleanValue: value === "true" })}
+            value={draft.booleanMode ?? "unset"}
+            onValueChange={(value) =>
+              onChange({
+                ...draft,
+                booleanValue: value === "true",
+                booleanMode: value === "true" || value === "false" ? value : "unset",
+              })
+            }
           >
             <SelectTrigger className="w-full" aria-label={label}>
               <SelectValue placeholder="Select true or false" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="unset">Unset</SelectItem>
               <SelectItem value="true">true</SelectItem>
               <SelectItem value="false">false</SelectItem>
             </SelectContent>
@@ -614,6 +798,136 @@ function PrimitiveEditor({
   }
 
   if (definition.factType === "json") {
+    if (draft.jsonFields && draft.jsonFields.length > 0) {
+      return (
+        <FieldSet className="gap-3">
+          {draft.jsonFields.map((field, fieldIndex) => {
+            const currentJsonFields = draft.jsonFields ?? [];
+            const allowedOptions = getAllowedPrimitiveOptions({
+              factType: field.type,
+              ...(field.validation !== undefined ? { validation: field.validation } : {}),
+            });
+
+            const updateFieldValues = (nextValues: string[]) =>
+              onChange({
+                ...draft,
+                jsonFields: currentJsonFields.map((candidate, index) =>
+                  index === fieldIndex ? { ...candidate, values: nextValues } : candidate,
+                ),
+              });
+
+            return (
+              <section
+                key={field.key}
+                className="space-y-3 border border-border/70 bg-background/40 p-3"
+              >
+                <div className="space-y-1">
+                  <FieldLabel>{field.label}</FieldLabel>
+                  <FieldDescription>
+                    {field.description ?? `${field.type} · ${field.cardinality}`}
+                  </FieldDescription>
+                </div>
+
+                {field.values.map((entry, entryIndex) => (
+                  <div key={`${field.key}-${entryIndex}`} className="flex items-start gap-2">
+                    <div className="flex-1 space-y-2">
+                      {field.cardinality === "many" ? (
+                        <p className="text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">
+                          Instance {entryIndex + 1}
+                        </p>
+                      ) : null}
+
+                      {field.type === "boolean" ? (
+                        <Select
+                          value={entry || "unset"}
+                          onValueChange={(value) => {
+                            const nextValues = [...field.values];
+                            nextValues[entryIndex] = value && value !== "unset" ? value : "";
+                            updateFieldValues(nextValues);
+                          }}
+                        >
+                          <SelectTrigger
+                            className="w-full"
+                            aria-label={`${field.label} ${entryIndex + 1}`}
+                          >
+                            <SelectValue placeholder="Select true or false" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="unset">Unset</SelectItem>
+                            <SelectItem value="true">true</SelectItem>
+                            <SelectItem value="false">false</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : allowedOptions.length > 0 ? (
+                        <Select
+                          value={entry}
+                          onValueChange={(value) => {
+                            const nextValues = [...field.values];
+                            nextValues[entryIndex] = value ?? "";
+                            updateFieldValues(nextValues);
+                          }}
+                        >
+                          <SelectTrigger
+                            className="w-full"
+                            aria-label={`${field.label} ${entryIndex + 1}`}
+                          >
+                            <SelectValue placeholder={`Select ${field.label}`} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {allowedOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          value={entry}
+                          onChange={(event) => {
+                            const nextValues = [...field.values];
+                            nextValues[entryIndex] = event.target.value;
+                            updateFieldValues(nextValues);
+                          }}
+                          type={field.type === "number" ? "number" : "text"}
+                          inputMode={field.type === "number" ? "decimal" : undefined}
+                          aria-label={`${field.label} ${entryIndex + 1}`}
+                        />
+                      )}
+                    </div>
+
+                    {field.cardinality === "many" && field.values.length > 1 ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          updateFieldValues(field.values.filter((_, index) => index !== entryIndex))
+                        }
+                      >
+                        Remove
+                      </Button>
+                    ) : null}
+                  </div>
+                ))}
+
+                {field.cardinality === "many" ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => updateFieldValues([...field.values, ""])}
+                  >
+                    Add instance
+                  </Button>
+                ) : null}
+              </section>
+            );
+          })}
+        </FieldSet>
+      );
+    }
+
     return (
       <Field>
         <FieldLabel>{label}</FieldLabel>
@@ -708,17 +1022,26 @@ function FactDialogFields({
           <Field>
             <FieldLabel>{editor.instanceLabel}</FieldLabel>
             <FieldContent>
-              <Input
+              <Select
                 value={draft.instanceId}
-                onChange={(event) => onChange({ ...draft, instanceId: event.target.value })}
-                name="bound-instance-id"
-                autoComplete="off"
-                spellCheck={false}
-                aria-label={editor.instanceLabel}
-              />
+                onValueChange={(value) => onChange({ ...draft, instanceId: value ?? "" })}
+                disabled={(editor.instanceOptions?.length ?? 0) === 0}
+              >
+                <SelectTrigger className="w-full" aria-label={editor.instanceLabel}>
+                  <SelectValue placeholder="Select a source fact instance" />
+                </SelectTrigger>
+                <SelectContent>
+                  {editor.instanceOptions?.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <FieldDescription>
-                Bound facts store a canonical envelope with the source fact instance ID and typed
-                value.
+                {editor.instanceOptions && editor.instanceOptions.length > 0
+                  ? "Bound facts store a canonical envelope with the selected source fact instance ID and typed value."
+                  : "No source fact instances are currently available to bind from."}
               </FieldDescription>
             </FieldContent>
           </Field>
@@ -1004,53 +1327,93 @@ export function RuntimeFactValueDialog({
     () => createDialogDraft(editor, initialValue),
     [editor, initialValue],
   );
-  const [draft, setDraft] = useState(initialDraft);
+  const form = useForm({
+    defaultValues: initialDraft,
+    onSubmit: async ({ value }) => {
+      const parsed = parseDialogDraft(editor, value);
+      if (!parsed.ok) {
+        throw new Error(parsed.error);
+      }
+
+      await onSubmit(parsed.value);
+    },
+  });
   const [localError, setLocalError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
-      setDraft(initialDraft);
+      form.reset(initialDraft);
       setLocalError(null);
     }
-  }, [initialDraft, open]);
+  }, [form, initialDraft, open]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[min(88vh,52rem)] max-w-2xl overflow-y-auto rounded-none border border-border/80 bg-background">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
+        <form.Subscribe selector={(state) => ({ values: state.values, isDirty: state.isDirty })}>
+          {({ values, isDirty }) => (
+            <form
+              className="space-y-4"
+              data-testid={testId}
+              onSubmit={async (event) => {
+                event.preventDefault();
+                try {
+                  setLocalError(null);
+                  await form.handleSubmit();
+                } catch (error) {
+                  if (error instanceof Error && error.message.length > 0) {
+                    setLocalError(error.message);
+                    return;
+                  }
+                  throw error;
+                }
+              }}
+            >
+              <DialogHeader>
+                <DialogTitle>{title}</DialogTitle>
+                <DialogDescription>{description}</DialogDescription>
+              </DialogHeader>
 
-        <form
-          className="space-y-4"
-          data-testid={testId}
-          onSubmit={async (event) => {
-            event.preventDefault();
-            const parsed = parseDialogDraft(editor, draft);
-            if (!parsed.ok) {
-              setLocalError(parsed.error);
-              return;
-            }
+              <div className="flex items-center justify-between border border-border/70 bg-background/40 px-3 py-2 text-xs">
+                <span className="uppercase tracking-[0.12em] text-muted-foreground">
+                  Form state
+                </span>
+                <span className={isDirty ? "text-amber-400" : "text-muted-foreground"}>
+                  {isDirty ? "Unsaved changes" : "No pending changes"}
+                </span>
+              </div>
 
-            setLocalError(null);
-            await onSubmit(parsed.value);
-          }}
-        >
-          <FactDialogFields editor={editor} draft={draft} onChange={setDraft} />
+              <FactDialogFields
+                editor={editor}
+                draft={values}
+                onChange={(next) => {
+                  form.setFieldValue("kind", () => next.kind);
+                  form.setFieldValue("primitive", () => next.primitive);
+                  form.setFieldValue("workUnitId", () => next.workUnitId);
+                  form.setFieldValue("instanceId", () => next.instanceId);
+                  form.setFieldValue("workflowDefinitionId", () => next.workflowDefinitionId);
+                  form.setFieldValue("artifactInstanceId", () => next.artifactInstanceId);
+                  form.setFieldValue("slotDefinitionId", () => next.slotDefinitionId);
+                  form.setFieldValue("workUnitDefinitionId", () => next.workUnitDefinitionId);
+                  form.setFieldValue("fields", () => next.fields);
+                  form.setFieldValue("artifacts", () => next.artifacts);
+                }}
+              />
 
-          {localError ? <FieldError>{localError}</FieldError> : null}
-          {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
+              {localError ? <FieldError>{localError}</FieldError> : null}
+              {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? (pendingLabel ?? `${submitLabel}…`) : submitLabel}
-            </Button>
-          </DialogFooter>
-        </form>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isPending || !isDirty}>
+                  {isPending ? (pendingLabel ?? `${submitLabel}…`) : submitLabel}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </form.Subscribe>
       </DialogContent>
     </Dialog>
   );
