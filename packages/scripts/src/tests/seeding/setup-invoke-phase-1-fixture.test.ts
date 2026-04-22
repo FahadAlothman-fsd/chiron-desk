@@ -7,15 +7,18 @@ async function loadSeedArtifacts() {
   process.env.CORS_ORIGIN ??= "http://localhost:3000";
 
   const fixture = await import("../../seed/methodology/setup/setup-invoke-phase-1-fixture");
+  const sharedFixtures =
+    await import("../../seed/methodology/tables/runtime-workflow-fixtures.shared");
   const manualSeed = await import("../../manual-seed.mjs");
-  return { fixture, manualSeed };
+  return { fixture, manualSeed, sharedFixtures };
 }
 
 describe("setup invoke phase-1 fixture", () => {
   it("seeds the invoke-only phase-1 workflow fixture", { timeout: 15000 }, async () => {
-    const { fixture, manualSeed } = await loadSeedArtifacts();
+    const { fixture, manualSeed, sharedFixtures } = await loadSeedArtifacts();
     const { setupInvokePhase1FixtureSeedRows, setupInvokePhase1FixtureSeedRowsAllVersions } =
       fixture;
+    const { runtimeWorkflowFixtureBundles } = sharedFixtures;
 
     expect(setupInvokePhase1FixtureSeedRows.workflowIds).toEqual([
       "seed:workflow:setup:setup-project:mver_bmad_v1_active",
@@ -439,6 +442,23 @@ describe("setup invoke phase-1 fixture", () => {
         ],
         branchRouteIds: ["branch_to_brainstorming_then_research", "branch_to_research_only"],
       },
+    ]);
+
+    expect(
+      runtimeWorkflowFixtureBundles.flatMap((bundle) =>
+        bundle.methodology_workflow_steps
+          .filter(
+            (row) => row.workflowId === "seed:workflow:setup:setup-project:mver_bmad_v1_active",
+          )
+          .map((row) => row.key),
+      ),
+    ).toEqual([
+      "collect_setup_baseline",
+      "synthesize_setup_for_invoke",
+      "propagate_setup_context",
+      "route_setup_followups",
+      "invoke_brainstorming_fixed",
+      "invoke_research_from_draft_spec",
     ]);
   });
 });
