@@ -276,6 +276,7 @@ export type WorkflowEditorPickerOption = {
   valueType?: "string" | "number" | "boolean" | "json" | "work_unit";
   validationJson?: unknown;
   workUnitDefinitionId?: string;
+  workUnitTypeKey?: string;
 };
 
 export type WorkflowEditorPickerBadge = {

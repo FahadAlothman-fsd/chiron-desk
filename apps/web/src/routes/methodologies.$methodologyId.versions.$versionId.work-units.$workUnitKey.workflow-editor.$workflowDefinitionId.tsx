@@ -2394,7 +2394,7 @@ function toInvokeArtifactSlotDefinitions(
   }));
 }
 
-function toWorkflowOptions(rawWorkflows: unknown) {
+function toWorkflowOptions(rawWorkflows: unknown, rawWorkUnits: unknown) {
   const record = asRecord(rawWorkflows);
   const workflows = Array.isArray(record?.workflows)
     ? record.workflows
@@ -2420,6 +2420,23 @@ function toWorkflowOptions(rawWorkflows: unknown) {
       return [];
     }
 
+    const workUnitTypeIdentifier =
+      typeof workflow.workUnitTypeId === "string" && workflow.workUnitTypeId.trim().length > 0
+        ? workflow.workUnitTypeId.trim()
+        : typeof workflow.workUnitDefinitionId === "string" &&
+            workflow.workUnitDefinitionId.trim().length > 0
+          ? workflow.workUnitDefinitionId.trim()
+          : typeof workflow.workUnitTypeKey === "string" &&
+              workflow.workUnitTypeKey.trim().length > 0
+            ? workflow.workUnitTypeKey.trim()
+            : null;
+    const normalizedWorkUnitTypeKey = workUnitTypeIdentifier
+      ? (resolveWorkUnitTypeKey(rawWorkUnits, workUnitTypeIdentifier) ?? workUnitTypeIdentifier)
+      : null;
+    const workUnitTypeLabel = normalizedWorkUnitTypeKey
+      ? getWorkUnitTypeLabel(rawWorkUnits, normalizedWorkUnitTypeKey)
+      : null;
+
     return [
       {
         value,
@@ -2435,6 +2452,17 @@ function toWorkflowOptions(rawWorkflows: unknown) {
           readMarkdown(workflow.description) ||
           readMarkdown(workflow.guidanceJson) ||
           "Workflow",
+        ...(workUnitTypeLabel
+          ? {
+              badges: [{ label: workUnitTypeLabel, tone: "work-unit-definition" as const }],
+            }
+          : {}),
+        ...(normalizedWorkUnitTypeKey
+          ? {
+              workUnitDefinitionId: normalizedWorkUnitTypeKey,
+              workUnitTypeKey: normalizedWorkUnitTypeKey,
+            }
+          : {}),
       },
     ];
   });
@@ -2921,7 +2949,7 @@ export function MethodologyWorkflowEditorRoute() {
       artifactSlots={toArtifactSlotOptions(artifactSlotsQuery.data)}
       dependencyDefinitions={toDependencyDefinitionOptions(dependencyDefinitionsQuery.data)}
       workUnitTypes={toWorkUnitTypeOptions(workUnitTypesQuery.data)}
-      availableWorkflows={toWorkflowOptions(availableWorkflowsQuery.data)}
+      availableWorkflows={toWorkflowOptions(availableWorkflowsQuery.data, workUnitTypesQuery.data)}
       availableTransitions={toTransitionOptions(transitionsQuery.data)}
       conditionOperators={conditionOperators}
       workUnitFactsQueryScope={versionId}
