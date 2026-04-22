@@ -30,6 +30,7 @@ import { ProjectContextRepository } from "@chiron/project-context";
 import { Context, Effect, Layer } from "effect";
 
 import { RepositoryError } from "../../errors";
+import { AgentStepExecutionAppliedWriteRepository } from "../../repositories/agent-step-execution-applied-write-repository";
 import { AgentStepExecutionHarnessBindingRepository } from "../../repositories/agent-step-execution-harness-binding-repository";
 import { AgentStepExecutionStateRepository } from "../../repositories/agent-step-execution-state-repository";
 import { ArtifactRepository } from "../../repositories/artifact-repository";
@@ -68,6 +69,11 @@ export interface AgentStepMcpExecutionResult {
   readonly response: AgentStepMcpV2ResponseEnvelope;
   readonly newlyExposedWriteItems: readonly AgentStepRuntimeWriteItem[];
 }
+
+type ExplicitAppliedAudit = {
+  readonly instanceOrder: number;
+  readonly valueJson: unknown;
+};
 
 type AccessibleFact = {
   readonly definition: WorkflowContextFactDto;
@@ -349,6 +355,7 @@ export const AgentStepMcpServiceLive = Layer.effect(
     const bindingRepo = yield* AgentStepExecutionHarnessBindingRepository;
     const contextQuery = yield* StepContextQueryService;
     const runtimeServices = yield* Effect.context<
+      | AgentStepExecutionAppliedWriteRepository
       | ProjectWorkUnitRepository
       | WorkUnitFactRepository
       | ProjectFactRepository
@@ -357,6 +364,8 @@ export const AgentStepMcpServiceLive = Layer.effect(
       | ArtifactSlotReferenceService
     >();
 
+    const getAppliedWriteRepo = () =>
+      Context.get(runtimeServices, AgentStepExecutionAppliedWriteRepository);
     const getProjectWorkUnitRepo = () => Context.get(runtimeServices, ProjectWorkUnitRepository);
     const getWorkUnitFactRepo = () => Context.get(runtimeServices, WorkUnitFactRepository);
     const getProjectFactRepo = () => Context.get(runtimeServices, ProjectFactRepository);
@@ -1020,8 +1029,10 @@ export const AgentStepMcpServiceLive = Layer.effect(
       readonly responseInstanceId: string;
       readonly responseInstanceOrder?: number;
       readonly value?: unknown;
+      readonly explicitAppliedAudit?: ExplicitAppliedAudit;
     }): Effect.Effect<AgentStepMcpExecutionResult, AgentStepMcpServiceError> =>
       Effect.gen(function* () {
+        const appliedWriteRepo = getAppliedWriteRepo();
         const beforeExposedIds = new Set(
           listExposedWriteItemIds({
             writeItems: params.context.writeItems,
@@ -1029,13 +1040,34 @@ export const AgentStepMcpServiceLive = Layer.effect(
           }),
         );
 
-        const yieldable = yield* stepRepo.replaceWorkflowExecutionContextFacts({
+        const replacedRows = yield* stepRepo.replaceWorkflowExecutionContextFacts({
           workflowExecutionId: params.context.workflowDetail.workflowExecution.id,
           sourceStepExecutionId: params.context.stepExecution.id,
           affectedContextFactDefinitionIds: [params.writeItem.contextFactDefinitionId],
           currentValues: params.nextRows,
         });
-        void yieldable;
+
+        yield* Effect.forEach(replacedRows, (row) =>
+          appliedWriteRepo.createAppliedWrite({
+            stepExecutionId: params.context.stepExecution.id,
+            writeItemId: params.writeItem.writeItemId,
+            contextFactDefinitionId: row.contextFactDefinitionId,
+            contextFactKind: params.writeItem.contextFactKind,
+            instanceOrder: row.instanceOrder,
+            appliedValueJson: row.valueJson,
+          }),
+        );
+
+        if (params.explicitAppliedAudit) {
+          yield* appliedWriteRepo.createAppliedWrite({
+            stepExecutionId: params.context.stepExecution.id,
+            writeItemId: params.writeItem.writeItemId,
+            contextFactDefinitionId: params.writeItem.contextFactDefinitionId,
+            contextFactKind: params.writeItem.contextFactKind,
+            instanceOrder: params.explicitAppliedAudit.instanceOrder,
+            appliedValueJson: params.explicitAppliedAudit.valueJson,
+          });
+        }
 
         const latestContextFacts = yield* contextQuery.listContextFacts(
           params.context.workflowDetail.workflowExecution.id,
@@ -1293,6 +1325,15 @@ export const AgentStepMcpServiceLive = Layer.effect(
               value: replacement
                 ? toArtifactPublicValue({ storedValue: replacement, externalState })
                 : undefined,
+              explicitAppliedAudit: {
+                instanceOrder: targetRow.instanceOrder,
+                valueJson: {
+                  operation: "remove",
+                  instanceId: request.input.instanceId,
+                  previousValue: targetRow.valueJson,
+                  nextValue: replacement ?? null,
+                },
+              },
             });
           }
 
@@ -1309,6 +1350,15 @@ export const AgentStepMcpServiceLive = Layer.effect(
             nextRows,
             operation: "remove",
             responseInstanceId: request.input.instanceId,
+            explicitAppliedAudit: {
+              instanceOrder: targetRow.instanceOrder,
+              valueJson: {
+                operation: "remove",
+                instanceId: request.input.instanceId,
+                previousValue: targetRow.valueJson,
+                nextValue: null,
+              },
+            },
           });
         }
 
@@ -1341,6 +1391,15 @@ export const AgentStepMcpServiceLive = Layer.effect(
               responseInstanceId: request.input.instanceId,
               responseInstanceOrder: targetRow.instanceOrder,
               value: { ...existing, deleted },
+              explicitAppliedAudit: {
+                instanceOrder: targetRow.instanceOrder,
+                valueJson: {
+                  operation: "delete",
+                  instanceId: request.input.instanceId,
+                  previousValue: targetRow.valueJson,
+                  nextValue: { ...existing, deleted },
+                },
+              },
             });
           }
 
@@ -1402,6 +1461,15 @@ export const AgentStepMcpServiceLive = Layer.effect(
               value: replacement
                 ? toArtifactPublicValue({ storedValue: replacement, externalState })
                 : undefined,
+              explicitAppliedAudit: {
+                instanceOrder: targetRow.instanceOrder,
+                valueJson: {
+                  operation: "delete",
+                  instanceId: request.input.instanceId,
+                  previousValue: targetRow.valueJson,
+                  nextValue: replacement ?? null,
+                },
+              },
             });
           }
 

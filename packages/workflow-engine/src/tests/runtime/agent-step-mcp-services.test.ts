@@ -170,6 +170,19 @@ describe("AgentStep MCP v2 services", () => {
     expect(created.newlyExposedWriteItems.map((item) => item.writeItemId)).toEqual([
       "write-artifact",
     ]);
+    expect(
+      ctx.contextFacts.find((fact) => fact.contextFactDefinitionId === "ctx-summary")?.valueJson,
+    ).toBe("Approved summary");
+    expect(ctx.appliedWrites).toContainEqual(
+      expect.objectContaining({
+        stepExecutionId: "step-exec-1",
+        writeItemId: "write-summary",
+        contextFactDefinitionId: "ctx-summary",
+        contextFactKind: "plain_value_fact",
+        instanceOrder: 0,
+        appliedValueJson: "Approved summary",
+      }),
+    );
   });
 
   it("updates artifact facts with committed files on the v2 surface", async () => {
@@ -213,6 +226,28 @@ describe("AgentStep MCP v2 services", () => {
         },
       ],
     });
+    expect(ctx.appliedWrites).toContainEqual(
+      expect.objectContaining({
+        stepExecutionId: "step-exec-1",
+        writeItemId: "write-artifact",
+        contextFactDefinitionId: "ctx-artifact",
+        contextFactKind: "artifact_slot_reference_fact",
+        instanceOrder: 0,
+        appliedValueJson: {
+          slotDefinitionId: "slot-1",
+          files: [
+            {
+              filePath: "docs/setup.md",
+              status: "present",
+              gitCommitHash: "commit-123",
+              gitBlobHash: "blob-123",
+              gitCommitSubject: "seed",
+              gitCommitBody: "seed body",
+            },
+          ],
+        },
+      }),
+    );
   });
 
   it("distinguishes artifact remove for context-local files from artifact delete for external-slot files", async () => {
@@ -328,6 +363,52 @@ describe("AgentStep MCP v2 services", () => {
       artifactInstanceId: "artifact-instance-1",
       files: [{ filePath: "docs/external.md", gitCommitHash: "commit-old" }],
     });
+    expect(ctx.appliedWrites).toContainEqual(
+      expect.objectContaining({
+        writeItemId: "write-artifact",
+        contextFactDefinitionId: "ctx-artifact",
+        contextFactKind: "artifact_slot_reference_fact",
+        instanceOrder: 0,
+        appliedValueJson: {
+          operation: "remove",
+          instanceId: "fact-artifact-1",
+          previousValue: {
+            slotDefinitionId: "slot-1",
+            files: [
+              {
+                filePath: "docs/external.md",
+                status: "present",
+                gitCommitHash: "commit-old",
+                gitBlobHash: "blob-old",
+                gitCommitSubject: "subject-old",
+                gitCommitBody: "body-old",
+              },
+              {
+                filePath: "docs/local.md",
+                status: "present",
+                gitCommitHash: "commit-local",
+                gitBlobHash: "blob-local",
+                gitCommitSubject: "subject-local",
+                gitCommitBody: "body-local",
+              },
+            ],
+          },
+          nextValue: {
+            slotDefinitionId: "slot-1",
+            files: [
+              {
+                filePath: "docs/external.md",
+                status: "present",
+                gitCommitHash: "commit-old",
+                gitBlobHash: "blob-old",
+                gitCommitSubject: "subject-old",
+                gitCommitBody: "body-old",
+              },
+            ],
+          },
+        },
+      }),
+    );
     const updatedInstanceId = removed.response.output.instanceId;
 
     const invalidDelete = await Effect.runPromise(
@@ -371,6 +452,90 @@ describe("AgentStep MCP v2 services", () => {
       artifactInstanceId: "artifact-instance-1",
       files: [{ filePath: "docs/external.md", gitCommitHash: "commit-123", deleted: true }],
     });
+    expect(ctx.appliedWrites).toContainEqual(
+      expect.objectContaining({
+        writeItemId: "write-artifact",
+        contextFactDefinitionId: "ctx-artifact",
+        contextFactKind: "artifact_slot_reference_fact",
+        instanceOrder: 0,
+        appliedValueJson: {
+          operation: "delete",
+          instanceId: updatedInstanceId,
+          previousValue: {
+            slotDefinitionId: "slot-1",
+            files: [
+              {
+                filePath: "docs/external.md",
+                status: "present",
+                gitCommitHash: "commit-old",
+                gitBlobHash: "blob-old",
+                gitCommitSubject: "subject-old",
+                gitCommitBody: "body-old",
+              },
+            ],
+          },
+          nextValue: {
+            slotDefinitionId: "slot-1",
+            files: [
+              {
+                filePath: "docs/external.md",
+                status: "deleted",
+                gitCommitHash: "commit-123",
+                gitBlobHash: "blob-123",
+                gitCommitSubject: "seed",
+                gitCommitBody: "seed body",
+              },
+            ],
+          },
+        },
+      }),
+    );
+  });
+
+  it("records an explicit applied-write audit row when remove deletes the final plain fact instance", async () => {
+    const ctx = makeAgentStepRuntimeTestContext();
+    await startSession(ctx);
+
+    const created = await runMcp(ctx, {
+      version: "v2",
+      toolName: "create_context_fact_instance",
+      input: withHiddenStepExecutionId({
+        factKey: "review-notes",
+        value: "needs more references",
+      }),
+    });
+
+    if (created.response.toolName !== "create_context_fact_instance") {
+      throw new Error("expected create_context_fact_instance response");
+    }
+
+    const removed = await runMcp(ctx, {
+      version: "v2",
+      toolName: "remove_context_fact_instance",
+      input: withHiddenStepExecutionId({
+        factKey: "review-notes",
+        instanceId: created.response.output.instanceId,
+      }),
+    });
+
+    expect(removed.response.toolName).toBe("remove_context_fact_instance");
+    expect(
+      ctx.contextFacts.filter((fact) => fact.contextFactDefinitionId === "ctx-review-notes"),
+    ).toHaveLength(0);
+    expect(ctx.appliedWrites).toContainEqual(
+      expect.objectContaining({
+        writeItemId: "write-review-notes",
+        contextFactDefinitionId: "ctx-review-notes",
+        contextFactKind: "plain_value_fact",
+        instanceOrder: 0,
+        appliedValueJson: {
+          operation: "remove",
+          instanceId: created.response.output.instanceId,
+          previousValue: "needs more references",
+          nextValue: null,
+        },
+      }),
+    );
   });
 
   it("rejects artifact writes that provide object file entries instead of file path strings", async () => {
