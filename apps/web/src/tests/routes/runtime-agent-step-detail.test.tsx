@@ -313,6 +313,7 @@ function buildWorkflowDetail() {
           definitionKey: "project_summary",
           definitionLabel: "Project Summary",
           definitionDescriptionJson: { markdown: "Summary fact" },
+          cardinality: "one" as const,
           instances: [
             {
               contextFactInstanceId: "ctx-inst-1",
@@ -430,6 +431,9 @@ function buildOrpc(overrides?: {
   agentDetailTransform?: (
     detail: ReturnType<typeof buildAgentDetail>,
   ) => ReturnType<typeof buildAgentDetail>;
+  workflowDetailTransform?: (
+    detail: ReturnType<typeof buildWorkflowDetail>,
+  ) => ReturnType<typeof buildWorkflowDetail>;
   timelinePage?: ReturnType<typeof buildTimelinePage>;
   getTimelinePage?: ReturnType<typeof vi.fn>;
   startSession?: ReturnType<typeof vi.fn>;
@@ -442,7 +446,8 @@ function buildOrpc(overrides?: {
   const stepDetail = buildStepDetail();
   const agentDetail =
     overrides?.agentDetailTransform?.(buildAgentDetail(state)) ?? buildAgentDetail(state);
-  const workflowDetail = buildWorkflowDetail();
+  const workflowDetail =
+    overrides?.workflowDetailTransform?.(buildWorkflowDetail()) ?? buildWorkflowDetail();
   const harnessMetadata = buildHarnessMetadata();
   const timelinePage = overrides?.timelinePage ?? buildTimelinePage();
   const getTimelinePage = overrides?.getTimelinePage ?? vi.fn(async () => timelinePage);
@@ -577,6 +582,9 @@ async function renderRoute(
     agentDetailTransform?: (
       detail: ReturnType<typeof buildAgentDetail>,
     ) => ReturnType<typeof buildAgentDetail>;
+    workflowDetailTransform?: (
+      detail: ReturnType<typeof buildWorkflowDetail>,
+    ) => ReturnType<typeof buildWorkflowDetail>;
     timelinePage?: ReturnType<typeof buildTimelinePage>;
     getTimelinePage?: ReturnType<typeof vi.fn>;
   },
@@ -593,6 +601,9 @@ async function renderRoute(
     state,
     ...(options?.agentDetailTransform
       ? { agentDetailTransform: options.agentDetailTransform }
+      : {}),
+    ...(options?.workflowDetailTransform
+      ? { workflowDetailTransform: options.workflowDetailTransform }
       : {}),
     ...(options?.timelinePage ? { timelinePage: options.timelinePage } : {}),
     ...(options?.getTimelinePage ? { getTimelinePage: options.getTimelinePage } : {}),
@@ -835,6 +846,147 @@ describe("runtime agent step detail route", () => {
         queryKey: runtimeAgentStepExecutionDetailQueryKey("project-1", "step-agent-1"),
       });
     });
+  });
+
+  it("renders applied write instances with structured artifact details and deletion cues", async () => {
+    const user = userEvent.setup();
+
+    await renderRoute("active_idle", {
+      agentDetailTransform: (detail) => ({
+        ...detail,
+        body: {
+          ...detail.body,
+          writeItems: [
+            {
+              writeItemId: "write-artifact",
+              contextFactDefinitionId: "ctx-artifact",
+              contextFactKind: "artifact_slot_reference_fact",
+              order: 200,
+              requirementContextFactDefinitionIds: [],
+              exposureMode: "requirements_only",
+            },
+          ],
+        },
+      }),
+      workflowDetailTransform: (detail) => ({
+        ...detail,
+        workflowContextFacts: {
+          ...detail.workflowContextFacts,
+          groups: [
+            {
+              contextFactDefinitionId: "ctx-artifact",
+              definitionKey: "project_overview_artifact",
+              definitionLabel: "Project Overview Artifact",
+              definitionDescriptionJson: { markdown: "Artifact fact" },
+              cardinality: "one" as const,
+              instances: [
+                {
+                  contextFactInstanceId: "ctx-inst-artifact-1",
+                  instanceOrder: 0,
+                  valueJson: {
+                    slotDefinitionId: "slot-project-overview",
+                    files: [
+                      {
+                        filePath: "artifacts/project-overview/taskflow-overview.json",
+                        status: "present",
+                        gitCommitHash: "93b98abff15a713b8c0bf7425d1a93ae2f6811d9",
+                        gitCommitSubject: "Add TaskFlow project overview artifact",
+                      },
+                      {
+                        filePath: "artifacts/project-overview/old.json",
+                        status: "deleted",
+                        gitCommitHash: "1234567890abcdef1234567890abcdef12345678",
+                        gitCommitSubject: "Remove obsolete overview artifact",
+                      },
+                    ],
+                  },
+                  sourceStepExecutionId: "step-agent-1",
+                  recordedAt: "2026-04-09T12:10:00.000Z",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    });
+
+    await user.click(screen.getByRole("button", { name: /^write$/i }));
+
+    expect(screen.getByText("Project Overview Artifact")).toBeTruthy();
+    expect(screen.getByText("Add TaskFlow project overview artifact")).toBeTruthy();
+    expect(screen.getByText(/^one$/i)).toBeTruthy();
+    expect(screen.getAllByText("marked deleted").length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /copy file path/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /copy commit hash/i }).length).toBeGreaterThan(0);
+  });
+
+  it("renders draft-spec nested fact values as key-value rows with type badges instead of raw JSON blobs", async () => {
+    const user = userEvent.setup();
+
+    await renderRoute("active_idle", {
+      agentDetailTransform: (detail) => ({
+        ...detail,
+        body: {
+          ...detail.body,
+          writeItems: [
+            {
+              writeItemId: "write-draft",
+              contextFactDefinitionId: "ctx-draft",
+              contextFactKind: "work_unit_draft_spec_fact",
+              order: 500,
+              requirementContextFactDefinitionIds: [],
+              exposureMode: "requirements_only",
+            },
+          ],
+        },
+      }),
+      workflowDetailTransform: (detail) => ({
+        ...detail,
+        workflowContextFacts: {
+          ...detail.workflowContextFacts,
+          groups: [
+            {
+              contextFactDefinitionId: "ctx-draft",
+              definitionKey: "research_draft_spec",
+              definitionLabel: "Research Draft Spec",
+              definitionDescriptionJson: { markdown: "Draft fact" },
+              cardinality: "many" as const,
+              instances: [
+                {
+                  contextFactInstanceId: "ctx-inst-draft-1",
+                  instanceOrder: 0,
+                  valueJson: {
+                    factValues: {
+                      research_goals: {
+                        title: "Pattern Analysis",
+                        question:
+                          "What are the best patterns for offline-first React applications?",
+                        priority: 1,
+                        notes: "Focus on React-specific implementations",
+                      },
+                    },
+                    artifactValues: {},
+                  },
+                  sourceStepExecutionId: "step-agent-1",
+                  recordedAt: "2026-04-09T12:11:00.000Z",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    });
+
+    await user.click(screen.getByRole("button", { name: /^write$/i }));
+
+    expect(screen.getByText("Research Draft Spec")).toBeTruthy();
+    expect(screen.getByText("research_goals")).toBeTruthy();
+    expect(screen.getByText(/^json$/i)).toBeTruthy();
+    expect(screen.getByText("title")).toBeTruthy();
+    expect(screen.getByText("Pattern Analysis")).toBeTruthy();
+    expect(screen.getByText("priority")).toBeTruthy();
+    expect(screen.getByText(/^number$/i)).toBeTruthy();
+    expect(screen.queryByText(/\{"title":\s*"Pattern Analysis"/i)).toBeNull();
   });
 
   it("merges started and completed tool events into one expandable tool-call entry", async () => {

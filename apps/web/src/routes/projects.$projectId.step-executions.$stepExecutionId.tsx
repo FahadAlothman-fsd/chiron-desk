@@ -986,6 +986,441 @@ function renderContextFactKindLabel(kind: WorkflowContextFactKind): string {
   return kind.replaceAll("_", " ");
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getContextFactKindTone(
+  kind: WorkflowContextFactKind,
+): Parameters<typeof ExecutionBadge>[0]["tone"] {
+  switch (kind) {
+    case "plain_fact":
+    case "plain_value_fact":
+      return "sky";
+    case "bound_fact":
+      return "violet";
+    case "artifact_slot_reference_fact":
+      return "amber";
+    case "workflow_ref_fact":
+      return "lime";
+    case "work_unit_reference_fact":
+      return "emerald";
+    case "work_unit_draft_spec_fact":
+      return "rose";
+  }
+}
+
+function truncateHash(value: string): string {
+  return value.length <= 10 ? value : `${value.slice(0, 7)}…${value.slice(-4)}`;
+}
+
+function formatPrimitiveValue(value: unknown): string {
+  return typeof value === "string" ? value : formatUnknown(value);
+}
+
+function getValueTone(value: unknown): Parameters<typeof ExecutionBadge>[0]["tone"] {
+  if (typeof value === "string") {
+    return "sky";
+  }
+  if (typeof value === "number") {
+    return "amber";
+  }
+  if (typeof value === "boolean") {
+    return value ? "emerald" : "rose";
+  }
+  if (Array.isArray(value)) {
+    return "violet";
+  }
+  if (isRecord(value)) {
+    return "slate";
+  }
+  return "slate";
+}
+
+function getValueKindLabel(value: unknown): string {
+  if (typeof value === "string") {
+    return "text";
+  }
+  if (typeof value === "number") {
+    return "number";
+  }
+  if (typeof value === "boolean") {
+    return "boolean";
+  }
+  if (Array.isArray(value)) {
+    return `list ${value.length}`;
+  }
+  if (isRecord(value)) {
+    return "json";
+  }
+  if (value === null) {
+    return "null";
+  }
+  return typeof value;
+}
+
+function getWriteActionBadges(params: {
+  kind: WorkflowContextFactKind;
+  instanceCount: number;
+}): Array<{
+  label: string;
+  tone: Parameters<typeof ExecutionBadge>[0]["tone"];
+}> {
+  if (params.instanceCount === 0) {
+    return [{ label: "create", tone: "sky" }];
+  }
+
+  return [
+    { label: "update", tone: "violet" },
+    { label: "remove", tone: "amber" },
+    ...(params.kind === "bound_fact" || params.kind === "artifact_slot_reference_fact"
+      ? ([{ label: "delete", tone: "rose" }] as const)
+      : []),
+  ];
+}
+
+function CopyValueButton(props: { value: string; label: string; className?: string }) {
+  const { value, label, className } = props;
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className={cn("h-7 border-border/70 bg-background/60 px-2 text-[0.65rem]", className)}
+      aria-label={`Copy ${label}`}
+      onClick={async () => {
+        const copiedResult = await Result.tryPromise({
+          try: () => navigator.clipboard.writeText(value),
+          catch: (error) => error,
+        });
+        if (copiedResult.isOk()) {
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 1200);
+        }
+      }}
+    >
+      {copied ? <CheckIcon className="size-3.5" /> : <CopyIcon className="size-3.5" />}
+    </Button>
+  );
+}
+
+function InstanceMetaRow(props: {
+  label: string;
+  value: React.ReactNode;
+  copyValue?: string;
+  copyLabel?: string;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 border border-border/60 bg-background/45 px-2 py-2">
+      <div className="min-w-0 space-y-1">
+        <DetailLabel>{props.label}</DetailLabel>
+        <DetailPrimary className="break-words text-xs font-normal">{props.value}</DetailPrimary>
+      </div>
+      {props.copyValue && props.copyLabel ? (
+        <CopyValueButton value={props.copyValue} label={props.copyLabel} className="shrink-0" />
+      ) : null}
+    </div>
+  );
+}
+
+function KeyValueObject(props: { values: Record<string, unknown> }) {
+  const entries = Object.entries(props.values);
+  if (entries.length === 0) {
+    return <p className="text-xs text-muted-foreground">No authored values.</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {entries.map(([key, value]) => (
+        <div key={key} className="space-y-2 border border-border/60 bg-background/35 px-2 py-2">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="space-y-1">
+              <DetailLabel>{key}</DetailLabel>
+              <ExecutionBadge label={getValueKindLabel(value)} tone={getValueTone(value)} />
+            </div>
+          </div>
+          {isRecord(value) && !Array.isArray(value) ? (
+            <div className="grid gap-2 md:grid-cols-2">
+              {Object.entries(value).map(([nestedKey, nestedValue]) => (
+                <div
+                  key={nestedKey}
+                  className="space-y-1 border border-border/60 bg-background/45 px-2 py-2"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <DetailLabel>{nestedKey}</DetailLabel>
+                    <ExecutionBadge
+                      label={getValueKindLabel(nestedValue)}
+                      tone={getValueTone(nestedValue)}
+                    />
+                  </div>
+                  <DetailPrimary className="break-words text-xs font-normal">
+                    {formatPrimitiveValue(nestedValue)}
+                  </DetailPrimary>
+                </div>
+              ))}
+            </div>
+          ) : Array.isArray(value) ? (
+            <div className="space-y-2">
+              {value.map((entry, index) => (
+                <div
+                  key={`${key}-${index}`}
+                  className="space-y-1 border border-border/60 bg-background/45 px-2 py-2"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <DetailLabel>Item {index + 1}</DetailLabel>
+                    <ExecutionBadge label={getValueKindLabel(entry)} tone={getValueTone(entry)} />
+                  </div>
+                  <DetailPrimary className="break-words text-xs font-normal">
+                    {formatPrimitiveValue(entry)}
+                  </DetailPrimary>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <DetailPrimary className="break-words text-xs font-normal">
+              {formatPrimitiveValue(value)}
+            </DetailPrimary>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ArtifactFileCard(props: { file: Record<string, unknown>; index: number }) {
+  const filePath =
+    typeof props.file.filePath === "string" ? props.file.filePath : `file-${props.index + 1}`;
+  const status = typeof props.file.status === "string" ? props.file.status : undefined;
+  const markedDeleted = status === "deleted" || props.file.deleted === true;
+  const commitTitle =
+    typeof props.file.gitCommitSubject === "string" && props.file.gitCommitSubject.length > 0
+      ? props.file.gitCommitSubject
+      : null;
+  const commitHash = typeof props.file.gitCommitHash === "string" ? props.file.gitCommitHash : null;
+
+  return (
+    <div
+      className={cn(
+        "space-y-2 border border-border/70 bg-background/40 p-2",
+        markedDeleted && "border-rose-500/40 bg-rose-500/8",
+      )}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 space-y-1">
+          <DetailLabel>File path</DetailLabel>
+          <DetailPrimary
+            className={cn(
+              "break-all text-xs font-normal",
+              markedDeleted && "line-through opacity-80",
+            )}
+          >
+            {filePath}
+          </DetailPrimary>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <ExecutionBadge
+            label={markedDeleted ? "marked deleted" : (status ?? "recorded")}
+            tone={markedDeleted ? "rose" : "emerald"}
+          />
+          <CopyValueButton value={filePath} label="file path" />
+        </div>
+      </div>
+
+      {commitTitle ? <InstanceMetaRow label="Commit" value={commitTitle} /> : null}
+      {commitHash ? (
+        <InstanceMetaRow
+          label="Commit hash"
+          value={
+            <span className="font-mono text-[0.72rem] text-muted-foreground">
+              {truncateHash(commitHash)}
+            </span>
+          }
+          copyValue={commitHash}
+          copyLabel="commit hash"
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function renderContextFactInstanceValue(
+  kind: WorkflowContextFactKind,
+  value: unknown,
+): React.ReactNode {
+  if (kind === "bound_fact" && isRecord(value)) {
+    const deleted = value.deleted === true;
+    return (
+      <div className="space-y-2">
+        <div className="flex flex-wrap gap-2">
+          <ExecutionBadge label="bound value" tone="violet" />
+          {deleted ? <ExecutionBadge label="marked deleted" tone="rose" /> : null}
+        </div>
+        {typeof value.factInstanceId === "string" ? (
+          <InstanceMetaRow
+            label="Bound fact instance"
+            value={
+              <span className="font-mono text-[0.72rem] text-muted-foreground">
+                {value.factInstanceId}
+              </span>
+            }
+            copyValue={value.factInstanceId}
+            copyLabel="bound fact instance id"
+          />
+        ) : null}
+        <InstanceMetaRow label="Value" value={formatPrimitiveValue(value.value)} />
+      </div>
+    );
+  }
+
+  if (kind === "artifact_slot_reference_fact" && isRecord(value)) {
+    const slotDefinitionId =
+      typeof value.slotDefinitionId === "string" ? value.slotDefinitionId : undefined;
+    const files = Array.isArray(value.files) ? value.files.filter(isRecord) : [];
+
+    return (
+      <div className="space-y-2">
+        <div className="flex flex-wrap gap-2">
+          <ExecutionBadge label="artifact snapshot" tone="amber" />
+          <ExecutionBadge
+            label={`${files.length} file${files.length === 1 ? "" : "s"}`}
+            tone="slate"
+          />
+        </div>
+        {slotDefinitionId ? (
+          <InstanceMetaRow
+            label="Slot definition"
+            value={
+              <span className="font-mono text-[0.72rem] text-muted-foreground">
+                {slotDefinitionId}
+              </span>
+            }
+            copyValue={slotDefinitionId}
+            copyLabel="slot definition id"
+          />
+        ) : null}
+        {files.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No file entries recorded.</p>
+        ) : (
+          <div className="space-y-2">
+            {files.map((file, index) => (
+              <ArtifactFileCard
+                key={`${typeof file.filePath === "string" ? file.filePath : index}`}
+                file={file}
+                index={index}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (kind === "work_unit_draft_spec_fact" && isRecord(value)) {
+    const factValues =
+      isRecord(value.factValues) && !Array.isArray(value.factValues) ? value.factValues : undefined;
+    const artifactValues =
+      isRecord(value.artifactValues) && !Array.isArray(value.artifactValues)
+        ? value.artifactValues
+        : undefined;
+
+    const factArray = Array.isArray(value.factValues) ? value.factValues.filter(isRecord) : [];
+    const artifactArray = Array.isArray(value.artifactValues)
+      ? value.artifactValues.filter(isRecord)
+      : [];
+
+    return (
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <ExecutionBadge label="draft spec" tone="rose" />
+          {typeof value.workUnitDefinitionId === "string" ? (
+            <ExecutionBadge label="normalized" tone="slate" />
+          ) : null}
+        </div>
+        {factValues ? (
+          <div className="space-y-2">
+            <DetailLabel>Fact values</DetailLabel>
+            <KeyValueObject values={factValues} />
+          </div>
+        ) : factArray.length > 0 ? (
+          <div className="space-y-2">
+            <DetailLabel>Fact values</DetailLabel>
+            <div className="space-y-2">
+              {factArray.map((entry, index) => (
+                <InstanceMetaRow
+                  key={`${typeof entry.workUnitFactDefinitionId === "string" ? entry.workUnitFactDefinitionId : index}`}
+                  label={
+                    typeof entry.workUnitFactDefinitionId === "string"
+                      ? entry.workUnitFactDefinitionId
+                      : `fact-${index + 1}`
+                  }
+                  value={formatPrimitiveValue(entry.value)}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {artifactValues ? (
+          <div className="space-y-2">
+            <DetailLabel>Artifact values</DetailLabel>
+            <div className="space-y-2">
+              {Object.entries(artifactValues).map(([key, entry]) => (
+                <InstanceMetaRow
+                  key={key}
+                  label={key}
+                  value={
+                    Array.isArray(entry) ? entry.join(", ") || "—" : formatPrimitiveValue(entry)
+                  }
+                />
+              ))}
+            </div>
+          </div>
+        ) : artifactArray.length > 0 ? (
+          <div className="space-y-2">
+            <DetailLabel>Artifact values</DetailLabel>
+            <div className="space-y-2">
+              {artifactArray.map((entry, index) => (
+                <InstanceMetaRow
+                  key={`${typeof entry.slotDefinitionId === "string" ? entry.slotDefinitionId : index}`}
+                  label={
+                    typeof entry.slotDefinitionId === "string"
+                      ? entry.slotDefinitionId
+                      : `slot-${index + 1}`
+                  }
+                  value={
+                    entry.clear === true
+                      ? "Cleared"
+                      : typeof entry.relativePath === "string"
+                        ? entry.relativePath
+                        : formatUnknown(entry)
+                  }
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return <DetailPrimary className="text-xs font-normal">{String(value)}</DetailPrimary>;
+  }
+
+  if (value === null) {
+    return (
+      <DetailPrimary className="text-xs font-normal text-muted-foreground">null</DetailPrimary>
+    );
+  }
+
+  return (
+    <pre className="whitespace-pre-wrap break-words border border-border/60 bg-background/35 p-2 text-[0.72rem] text-foreground">
+      {formatUnknown(value)}
+    </pre>
+  );
+}
+
 function getPromptInputSubmitStatus(params: {
   state: AgentStepRuntimeState;
   hasError: boolean;
@@ -3128,8 +3563,9 @@ function FormInteractionSurface(props: {
 function ContextFactInstances(props: {
   group: RuntimeWorkflowContextFactGroup | undefined;
   emptyMessage: string;
+  contextFactKind: WorkflowContextFactKind;
 }) {
-  const { group, emptyMessage } = props;
+  const { group, emptyMessage, contextFactKind } = props;
 
   if (!group || group.instances.length === 0) {
     return <p className="text-xs text-muted-foreground">{emptyMessage}</p>;
@@ -3140,15 +3576,37 @@ function ContextFactInstances(props: {
       {group.instances.map((instance) => (
         <li
           key={`${group.contextFactDefinitionId}-${instance.contextFactInstanceId ?? instance.instanceOrder}`}
-          className="space-y-1 border border-border/70 bg-background/50 p-2"
+          className="space-y-3 border border-border/70 bg-background/50 p-3"
         >
-          <div className="flex flex-wrap items-center justify-between gap-2 text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
-            <span>Instance {instance.instanceOrder + 1}</span>
-            <span>{formatTimestamp(instance.recordedAt)}</span>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="flex flex-wrap gap-2">
+              <ExecutionBadge label={`instance ${instance.instanceOrder + 1}`} tone="slate" />
+              <ExecutionBadge
+                label={renderContextFactKindLabel(contextFactKind)}
+                tone={getContextFactKindTone(contextFactKind)}
+              />
+              {isRecord(instance.valueJson) &&
+              (instance.valueJson.deleted === true || instance.valueJson.status === "deleted") ? (
+                <ExecutionBadge label="marked deleted" tone="rose" />
+              ) : null}
+            </div>
+            <DetailLabel>{formatTimestamp(instance.recordedAt)}</DetailLabel>
           </div>
-          <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
-            {formatUnknown(instance.valueJson)}
-          </pre>
+
+          {instance.contextFactInstanceId ? (
+            <InstanceMetaRow
+              label="Instance id"
+              value={
+                <span className="font-mono text-[0.72rem] text-muted-foreground">
+                  {instance.contextFactInstanceId}
+                </span>
+              }
+              copyValue={instance.contextFactInstanceId}
+              copyLabel="context fact instance id"
+            />
+          ) : null}
+
+          {renderContextFactInstanceValue(contextFactKind, instance.valueJson)}
         </li>
       ))}
     </ul>
@@ -5992,6 +6450,32 @@ function AgentInteractionSurface(props: {
                                         : "rose"
                                   }
                                 />
+                                <ExecutionBadge
+                                  label={renderContextFactKindLabel(entry.item.contextFactKind)}
+                                  tone={getContextFactKindTone(entry.item.contextFactKind)}
+                                />
+                                <ExecutionBadge
+                                  label={`${entry.group?.instances.length ?? 0} instance${
+                                    (entry.group?.instances.length ?? 0) === 1 ? "" : "s"
+                                  }`}
+                                  tone="slate"
+                                />
+                                {entry.group ? (
+                                  <ExecutionBadge
+                                    label={entry.group.cardinality}
+                                    tone={entry.group.cardinality === "many" ? "amber" : "sky"}
+                                  />
+                                ) : null}
+                                {getWriteActionBadges({
+                                  kind: entry.item.contextFactKind,
+                                  instanceCount: entry.group?.instances.length ?? 0,
+                                }).map((action) => (
+                                  <ExecutionBadge
+                                    key={`${entry.item.writeItemId}-${action.label}`}
+                                    label={action.label}
+                                    tone={action.tone}
+                                  />
+                                ))}
                               </div>
                               <h3 className="text-sm font-medium text-foreground">
                                 {renderContextFactLabel(
@@ -5999,9 +6483,6 @@ function AgentInteractionSurface(props: {
                                   entry.item.contextFactDefinitionId,
                                 )}
                               </h3>
-                              <p className="text-xs text-muted-foreground">
-                                {renderContextFactKindLabel(entry.item.contextFactKind)}
-                              </p>
                             </div>
 
                             <div className="space-y-2">
@@ -6046,6 +6527,7 @@ function AgentInteractionSurface(props: {
                               <ContextFactInstances
                                 group={entry.group}
                                 emptyMessage="No successful Chiron write-tool application yet."
+                                contextFactKind={entry.item.contextFactKind}
                               />
                             </div>
                           </article>

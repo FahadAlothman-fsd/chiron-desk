@@ -125,6 +125,7 @@ export const RuntimeWorkflowContextFactGroup = Schema.Struct({
   definitionKey: Schema.optional(Schema.String),
   definitionLabel: Schema.optional(Schema.String),
   definitionDescriptionJson: Schema.optional(Schema.Unknown),
+  cardinality: FactCardinality,
   instances: Schema.Array(RuntimeWorkflowContextFactInstance),
 });
 export type RuntimeWorkflowContextFactGroup = typeof RuntimeWorkflowContextFactGroup.Type;
