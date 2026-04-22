@@ -1377,3 +1377,741 @@ This keeps `work_unit_reference_fact` centered on runtime relationship edges:
 ## Next section
 
 The next fact kind to define is `artifact_slot_reference_fact`.
+
+---
+
+# `artifact_slot_reference_fact`
+
+## Meaning
+
+An `artifact_slot_reference_fact` is a workflow-context attachment to the current runtime state of an artifact slot.
+
+It is not just a single file reference.
+
+It represents:
+
+- the artifact slot being referenced
+- the current attached artifact instance when one exists
+- the current file set inside that slot
+- per-file commit identity sufficient for later propagation and freshness checks
+
+This is the most operationally rich workflow-context fact kind because the meaningful write surface mixes workflow-context instance identity with file-set mutation rules.
+
+## Public MCP identity
+
+For MCP-facing operations, `artifact_slot_reference_fact` is addressed by the **context fact key**.
+
+Example:
+
+```json
+{
+  "factKey": "project_overview_artifact"
+}
+```
+
+## Canonical persisted value shape
+
+The agent-facing runtime shape should be centered on the current attached artifact instance and the current visible file set:
+
+```json
+{
+  "slotDefinitionId": "slot-brief",
+  "artifactInstanceId": "artifact-instance-1",
+  "files": [
+    {
+      "filePath": "docs/brief.md",
+      "gitCommitHash": "abc123"
+    }
+  ]
+}
+```
+
+The important rule is:
+
+- only the current file set is exposed to the agent
+- removed/superseded/historical files are internal runtime concerns, not agent-facing read payload
+- commit subject/body can be resolved at runtime from the commit hash when needed
+- `gitBlobHash` is not required in the current agent-facing contract
+
+## Identity rules
+
+### `instanceId`
+
+This is always the **workflow context fact instance id**.
+
+### `artifactInstanceId`
+
+This is the **attached artifact slot instance id** inside the fact-specific value payload.
+
+It must not replace or overload the outer `instanceId`.
+
+## Automatic attachment rule
+
+If an artifact slot instance already exists for the relevant slot/runtime context, it should be automatically attached to the `artifact_slot_reference_fact` context value.
+
+This auto-attachment behavior is part of the runtime external prefill flow.
+
+That means an MCP/user read of the context fact may encounter an already-attached artifact instance without first performing an explicit create/write through the context-fact mutation surface.
+
+Because of this, attachable-artifact discovery is not needed as a separate MCP read mode.
+
+## Value model
+
+The fact value is slot-authoritative.
+
+That means:
+
+- `slotDefinitionId` must remain canonical
+- file membership is grouped under the slot
+- repo-relative path rules come from the slot definition
+- optional folder-binding context facts may affect path resolution
+- repo root fallback is allowed when folder binding is absent
+
+## File operation model
+
+For the MCP-facing contract, this fact kind should be described in terms of agent-visible file membership changes rather than internal status fields.
+
+The meaningful file-level behaviors are:
+
+- add a file to the slot context set if it is not currently present
+- refresh the recorded commit hash for a file already in the slot context set
+- remove a file from the context fact when it does not already exist in the external artifact slot instance
+- mark an externally existing slot file for untracking/deletion propagation
+
+Internal runtime commands like `record_present_file`, `record_deleted_file`, and `remove_from_slot` may still exist under the hood, but they should not define the public agent-facing shape directly.
+
+## Allowed actions
+
+### `create`
+
+Meaning:
+
+- create a new workflow-context artifact-slot-reference instance
+- only admissible if no artifact slot instance currently exists for the relevant slot/runtime context
+- establish the initial current file set tracked in workflow context
+
+Canonical request shape:
+
+```json
+{
+  "factKey": "project_overview_artifact",
+  "value": {
+    "files": ["docs/brief.md"]
+  }
+}
+```
+
+Behavior:
+
+- only succeeds when no artifact slot instance already exists
+- for each provided file path:
+  - resolve the latest committed state
+  - save the file in the current context file set with its `gitCommitHash`
+- if the file is untracked/unstaged/uncommitted, the runtime should warn/fail rather than recording a stale update
+
+### `update`
+
+Meaning:
+
+- update one existing workflow-context artifact-slot-reference instance
+- provide only the context fact key and a list of file paths whose current committed state should be reconciled into the context fact
+
+Canonical request shape:
+
+```json
+{
+  "factKey": "project_overview_artifact",
+  "instanceId": "ctx-1",
+  "value": {
+    "files": ["docs/brief.md", "docs/new-appendix.md"]
+  }
+}
+```
+
+Behavior:
+
+- target the workflow-context instance by `instanceId`
+- for each provided file path:
+  - if the file already exists in the current context file set, check its latest committed state
+  - if a newer commit exists than the recorded one, update the stored `gitCommitHash`
+  - if the file is untracked/unstaged/uncommitted, emit a warning/failure and do not record it as updated
+  - if the file does not yet exist in the current context file set, resolve its latest committed state and add it
+
+So `update` covers both:
+
+- adding files into the slot context set
+- refreshing commit hashes for already-tracked files
+
+### `remove`
+
+Meaning:
+
+- remove a file path from the workflow-context artifact file set only
+
+Canonical request shape:
+
+```json
+{
+  "factKey": "project_overview_artifact",
+  "instanceId": "ctx-1",
+  "filePath": "docs/draft-note.md"
+}
+```
+
+Behavior:
+
+- only admissible for files that do **not** already exist in the external artifact slot instance
+- removes the file from the context fact’s current file set
+- does not delete anything from the repository
+- does not untrack a preexisting external slot member
+
+### `delete`
+
+Meaning:
+
+- mark a file that already exists in the external artifact slot instance for untracking/deletion propagation
+
+Canonical request shape:
+
+```json
+{
+  "factKey": "project_overview_artifact",
+  "instanceId": "ctx-1",
+  "filePath": "docs/brief.md",
+  "deleted": true
+}
+```
+
+Behavior:
+
+- targets one workflow-context instance and one existing tracked file path
+- only admissible for files that already exist in the external artifact slot instance
+- marks that file for untracking/deletion-oriented propagation semantics
+- does not directly delete repository files
+
+### Delete toggle semantics
+
+Like `bound_fact`, `delete` should be toggleable:
+
+```json
+{
+  "factKey": "project_overview_artifact",
+  "instanceId": "ctx-1",
+  "filePath": "docs/brief.md",
+  "deleted": false
+}
+```
+
+This keeps deletion intent reversible until later propagation executes.
+
+## Cardinality rules
+
+### Cardinality = `one`
+
+- `create` is allowed only if no current workflow-context instance exists and no artifact slot instance is already attached
+- once one exists, callers must use `update`, `remove`, or `delete` for file-level changes
+
+### Cardinality = `many`
+
+- current intent still needs more thought, but the safe baseline is that each instance is still targeted by workflow-context `instanceId`
+- file-level mutations always occur within one targeted context instance
+
+## Validation rules
+
+Validation for `artifact_slot_reference_fact` is runtime-authoritative and slot-driven.
+
+The runtime must validate:
+
+- `slotDefinitionId` is canonical and matches the fact definition
+- file paths are non-empty
+- file paths are repo-relative after normalization
+- path regex constraints from the slot definition are satisfied
+- folder-binding context fact rules are satisfied when configured
+- files used for create/update have a committed state before their commit hash is recorded
+- `remove` only targets files that do not already exist in the external artifact slot instance
+- `delete` only targets files that do already exist in the external artifact slot instance
+
+## Git metadata behavior
+
+For the current agent-facing contract, the important stored git field is:
+
+- `gitCommitHash`
+
+Other metadata like commit subject/body may be resolved at runtime from that hash when needed, but they do not need to live in the primary agent-facing value shape.
+
+`gitBlobHash` may become useful later, but it is not required in the current contract.
+
+So “update git commit on file” is represented as part of `update`:
+
+- if the file is already tracked, reconcile its latest committed state and update the stored `gitCommitHash` if a new commit exists
+
+## Read capabilities required for agents
+
+### 1. Read artifact-slot-reference schema
+
+The agent must be able to read:
+
+- context fact key
+- label/name
+- cardinality
+- canonical `slotDefinitionId`
+- artifact slot key/name
+- guidance
+- description
+- slot path/regex/folder-binding rules
+- admissible actions
+
+### 2. Read current workflow-context artifact reference instances
+
+The read should accept:
+
+- context fact key
+- optional array of workflow-context `instanceId`s
+- optional `limit`
+
+It should return a list where each item contains:
+
+- workflow-context `instanceId`
+- attached `artifactInstanceId` if one exists
+- canonical `slotDefinitionId`
+- artifact slot key/name
+- files with:
+  - `filePath`
+  - `gitCommitHash`
+
+### 3. Read attachable artifact instances
+
+Not permissible.
+
+The runtime model assumes that if an artifact slot instance already exists on workflow activation, the context fact instance is auto-populated.
+
+So the agent should work only with:
+
+- schema read
+- current context-fact instance read
+
+## Response semantics
+
+Successful writes should report:
+
+- operation
+- `factKey`
+- targeted workflow-context `instanceId`
+- stored artifact-slot-reference shape
+- whether workflow context changed
+
+Example create response:
+
+```json
+{
+  "status": "applied",
+  "operation": "create",
+  "factKey": "project_overview_artifact",
+  "instanceId": "ctx-1",
+  "value": {
+    "slotDefinitionId": "slot-brief",
+    "artifactInstanceId": "artifact-instance-1",
+    "files": [
+      {
+        "filePath": "docs/brief.md",
+        "gitCommitHash": "abc123"
+      }
+    ]
+  },
+  "changedContext": true
+}
+```
+
+## Summary rule
+
+For `artifact_slot_reference_fact`:
+
+- `create` = create a workflow-context artifact-slot-reference instance only when no artifact slot instance already exists
+- `update` = reconcile a list of file paths into the current file set and refresh commit hashes when newer commits exist
+- `remove` = remove a file that exists only in the context fact and not in the external artifact slot instance
+- `delete` = toggle untracking/deletion intent for a file that already exists in the external artifact slot instance
+
+This keeps the model explicit about the two levels of change:
+
+- workflow-context instance identity
+- file membership mutation inside the current slot file set the agent sees
+
+---
+
+## Next section
+
+The next fact kind to define is `work_unit_draft_spec_fact`.
+
+---
+
+# `work_unit_draft_spec_fact`
+
+## Meaning
+
+A `work_unit_draft_spec_fact` is a workflow-context template for a future work-unit materialization.
+
+It is not itself the created work unit.
+
+It captures:
+
+- which work-unit definition the draft targets
+- selected work-unit fact values for that future work unit
+- selected artifact slot values for that future work unit
+
+The most important rule is:
+
+- the template stays template-only
+- created runtime ids belong to invoke/materialization state, not the draft-spec value itself
+
+## Public MCP identity
+
+For MCP-facing operations, `work_unit_draft_spec_fact` is addressed by the **context fact key**.
+
+Example:
+
+```json
+{
+  "factKey": "story_draft"
+}
+```
+
+## Canonical persisted value shape
+
+The internal normalized template shape is:
+
+```json
+{
+  "workUnitDefinitionId": "wu-story",
+  "factValues": [
+    {
+      "workUnitFactDefinitionId": "fact-title",
+      "value": "Draft title"
+    }
+  ],
+  "artifactValues": [
+    {
+      "slotDefinitionId": "slot-story-doc",
+      "relativePath": "stories/draft.md",
+      "clear": false
+    }
+  ]
+}
+```
+
+This is the normalized template shape used by runtime validation/materialization.
+
+It must not contain created runtime ids like:
+
+- `projectWorkUnitId`
+- `workUnitFactInstanceIds`
+- `artifactSnapshotIds`
+
+## Public authored shape
+
+The public MCP/authored shape should be keyed by selected work-unit fact key and selected artifact slot key.
+
+Conceptually:
+
+```json
+{
+  "factValues": {
+    "fact-title": "Draft title",
+    "fact-body": "Drafting Story #33"
+  },
+  "artifactValues": {
+    "slot-story-doc": ["stories/draft.md"],
+    "slot-story-test-doc": ["stories/test.md"]
+  }
+}
+```
+
+Runtime normalization converts that keyed authored shape into the internal normalized `factValues[]` + `artifactValues[]` form, as long as those keys are part of the selected draft-spec schema.
+
+## Materialization state is separate
+
+Once a draft spec is used by invoke/materialization:
+
+- the created `projectWorkUnitId`
+- created work-unit fact instance ids
+- created artifact snapshot ids
+
+must live in invoke/runtime state, not in the draft-spec template.
+
+The runtime may expose a disclosed/materialized view later, but that is a read expansion over runtime state, not the canonical authored value.
+
+## Allowed actions
+
+### `create`
+
+Meaning:
+
+- create a new workflow-context draft-spec template instance
+
+Canonical request shape:
+
+```json
+{
+  "factKey": "story_draft",
+  "value": {
+    "factValues": {
+      "fact-title": "Draft title"
+    },
+    "artifactValues": {
+      "slot-story-doc": ["stories/draft.md"]
+    }
+  }
+}
+```
+
+Behavior:
+
+- derives target `workUnitDefinitionId` from the context fact definition itself
+- validates that each selected fact belongs to the draft-spec selection set
+- validates that each selected artifact slot belongs to the draft-spec selection set
+- validates each fact value against the underlying fact schema
+- creates a template-only workflow-context instance
+
+### `update`
+
+Meaning:
+
+- replace one existing workflow-context draft-spec template instance
+
+Canonical request shape:
+
+```json
+{
+  "factKey": "story_draft",
+  "instanceId": "ctx-1",
+  "value": {
+    "factValues": {
+      "fact-title": "Updated draft title"
+    },
+    "artifactValues": {
+      "slot-story-doc": ["stories/draft-v2.md"]
+    }
+  }
+}
+```
+
+Behavior:
+
+- targets the workflow-context instance by `instanceId`
+- validates the replacement template against the same closed selected-fact/selected-artifact constraints
+- stores a new valid template-only value
+
+Runtime normalization converts the keyed authored shape into canonical internal template shape before validation/persistence.
+
+### `remove`
+
+Meaning:
+
+- remove one workflow-context draft-spec instance only
+
+Canonical request shape:
+
+```json
+{
+  "factKey": "story_draft",
+  "instanceId": "ctx-1"
+}
+```
+
+Behavior:
+
+- removes the template instance from workflow context
+- does not delete any materialized work unit that may have been created from an earlier invoke run
+
+### `delete`
+
+Meaning for `work_unit_draft_spec_fact`:
+
+- **invalid operation**
+
+Reason:
+
+- this fact kind is a template authoring surface, not an external deletion target
+- `remove` is the destructive operation for the template instance itself
+
+## Cardinality rules
+
+### Cardinality = `one`
+
+- `create` is allowed only if no current template instance exists
+- once one exists, callers must use `update` or `remove`
+- `delete` is invalid
+
+### Cardinality = `many`
+
+- `create` may add another draft-spec template instance
+- `update` targets one existing workflow-context instance
+- `remove` targets one existing workflow-context instance
+- `delete` is invalid
+
+## Validation rules
+
+Validation for `work_unit_draft_spec_fact` is runtime-authoritative and closed.
+
+The runtime must validate:
+
+- the target `workUnitDefinitionId` implied by the context fact definition is used
+- only selected work-unit fact definition ids are used
+- only selected artifact slot definition ids are used
+- each work-unit fact value satisfies its underlying fact schema
+- artifact entries satisfy the allowed artifact slot selection set
+
+For keyed public authoring:
+
+- only selected fact/artifact keys may appear
+- unknown keys are invalid
+
+## JSON / nested value behavior
+
+For selected work-unit fact values that are themselves JSON-backed facts:
+
+- the runtime validates them against the underlying fact definition’s schema
+- structured subfield validation rules still apply
+
+This means the draft-spec fact is not responsible for inventing a new nested schema system; it reuses the selected underlying fact schemas.
+
+## Read capabilities required for agents
+
+### 1. Read draft-spec schema
+
+The agent must be able to read:
+
+- context fact key
+- label/name
+- cardinality
+- target `workUnitDefinitionId`
+- selected work-unit fact definitions
+- selected artifact slot definitions
+- admissible actions
+
+For each selected work-unit fact, the read should also expose:
+
+- fact key
+- label/name
+- guidance/description if available
+- type/cardinality
+- validation
+
+For each selected artifact slot, the read should also expose:
+
+- slot key/name
+- guidance/description if available
+- relevant path/slot rules
+
+### 2. Read current workflow-context draft-spec instances
+
+The read should accept:
+
+- context fact key
+- optional array of workflow-context `instanceId`s
+- optional `limit`
+
+It should return template instances in authored/template form.
+
+Each returned item should contain:
+
+- workflow-context `instanceId`
+- keyed `factValues`
+- keyed `artifactValues`
+
+### 3. Read attachable options for selected work-unit-reference fields
+
+This read is specifically for selected draft-spec fields whose underlying fact type is `work_unit_reference_fact`.
+
+The read should take:
+
+- the draft-spec schema or fact key
+- optionally a specific draft-spec `instanceId`
+
+and return attachable options only for the selected work-unit-reference fields mapped by that draft spec.
+
+Each field-specific result should be keyed by the selected work-unit fact key and return candidate attachable work units using the same rules and the same candidate shape that apply to `work_unit_reference_fact` discovery.
+
+Conceptually:
+
+```json
+{
+  "fact-title": null,
+  "parent_story": [
+    {
+      "projectWorkUnitId": "wu-123",
+      "label": "Story 123",
+      "workUnitTypeKey": "story"
+    }
+  ]
+}
+```
+
+Only selected fields whose underlying fact type is `work_unit_reference_fact` participate in this read.
+
+The returned candidate work units should include the same richness as `work_unit_reference_fact` attachable reads, including summarized fact-instance context when available.
+
+That means each candidate should be able to include:
+
+- `projectWorkUnitId`
+- work unit label/name
+- work unit type key/name
+- current state summary if available
+- fact summaries when fact instances exist
+
+And it should follow the same summary rules:
+
+- for cardinality `one` work-unit facts, return the current value directly in the candidate summary view
+- for cardinality `many` work-unit facts, return one representative/current value and indicate that multiple instances exist
+
+If the caller targets a specific candidate `projectWorkUnitId`, the read may return the full fact instance set for that candidate, just like the richer work-unit-reference discovery/read model.
+
+### Attachable reads
+
+General attachable-instance reads for the draft spec as a whole are not needed beyond the field-specific read above.
+
+This fact kind authors a future materialization template; it does not itself attach to a preexisting single runtime entity.
+
+## Response semantics
+
+Successful writes should report:
+
+- operation
+- `factKey`
+- targeted workflow-context `instanceId`
+- stored draft-spec template shape
+- whether workflow context changed
+
+Example create response:
+
+```json
+{
+  "status": "applied",
+  "operation": "create",
+  "factKey": "story_draft",
+  "instanceId": "ctx-1",
+  "value": {
+    "factValues": {
+      "fact-title": "Draft title"
+    },
+    "artifactValues": {
+      "slot-story-doc": ["stories/draft.md"]
+    }
+  },
+  "changedContext": true
+}
+```
+
+## Summary rule
+
+For `work_unit_draft_spec_fact`:
+
+- `create` = create a new template-only draft-spec instance
+- `update` = replace one template-only draft-spec instance
+- `remove` = remove one draft-spec template instance
+- `delete` = invalid for this fact kind
+
+This keeps the crucial separation intact:
+
+- workflow-context fact value = authored template
+- invoke/runtime materialization state = created runtime ids and frozen mappings
+- field-specific attachable reads may help author nested work-unit-reference values without turning materialized-state reads into the primary draft-spec surface
