@@ -73,6 +73,7 @@ export type RuntimeDialogEditor =
       readonly definition: RuntimePrimitiveDefinition;
       readonly instanceLabel: string;
       readonly instanceOptions?: readonly RuntimeFactOption[];
+      readonly autoSelectSingleInstance?: boolean;
       readonly workUnitOptions?: readonly RuntimeFactOption[];
     }
   | {
@@ -620,7 +621,9 @@ const createDialogDraft = (editor: RuntimeDialogEditor, value: unknown): Runtime
         instanceId:
           typeof envelope?.instanceId === "string"
             ? envelope.instanceId
-            : (editor.instanceOptions?.[0]?.value ?? ""),
+            : editor.autoSelectSingleInstance === true
+              ? (editor.instanceOptions?.[0]?.value ?? "")
+              : "",
         primitive: createPrimitiveDraft(editor.definition, envelope?.value),
       };
     }
@@ -712,9 +715,6 @@ const parseDialogDraft = (
         : { ok: false, error: "Select a work unit before continuing." };
     case "bound_fact": {
       const instanceId = (draft.instanceId ?? "").trim();
-      if (instanceId.length === 0) {
-        return { ok: false, error: "Select the bound fact instance before continuing." };
-      }
 
       const primitiveResult = parsePrimitiveDraft(
         editor.definition,
@@ -727,7 +727,7 @@ const parseDialogDraft = (
       return {
         ok: true,
         value: {
-          instanceId,
+          ...(instanceId.length > 0 ? { instanceId } : {}),
           value: primitiveResult.value,
         },
       };
@@ -1185,7 +1185,7 @@ function FactDialogFields({
               </Select>
               <FieldDescription>
                 {editor.instanceOptions && editor.instanceOptions.length > 0
-                  ? "Bound facts store a canonical envelope with the selected source fact instance ID and typed value."
+                  ? "Selecting a source fact instance is optional. Leave it empty to create an unbound bound-fact instance that can be linked later by an action step."
                   : "No source fact instances are currently available to bind from."}
               </FieldDescription>
             </FieldContent>

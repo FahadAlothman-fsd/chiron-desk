@@ -1361,14 +1361,17 @@ function buildWorkflowContextDialogEditor(params: {
         params.projectFactCatalog.get(params.definition.factDefinitionId) ??
         params.workUnitFactCatalog.get(params.definition.factDefinitionId) ??
         null;
+      const instanceOptions =
+        params.boundFactInstanceOptionsByContextFactDefinition.get(
+          params.definition.contextFactDefinitionId,
+        ) ?? [];
 
       return {
         kind: "bound_fact",
         instanceLabel: `${resolvedDefinition?.label ?? params.definition.factDefinitionId} instance ID`,
-        instanceOptions:
-          params.boundFactInstanceOptionsByContextFactDefinition.get(
-            params.definition.contextFactDefinitionId,
-          ) ?? [],
+        instanceOptions,
+        autoSelectSingleInstance:
+          params.definition.cardinality === "one" && instanceOptions.length === 1,
         definition: resolvedDefinition?.definition ?? {
           factType: params.definition.valueType ?? "json",
           ...(params.definition.validationJson !== undefined

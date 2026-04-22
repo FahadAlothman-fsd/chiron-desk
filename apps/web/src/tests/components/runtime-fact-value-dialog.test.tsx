@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -33,7 +33,11 @@ vi.mock("@/components/ui/select", () => ({
   Select: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SelectItem: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  SelectTrigger: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  SelectTrigger: ({ children, disabled, ...props }: React.ComponentProps<"button">) => (
+    <button type="button" disabled={disabled} {...props}>
+      {children}
+    </button>
+  ),
   SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
 }));
 
@@ -112,5 +116,84 @@ describe("runtime fact value dialog", () => {
 
     expect(screen.getByPlaceholderText("repo-relative file path")).toBeTruthy();
     expect(screen.getByText("Enter a repo-relative file path.")).toBeTruthy();
+  });
+
+  it("allows creating an unbound bound-fact instance when no source fact instance is selected", async () => {
+    const onSubmit = vi.fn();
+
+    render(
+      <RuntimeFactValueDialog
+        open
+        onOpenChange={() => {}}
+        title="Create bound fact instance"
+        description="Create the first runtime instance for this workflow-context fact."
+        submitLabel="Create instance"
+        editor={{
+          kind: "bound_fact",
+          instanceLabel: "Initiative Name instance ID",
+          autoSelectSingleInstance: false,
+          instanceOptions: [
+            { value: "fact-1", label: "Initiative Name · fact-1" },
+            { value: "fact-2", label: "Initiative Name · fact-2" },
+          ],
+          definition: {
+            factType: "string",
+          },
+        }}
+        isPending={false}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    const dialog = screen.getByText("Create bound fact instance").closest("form");
+    if (!dialog) {
+      throw new Error("Expected bound fact dialog form");
+    }
+
+    fireEvent.input(within(dialog).getByLabelText("Bound value"), {
+      target: { value: "draft initiative" },
+    });
+    fireEvent.submit(dialog);
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith({ value: "draft initiative" });
+    });
+    expect(
+      within(dialog).getByText(
+        "Selecting a source fact instance is optional. Leave it empty to create an unbound bound-fact instance that can be linked later by an action step.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("disables the bound fact source selector and shows the empty-state note when no source facts exist", () => {
+    render(
+      <RuntimeFactValueDialog
+        open
+        onOpenChange={() => {}}
+        title="Create bound fact instance"
+        description="Create the first runtime instance for this workflow-context fact."
+        submitLabel="Create instance"
+        editor={{
+          kind: "bound_fact",
+          instanceLabel: "Initiative Name instance ID",
+          instanceOptions: [],
+          definition: {
+            factType: "string",
+          },
+        }}
+        isPending={false}
+        onSubmit={() => {}}
+      />,
+    );
+
+    const dialog = screen.getAllByText("Create bound fact instance").at(-1)?.closest("form");
+    if (!dialog) {
+      throw new Error("Expected bound fact dialog form");
+    }
+
+    expect(within(dialog).getByText("Select a source fact instance")).toBeTruthy();
+    expect(
+      within(dialog).getByText("No source fact instances are currently available to bind from."),
+    ).toBeTruthy();
   });
 });
