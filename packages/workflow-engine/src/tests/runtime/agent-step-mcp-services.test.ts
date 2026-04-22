@@ -109,6 +109,117 @@ describe("AgentStep MCP v2 services", () => {
     expect(instances.response.output.instances[0]?.value).toEqual({ problem: "Need a plan" });
   });
 
+  it("denormalizes draft-spec instance reads back to keyed authored values", async () => {
+    const workflowEditorContextFacts = [
+      {
+        kind: "plain_value_fact" as const,
+        contextFactDefinitionId: "ctx-project-context",
+        key: "project-context",
+        label: "Project Context",
+        cardinality: "one" as const,
+        valueType: "json" as const,
+      },
+      {
+        kind: "plain_value_fact" as const,
+        contextFactDefinitionId: "ctx-summary",
+        key: "summary",
+        label: "Summary",
+        cardinality: "one" as const,
+        valueType: "string" as const,
+      },
+      {
+        kind: "plain_value_fact" as const,
+        contextFactDefinitionId: "ctx-review-notes",
+        key: "review-notes",
+        label: "Review Notes",
+        cardinality: "one" as const,
+        valueType: "string" as const,
+      },
+      {
+        kind: "artifact_slot_reference_fact" as const,
+        contextFactDefinitionId: "ctx-artifact",
+        key: "artifact",
+        label: "Artifact",
+        cardinality: "one" as const,
+        slotDefinitionId: "slot-1",
+      },
+      {
+        kind: "work_unit_draft_spec_fact" as const,
+        contextFactDefinitionId: "ctx-draft",
+        key: "draft-spec",
+        label: "Draft Spec",
+        cardinality: "one" as const,
+        workUnitDefinitionId: "wu-type-1",
+        selectedWorkUnitFactDefinitionIds: ["wu-fact-title"],
+        selectedArtifactSlotDefinitionIds: ["slot-1"],
+      },
+    ];
+
+    const ctx = makeAgentStepRuntimeTestContext({
+      workflowEditorContextFacts,
+      lifecycleFactSchemas: [
+        {
+          id: "wu-fact-title",
+          methodologyVersionId: "version-1",
+          workUnitTypeId: "wu-type-1",
+          name: "Draft Title",
+          key: "draft_title",
+          factType: "string",
+          cardinality: "one",
+          validationJson: null,
+          description: null,
+          createdAt: new Date("2026-04-09T12:00:00.000Z"),
+          updatedAt: new Date("2026-04-09T12:00:00.000Z"),
+        },
+      ],
+      initialContextFacts: [
+        {
+          id: "fact-draft-1",
+          workflowExecutionId: "wfexec-1",
+          contextFactDefinitionId: "ctx-draft",
+          instanceOrder: 0,
+          valueJson: {
+            workUnitDefinitionId: "wu-type-1",
+            factValues: [
+              {
+                workUnitFactDefinitionId: "wu-fact-title",
+                value: "Draft title",
+              },
+            ],
+            artifactValues: [
+              {
+                slotDefinitionId: "slot-1",
+                relativePath: "stories/draft.md",
+                clear: false,
+              },
+            ],
+          },
+          sourceStepExecutionId: "step-exec-1",
+          createdAt: new Date("2026-04-09T12:00:03.000Z"),
+          updatedAt: new Date("2026-04-09T12:00:03.000Z"),
+        },
+      ],
+    });
+
+    ctx.agentPayload.explicitReadGrants.push({ contextFactDefinitionId: "ctx-draft" });
+
+    const instances = await runMcp(ctx, {
+      version: "v2",
+      toolName: "read_context_fact_instances",
+      input: withHiddenStepExecutionId({ factKey: "draft-spec" }),
+    });
+
+    expect(instances.response.toolName).toBe("read_context_fact_instances");
+    if (instances.response.toolName !== "read_context_fact_instances") {
+      throw new Error("expected read_context_fact_instances response");
+    }
+    expect(instances.response.output.instances).toHaveLength(1);
+    expect(instances.response.output.instances[0]?.value).toEqual({
+      factValues: { draft_title: "Draft title" },
+      artifactValues: { ARTIFACT: ["stories/draft.md"] },
+    });
+  });
+
   it("enforces active-session gating and requirement gating for v2 writes", async () => {
     const ctx = makeAgentStepRuntimeTestContext();
 

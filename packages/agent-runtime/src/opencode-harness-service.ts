@@ -449,6 +449,31 @@ function hasBootstrapTimelineItem(record: SessionRecord): boolean {
   return record.timeline.some((item) => item.timelineItemId === record.bootstrapTimelineItemId);
 }
 
+function hasOnlySyntheticBootstrapMessage(record: SessionRecord): boolean {
+  return (
+    hasBootstrapTimelineItem(record) &&
+    record.timeline.every((item) => item.timelineItemId === record.bootstrapTimelineItemId)
+  );
+}
+
+function replaceBootstrapTimelineItem(record: SessionRecord, item: AgentStepTimelineItem): void {
+  const bootstrapIndex = record.timeline.findIndex(
+    (entry) => entry.timelineItemId === record.bootstrapTimelineItemId,
+  );
+  if (bootstrapIndex < 0) {
+    return;
+  }
+
+  record.timeline[bootstrapIndex] = item;
+  record.timelineIds.delete(record.bootstrapTimelineItemId);
+  record.timelineIds.add(item.timelineItemId);
+
+  const bootstrapEvent = record.eventLog.find((event) => event.eventType === "bootstrap");
+  if (bootstrapEvent && "timelineItems" in bootstrapEvent.data) {
+    bootstrapEvent.data.timelineItems = [item];
+  }
+}
+
 function modelExists(
   discoveredModels: readonly HarnessDiscoveredModel[],
   model: HarnessSession["model"] | undefined,
@@ -1062,10 +1087,6 @@ function syncSessionMessages(record: SessionRecord, messages: readonly OpencodeM
         continue;
       }
 
-      if (content === record.bootstrapContent && hasBootstrapTimelineItem(record)) {
-        continue;
-      }
-
       const item: AgentStepTimelineItem = {
         itemType: "message",
         timelineItemId: `message:${messageId}`,
@@ -1073,6 +1094,15 @@ function syncSessionMessages(record: SessionRecord, messages: readonly OpencodeM
         role: "user",
         content,
       };
+
+      if (hasOnlySyntheticBootstrapMessage(record)) {
+        replaceBootstrapTimelineItem(record, item);
+        continue;
+      }
+
+      if (content === record.bootstrapContent && hasBootstrapTimelineItem(record)) {
+        continue;
+      }
 
       if (addTimelineItem(record, item)) {
         appended.push(item);

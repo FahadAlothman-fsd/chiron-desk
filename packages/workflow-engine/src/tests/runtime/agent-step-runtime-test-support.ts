@@ -105,6 +105,7 @@ export function makeAgentStepRuntimeTestContext(options?: {
   artifactReferenceResolutions?: Readonly<Record<string, SandboxGitFileResolution>>;
   currentArtifactState?: ArtifactCurrentState;
   workflowEditorContextFacts?: WorkflowEditorDefinitionReadModel["contextFacts"];
+  lifecycleFactSchemas?: readonly FactSchemaRow[];
   agentPayload?: AgentStepDesignTimePayload;
   projectWorkUnits?: readonly ProjectWorkUnitRow[];
   workUnitFactsByWorkUnitId?: Readonly<Record<string, readonly WorkUnitFactInstanceRow[]>>;
@@ -510,7 +511,7 @@ export function makeAgentStepRuntimeTestContext(options?: {
       ]),
     findLifecycleStates: () => Effect.succeed([]),
     findLifecycleTransitions: () => Effect.succeed([]),
-    findFactSchemas: () => Effect.succeed([]),
+    findFactSchemas: () => Effect.succeed([...(options?.lifecycleFactSchemas ?? [])]),
     findTransitionConditionSets: () => Effect.succeed([]),
     findAgentTypes: () => Effect.succeed([]),
     findTransitionWorkflowBindings: () => Effect.succeed([]),

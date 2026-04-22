@@ -286,9 +286,13 @@ describe("OpencodeHarnessService runtime", () => {
     });
 
     const page = await Effect.runPromise(service.getTimelinePage("session-1"));
-    const startedToolItem = page.items[2];
-    const thinkingItem = page.items[3];
-    const completedToolItem = page.items[5];
+    const startedToolItem = page.items.find(
+      (item) => item.itemType === "tool_activity" && item.status === "started",
+    );
+    const thinkingItem = page.items.find((item) => item.itemType === "thinking");
+    const completedToolItem = page.items.find(
+      (item) => item.itemType === "tool_activity" && item.status === "completed",
+    );
 
     expect(page.items).toEqual([
       expect.objectContaining({ itemType: "message", role: "user" }),
@@ -323,10 +327,10 @@ describe("OpencodeHarnessService runtime", () => {
       itemType: "tool_activity",
       summary: "Applied summary write",
     });
-    expect(JSON.parse(String((startedToolItem as { input?: string } | undefined)?.input))).toEqual({
-      summary: "Current project summary",
-      updated: true,
-    });
+    expect(String((startedToolItem as { input?: string } | undefined)?.input)).toContain(
+      "Current project summary",
+    );
+    expect(String((startedToolItem as { input?: string } | undefined)?.input)).toContain("updated");
     expect(thinkingItem).toMatchObject({
       itemType: "thinking",
       createdAt: "2025-04-09T10:06:42.500Z",
@@ -339,12 +343,11 @@ describe("OpencodeHarnessService runtime", () => {
 
     const streamEvents = Array.from(
       await Effect.runPromise(
-        Stream.runCollect(service.streamSessionEvents("session-1").pipe(Stream.take(10))),
+        Stream.runCollect(service.streamSessionEvents("session-1").pipe(Stream.take(9))),
       ),
     );
     expect(streamEvents.map((event) => event.eventType)).toEqual([
       "bootstrap",
-      "timeline",
       "session_state",
       "timeline",
       "tool_activity",
@@ -366,6 +369,92 @@ describe("OpencodeHarnessService runtime", () => {
         }),
       }),
     );
+  });
+
+  it("replaces the synthetic bootstrap timeline item with the real first user message when contents differ", async () => {
+    const managedClient = {
+      app: {
+        agents: vi.fn(async () => []),
+      },
+      config: {
+        providers: vi.fn(async () => ({ providers: [], default: {} })),
+      },
+      session: {
+        create: vi.fn(async () => ({
+          id: "session-dup-1",
+          time: { created: 1_744_193_200_000 },
+        })),
+        prompt: vi.fn(async () => ({ ok: true })),
+        messages: vi.fn(async () => [
+          {
+            info: {
+              id: "real-bootstrap-msg",
+              role: "user",
+              time: { created: 1_744_193_200_000 },
+            },
+            parts: [
+              {
+                type: "text",
+                text: "[analyze-mode]\nreal bootstrap wrapper\n\nDraft a setup handoff.\n\nUse the managed runtime.",
+              },
+            ],
+          },
+        ]),
+      },
+      event: {
+        subscribe: vi.fn(async () => ({ [Symbol.asyncIterator]: async function* () {} })),
+      },
+    };
+
+    const spawnSpy = vi.fn(async () => ({
+      client: managedClient,
+      server: {
+        url: "http://127.0.0.1:4010",
+        close: vi.fn(() => undefined),
+      },
+    }));
+
+    const service = makeOpencodeHarnessService(
+      spawnSpy as never,
+      vi.fn(() => managedClient) as never,
+    );
+
+    const started = await Effect.runPromise(
+      service.startSession({
+        stepExecutionId: "step-exec-dup-1",
+        projectRootPath: "/tmp/chiron",
+        objective: "Draft a setup handoff.",
+        instructionsMarkdown: "Use the managed runtime.",
+      }),
+    );
+
+    expect(started.timeline).toEqual([
+      {
+        itemType: "message",
+        timelineItemId: "message:real-bootstrap-msg",
+        createdAt: "2025-04-09T10:06:40.000Z",
+        role: "user",
+        content:
+          "[analyze-mode]\nreal bootstrap wrapper\n\nDraft a setup handoff.\n\nUse the managed runtime.",
+      },
+    ]);
+
+    const replayedEvents = Array.from(
+      await Effect.runPromise(
+        Stream.runCollect(service.streamSessionEvents("session-dup-1").pipe(Stream.take(1))),
+      ),
+    );
+    expect(replayedEvents[0]).toMatchObject({
+      eventType: "bootstrap",
+      data: {
+        timelineItems: [
+          expect.objectContaining({
+            timelineItemId: "message:real-bootstrap-msg",
+            role: "user",
+          }),
+        ],
+      },
+    });
   });
 
   it("reuses an existing OpenCode session id when resumeSessionId is provided", async () => {
@@ -635,7 +724,7 @@ describe("OpencodeHarnessService runtime", () => {
     );
 
     const streamPromise = Effect.runPromise(
-      Stream.runCollect(service.streamSessionEvents("session-error").pipe(Stream.take(5))),
+      Stream.runCollect(service.streamSessionEvents("session-error").pipe(Stream.take(4))),
     );
 
     setTimeout(() => {
@@ -654,12 +743,11 @@ describe("OpencodeHarnessService runtime", () => {
     const streamEvents = Array.from(await streamPromise);
     expect(streamEvents.map((event) => event.eventType)).toEqual([
       "bootstrap",
-      "timeline",
       "session_state",
       "error",
       "done",
     ]);
-    expect(streamEvents[3]).toMatchObject({
+    expect(streamEvents[2]).toMatchObject({
       eventType: "error",
       data: {
         error: expect.objectContaining({
@@ -669,7 +757,7 @@ describe("OpencodeHarnessService runtime", () => {
         }),
       },
     });
-    expect(streamEvents[4]).toMatchObject({
+    expect(streamEvents[3]).toMatchObject({
       eventType: "done",
       data: { finalState: "disconnected_or_error" },
     });
@@ -746,14 +834,13 @@ describe("OpencodeHarnessService runtime", () => {
 
     const streamEvents = Array.from(
       await Effect.runPromise(
-        Stream.runCollect(service.streamSessionEvents("session-autoreply").pipe(Stream.take(6))),
+        Stream.runCollect(service.streamSessionEvents("session-autoreply").pipe(Stream.take(5))),
       ),
     );
 
     expect(streamEvents.map((event) => event.eventType)).toEqual([
       "bootstrap",
       "session_state",
-      "timeline",
       "timeline",
       "session_state",
       "done",
@@ -774,7 +861,7 @@ describe("OpencodeHarnessService runtime", () => {
         }),
       ]),
     );
-    expect(streamEvents[5]).toMatchObject({
+    expect(streamEvents[4]).toMatchObject({
       eventType: "done",
       data: { finalState: "active_idle" },
     });

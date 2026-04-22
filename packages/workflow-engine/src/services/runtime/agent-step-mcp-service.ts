@@ -20,6 +20,7 @@ import type {
   ReadContextFactInstancesOutputV2,
   ReadContextFactSchemaOutputV2,
   ReadStepExecutionSnapshotOutputV2,
+  WorkUnitDraftSpecAuthoredValue,
   StepSnapshotReadAccess,
   StepSnapshotWriteAccess,
 } from "@chiron/contracts/mcp/context-fact-crud-v2";
@@ -246,6 +247,90 @@ const toArtifactInternalPayload = (params: {
 
 const getArtifactDeleteToggle = (value: unknown): boolean =>
   isRecord(value) && typeof value.deleted === "boolean" ? value.deleted : true;
+
+const toDraftSpecPublicValue = (params: {
+  readonly storedValue: unknown;
+  readonly fact: Extract<WorkflowContextFactDto, { kind: "work_unit_draft_spec_fact" }>;
+  readonly methodologyVersionId: string;
+  readonly lifecycleRepo: LifecycleRepository["Type"];
+  readonly methodologyRepo: MethodologyRepository["Type"];
+}): Effect.Effect<WorkUnitDraftSpecAuthoredValue, RepositoryError> =>
+  Effect.gen(function* () {
+    if (!isRecord(params.storedValue)) {
+      return { factValues: {}, artifactValues: {} };
+    }
+
+    if (
+      isRecord(params.storedValue.factValues) &&
+      isRecord(params.storedValue.artifactValues) &&
+      !Array.isArray(params.storedValue.factValues) &&
+      !Array.isArray(params.storedValue.artifactValues)
+    ) {
+      return {
+        factValues: params.storedValue.factValues,
+        artifactValues: params.storedValue.artifactValues,
+      };
+    }
+
+    const selectedFacts = new Set(params.fact.selectedWorkUnitFactDefinitionIds);
+    const selectedArtifacts = new Set(params.fact.selectedArtifactSlotDefinitionIds);
+    const factSchemas = yield* params.lifecycleRepo.findFactSchemas(params.methodologyVersionId);
+    const targetWorkUnit = (yield* params.lifecycleRepo.findWorkUnitTypes(
+      params.methodologyVersionId,
+    )).find((candidate) => candidate.id === params.fact.workUnitDefinitionId);
+    const slotDefinitions = targetWorkUnit
+      ? yield* params.methodologyRepo.findArtifactSlotsByWorkUnitType({
+          versionId: params.methodologyVersionId,
+          workUnitTypeKey: targetWorkUnit.key,
+        })
+      : [];
+
+    const factKeyById = new Map(
+      factSchemas
+        .filter((definition) => selectedFacts.has(definition.id))
+        .map((definition) => [definition.id, definition.key] as const),
+    );
+    const slotKeyById = new Map(
+      slotDefinitions
+        .filter((definition) => selectedArtifacts.has(definition.id))
+        .map((definition) => [definition.id, definition.key] as const),
+    );
+
+    const factValues: Record<string, unknown> = {};
+    if (Array.isArray(params.storedValue.factValues)) {
+      for (const entry of params.storedValue.factValues) {
+        if (
+          isRecord(entry) &&
+          typeof entry.workUnitFactDefinitionId === "string" &&
+          "value" in entry
+        ) {
+          const factKey =
+            factKeyById.get(entry.workUnitFactDefinitionId) ?? entry.workUnitFactDefinitionId;
+          factValues[factKey] = entry.value;
+        }
+      }
+    }
+
+    const artifactValues: Record<string, string[]> = {};
+    if (Array.isArray(params.storedValue.artifactValues)) {
+      for (const entry of params.storedValue.artifactValues) {
+        if (isRecord(entry) && typeof entry.slotDefinitionId === "string") {
+          const slotKey = slotKeyById.get(entry.slotDefinitionId) ?? entry.slotDefinitionId;
+          if (entry.clear === true) {
+            artifactValues[slotKey] = [];
+            continue;
+          }
+          if (typeof entry.relativePath === "string") {
+            const current = artifactValues[slotKey] ?? [];
+            current.push(entry.relativePath);
+            artifactValues[slotKey] = current;
+          }
+        }
+      }
+    }
+
+    return { factValues, artifactValues };
+  });
 
 const findArtifactSlotDefinition = (params: {
   readonly methodologyRepo: MethodologyRepository["Type"];
@@ -806,15 +891,13 @@ export const AgentStepMcpServiceLive = Layer.effect(
                 };
               }
               case "work_unit_draft_spec_fact": {
-                const value =
-                  isRecord(row.valueJson) &&
-                  isRecord(row.valueJson.factValues) &&
-                  isRecord(row.valueJson.artifactValues)
-                    ? {
-                        factValues: row.valueJson.factValues,
-                        artifactValues: row.valueJson.artifactValues,
-                      }
-                    : { factValues: {}, artifactValues: {} };
+                const value = yield* toDraftSpecPublicValue({
+                  storedValue: row.valueJson,
+                  fact: params.fact,
+                  methodologyVersionId: params.context.projectPin.methodologyVersionId,
+                  lifecycleRepo,
+                  methodologyRepo,
+                });
                 return {
                   instanceId: getInstanceId(row),
                   value,
@@ -1232,6 +1315,7 @@ export const AgentStepMcpServiceLive = Layer.effect(
               projectId: context.workflowDetail.projectId,
               methodologyVersionId: context.projectPin.methodologyVersionId,
               workflowWorkUnitTypeId: context.workUnitType.id,
+              projectWorkUnitId: context.workflowDetail.projectWorkUnitId,
               definition: access.definition,
               value: request.input.value,
             });
@@ -1534,6 +1618,7 @@ export const AgentStepMcpServiceLive = Layer.effect(
             projectId: context.workflowDetail.projectId,
             methodologyVersionId: context.projectPin.methodologyVersionId,
             workflowWorkUnitTypeId: context.workUnitType.id,
+            projectWorkUnitId: context.workflowDetail.projectWorkUnitId,
             definition: access.definition,
             value: request.input.value,
           });
