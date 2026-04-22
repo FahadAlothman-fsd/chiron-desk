@@ -12,8 +12,8 @@ var useNavigateMock = vi.fn();
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (options: Record<string, unknown>) => ({
     ...options,
-    useRouteContext: useRouteContextMock,
-    useParams: useParamsMock,
+    useRouteContext: (...args: []) => useRouteContextMock(...args),
+    useParams: (...args: []) => useParamsMock(...args),
     useNavigate: () => useNavigateMock,
   }),
   Link: ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>,
@@ -103,6 +103,7 @@ vi.mock("@xyflow/react", () => ({
 }));
 
 import {
+  filterWorkflowContextFactGroups,
   WorkflowContextFactDialog,
   WorkflowExecutionDetailRoute,
   runtimeWorkflowExecutionDetailQueryKey,
@@ -432,7 +433,33 @@ const workflowEditorDefinition = {
       descriptionJson: { edgeOwner: "branch_conditional", routeId: "route-review" },
     },
   ],
-  contextFacts: [],
+  contextFacts: [
+    {
+      contextFactDefinitionId: "ctx-empty",
+      kind: "workflow_ref_fact",
+      key: "workflow_mode",
+      label: "Workflow Mode",
+      cardinality: "one",
+      allowedWorkflowDefinitionIds: ["wf_story_start_primary"],
+    },
+    {
+      contextFactDefinitionId: "ctx-summary",
+      kind: "plain_fact",
+      key: "project_summary",
+      label: "Project Summary",
+      cardinality: "one",
+      valueType: "string",
+    },
+    {
+      contextFactDefinitionId: "ctx-parts",
+      kind: "bound_fact",
+      key: "project_parts",
+      label: "Project Parts",
+      cardinality: "many",
+      factDefinitionId: "fact.project_parts",
+      valueType: "work_unit",
+    },
+  ],
 };
 
 async function renderWorkflowDetailRoute(
@@ -478,15 +505,12 @@ async function renderWorkflowDetailRoute(
       getProjectDetails: {
         queryOptions: vi.fn(() => ({
           queryKey: ["project-details", "project-1"],
-          queryFn: async () =>
-            options?.withGraph
-              ? {
-                  pin: {
-                    methodologyId: "meth-1",
-                    methodologyVersionId: "version-1",
-                  },
-                }
-              : null,
+          queryFn: async () => ({
+            pin: {
+              methodologyId: "meth-1",
+              methodologyVersionId: "version-1",
+            },
+          }),
         })),
       },
       createRuntimeWorkflowContextFactValue: {
@@ -595,6 +619,23 @@ async function renderWorkflowDetailRoute(
     queryKey: runtimeWorkflowExecutionDetailQueryKey("project-1", "we_story_start_primary_003"),
   });
 
+  if (options?.withGraph) {
+    await queryClient.prefetchQuery({
+      ...orpc.project.getProjectDetails.queryOptions({ input: { projectId: "project-1" } }),
+    });
+
+    await queryClient.prefetchQuery({
+      ...orpc.methodology.version.workUnit.workflow.getEditorDefinition.queryOptions({
+        input: {
+          methodologyId: "meth-1",
+          versionId: "version-1",
+          workUnitTypeKey: detail.workUnit.workUnitTypeKey,
+          workflowDefinitionId: detail.workflowExecution.workflowId,
+        },
+      }),
+    });
+  }
+
   const markup = renderToStaticMarkup(
     <QueryClientProvider client={queryClient}>
       <WorkflowExecutionDetailRoute />
@@ -635,14 +676,21 @@ describe("runtime workflow execution detail route", () => {
     expect(markup).toContain("Workflow step surface");
     expect(markup).toContain("Entry step pending activation");
     expect(markup).toContain("Activate entry step");
-    expect(markup).toContain("Workflow context manual CRUD");
+    expect(markup).toContain("Workflow context facts");
     expect(markup).toContain("Workflow Mode");
     expect(markup).toContain("Project Summary");
     expect(markup).toContain("Project Parts");
     expect(markup).toContain("0 instances");
     expect(markup).toContain("1 instance");
     expect(markup).toContain("2 instances");
-    expect(markup).toContain("View instances");
+    expect(markup).toContain("Filter context facts by key");
+    expect(markup).toContain("Filter workflow context facts");
+    expect(markup).toContain("Cardinality");
+    expect(markup).toContain("Instance state");
+    expect(markup).toContain("Has instance");
+    expect(markup).toContain("No instance");
+    expect(markup).toContain("Showing 3 of 3 context facts.");
+    expect(markup).toContain("Click any instance item to inspect its full payload.");
     expect(markup).toContain("Context fact contract metadata is unavailable");
     expect(markup).not.toContain("Save draft");
     expect(markup).not.toContain("Submit");
@@ -677,6 +725,40 @@ describe("runtime workflow execution detail route", () => {
     expect(markup).toContain("Open active step");
     expect(markup).toContain("While an active step exists, next-step activation stays hidden");
     expect(markup).not.toContain("Activate next step");
+  });
+
+  it("filters workflow context facts by instance state and cardinality", () => {
+    const contextDefinitions = new Map(
+      workflowEditorDefinition.contextFacts.map((definition) => [
+        definition.contextFactDefinitionId,
+        definition,
+      ]),
+    );
+
+    const hasInstance = filterWorkflowContextFactGroups({
+      groups: baseContextGroups,
+      contextDefinitions: contextDefinitions as never,
+      keyFilter: "",
+      kindFilters: [],
+      cardinalityFilters: [],
+      instanceFilters: ["has_instance"],
+    });
+
+    expect(hasInstance.map((group) => group.contextFactDefinitionId)).toEqual([
+      "ctx-summary",
+      "ctx-parts",
+    ]);
+
+    const manyWithInstances = filterWorkflowContextFactGroups({
+      groups: baseContextGroups,
+      contextDefinitions: contextDefinitions as never,
+      keyFilter: "",
+      kindFilters: [],
+      cardinalityFilters: ["many"],
+      instanceFilters: ["has_instance"],
+    });
+
+    expect(manyWithInstances.map((group) => group.contextFactDefinitionId)).toEqual(["ctx-parts"]);
   });
 
   it("renders next-pending orchestration summary with activation CTA", async () => {
@@ -765,6 +847,13 @@ describe("runtime workflow execution detail route", () => {
     expect(markup).toContain('data-edge-state="branch"');
     expect(markup).toContain("Activate next step");
     expect(markup).toContain("Selected step");
+    expect(markup).toContain("Filter workflow context facts");
+    expect(markup).toContain("Kinds");
+    expect(markup).toContain("Plain fact");
+    expect(markup).toContain("Bound fact");
+    expect(markup).toContain("Workflow");
+    expect(markup).toContain("Cardinality");
+    expect(markup).toContain("Instance state");
   });
 
   it("renders terminal state summary card", async () => {

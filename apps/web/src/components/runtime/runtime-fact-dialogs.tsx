@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 type RuntimePrimitiveFactType = "string" | "number" | "boolean" | "json" | "work_unit";
 
@@ -169,6 +170,23 @@ type RuntimeConfirmDialogProps = {
   readonly onConfirm: () => Promise<void> | void;
   readonly errorMessage?: string | null;
   readonly testId?: string;
+};
+
+const getRuntimeFactDialogWidthClass = (editor: RuntimeDialogEditor): string => {
+  switch (editor.kind) {
+    case "work_unit_draft_spec_fact":
+      return "sm:max-w-xl lg:max-w-xl";
+    case "primitive":
+      return editor.definition.factType === "json"
+        ? "sm:max-w-lg lg:max-w-lg"
+        : "sm:max-w-md lg:max-w-md";
+    case "bound_fact":
+      return "sm:max-w-md lg:max-w-md";
+    case "work_unit":
+    case "workflow_ref_fact":
+    case "artifact_slot_reference_fact":
+      return "sm:max-w-md lg:max-w-md";
+  }
 };
 
 type RuntimeParseResult =
@@ -1450,6 +1468,7 @@ export function RuntimeFactValueDialog({
   onSubmit,
   testId,
 }: RuntimeFactValueDialogProps) {
+  const dialogWidthClassName = useMemo(() => getRuntimeFactDialogWidthClass(editor), [editor]);
   const initialDraft = useMemo(
     () => createDialogDraft(editor, initialValue),
     [editor, initialValue],
@@ -1476,11 +1495,16 @@ export function RuntimeFactValueDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[min(88vh,52rem)] max-w-2xl overflow-y-auto rounded-none border border-border/80 bg-background">
+      <DialogContent
+        className={cn(
+          "max-w-[calc(100%-2rem)] overflow-hidden rounded-none border border-border/80 bg-background",
+          dialogWidthClassName,
+        )}
+      >
         <form.Subscribe selector={(state) => ({ values: state.values, isDirty: state.isDirty })}>
           {({ values, isDirty }) => (
             <form
-              className="space-y-4"
+              className="flex max-h-[min(88vh,52rem)] flex-col gap-4"
               data-testid={testId}
               onSubmit={async (event) => {
                 event.preventDefault();
@@ -1501,34 +1525,36 @@ export function RuntimeFactValueDialog({
                 <DialogDescription>{description}</DialogDescription>
               </DialogHeader>
 
-              <div className="flex items-center justify-between border border-border/70 bg-background/40 px-3 py-2 text-xs">
-                <span className="uppercase tracking-[0.12em] text-muted-foreground">
-                  Form state
-                </span>
-                <span className={isDirty ? "text-amber-400" : "text-muted-foreground"}>
-                  {isDirty ? "Unsaved changes" : "No pending changes"}
-                </span>
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+                <div className="flex items-center justify-between border border-border/70 bg-background/40 px-3 py-2 text-xs">
+                  <span className="uppercase tracking-[0.12em] text-muted-foreground">
+                    Form state
+                  </span>
+                  <span className={isDirty ? "text-amber-400" : "text-muted-foreground"}>
+                    {isDirty ? "Unsaved changes" : "No pending changes"}
+                  </span>
+                </div>
+
+                <FactDialogFields
+                  editor={editor}
+                  draft={values}
+                  onChange={(next) => {
+                    form.setFieldValue("kind", () => next.kind);
+                    form.setFieldValue("primitive", () => next.primitive);
+                    form.setFieldValue("workUnitId", () => next.workUnitId);
+                    form.setFieldValue("instanceId", () => next.instanceId);
+                    form.setFieldValue("workflowDefinitionId", () => next.workflowDefinitionId);
+                    form.setFieldValue("artifactInstanceId", () => next.artifactInstanceId);
+                    form.setFieldValue("slotDefinitionId", () => next.slotDefinitionId);
+                    form.setFieldValue("workUnitDefinitionId", () => next.workUnitDefinitionId);
+                    form.setFieldValue("fields", () => next.fields);
+                    form.setFieldValue("artifacts", () => next.artifacts);
+                  }}
+                />
+
+                {localError ? <FieldError>{localError}</FieldError> : null}
+                {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
               </div>
-
-              <FactDialogFields
-                editor={editor}
-                draft={values}
-                onChange={(next) => {
-                  form.setFieldValue("kind", () => next.kind);
-                  form.setFieldValue("primitive", () => next.primitive);
-                  form.setFieldValue("workUnitId", () => next.workUnitId);
-                  form.setFieldValue("instanceId", () => next.instanceId);
-                  form.setFieldValue("workflowDefinitionId", () => next.workflowDefinitionId);
-                  form.setFieldValue("artifactInstanceId", () => next.artifactInstanceId);
-                  form.setFieldValue("slotDefinitionId", () => next.slotDefinitionId);
-                  form.setFieldValue("workUnitDefinitionId", () => next.workUnitDefinitionId);
-                  form.setFieldValue("fields", () => next.fields);
-                  form.setFieldValue("artifacts", () => next.artifacts);
-                }}
-              />
-
-              {localError ? <FieldError>{localError}</FieldError> : null}
-              {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
 
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

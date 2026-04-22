@@ -30,6 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
 import { showSingletonAutoAttachWarnings } from "@/features/projects/singleton-auto-attach-warning-toast";
@@ -163,6 +164,52 @@ type BoundFactSourceDescriptor = {
   source: "project" | "work_unit";
 };
 
+type AccentTone = "slate" | "sky" | "emerald" | "amber" | "rose" | "violet" | "lime";
+
+type WorkflowContextFactBadge = {
+  label: string;
+  tone: AccentTone;
+};
+
+type WorkflowContextFactPresentation = {
+  kindBadge: WorkflowContextFactBadge;
+  metadataBadges: WorkflowContextFactBadge[];
+  detailRows: Array<{ label: string; value: string }>;
+};
+
+type WorkflowContextFilterKind = WorkflowContextDefinition["kind"];
+type WorkflowContextFilterCardinality = WorkflowContextDefinition["cardinality"];
+type WorkflowContextInstanceFilter = "has_instance" | "no_instance";
+
+const ACCENT_TONE_CLASSES: Record<AccentTone, string> = {
+  slate: "border-slate-500/40 bg-slate-500/10 text-slate-200",
+  sky: "border-sky-500/40 bg-sky-500/12 text-sky-200",
+  emerald: "border-emerald-500/40 bg-emerald-500/12 text-emerald-200",
+  amber: "border-amber-500/40 bg-amber-500/12 text-amber-200",
+  rose: "border-rose-500/40 bg-rose-500/12 text-rose-200",
+  violet: "border-violet-500/40 bg-violet-500/12 text-violet-200",
+  lime: "border-lime-500/40 bg-lime-500/12 text-lime-200",
+};
+
+const WORKFLOW_CONTEXT_FILTER_KIND_ORDER: WorkflowContextFilterKind[] = [
+  "plain_fact",
+  "plain_value_fact",
+  "bound_fact",
+  "workflow_ref_fact",
+  "artifact_slot_reference_fact",
+  "work_unit_draft_spec_fact",
+];
+
+const WORKFLOW_CONTEXT_FILTER_CARDINALITY_ORDER: WorkflowContextFilterCardinality[] = [
+  "one",
+  "many",
+];
+
+const WORKFLOW_CONTEXT_INSTANCE_FILTER_ORDER: WorkflowContextInstanceFilter[] = [
+  "has_instance",
+  "no_instance",
+];
+
 type ArtifactSnapshotOptionsBySlot = Map<string, RuntimeFactOption[]>;
 
 type WorkflowStepSurface =
@@ -282,6 +329,333 @@ function formatUnknown(value: unknown): string {
   } catch {
     return "[unserializable]";
   }
+}
+
+function summarizeWorkflowContextValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return formatUnknown(value);
+  }
+
+  if (typeof value === "string") {
+    return value.length > 140 ? `${value.slice(0, 137)}…` : value;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return "Empty list";
+    }
+
+    return `${value.length} item${value.length === 1 ? "" : "s"}`;
+  }
+
+  if (isPlainRecord(value)) {
+    if (typeof value.relativePath === "string") {
+      return value.relativePath;
+    }
+
+    if (typeof value.workflowDefinitionId === "string") {
+      return value.workflowDefinitionId;
+    }
+
+    if (typeof value.projectWorkUnitId === "string") {
+      return value.projectWorkUnitId;
+    }
+
+    if (typeof value.factInstanceId === "string") {
+      return value.factInstanceId;
+    }
+
+    const keys = Object.keys(value);
+    if (keys.length === 0) {
+      return "Empty object";
+    }
+
+    if (keys.length === 1) {
+      const key = keys[0]!;
+      return `${key}: ${summarizeWorkflowContextValue(value[key])}`;
+    }
+
+    return `${keys.length} fields · ${keys.slice(0, 3).join(", ")}${keys.length > 3 ? "…" : ""}`;
+  }
+
+  return formatUnknown(value);
+}
+
+function getWorkflowContextInstanceKey(
+  group: WorkflowContextFactGroup,
+  instance: WorkflowContextFactInstance,
+): string {
+  return (
+    instance.contextFactInstanceId ?? `${group.contextFactDefinitionId}-${instance.instanceOrder}`
+  );
+}
+
+function renderWorkflowContextKind(kind: WorkflowContextDefinition["kind"]): string {
+  switch (kind) {
+    case "plain_fact":
+      return "Plain fact";
+    case "plain_value_fact":
+      return "Plain value";
+    case "bound_fact":
+      return "Bound fact";
+    case "workflow_ref_fact":
+      return "Workflow ref";
+    case "artifact_slot_reference_fact":
+      return "Artifact ref";
+    case "work_unit_draft_spec_fact":
+      return "Draft spec";
+  }
+}
+
+function renderWorkflowContextFilterKind(kind: WorkflowContextFilterKind): string {
+  switch (kind) {
+    case "plain_fact":
+      return "Plain fact";
+    case "plain_value_fact":
+      return "Plain value";
+    case "bound_fact":
+      return "Bound fact";
+    case "workflow_ref_fact":
+      return "Workflow";
+    case "artifact_slot_reference_fact":
+      return "Artifact";
+    case "work_unit_draft_spec_fact":
+      return "Draft spec";
+  }
+}
+
+function renderWorkflowContextCardinality(cardinality: WorkflowContextFilterCardinality): string {
+  return cardinality === "one" ? "One" : "Many";
+}
+
+function renderWorkflowContextInstanceFilter(filter: WorkflowContextInstanceFilter): string {
+  return filter === "has_instance" ? "Has instance" : "No instance";
+}
+
+function getWorkflowContextKindTone(kind: WorkflowContextDefinition["kind"]): AccentTone {
+  switch (kind) {
+    case "plain_fact":
+    case "plain_value_fact":
+      return "sky";
+    case "bound_fact":
+      return "lime";
+    case "workflow_ref_fact":
+      return "violet";
+    case "artifact_slot_reference_fact":
+      return "amber";
+    case "work_unit_draft_spec_fact":
+      return "emerald";
+  }
+}
+
+export function filterWorkflowContextFactGroups(params: {
+  groups: readonly WorkflowContextFactGroup[];
+  contextDefinitions: Map<string, WorkflowContextDefinition>;
+  keyFilter: string;
+  kindFilters: readonly WorkflowContextFilterKind[];
+  cardinalityFilters: readonly WorkflowContextFilterCardinality[];
+  instanceFilters: readonly WorkflowContextInstanceFilter[];
+}): WorkflowContextFactGroup[] {
+  const {
+    groups,
+    contextDefinitions,
+    keyFilter,
+    kindFilters,
+    cardinalityFilters,
+    instanceFilters,
+  } = params;
+  const normalizedKeyFilter = keyFilter.trim().toLowerCase();
+
+  return groups.filter((group) => {
+    const matchesKey = (group.definitionKey ?? "").toLowerCase().includes(normalizedKeyFilter);
+    if (!matchesKey) {
+      return false;
+    }
+
+    const definition = contextDefinitions.get(group.contextFactDefinitionId);
+    const kind = definition?.kind;
+    if (kindFilters.length > 0 && (!kind || !kindFilters.includes(kind))) {
+      return false;
+    }
+
+    const cardinality = definition?.cardinality;
+    if (
+      cardinalityFilters.length > 0 &&
+      (!cardinality || !cardinalityFilters.includes(cardinality))
+    ) {
+      return false;
+    }
+
+    if (instanceFilters.length === 0) {
+      return true;
+    }
+
+    const instanceState = group.instances.length > 0 ? "has_instance" : "no_instance";
+    return instanceFilters.includes(instanceState);
+  });
+}
+
+function renderValueTypeLabel(
+  valueType: "string" | "number" | "boolean" | "json" | "work_unit",
+): string {
+  switch (valueType) {
+    case "work_unit":
+      return "work unit";
+    default:
+      return valueType;
+  }
+}
+
+function getValueTypeTone(
+  valueType: "string" | "number" | "boolean" | "json" | "work_unit",
+): AccentTone {
+  switch (valueType) {
+    case "string":
+      return "emerald";
+    case "number":
+      return "sky";
+    case "boolean":
+      return "violet";
+    case "json":
+      return "amber";
+    case "work_unit":
+      return "lime";
+  }
+}
+
+function buildWorkflowContextFactPresentation(params: {
+  definition: WorkflowContextDefinition | null;
+  projectFactCatalog: Map<string, FactDefinitionCatalogEntry>;
+  workUnitFactCatalog: Map<string, FactDefinitionCatalogEntry>;
+  workUnitCatalog: Map<string, WorkUnitCatalogEntry>;
+  workflowOptions: RuntimeFactOption[];
+  artifactSlotCatalog: Map<string, WorkUnitCatalogEntry>;
+}): WorkflowContextFactPresentation | null {
+  const {
+    definition,
+    projectFactCatalog,
+    workUnitFactCatalog,
+    workUnitCatalog,
+    workflowOptions,
+    artifactSlotCatalog,
+  } = params;
+  if (!definition) {
+    return null;
+  }
+
+  const metadataBadges: WorkflowContextFactBadge[] = [
+    {
+      label: definition.cardinality,
+      tone: definition.cardinality === "one" ? "sky" : "violet",
+    },
+  ];
+  const detailRows: Array<{ label: string; value: string }> = [];
+
+  switch (definition.kind) {
+    case "plain_fact":
+    case "plain_value_fact": {
+      metadataBadges.push({
+        label: renderValueTypeLabel(definition.valueType),
+        tone: getValueTypeTone(definition.valueType),
+      });
+      detailRows.push({ label: "Value type", value: renderValueTypeLabel(definition.valueType) });
+      break;
+    }
+    case "bound_fact": {
+      const projectFact = projectFactCatalog.get(definition.factDefinitionId) ?? null;
+      const workUnitFact = workUnitFactCatalog.get(definition.factDefinitionId) ?? null;
+      const resolvedFact = projectFact ?? workUnitFact;
+      const resolvedValueType =
+        definition.valueType ?? resolvedFact?.definition.factType ?? ("json" as const);
+
+      metadataBadges.push({
+        label: renderValueTypeLabel(resolvedValueType),
+        tone: getValueTypeTone(resolvedValueType),
+      });
+      if (projectFact) {
+        metadataBadges.push({ label: "project fact", tone: "lime" });
+        detailRows.push({ label: "Bound to", value: `Project fact · ${projectFact.label}` });
+      } else if (workUnitFact) {
+        metadataBadges.push({ label: "current work unit fact", tone: "emerald" });
+        detailRows.push({
+          label: "Bound to",
+          value: `Current work unit fact · ${workUnitFact.label}`,
+        });
+      } else {
+        detailRows.push({ label: "Bound to", value: definition.factDefinitionId });
+      }
+
+      if (definition.workUnitDefinitionId) {
+        detailRows.push({
+          label: "Work unit",
+          value:
+            workUnitCatalog.get(definition.workUnitDefinitionId)?.label ??
+            definition.workUnitDefinitionId,
+        });
+      }
+      break;
+    }
+    case "workflow_ref_fact": {
+      const allowedCount = definition.allowedWorkflowDefinitionIds.length;
+      metadataBadges.push({
+        label: `${allowedCount} allowed`,
+        tone: allowedCount > 0 ? "violet" : "slate",
+      });
+      const allowedLabels = definition.allowedWorkflowDefinitionIds
+        .map(
+          (workflowDefinitionId) =>
+            workflowOptions.find((option) => option.value === workflowDefinitionId)?.label ??
+            workflowDefinitionId,
+        )
+        .slice(0, 3);
+      detailRows.push({ label: "Allowed workflows", value: String(allowedCount) });
+      if (allowedLabels.length > 0) {
+        detailRows.push({
+          label: "Examples",
+          value: `${allowedLabels.join(", ")}${allowedCount > allowedLabels.length ? "…" : ""}`,
+        });
+      }
+      break;
+    }
+    case "artifact_slot_reference_fact": {
+      const slotLabel =
+        artifactSlotCatalog.get(definition.slotDefinitionId)?.label ?? definition.slotDefinitionId;
+      metadataBadges.push({ label: "artifact slot", tone: "amber" });
+      detailRows.push({ label: "Attached slot", value: slotLabel });
+      break;
+    }
+    case "work_unit_draft_spec_fact": {
+      metadataBadges.push({ label: "draft spec", tone: "emerald" });
+      detailRows.push({
+        label: "Work unit",
+        value:
+          workUnitCatalog.get(definition.workUnitDefinitionId)?.label ??
+          definition.workUnitDefinitionId,
+      });
+      detailRows.push({
+        label: "Included facts",
+        value: String(definition.selectedWorkUnitFactDefinitionIds.length),
+      });
+      detailRows.push({
+        label: "Artifact slots",
+        value: String(definition.selectedArtifactSlotDefinitionIds.length),
+      });
+      break;
+    }
+  }
+
+  return {
+    kindBadge: {
+      label: renderWorkflowContextKind(definition.kind),
+      tone: getWorkflowContextKindTone(definition.kind),
+    },
+    metadataBadges,
+    detailRows,
+  };
 }
 
 function toErrorMessage(error: unknown): string {
@@ -1276,10 +1650,126 @@ export function WorkflowContextFactDialog({
   );
 }
 
+function WorkflowContextInstanceDialog({
+  group,
+  instance,
+  definition,
+  presentation,
+  open,
+  onOpenChange,
+}: {
+  group: WorkflowContextFactGroup;
+  instance: WorkflowContextFactInstance | null;
+  definition: WorkflowContextDefinition | null;
+  presentation: WorkflowContextFactPresentation | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const title = group.definitionLabel ?? group.definitionKey ?? group.contextFactDefinitionId;
+  const description = formatDescription(group.definitionDescriptionJson);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] max-w-3xl flex-col overflow-hidden rounded-none border border-border/80 bg-background">
+        <DialogHeader>
+          <DialogTitle>
+            {instance
+              ? `${title} · Instance ${instance.instanceOrder + 1}`
+              : `${title} · Instance detail`}
+          </DialogTitle>
+          <DialogDescription>
+            {description ?? "Inspect the selected workflow-context instance and its current value."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1 text-xs">
+          <section className="space-y-3 border border-border/70 bg-background/40 p-3">
+            <div className="flex flex-wrap gap-2">
+              {presentation ? (
+                <ExecutionBadge
+                  label={presentation.kindBadge.label}
+                  tone={presentation.kindBadge.tone}
+                />
+              ) : null}
+              {presentation?.metadataBadges.map((badge) => (
+                <ExecutionBadge
+                  key={`${badge.label}-${badge.tone}`}
+                  label={badge.label}
+                  tone={badge.tone}
+                />
+              ))}
+            </div>
+
+            <dl className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <DetailLabel>Context fact key</DetailLabel>
+                <DetailPrimary className="break-all">{group.definitionKey ?? "—"}</DetailPrimary>
+              </div>
+              <div className="space-y-1">
+                <DetailLabel>Cardinality</DetailLabel>
+                <DetailPrimary>{definition?.cardinality === "many" ? "Many" : "One"}</DetailPrimary>
+              </div>
+              {presentation?.detailRows.map((row) => (
+                <div key={row.label} className="space-y-1">
+                  <DetailLabel>{row.label}</DetailLabel>
+                  <DetailPrimary className="break-words">{row.value}</DetailPrimary>
+                </div>
+              ))}
+            </dl>
+          </section>
+
+          {instance ? (
+            <section className="space-y-3 border border-border/70 bg-background/40 p-3">
+              <dl className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <DetailLabel>Recorded</DetailLabel>
+                  <DetailPrimary>{formatTimestamp(instance.recordedAt)}</DetailPrimary>
+                </div>
+                <div className="space-y-1">
+                  <DetailLabel>Instance order</DetailLabel>
+                  <DetailPrimary>{instance.instanceOrder + 1}</DetailPrimary>
+                </div>
+                {instance.contextFactInstanceId ? (
+                  <div className="space-y-1 sm:col-span-2">
+                    <DetailLabel>Context fact instance ID</DetailLabel>
+                    <DetailCode>{instance.contextFactInstanceId}</DetailCode>
+                  </div>
+                ) : null}
+                {instance.sourceStepExecutionId ? (
+                  <div className="space-y-1 sm:col-span-2">
+                    <DetailLabel>Source step execution</DetailLabel>
+                    <DetailCode>{instance.sourceStepExecutionId}</DetailCode>
+                  </div>
+                ) : null}
+              </dl>
+
+              <div className="space-y-2">
+                <DetailLabel>Value</DetailLabel>
+                <WorkflowContextValuePresentation value={instance.valueJson} />
+              </div>
+            </section>
+          ) : (
+            <section className="border border-border/70 bg-background/40 p-3 text-muted-foreground">
+              Select an instance from the card to inspect its details.
+            </section>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function WorkflowContextManualCrudCard({
   group,
   definition,
   editor,
+  presentation,
   onCreate,
   onUpdate,
   onRemove,
@@ -1292,6 +1782,7 @@ function WorkflowContextManualCrudCard({
   group: WorkflowContextFactGroup;
   definition: WorkflowContextDefinition | null;
   editor: RuntimeDialogEditor | null;
+  presentation: WorkflowContextFactPresentation | null;
   onCreate: (value: unknown) => Promise<void>;
   onUpdate: (instanceId: string, value: unknown) => Promise<void>;
   onRemove: (instanceId: string) => Promise<void>;
@@ -1307,12 +1798,17 @@ function WorkflowContextManualCrudCard({
   const [editInstanceId, setEditInstanceId] = useState<string | null>(null);
   const [removeInstanceId, setRemoveInstanceId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [openInstanceKey, setOpenInstanceKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const primaryInstance = group.instances[0] ?? null;
   const editingInstance =
     group.instances.find((instance) => instance.contextFactInstanceId === editInstanceId) ?? null;
   const removeTarget =
     group.instances.find((instance) => instance.contextFactInstanceId === removeInstanceId) ?? null;
+  const openInstance =
+    group.instances.find(
+      (instance) => getWorkflowContextInstanceKey(group, instance) === openInstanceKey,
+    ) ?? null;
   const isSingle = definition?.cardinality === "one";
   const canCreateNew = definition
     ? definition.cardinality === "many" || group.instances.length === 0
@@ -1320,135 +1816,197 @@ function WorkflowContextManualCrudCard({
 
   return (
     <Card frame="flat" tone="runtime" className="border-border/70 bg-background/40">
-      <CardHeader>
-        <CardDescription>{group.definitionKey ?? group.contextFactDefinitionId}</CardDescription>
-        <CardTitle>{title}</CardTitle>
+      <CardHeader className="gap-4 border-b border-border/60 pb-4">
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {presentation ? (
+              <ExecutionBadge
+                label={presentation.kindBadge.label}
+                tone={presentation.kindBadge.tone}
+              />
+            ) : null}
+            {presentation?.metadataBadges.map((badge) => (
+              <ExecutionBadge
+                key={`${badge.label}-${badge.tone}`}
+                label={badge.label}
+                tone={badge.tone}
+              />
+            ))}
+          </div>
+          <div className="space-y-1">
+            <CardDescription>
+              {group.definitionKey ?? group.contextFactDefinitionId}
+            </CardDescription>
+            <CardTitle className="text-base sm:text-lg">{title}</CardTitle>
+          </div>
+        </div>
         <CardAction>
           <span className="border border-border/70 bg-background/40 px-2 py-1 text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">
             {group.instances.length} instance{group.instances.length === 1 ? "" : "s"}
           </span>
         </CardAction>
       </CardHeader>
-      <CardContent className="space-y-4 text-xs text-muted-foreground">
-        <div className="space-y-1">
-          <p>{description ?? "No definition description recorded."}</p>
-          <p>
-            Manual workflow-context CRUD lives here. Single-cardinality facts use direct set or
-            replace dialogs. Multi-cardinality facts keep per-instance edit and remove dialogs.
-          </p>
+      <CardContent className="grid gap-4 pt-5 text-xs text-muted-foreground xl:grid-cols-[minmax(0,0.95fr)_minmax(20rem,1.05fr)]">
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <p className="text-sm leading-6 text-foreground/90">
+              {description ?? "No definition description recorded."}
+            </p>
+            <p>
+              This card keeps the fact contract, binding target, and current runtime instances in
+              one place so you can inspect or edit without losing context.
+            </p>
+          </div>
+
+          {presentation?.detailRows.length ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {presentation.detailRows.map((row) => (
+                <div
+                  key={row.label}
+                  className="space-y-1 border border-border/70 bg-background/60 p-3"
+                >
+                  <DetailLabel>{row.label}</DetailLabel>
+                  <DetailPrimary className="break-words text-sm">{row.value}</DetailPrimary>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {definition ? (
+            <div className="space-y-2 border border-border/70 bg-background/60 p-3">
+              <p className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
+                Actions
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {canCreateNew ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isCreating || !editor}
+                    onClick={() => {
+                      setError(null);
+                      setCreateDialogOpen(true);
+                    }}
+                  >
+                    {isSingle && group.instances.length === 0 ? "Create instance" : "Add instance"}
+                  </Button>
+                ) : null}
+
+                {isSingle && primaryInstance?.contextFactInstanceId ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isUpdating || !editor}
+                    onClick={() => {
+                      setError(null);
+                      setEditInstanceId(primaryInstance.contextFactInstanceId ?? null);
+                    }}
+                  >
+                    Edit instance
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {!definition || !editor ? (
+            <p className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              Context fact contract metadata is unavailable, so structured manual CRUD cannot open.
+            </p>
+          ) : null}
+
+          {error ? (
+            <div className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              {error}
+            </div>
+          ) : null}
         </div>
 
-        {error ? (
-          <div className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-            {error}
-          </div>
-        ) : null}
-
-        {!definition || !editor ? (
-          <p className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-            Context fact contract metadata is unavailable, so structured manual CRUD cannot open.
-          </p>
-        ) : null}
-
-        {group.instances.length === 0 ? (
-          <p className="border border-border/70 bg-background/60 px-3 py-2 text-xs text-muted-foreground">
-            No current instances recorded.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {group.instances.map((instance) => {
-              const instanceId =
-                instance.contextFactInstanceId ??
-                `${group.contextFactDefinitionId}-${instance.instanceOrder}`;
-
-              return (
-                <section
-                  key={instanceId}
-                  className="space-y-3 border border-border/70 bg-background/60 p-3"
-                >
-                  <div className="space-y-1">
-                    <p className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-                      Instance {instance.instanceOrder + 1}
-                    </p>
-                    <p>Recorded: {formatTimestamp(instance.recordedAt)}</p>
-                  </div>
-
-                  <WorkflowContextValuePresentation value={instance.valueJson} />
-
-                  {instance.contextFactInstanceId &&
-                  definition?.cardinality === "many" &&
-                  editor ? (
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={isUpdating}
-                        onClick={() => {
-                          setError(null);
-                          setEditInstanceId(instance.contextFactInstanceId!);
-                        }}
-                      >
-                        Edit instance
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={isRemoving}
-                        onClick={() => {
-                          setError(null);
-                          setRemoveInstanceId(instance.contextFactInstanceId!);
-                        }}
-                      >
-                        Remove instance
-                      </Button>
-                    </div>
-                  ) : null}
-                </section>
-              );
-            })}
-          </div>
-        )}
-
-        {definition && editor ? (
-          <div className="space-y-2 border border-border/70 bg-background/60 p-3">
-            <p className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-              Actions
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {canCreateNew ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isCreating}
-                  onClick={() => {
-                    setError(null);
-                    setCreateDialogOpen(true);
-                  }}
-                >
-                  {isSingle && group.instances.length === 0 ? "Create instance" : "Add instance"}
-                </Button>
-              ) : null}
-
-              {isSingle && primaryInstance?.contextFactInstanceId ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isUpdating}
-                  onClick={() => {
-                    setError(null);
-                    setEditInstanceId(primaryInstance.contextFactInstanceId ?? null);
-                  }}
-                >
-                  Edit instance
-                </Button>
-              ) : null}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <DetailLabel>Recorded instances</DetailLabel>
+              <p className="text-xs text-muted-foreground">
+                Click an item to inspect the full instance payload.
+              </p>
             </div>
+            <ExecutionBadge
+              label={group.instances.length === 0 ? "empty" : "recorded"}
+              tone={group.instances.length === 0 ? "slate" : "sky"}
+            />
           </div>
-        ) : null}
+
+          {group.instances.length === 0 ? (
+            <p className="border border-dashed border-border/70 bg-background/60 px-3 py-6 text-sm text-muted-foreground">
+              No current instances recorded.
+            </p>
+          ) : (
+            <div className="max-h-[min(45vh,18rem)] space-y-2 overflow-y-auto pr-1">
+              {group.instances.map((instance) => {
+                const instanceKey = getWorkflowContextInstanceKey(group, instance);
+
+                return (
+                  <div
+                    key={instanceKey}
+                    className="grid gap-2 border border-border/70 bg-background/60 p-3 lg:grid-cols-[minmax(0,1fr)_auto]"
+                  >
+                    <button
+                      type="button"
+                      className="space-y-2 text-left transition-colors hover:text-foreground"
+                      onClick={() => setOpenInstanceKey(instanceKey)}
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <ExecutionBadge
+                          label={`Instance ${instance.instanceOrder + 1}`}
+                          tone="slate"
+                        />
+                        <span className="text-[0.72rem] uppercase tracking-[0.12em] text-muted-foreground">
+                          {formatTimestamp(instance.recordedAt)}
+                        </span>
+                      </div>
+                      <p className="break-words text-sm text-foreground">
+                        {summarizeWorkflowContextValue(instance.valueJson)}
+                      </p>
+                    </button>
+
+                    {instance.contextFactInstanceId &&
+                    definition?.cardinality === "many" &&
+                    editor ? (
+                      <div className="flex flex-wrap items-start gap-2 lg:justify-end">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={isUpdating}
+                          onClick={() => {
+                            setError(null);
+                            setEditInstanceId(instance.contextFactInstanceId!);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={isRemoving}
+                          onClick={() => {
+                            setError(null);
+                            setRemoveInstanceId(instance.contextFactInstanceId!);
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </CardContent>
       <CardFooter className="justify-between gap-3">
         <p className="text-xs text-muted-foreground">
@@ -1567,6 +2125,15 @@ function WorkflowContextManualCrudCard({
             setError(toErrorMessage(cause));
           }
         }}
+      />
+
+      <WorkflowContextInstanceDialog
+        group={group}
+        instance={openInstance}
+        definition={definition}
+        presentation={presentation}
+        open={openInstanceKey !== null}
+        onOpenChange={(open) => setOpenInstanceKey(open ? openInstanceKey : null)}
       />
     </Card>
   );
@@ -1814,7 +2381,16 @@ export function WorkflowExecutionDetailRoute() {
   const { projectId, workflowExecutionId } = Route.useParams();
   const navigate = Route.useNavigate();
   const { orpc, queryClient } = Route.useRouteContext();
-  const [openContextFactId, setOpenContextFactId] = useState<string | null>(null);
+  const [workflowContextFactFilter, setWorkflowContextFactFilter] = useState("");
+  const [workflowContextKindFilters, setWorkflowContextKindFilters] = useState<
+    WorkflowContextFilterKind[]
+  >([]);
+  const [workflowContextCardinalityFilters, setWorkflowContextCardinalityFilters] = useState<
+    WorkflowContextFilterCardinality[]
+  >([]);
+  const [workflowContextInstanceFilters, setWorkflowContextInstanceFilters] = useState<
+    WorkflowContextInstanceFilter[]
+  >([]);
   const [openCompleteDialog, setOpenCompleteDialog] = useState(false);
 
   const workflowExecutionDetailQuery = useQuery({
@@ -2249,6 +2825,74 @@ export function WorkflowExecutionDetailRoute() {
     () => toArtifactSnapshotOptionsBySlot(artifactSnapshotQueries),
     [artifactSnapshotQueries],
   );
+  const workflowContextFactGroups = detail?.workflowContextFacts.groups ?? [];
+  const workflowContextKindCounts = useMemo(() => {
+    const counts = new Map<WorkflowContextFilterKind, number>();
+
+    for (const group of workflowContextFactGroups) {
+      const kind = contextDefinitions.get(group.contextFactDefinitionId)?.kind;
+      if (!kind) {
+        continue;
+      }
+
+      counts.set(kind, (counts.get(kind) ?? 0) + 1);
+    }
+
+    return counts;
+  }, [contextDefinitions, workflowContextFactGroups]);
+  const availableWorkflowContextKinds = useMemo(
+    () => WORKFLOW_CONTEXT_FILTER_KIND_ORDER.filter((kind) => workflowContextKindCounts.has(kind)),
+    [workflowContextKindCounts],
+  );
+  const workflowContextCardinalityCounts = useMemo(() => {
+    const counts = new Map<WorkflowContextFilterCardinality, number>();
+
+    for (const group of workflowContextFactGroups) {
+      const cardinality = contextDefinitions.get(group.contextFactDefinitionId)?.cardinality;
+      if (!cardinality) {
+        continue;
+      }
+
+      counts.set(cardinality, (counts.get(cardinality) ?? 0) + 1);
+    }
+
+    return counts;
+  }, [contextDefinitions, workflowContextFactGroups]);
+  const workflowContextInstanceCounts = useMemo(() => {
+    const counts = new Map<WorkflowContextInstanceFilter, number>([
+      ["has_instance", 0],
+      ["no_instance", 0],
+    ]);
+
+    for (const group of workflowContextFactGroups) {
+      const key = group.instances.length > 0 ? "has_instance" : "no_instance";
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+
+    return counts;
+  }, [workflowContextFactGroups]);
+  const filteredWorkflowContextFactGroups = useMemo(() => {
+    return filterWorkflowContextFactGroups({
+      groups: workflowContextFactGroups,
+      contextDefinitions,
+      keyFilter: workflowContextFactFilter,
+      kindFilters: workflowContextKindFilters,
+      cardinalityFilters: workflowContextCardinalityFilters,
+      instanceFilters: workflowContextInstanceFilters,
+    });
+  }, [
+    contextDefinitions,
+    workflowContextCardinalityFilters,
+    workflowContextFactFilter,
+    workflowContextFactGroups,
+    workflowContextInstanceFilters,
+    workflowContextKindFilters,
+  ]);
+  const hasActiveWorkflowContextFilters =
+    workflowContextFactFilter.trim().length > 0 ||
+    workflowContextKindFilters.length > 0 ||
+    workflowContextCardinalityFilters.length > 0 ||
+    workflowContextInstanceFilters.length > 0;
 
   return (
     <MethodologyWorkspaceShell
@@ -2555,102 +3199,329 @@ export function WorkflowExecutionDetailRoute() {
             </Dialog>
           </section>
 
-          <section className="max-w-5xl space-y-3 border border-border/80 bg-background p-4">
+          <section className="w-full space-y-3 border border-border/80 bg-background p-4">
             <div className="space-y-1">
-              <DetailEyebrow className="text-[0.72rem]">Workflow context manual CRUD</DetailEyebrow>
-              <p className="text-sm text-muted-foreground">
-                This workflow execution detail is the canonical manual CRUD home for
-                workflow-context facts. Remove affects one instance; delete clears the full current
-                definition state.
-              </p>
+              <div className="space-y-1">
+                <DetailEyebrow className="text-[0.72rem]">Workflow context facts</DetailEyebrow>
+                <p className="text-sm text-muted-foreground">
+                  Context facts now surface their contract, bindings, and recorded instances
+                  directly in the card. Click any instance item to inspect its full payload.
+                </p>
+              </div>
             </div>
 
-            {detail.workflowContextFacts.groups.length === 0 ? (
+            <div className="space-y-3 border border-border/70 bg-background/40 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <DetailLabel>Filter workflow context facts</DetailLabel>
+                  <p className="text-xs text-muted-foreground">
+                    Search by key, then refine by kind, cardinality, and whether the fact already
+                    has instances.
+                  </p>
+                </div>
+
+                {hasActiveWorkflowContextFilters ? (
+                  <button
+                    type="button"
+                    className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      setWorkflowContextFactFilter("");
+                      setWorkflowContextKindFilters([]);
+                      setWorkflowContextCardinalityFilters([]);
+                      setWorkflowContextInstanceFilters([]);
+                    }}
+                  >
+                    Clear all filters
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="grid gap-3 xl:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] xl:items-start">
+                <div className="space-y-2">
+                  <DetailLabel className="text-[0.65rem]">Key search</DetailLabel>
+                  <Input
+                    value={workflowContextFactFilter}
+                    onChange={(event) => setWorkflowContextFactFilter(event.target.value)}
+                    placeholder="Search by context fact key…"
+                    aria-label="Filter context facts by key"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Showing {filteredWorkflowContextFactGroups.length} of{" "}
+                    {workflowContextFactGroups.length} context facts.
+                  </p>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <DetailLabel className="text-[0.65rem]">Kinds</DetailLabel>
+                    {availableWorkflowContextKinds.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          aria-pressed={workflowContextKindFilters.length === 0}
+                          className={cn(
+                            "inline-flex items-center gap-2 border px-2 py-1 text-[0.65rem] font-medium uppercase tracking-[0.14em] transition-colors",
+                            workflowContextKindFilters.length === 0
+                              ? "border-foreground/30 bg-foreground/10 text-foreground"
+                              : "border-border/70 bg-background/50 text-muted-foreground hover:text-foreground",
+                          )}
+                          onClick={() => setWorkflowContextKindFilters([])}
+                        >
+                          All
+                          <span className="text-[0.62rem] text-muted-foreground">
+                            {workflowContextFactGroups.length}
+                          </span>
+                        </button>
+
+                        {availableWorkflowContextKinds.map((kind) => {
+                          const active = workflowContextKindFilters.includes(kind);
+                          const count = workflowContextKindCounts.get(kind) ?? 0;
+                          const tone = getWorkflowContextKindTone(kind);
+
+                          return (
+                            <button
+                              key={kind}
+                              type="button"
+                              aria-pressed={active}
+                              className={cn(
+                                "inline-flex items-center gap-2 border px-2 py-1 text-[0.65rem] font-medium uppercase tracking-[0.14em] transition-colors",
+                                active
+                                  ? ACCENT_TONE_CLASSES[tone]
+                                  : "border-border/70 bg-background/50 text-muted-foreground hover:text-foreground",
+                              )}
+                              onClick={() => {
+                                setWorkflowContextKindFilters((current) =>
+                                  current.includes(kind)
+                                    ? current.filter((candidate) => candidate !== kind)
+                                    : [...current, kind],
+                                );
+                              }}
+                            >
+                              {renderWorkflowContextFilterKind(kind)}
+                              <span
+                                className={cn(
+                                  "text-[0.62rem]",
+                                  active ? "text-current" : "text-muted-foreground",
+                                )}
+                              >
+                                {count}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Kind filters appear once context fact contract metadata is available.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <DetailLabel className="text-[0.65rem]">Cardinality</DetailLabel>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        aria-pressed={workflowContextCardinalityFilters.length === 0}
+                        className={cn(
+                          "inline-flex items-center gap-2 border px-2 py-1 text-[0.65rem] font-medium uppercase tracking-[0.14em] transition-colors",
+                          workflowContextCardinalityFilters.length === 0
+                            ? "border-foreground/30 bg-foreground/10 text-foreground"
+                            : "border-border/70 bg-background/50 text-muted-foreground hover:text-foreground",
+                        )}
+                        onClick={() => setWorkflowContextCardinalityFilters([])}
+                      >
+                        All
+                        <span className="text-[0.62rem] text-muted-foreground">
+                          {workflowContextFactGroups.length}
+                        </span>
+                      </button>
+
+                      {WORKFLOW_CONTEXT_FILTER_CARDINALITY_ORDER.map((cardinality) => {
+                        const active = workflowContextCardinalityFilters.includes(cardinality);
+                        const count = workflowContextCardinalityCounts.get(cardinality) ?? 0;
+                        const tone = cardinality === "one" ? "sky" : "violet";
+
+                        return (
+                          <button
+                            key={cardinality}
+                            type="button"
+                            aria-pressed={active}
+                            className={cn(
+                              "inline-flex items-center gap-2 border px-2 py-1 text-[0.65rem] font-medium uppercase tracking-[0.14em] transition-colors",
+                              active
+                                ? ACCENT_TONE_CLASSES[tone]
+                                : "border-border/70 bg-background/50 text-muted-foreground hover:text-foreground",
+                            )}
+                            onClick={() => {
+                              setWorkflowContextCardinalityFilters((current) =>
+                                current.includes(cardinality)
+                                  ? current.filter((candidate) => candidate !== cardinality)
+                                  : [...current, cardinality],
+                              );
+                            }}
+                          >
+                            {renderWorkflowContextCardinality(cardinality)}
+                            <span
+                              className={cn(
+                                "text-[0.62rem]",
+                                active ? "text-current" : "text-muted-foreground",
+                              )}
+                            >
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <DetailLabel className="text-[0.65rem]">Instance state</DetailLabel>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        aria-pressed={workflowContextInstanceFilters.length === 0}
+                        className={cn(
+                          "inline-flex items-center gap-2 border px-2 py-1 text-[0.65rem] font-medium uppercase tracking-[0.14em] transition-colors",
+                          workflowContextInstanceFilters.length === 0
+                            ? "border-foreground/30 bg-foreground/10 text-foreground"
+                            : "border-border/70 bg-background/50 text-muted-foreground hover:text-foreground",
+                        )}
+                        onClick={() => setWorkflowContextInstanceFilters([])}
+                      >
+                        All
+                        <span className="text-[0.62rem] text-muted-foreground">
+                          {workflowContextFactGroups.length}
+                        </span>
+                      </button>
+
+                      {WORKFLOW_CONTEXT_INSTANCE_FILTER_ORDER.map((instanceFilter) => {
+                        const active = workflowContextInstanceFilters.includes(instanceFilter);
+                        const count = workflowContextInstanceCounts.get(instanceFilter) ?? 0;
+                        const tone = instanceFilter === "has_instance" ? "emerald" : "slate";
+
+                        return (
+                          <button
+                            key={instanceFilter}
+                            type="button"
+                            aria-pressed={active}
+                            className={cn(
+                              "inline-flex items-center gap-2 border px-2 py-1 text-[0.65rem] font-medium uppercase tracking-[0.14em] transition-colors",
+                              active
+                                ? ACCENT_TONE_CLASSES[tone]
+                                : "border-border/70 bg-background/50 text-muted-foreground hover:text-foreground",
+                            )}
+                            onClick={() => {
+                              setWorkflowContextInstanceFilters((current) =>
+                                current.includes(instanceFilter)
+                                  ? current.filter((candidate) => candidate !== instanceFilter)
+                                  : [...current, instanceFilter],
+                              );
+                            }}
+                          >
+                            {renderWorkflowContextInstanceFilter(instanceFilter)}
+                            <span
+                              className={cn(
+                                "text-[0.62rem]",
+                                active ? "text-current" : "text-muted-foreground",
+                              )}
+                            >
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {workflowContextFactGroups.length === 0 ? (
               <p className="border border-border/70 bg-background/40 px-3 py-2 text-sm text-muted-foreground">
                 This workflow does not define any context facts.
               </p>
+            ) : filteredWorkflowContextFactGroups.length === 0 ? (
+              <p className="border border-border/70 bg-background/40 px-3 py-6 text-sm text-muted-foreground">
+                No workflow context facts match “{workflowContextFactFilter.trim()}”.
+              </p>
             ) : (
-              <div className="grid gap-3 lg:grid-cols-2">
-                {detail.workflowContextFacts.groups.map((group) => {
-                  const definition = contextDefinitions.get(group.contextFactDefinitionId) ?? null;
-                  const editor = definition
-                    ? buildWorkflowContextDialogEditor({
-                        definition,
-                        projectFactCatalog,
-                        workUnitFactCatalog,
-                        workUnitCatalog,
-                        workflowOptions,
-                        artifactSlotCatalog,
-                        artifactSnapshotOptionsBySlot,
-                        boundFactInstanceOptionsByContextFactDefinition,
-                        workUnitOptions,
-                      })
-                    : null;
+              <div className="max-h-[min(70vh,44rem)] overflow-y-auto pr-2">
+                <div className="space-y-3">
+                  {filteredWorkflowContextFactGroups.map((group) => {
+                    const definition =
+                      contextDefinitions.get(group.contextFactDefinitionId) ?? null;
+                    const presentation = buildWorkflowContextFactPresentation({
+                      definition,
+                      projectFactCatalog,
+                      workUnitFactCatalog,
+                      workUnitCatalog,
+                      workflowOptions,
+                      artifactSlotCatalog,
+                    });
+                    const editor = definition
+                      ? buildWorkflowContextDialogEditor({
+                          definition,
+                          projectFactCatalog,
+                          workUnitFactCatalog,
+                          workUnitCatalog,
+                          workflowOptions,
+                          artifactSlotCatalog,
+                          artifactSnapshotOptionsBySlot,
+                          boundFactInstanceOptionsByContextFactDefinition,
+                          workUnitOptions,
+                        })
+                      : null;
 
-                  return (
-                    <div key={group.contextFactDefinitionId} className="space-y-0">
-                      <WorkflowContextManualCrudCard
-                        group={group}
-                        definition={definition}
-                        editor={editor}
-                        onCreate={async (value) => {
-                          await createWorkflowContextFactMutation.mutateAsync({
-                            projectId,
-                            workflowExecutionId,
-                            contextFactDefinitionId: group.contextFactDefinitionId,
-                            value,
-                          });
-                        }}
-                        onUpdate={async (instanceId, value) => {
-                          await updateWorkflowContextFactMutation.mutateAsync({
-                            projectId,
-                            workflowExecutionId,
-                            contextFactDefinitionId: group.contextFactDefinitionId,
-                            instanceId,
-                            value,
-                          });
-                        }}
-                        onRemove={async (instanceId) => {
-                          await removeWorkflowContextFactMutation.mutateAsync({
-                            projectId,
-                            workflowExecutionId,
-                            contextFactDefinitionId: group.contextFactDefinitionId,
-                            instanceId,
-                          });
-                        }}
-                        onDeleteAll={async () => {
-                          await deleteWorkflowContextFactMutation.mutateAsync({
-                            projectId,
-                            workflowExecutionId,
-                            contextFactDefinitionId: group.contextFactDefinitionId,
-                          });
-                        }}
-                        isCreating={createWorkflowContextFactMutation.isPending}
-                        isUpdating={updateWorkflowContextFactMutation.isPending}
-                        isRemoving={removeWorkflowContextFactMutation.isPending}
-                        isDeleting={deleteWorkflowContextFactMutation.isPending}
-                      />
-
-                      <div className="flex justify-end border-x border-b border-border/70 bg-background/20 px-4 py-3">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setOpenContextFactId(group.contextFactDefinitionId)}
-                        >
-                          View instances
-                        </Button>
+                    return (
+                      <div key={group.contextFactDefinitionId} className="space-y-0">
+                        <WorkflowContextManualCrudCard
+                          group={group}
+                          definition={definition}
+                          editor={editor}
+                          presentation={presentation}
+                          onCreate={async (value) => {
+                            await createWorkflowContextFactMutation.mutateAsync({
+                              projectId,
+                              workflowExecutionId,
+                              contextFactDefinitionId: group.contextFactDefinitionId,
+                              value,
+                            });
+                          }}
+                          onUpdate={async (instanceId, value) => {
+                            await updateWorkflowContextFactMutation.mutateAsync({
+                              projectId,
+                              workflowExecutionId,
+                              contextFactDefinitionId: group.contextFactDefinitionId,
+                              instanceId,
+                              value,
+                            });
+                          }}
+                          onRemove={async (instanceId) => {
+                            await removeWorkflowContextFactMutation.mutateAsync({
+                              projectId,
+                              workflowExecutionId,
+                              contextFactDefinitionId: group.contextFactDefinitionId,
+                              instanceId,
+                            });
+                          }}
+                          onDeleteAll={async () => {
+                            await deleteWorkflowContextFactMutation.mutateAsync({
+                              projectId,
+                              workflowExecutionId,
+                              contextFactDefinitionId: group.contextFactDefinitionId,
+                            });
+                          }}
+                          isCreating={createWorkflowContextFactMutation.isPending}
+                          isUpdating={updateWorkflowContextFactMutation.isPending}
+                          isRemoving={removeWorkflowContextFactMutation.isPending}
+                          isDeleting={deleteWorkflowContextFactMutation.isPending}
+                        />
                       </div>
-
-                      <WorkflowContextFactDialog
-                        group={group}
-                        open={openContextFactId === group.contextFactDefinitionId}
-                        onOpenChange={(open) =>
-                          setOpenContextFactId(open ? group.contextFactDefinitionId : null)
-                        }
-                      />
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             )}
           </section>
