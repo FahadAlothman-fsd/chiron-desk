@@ -113,6 +113,7 @@ const toWorkflowContextFactGroups = (params: {
     definitionKey: definition.factKey,
     definitionLabel: definition.label ?? undefined,
     definitionDescriptionJson: definition.descriptionJson ?? undefined,
+    cardinality: definition.cardinality === "many" ? "many" : "one",
     instances: (instancesByDefinitionId.get(definition.id) ?? [])
       .slice()
       .sort((left, right) => left.instanceOrder - right.instanceOrder)

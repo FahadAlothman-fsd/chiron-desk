@@ -290,6 +290,17 @@ function makeWorkflowContextCrudTestLayer() {
     findFactSchemasByVersionId: () => Effect.die("unused"),
     replaceArtifactSlotsForWorkUnitType: () => Effect.die("unused"),
     findArtifactSlotsByWorkUnitType: () => Effect.succeed([]),
+    listWorkflowsByWorkUnitType: () =>
+      Effect.succeed([
+        {
+          id: "wf-allowed",
+          workflowDefinitionId: "wf-allowed",
+          key: "wf_allowed",
+          displayName: "Allowed Workflow",
+          createdAt: now,
+          updatedAt: now,
+        },
+      ]),
     findInvokeBindingWorkUnitFactDefinitionsByIds: () => Effect.die("unused"),
     findInvokeBindingArtifactSlotDefinitionsByIds: () => Effect.die("unused"),
   } as unknown as Context.Tag.Service<typeof MethodologyRepository>);
@@ -533,6 +544,23 @@ describe("project runtime workflow-context CRUD router", () => {
       "remove",
       "delete",
     ]);
+  });
+
+  it("rejects workflow refs that are outside the current work unit type workflows", async () => {
+    const runtime = makeWorkflowContextCrudTestLayer();
+
+    await expect(
+      call(
+        runtime.router.createRuntimeWorkflowContextFactValue,
+        {
+          projectId: "project-1",
+          workflowExecutionId: "wfexec-1",
+          contextFactDefinitionId: "ctx-workflow-ref",
+          value: { workflowDefinitionId: "wf-missing-local" },
+        },
+        AUTHENTICATED_CTX,
+      ),
+    ).rejects.toThrow(/not defined for this work unit type/i);
   });
 
   it("rejects direct project/work-unit mutation bypass through workflow-context draft specs", async () => {

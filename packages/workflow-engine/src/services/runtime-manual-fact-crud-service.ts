@@ -45,6 +45,7 @@ export interface NormalizeWorkflowContextFactValueInput {
   readonly projectId: string;
   readonly methodologyVersionId: string;
   readonly workflowWorkUnitTypeId: string;
+  readonly projectWorkUnitId?: string;
   readonly definition: CanonicalWorkflowContextFactDefinition;
   readonly value: unknown;
 }
@@ -830,13 +831,17 @@ export const normalizeWorkflowContextFactValue = (
   deps: {
     readonly methodologyRepo: Pick<
       MethodologyRepository["Type"],
-      "findArtifactSlotsByWorkUnitType" | "findFactDefinitionsByVersionId"
+      | "findArtifactSlotsByWorkUnitType"
+      | "findFactDefinitionsByVersionId"
+      | "listWorkflowsByWorkUnitType"
     >;
     readonly lifecycleRepo: Pick<
       LifecycleRepository["Type"],
       "findFactSchemas" | "findWorkUnitTypes"
     >;
     readonly projectWorkUnitRepo: Pick<ProjectWorkUnitRepository["Type"], "getProjectWorkUnitById">;
+    readonly projectFactRepo: Pick<ProjectFactRepository["Type"], "getCurrentValuesByDefinition">;
+    readonly workUnitFactRepo: Pick<WorkUnitFactRepository["Type"], "getCurrentValuesByDefinition">;
   },
   params: NormalizeWorkflowContextFactValueInput,
 ): Effect.Effect<unknown, RuntimeManualFactCrudServiceError> =>
@@ -862,6 +867,43 @@ export const normalizeWorkflowContextFactValue = (
           workflowWorkUnitTypeId: params.workflowWorkUnitTypeId,
           definition: params.definition,
         });
+        if (params.definition.workUnitDefinitionId) {
+          if (!params.projectWorkUnitId) {
+            return yield* Effect.fail(
+              toValidationError(
+                params.definition.kind,
+                "Bound fact validation requires the current project work unit context.",
+              ),
+            );
+          }
+
+          const currentFactInstances = yield* deps.workUnitFactRepo.getCurrentValuesByDefinition({
+            projectWorkUnitId: params.projectWorkUnitId,
+            factDefinitionId: params.definition.factDefinitionId,
+          });
+          if (!currentFactInstances.some((instance) => instance.id === envelope.instanceId)) {
+            return yield* Effect.fail(
+              toValidationError(
+                params.definition.kind,
+                `Bound fact instance '${envelope.instanceId}' does not exist on the current work unit. Omit factInstanceId if you intend to create a new instance later in an action step.`,
+              ),
+            );
+          }
+        } else {
+          const currentFactInstances = yield* deps.projectFactRepo.getCurrentValuesByDefinition({
+            projectId: params.projectId,
+            factDefinitionId: params.definition.factDefinitionId,
+          });
+          if (!currentFactInstances.some((instance) => instance.id === envelope.instanceId)) {
+            return yield* Effect.fail(
+              toValidationError(
+                params.definition.kind,
+                `Bound fact instance '${envelope.instanceId}' does not exist on the project. Omit factInstanceId if you intend to create a new instance later in an action step.`,
+              ),
+            );
+          }
+        }
+
         const normalizedValue = yield* validateValueAgainstDefinition({
           value: envelope.value,
           definition: boundDefinition,
@@ -872,6 +914,36 @@ export const normalizeWorkflowContextFactValue = (
       }
       case "workflow_ref_fact": {
         const normalized = yield* parseWorkflowRefFactValue(params.value, params.definition.kind);
+        const workUnitType = (yield* deps.lifecycleRepo.findWorkUnitTypes(
+          params.methodologyVersionId,
+        )).find((candidate) => candidate.id === params.workflowWorkUnitTypeId);
+        if (!workUnitType) {
+          return yield* Effect.fail(
+            toValidationError(
+              params.definition.kind,
+              `Workflow work-unit type '${params.workflowWorkUnitTypeId}' could not be resolved.`,
+            ),
+          );
+        }
+
+        const allowedLocalWorkflows = yield* deps.methodologyRepo.listWorkflowsByWorkUnitType({
+          versionId: params.methodologyVersionId,
+          workUnitTypeKey: workUnitType.key,
+        });
+        const workflowExistsLocally = allowedLocalWorkflows.some(
+          (workflow) =>
+            workflow.id === normalized.workflowDefinitionId ||
+            workflow.key === normalized.workflowDefinitionId,
+        );
+        if (!workflowExistsLocally) {
+          return yield* Effect.fail(
+            toValidationError(
+              params.definition.kind,
+              `Workflow '${normalized.workflowDefinitionId}' is not defined for this work unit type.`,
+            ),
+          );
+        }
+
         if (
           params.definition.allowedWorkflowDefinitionIds.length > 0 &&
           !params.definition.allowedWorkflowDefinitionIds.includes(normalized.workflowDefinitionId)
@@ -1252,6 +1324,8 @@ export const RuntimeManualFactCrudServiceLive = Layer.effect(
           methodologyRepo,
           lifecycleRepo,
           projectWorkUnitRepo,
+          projectFactRepo,
+          workUnitFactRepo,
         },
         params,
       );
@@ -1551,11 +1625,14 @@ export const RuntimeManualFactCrudServiceLive = Layer.effect(
               methodologyRepo,
               lifecycleRepo,
               projectWorkUnitRepo,
+              projectFactRepo,
+              workUnitFactRepo,
             },
             {
               projectId: input.projectId,
               methodologyVersionId: pin.methodologyVersionId,
               workflowWorkUnitTypeId: workflowDetail.workUnitTypeId,
+              projectWorkUnitId: workflowDetail.projectWorkUnitId,
               definition,
               value,
             },
@@ -1686,6 +1763,8 @@ export const RuntimeManualFactCrudServiceLive = Layer.effect(
           methodologyRepo,
           lifecycleRepo,
           projectWorkUnitRepo,
+          projectFactRepo,
+          workUnitFactRepo,
         },
         input,
       );

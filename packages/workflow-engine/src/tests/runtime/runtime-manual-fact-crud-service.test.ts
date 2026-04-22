@@ -559,6 +559,17 @@ const makeCrudTestLayer = () => {
           templates: [],
         },
       ]),
+    listWorkflowsByWorkUnitType: () =>
+      Effect.succeed([
+        {
+          id: "wf-allowed",
+          workflowDefinitionId: "wf-allowed",
+          key: "wf_allowed",
+          displayName: "Allowed Workflow",
+          createdAt: now,
+          updatedAt: now,
+        },
+      ]),
     findInvokeBindingWorkUnitFactDefinitionsByIds: () => Effect.die("unused"),
     findInvokeBindingArtifactSlotDefinitionsByIds: () => Effect.die("unused"),
   } as unknown as Context.Tag.Service<typeof MethodologyRepository>);
@@ -923,5 +934,58 @@ describe("RuntimeManualFactCrudService", () => {
     );
 
     expect(failure?._tag).toBe("RuntimeFactValidationError");
+  });
+
+  it("rejects workflow refs that are not defined on the current work unit type", async () => {
+    const runtime = makeCrudTestLayer();
+
+    const failure = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* RuntimeManualFactCrudService;
+        return yield* service.apply({
+          scope: "workflow_context",
+          projectId: "project-1",
+          workflowExecutionId: "wfexec-1",
+          contextFactDefinitionId: "ctx-workflow-ref",
+          payload: { verb: "create", value: { workflowDefinitionId: "wf-missing-local" } },
+        });
+      }).pipe(
+        Effect.provide(runtime.layer),
+        Effect.catchAll((error) => Effect.succeed(error)),
+      ),
+    );
+
+    expect(failure?._tag).toBe("RuntimeFactValidationError");
+    expect((failure as { message?: string } | undefined)?.message).toContain(
+      "not defined for this work unit type",
+    );
+  });
+
+  it("rejects bound fact instance ids that do not exist in the current source", async () => {
+    const runtime = makeCrudTestLayer();
+
+    const failure = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* RuntimeManualFactCrudService;
+        return yield* service.apply({
+          scope: "workflow_context",
+          projectId: "project-1",
+          workflowExecutionId: "wfexec-1",
+          contextFactDefinitionId: "ctx-bound",
+          payload: {
+            verb: "create",
+            value: { factInstanceId: "missing-bound-instance", value: "P1" },
+          },
+        });
+      }).pipe(
+        Effect.provide(runtime.layer),
+        Effect.catchAll((error) => Effect.succeed(error)),
+      ),
+    );
+
+    expect(failure?._tag).toBe("RuntimeFactValidationError");
+    expect((failure as { message?: string } | undefined)?.message).toContain(
+      "Omit factInstanceId if you intend to create a new instance later in an action step.",
+    );
   });
 });
