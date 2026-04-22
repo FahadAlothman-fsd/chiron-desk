@@ -69,6 +69,31 @@ describe("runtime start-gate dialog", () => {
               },
             ],
           },
+          evaluationTree: {
+            mode: "all",
+            met: false,
+            conditions: [
+              {
+                condition: { kind: "fact", factKey: "project_ready", operator: "exists" },
+                met: false,
+                reason: "project_ready is missing.",
+              },
+            ],
+            groups: [
+              {
+                mode: "any",
+                met: true,
+                conditions: [
+                  {
+                    condition: { kind: "artifact", slotKey: "brief_doc", operator: "fresh" },
+                    met: true,
+                    reason: "Artifact snapshot is current.",
+                  },
+                ],
+                groups: [],
+              },
+            ],
+          },
           launchability: {
             canLaunch: true,
             availableWorkflows: [
@@ -93,8 +118,12 @@ describe("runtime start-gate dialog", () => {
     expect(await screen.findByText("all gate")).toBeTruthy();
     expect(screen.getByText("Project fact")).toBeTruthy();
     expect(screen.getByText("project_ready must exist")).toBeTruthy();
+    expect(screen.getByText("blocked")).toBeTruthy();
+    expect(screen.getByText("project_ready is missing.")).toBeTruthy();
     expect(screen.getByText("Artifact")).toBeTruthy();
     expect(screen.getByText(/brief_doc must be fresh/i)).toBeTruthy();
+    expect(screen.getByText("passed")).toBeTruthy();
+    expect(screen.getByText("This condition currently passes.")).toBeTruthy();
     expect(screen.getAllByText("Setup Project").length).toBeGreaterThan(0);
     expect(screen.getByText("Review the setup checklist before launching.")).toBeTruthy();
   });

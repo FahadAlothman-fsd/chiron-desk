@@ -1071,10 +1071,14 @@ function getInitialFormValues(body: FormBody): Record<string, unknown> {
       : {};
 
   return Object.fromEntries(
-    body.page.fields.map((field) => [
-      field.fieldKey,
-      sourcePayload[field.fieldKey] ?? getEmptyFieldValue(field),
-    ]),
+    body.page.fields.map((field) => {
+      const sourceValue =
+        sourcePayload[field.fieldKey] ??
+        sourcePayload[field.contextFactDefinitionId] ??
+        getEmptyFieldValue(field);
+
+      return [field.fieldKey, normalizeInitialFieldValue(field, sourceValue)];
+    }),
   );
 }
 
@@ -1122,16 +1126,87 @@ function getBoundFactInlineValue(value: unknown): unknown {
   return isPlainRecord(value) && "value" in value ? value.value : null;
 }
 
+function getBoundFactOptionValueByInstanceId(
+  field: RuntimeFormResolvedField,
+  instanceId: string,
+): unknown {
+  return (
+    field.widget.options?.find((option) => getBoundFactInstanceId(option.value) === instanceId)
+      ?.value ?? null
+  );
+}
+
+function getSingleBoundFactOptionValue(field: RuntimeFormResolvedField): unknown {
+  return field.widget.options?.length === 1 ? (field.widget.options[0]?.value ?? null) : null;
+}
+
+function getLockedBoundFactEnvelope(field: RuntimeFormResolvedField, value: unknown): unknown {
+  if (field.contextFactKind !== "bound_fact" || field.widget.cardinality !== "one") {
+    return null;
+  }
+
+  const currentInstanceId = getBoundFactInstanceId(value);
+  if (currentInstanceId.length > 0) {
+    const optionValue = getBoundFactOptionValueByInstanceId(field, currentInstanceId);
+    if (isPlainRecord(value) && "value" in value) {
+      return { factInstanceId: currentInstanceId, value: value.value };
+    }
+    if (isPlainRecord(optionValue) && "value" in optionValue) {
+      return { factInstanceId: currentInstanceId, value: optionValue.value };
+    }
+    return { factInstanceId: currentInstanceId };
+  }
+
+  if (field.widget.externalCardinality !== "one") {
+    return null;
+  }
+
+  const singleOptionValue = getSingleBoundFactOptionValue(field);
+  const singleOptionInstanceId = getBoundFactInstanceId(singleOptionValue);
+  if (singleOptionInstanceId.length === 0) {
+    return null;
+  }
+
+  if (isPlainRecord(value) && "value" in value) {
+    return { factInstanceId: singleOptionInstanceId, value: value.value };
+  }
+
+  if (!isPlainRecord(value) && value !== null && value !== undefined && value !== "") {
+    return { factInstanceId: singleOptionInstanceId, value };
+  }
+
+  if (isPlainRecord(singleOptionValue) && "value" in singleOptionValue) {
+    return singleOptionValue;
+  }
+
+  return { factInstanceId: singleOptionInstanceId };
+}
+
+function shouldDisallowNewBoundFactInstance(
+  field: RuntimeFormResolvedField,
+  value: unknown,
+): boolean {
+  return getBoundFactInstanceId(getLockedBoundFactEnvelope(field, value)).length > 0;
+}
+
+function normalizeInitialFieldValue(field: RuntimeFormResolvedField, value: unknown): unknown {
+  if (field.contextFactKind !== "bound_fact") {
+    return value;
+  }
+
+  return getLockedBoundFactEnvelope(field, value) ?? value;
+}
+
 function getDefaultBoundFactInputMode(
   field: RuntimeFormResolvedField,
   value: unknown,
 ): BoundFactInputMode {
-  if (isPlainRecord(value) && "value" in value) {
-    return "new";
-  }
-
   if (getBoundFactInstanceId(value).length > 0) {
     return "existing";
+  }
+
+  if (isPlainRecord(value) && "value" in value) {
+    return "new";
   }
 
   return (field.widget.options?.length ?? 0) > 0 ? "existing" : "new";
@@ -1161,7 +1236,11 @@ function createBoundFactEnvelope(params: {
 
   if (mode === "existing") {
     const instanceId = getBoundFactInstanceId(currentValue);
-    return instanceId.length > 0 ? { factInstanceId: instanceId } : null;
+    if (instanceId.length === 0) {
+      return null;
+    }
+
+    return getBoundFactOptionValueByInstanceId(field, instanceId) ?? { factInstanceId: instanceId };
   }
 
   const inlineValue = getBoundFactInlineValue(currentValue);
@@ -1177,7 +1256,9 @@ function sanitizeBoundFactValue(value: unknown): unknown {
 
   const instanceId = getBoundFactInstanceId(value);
   if ("value" in value) {
-    return { value: value.value };
+    return instanceId.length > 0
+      ? { factInstanceId: instanceId, value: value.value }
+      : { value: value.value };
   }
 
   return instanceId.length > 0 ? { factInstanceId: instanceId } : null;
@@ -2325,9 +2406,23 @@ function BoundFactFieldRow(props: {
   labelOverride?: string;
 }) {
   const { field, value, onChange, disabled, disabledOptionValues, labelOverride } = props;
-  const defaultMode = getDefaultBoundFactInputMode(field, value);
+  const lockedExistingValue = useMemo(
+    () => getLockedBoundFactEnvelope(field, value),
+    [field, value],
+  );
+  const createNewDisabled = shouldDisallowNewBoundFactInstance(field, value);
+  const normalizedValue = lockedExistingValue ?? value;
+  const defaultMode = getDefaultBoundFactInputMode(field, normalizedValue);
   const [mode, setMode] = useState<BoundFactInputMode>(defaultMode);
   const hasOptions = (field.widget.options?.length ?? 0) > 0;
+  const existingSelectionValue = useMemo(() => {
+    const instanceId = getBoundFactInstanceId(normalizedValue);
+    if (instanceId.length === 0) {
+      return null;
+    }
+
+    return getBoundFactOptionValueByInstanceId(field, instanceId) ?? { factInstanceId: instanceId };
+  }, [field, normalizedValue]);
   const valueField = useMemo<RuntimeFormResolvedField>(
     () => ({
       ...field,
@@ -2342,48 +2437,80 @@ function BoundFactFieldRow(props: {
     setMode(defaultMode);
   }, [defaultMode]);
 
+  useEffect(() => {
+    if (!lockedExistingValue) {
+      return;
+    }
+
+    if (encodeOptionValue(lockedExistingValue) === encodeOptionValue(value)) {
+      return;
+    }
+
+    onChange(lockedExistingValue);
+  }, [lockedExistingValue, onChange, value]);
+
   return (
     <div className="space-y-3 border border-border/70 bg-background/30 p-3">
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant={mode === "existing" ? "default" : "outline"}
-          size="sm"
-          disabled={disabled}
-          onClick={() => {
-            setMode("existing");
-            onChange(createBoundFactEnvelope({ field, mode: "existing", currentValue: value }));
-          }}
-        >
-          Bind existing
-        </Button>
-        <Button
-          type="button"
-          variant={mode === "new" ? "default" : "outline"}
-          size="sm"
-          disabled={disabled}
-          onClick={() => {
-            setMode("new");
-            onChange(createBoundFactEnvelope({ field, mode: "new", currentValue: value }));
-          }}
-        >
-          Create new
-        </Button>
-      </div>
+      {!createNewDisabled ? (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant={mode === "existing" ? "default" : "outline"}
+            size="sm"
+            disabled={disabled}
+            onClick={() => {
+              setMode("existing");
+              onChange(
+                createBoundFactEnvelope({ field, mode: "existing", currentValue: normalizedValue }),
+              );
+            }}
+          >
+            Bind existing
+          </Button>
+          <Button
+            type="button"
+            variant={mode === "new" ? "default" : "outline"}
+            size="sm"
+            disabled={disabled}
+            onClick={() => {
+              setMode("new");
+              onChange(
+                createBoundFactEnvelope({ field, mode: "new", currentValue: normalizedValue }),
+              );
+            }}
+          >
+            Create new
+          </Button>
+        </div>
+      ) : null}
 
-      {mode === "existing" ? (
+      {mode === "existing" || createNewDisabled ? (
         <div className="space-y-2">
           <ReferenceOptionCombobox
             field={{ ...field, fieldLabel: labelOverride ?? field.fieldLabel }}
-            value={
-              getBoundFactInstanceId(value).length > 0
-                ? { factInstanceId: getBoundFactInstanceId(value) }
-                : null
-            }
+            value={existingSelectionValue}
             onChange={(nextValue) => onChange(nextValue)}
             disabledOptionValues={disabledOptionValues}
-            disabled={disabled || !hasOptions}
+            disabled={
+              disabled ||
+              !hasOptions ||
+              (field.widget.externalCardinality === "one" &&
+                (field.widget.options?.length ?? 0) <= 1)
+            }
           />
+          {createNewDisabled ? (
+            <PrimitiveFieldEditor
+              field={valueField}
+              value={getBoundFactInlineValue(normalizedValue)}
+              onChange={(nextValue) =>
+                onChange({
+                  factInstanceId: getBoundFactInstanceId(normalizedValue),
+                  value: nextValue,
+                })
+              }
+              disabled={disabled}
+            />
+          ) : null}
           {field.widget.emptyState ? (
             <p className="text-xs text-muted-foreground">{field.widget.emptyState}</p>
           ) : null}
@@ -2397,7 +2524,7 @@ function BoundFactFieldRow(props: {
         <div className="space-y-2">
           <PrimitiveFieldEditor
             field={valueField}
-            value={getBoundFactInlineValue(value)}
+            value={getBoundFactInlineValue(normalizedValue)}
             onChange={(nextValue) => onChange({ value: nextValue })}
             disabled={disabled}
           />
@@ -2422,9 +2549,18 @@ function BoundFactField(props: {
     const items = Array.isArray(value) ? value : [];
     const selectedValues = new Set(
       items
-        .map((entry) => getBoundFactInstanceId(entry))
-        .filter((entry) => entry.length > 0)
-        .map((entry) => encodeOptionValue({ factInstanceId: entry })),
+        .map((entry) => {
+          const instanceId = getBoundFactInstanceId(entry);
+          if (instanceId.length === 0) {
+            return null;
+          }
+
+          return (
+            getBoundFactOptionValueByInstanceId(field, instanceId) ?? { factInstanceId: instanceId }
+          );
+        })
+        .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+        .map((entry) => encodeOptionValue(entry)),
     );
 
     return (

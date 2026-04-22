@@ -4,28 +4,21 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@tanstack/react-router", () => ({
-  ...(() => {
-    const __routerMocks = {
-      useRouteContextMock: vi.fn(),
-      useParamsMock: vi.fn(),
-      useNavigateMock: vi.fn(),
-    };
-
-    return {
-      __routerMocks,
-      createFileRoute: () => (options: Record<string, unknown>) => ({
-        ...options,
-        useRouteContext: __routerMocks.useRouteContextMock,
-        useParams: __routerMocks.useParamsMock,
-        useNavigate: () => __routerMocks.useNavigateMock,
-      }),
-      Link: ({ children }: { children: ReactNode }) => <a href="/">{children}</a>,
-    };
-  })(),
+const __routerMocks = vi.hoisted(() => ({
+  useRouteContextMock: vi.fn(),
+  useParamsMock: vi.fn(),
+  useNavigateMock: vi.fn(),
 }));
 
-import { __routerMocks } from "@tanstack/react-router";
+vi.mock("@tanstack/react-router", () => ({
+  createFileRoute: () => (options: Record<string, unknown>) => ({
+    ...options,
+    useRouteContext: __routerMocks.useRouteContextMock,
+    useParams: __routerMocks.useParamsMock,
+    useNavigate: () => __routerMocks.useNavigateMock,
+  }),
+  Link: ({ children }: { children: ReactNode }) => <a href="/">{children}</a>,
+}));
 
 vi.mock("@/features/methodologies/workspace-shell", () => ({
   MethodologyWorkspaceShell: ({ title, children }: { title: string; children: ReactNode }) => (
@@ -175,16 +168,12 @@ function buildDetail(): any {
               cardinality: "one" as const,
               renderedMultiplicity: "one" as const,
               externalBindingKey: "repository_type",
+              externalCardinality: "one" as const,
               bindingLabel: "Repository Type",
               options: [
                 {
-                  value: { factInstanceId: "fact-1" },
+                  value: { factInstanceId: "fact-1", value: "monorepo" },
                   label: "monorepo",
-                  description: "Repository type",
-                },
-                {
-                  value: { factInstanceId: "fact-2" },
-                  label: "multi_part",
                   description: "Repository type",
                 },
               ],
@@ -204,15 +193,16 @@ function buildDetail(): any {
               cardinality: "many" as const,
               renderedMultiplicity: "many" as const,
               externalBindingKey: "project_parts",
+              externalCardinality: "many" as const,
               bindingLabel: "Project Parts",
               options: [
                 {
-                  value: { factInstanceId: "fact-part-1" },
+                  value: { factInstanceId: "fact-part-1", value: "apps/web" },
                   label: "apps/web",
                   description: "Project parts",
                 },
                 {
-                  value: { factInstanceId: "fact-part-2" },
+                  value: { factInstanceId: "fact-part-2", value: "packages/api" },
                   label: "packages/api",
                   description: "Project parts",
                 },
@@ -327,7 +317,7 @@ function buildDetail(): any {
           initiativeName: "Draft initiative",
           workflowMode: "initial_scan",
           requiresBrainstorming: true,
-          existingRepositoryType: { factInstanceId: "fact-1" },
+          existingRepositoryType: "monorepo",
           existingProjectParts: [{ factInstanceId: "fact-part-1" }],
           referenceWorkflow: { workflowDefinitionId: "wf-setup" },
           referenceArtifact: { relativePath: "docs/setup.md" },
@@ -614,50 +604,28 @@ describe("runtime form step detail route", () => {
     expect(enabledOption.getAttribute("data-disabled")).toBe("false");
   });
 
-  it("shows unavailable bound external selections and still allows switching to inline creation", async () => {
+  it("locks singleton bound facts to the existing instance and preserves instance id on inline edit", async () => {
     const user = userEvent.setup();
-    const detail = buildDetail();
-
-    if (detail.body.stepType !== "form") {
-      throw new Error("expected form detail");
-    }
-
-    detail.body.page.fields = detail.body.page.fields.map((field: any) => {
-      if (field.fieldKey === "existingRepositoryType") {
-        return {
-          ...field,
-          widget: {
-            ...field.widget,
-            options: [],
-            emptyState:
-              "No eligible existing instances are available yet. Create the required fact first.",
-          },
-        };
-      }
-
-      return field;
-    });
-
-    const { saveDraftCalls } = await renderHarness({ currentDetail: detail });
+    const { saveDraftCalls } = await renderHarness();
 
     expect(
-      screen.getByRole("combobox", { name: "Existing repository type" }).textContent,
-    ).toContain("fact-1");
-    expect(screen.getByText("Current selection is unavailable")).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: "Create new" }).length).toBeGreaterThan(0);
+      screen.getByRole("combobox", { name: "Existing repository type" }).hasAttribute("disabled"),
+    ).toBe(true);
 
-    await user.click(screen.getAllByRole("button", { name: "Create new" })[1]!);
+    const input = screen.getByRole("textbox", { name: "Existing repository type" });
+    await user.clear(input);
+    await user.type(input, "polyrepo");
     await user.click(screen.getByRole("button", { name: "Save draft" }));
 
     await waitFor(() => expect(saveDraftCalls).toHaveLength(1));
     expect(saveDraftCalls[0]).toMatchObject({
       values: {
-        existingRepositoryType: { value: null },
+        existingRepositoryType: { factInstanceId: "fact-1", value: "polyrepo" },
       },
     });
   });
 
-  it("allows creating a new bound fact value inline when no existing instances are available", async () => {
+  it("allows creating a new bound fact value inline when no existing singleton instance is available", async () => {
     const user = userEvent.setup();
     const detail = buildDetail();
 
@@ -680,10 +648,14 @@ describe("runtime form step detail route", () => {
 
       return field;
     });
+    detail.body.draft.payload = {
+      ...detail.body.draft.payload,
+      existingRepositoryType: null,
+    };
 
     const { saveDraftCalls } = await renderHarness({ currentDetail: detail });
 
-    await user.click(screen.getAllByRole("button", { name: "Create new" })[1]!);
+    await user.click(screen.getAllByRole("button", { name: "Create new" })[0]!);
     const input = screen.getByRole("textbox", { name: "Existing repository type" });
     await user.clear(input);
     await user.type(input, "greenfield");
@@ -697,19 +669,15 @@ describe("runtime form step detail route", () => {
     });
   });
 
-  it("preserves existing bound fact binding when selecting an available instance", async () => {
-    const user = userEvent.setup();
+  it("hydrates singleton bound facts from primitive draft values into a bound envelope", async () => {
     const { saveDraftCalls } = await renderHarness();
 
-    await user.click(screen.getAllByRole("button", { name: "Bind existing" })[1]!);
-    await user.click(screen.getByRole("combobox", { name: "Existing repository type" }));
-    await user.click(screen.getByRole("option", { name: "multi_part Repository type" }));
-    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Save draft" }));
 
     await waitFor(() => expect(saveDraftCalls).toHaveLength(1));
     expect(saveDraftCalls[0]).toMatchObject({
       values: {
-        existingRepositoryType: { factInstanceId: "fact-2" },
+        existingRepositoryType: { factInstanceId: "fact-1", value: "monorepo" },
       },
     });
   });

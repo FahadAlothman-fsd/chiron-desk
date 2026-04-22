@@ -178,6 +178,41 @@ type RuntimeParseResult =
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+const humanizeKey = (value: string) =>
+  value
+    .split(/[_\-.]+/)
+    .filter((segment) => segment.length > 0)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+
+const getPathValidationInfo = (validation: unknown): { pathKind: "file" | "directory" } | null => {
+  if (!isRecord(validation) || validation.kind !== "path") {
+    return null;
+  }
+
+  if (isRecord(validation.path)) {
+    return {
+      pathKind: validation.path.pathKind === "directory" ? "directory" : "file",
+    };
+  }
+
+  return {
+    pathKind: validation.pathKind === "directory" ? "directory" : "file",
+  };
+};
+
+const getJsonSchemaPropertyValidation = (property: unknown): unknown => {
+  if (!isRecord(property)) {
+    return undefined;
+  }
+
+  if ("x-validation" in property) {
+    return property["x-validation"];
+  }
+
+  return property.validation;
+};
+
 const formatPrimitiveText = (value: unknown) => {
   if (value === null || value === undefined) {
     return "";
@@ -232,6 +267,7 @@ const getStructuredJsonFields = (
   definition: RuntimePrimitiveDefinition,
 ): ReadonlyArray<{
   key: string;
+  label?: string;
   type: "string" | "number" | "boolean";
   cardinality: "one" | "many";
   description?: string;
@@ -241,33 +277,96 @@ const getStructuredJsonFields = (
     return [];
   }
 
+  const schema = isRecord(definition.validation.schema) ? definition.validation.schema : null;
+  const schemaProperties = isRecord(schema?.properties) ? schema.properties : null;
   const subSchema = isRecord(definition.validation.subSchema)
     ? definition.validation.subSchema
     : null;
-  if (!subSchema || subSchema.type !== "object" || !Array.isArray(subSchema.fields)) {
+
+  if (subSchema && subSchema.type === "object" && Array.isArray(subSchema.fields)) {
+    return subSchema.fields.flatMap((field) => {
+      if (!isRecord(field) || typeof field.key !== "string") {
+        return [];
+      }
+
+      if (field.type !== "string" && field.type !== "number" && field.type !== "boolean") {
+        return [];
+      }
+
+      const propertyValidation = schemaProperties
+        ? getJsonSchemaPropertyValidation(schemaProperties[field.key])
+        : undefined;
+
+      return [
+        {
+          key: field.key,
+          ...(typeof field.displayName === "string" ? { label: field.displayName } : {}),
+          type: field.type,
+          cardinality: field.cardinality === "many" ? "many" : "one",
+          ...(isRecord(field.description) && typeof field.description.markdown === "string"
+            ? { description: field.description.markdown }
+            : {}),
+          ...((field.validation ?? propertyValidation) !== undefined
+            ? { validation: field.validation ?? propertyValidation }
+            : {}),
+        },
+      ];
+    });
+  }
+
+  if (!schema || schema.type !== "object" || !schemaProperties) {
     return [];
   }
 
-  return subSchema.fields.flatMap((field) => {
-    if (!isRecord(field) || typeof field.key !== "string") {
+  return Object.entries(schemaProperties).flatMap(([key, property]) => {
+    if (!isRecord(property)) {
       return [];
     }
 
-    if (field.type !== "string" && field.type !== "number" && field.type !== "boolean") {
-      return [];
+    const propertyType = property.type;
+    if (propertyType === "string" || propertyType === "number" || propertyType === "boolean") {
+      return [
+        {
+          key,
+          ...(typeof property.title === "string" ? { label: property.title } : {}),
+          type: propertyType,
+          cardinality: "one" as const,
+          ...(typeof property.description === "string"
+            ? { description: property.description }
+            : {}),
+          ...(getJsonSchemaPropertyValidation(property) !== undefined
+            ? { validation: getJsonSchemaPropertyValidation(property) }
+            : {}),
+        },
+      ];
     }
 
-    return [
-      {
-        key: field.key,
-        type: field.type,
-        cardinality: field.cardinality === "many" ? "many" : "one",
-        ...(isRecord(field.description) && typeof field.description.markdown === "string"
-          ? { description: field.description.markdown }
-          : {}),
-        ...(field.validation !== undefined ? { validation: field.validation } : {}),
-      },
-    ];
+    if (
+      propertyType === "array" &&
+      isRecord(property.items) &&
+      (property.items.type === "string" ||
+        property.items.type === "number" ||
+        property.items.type === "boolean")
+    ) {
+      return [
+        {
+          key,
+          ...(typeof property.title === "string" ? { label: property.title } : {}),
+          type: property.items.type,
+          cardinality: "many" as const,
+          ...(typeof property.description === "string"
+            ? { description: property.description }
+            : {}),
+          ...(getJsonSchemaPropertyValidation(property.items) !== undefined
+            ? { validation: getJsonSchemaPropertyValidation(property.items) }
+            : getJsonSchemaPropertyValidation(property) !== undefined
+              ? { validation: getJsonSchemaPropertyValidation(property) }
+              : {}),
+        },
+      ];
+    }
+
+    return [];
   });
 };
 
@@ -360,7 +459,7 @@ const createPrimitiveDraft = (
 
           return {
             key: field.key,
-            label: field.key.replaceAll("_", " "),
+            label: field.label ?? humanizeKey(field.key),
             type: field.type,
             cardinality: field.cardinality,
             ...(field.description ? { description: field.description } : {}),
@@ -400,6 +499,7 @@ const parsePrimitiveDraft = (
   }
 
   const allowedOptions = getAllowedPrimitiveOptions(definition);
+  const pathValidationInfo = getPathValidationInfo(definition.validation);
   if (allowedOptions.length > 0) {
     const selected = allowedOptions.find((option) => option.value === draft.textValue);
     if (!selected) {
@@ -714,6 +814,7 @@ function PrimitiveEditor({
   readonly workUnitOptions: readonly RuntimeFactOption[] | undefined;
 }) {
   const allowedOptions = getAllowedPrimitiveOptions(definition);
+  const pathValidationInfo = getPathValidationInfo(definition.validation);
 
   if (definition.factType === "work_unit") {
     return (
@@ -882,17 +983,33 @@ function PrimitiveEditor({
                           </SelectContent>
                         </Select>
                       ) : (
-                        <Input
-                          value={entry}
-                          onChange={(event) => {
-                            const nextValues = [...field.values];
-                            nextValues[entryIndex] = event.target.value;
-                            updateFieldValues(nextValues);
-                          }}
-                          type={field.type === "number" ? "number" : "text"}
-                          inputMode={field.type === "number" ? "decimal" : undefined}
-                          aria-label={`${field.label} ${entryIndex + 1}`}
-                        />
+                        <>
+                          <Input
+                            value={entry}
+                            onChange={(event) => {
+                              const nextValues = [...field.values];
+                              nextValues[entryIndex] = event.target.value;
+                              updateFieldValues(nextValues);
+                            }}
+                            type={field.type === "number" ? "number" : "text"}
+                            inputMode={field.type === "number" ? "decimal" : undefined}
+                            placeholder={
+                              field.type === "string" && getPathValidationInfo(field.validation)
+                                ? `repo-relative ${getPathValidationInfo(field.validation)?.pathKind} path`
+                                : undefined
+                            }
+                            spellCheck={
+                              field.type === "string" && !getPathValidationInfo(field.validation)
+                            }
+                            aria-label={`${field.label} ${entryIndex + 1}`}
+                          />
+                          {field.type === "string" && getPathValidationInfo(field.validation) ? (
+                            <FieldDescription>
+                              Enter a repo-relative{" "}
+                              {getPathValidationInfo(field.validation)?.pathKind} path.
+                            </FieldDescription>
+                          ) : null}
+                        </>
                       )}
                     </div>
 
@@ -953,11 +1070,21 @@ function PrimitiveEditor({
           onChange={(event) => onChange({ ...draft, textValue: event.target.value })}
           type={definition.factType === "number" ? "number" : "text"}
           inputMode={definition.factType === "number" ? "decimal" : undefined}
+          placeholder={
+            definition.factType === "string" && pathValidationInfo
+              ? `repo-relative ${pathValidationInfo.pathKind} path`
+              : undefined
+          }
           name={label.replace(/\s+/g, "-").toLowerCase()}
           autoComplete="off"
-          spellCheck={definition.factType === "string" ? undefined : false}
+          spellCheck={definition.factType === "string" && !pathValidationInfo ? undefined : false}
           aria-label={label}
         />
+        {definition.factType === "string" && pathValidationInfo ? (
+          <FieldDescription>
+            Enter a repo-relative {pathValidationInfo.pathKind} path.
+          </FieldDescription>
+        ) : null}
       </FieldContent>
     </Field>
   );

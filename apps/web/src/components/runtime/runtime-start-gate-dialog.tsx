@@ -1,4 +1,9 @@
-import type { RuntimeCondition, RuntimeConditionTree } from "@chiron/contracts/runtime/conditions";
+import type {
+  RuntimeCondition,
+  RuntimeConditionEvaluation,
+  RuntimeConditionEvaluationTree,
+  RuntimeConditionTree,
+} from "@chiron/contracts/runtime/conditions";
 import type { GetTransitionStartGateDetailsOutput } from "@chiron/contracts/runtime/work-units";
 import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -58,6 +63,19 @@ function isRuntimeConditionTree(value: unknown): value is RuntimeConditionTree {
 
   return (
     (value.mode === "all" || value.mode === "any") &&
+    Array.isArray(value.conditions) &&
+    Array.isArray(value.groups)
+  );
+}
+
+function isRuntimeConditionEvaluationTree(value: unknown): value is RuntimeConditionEvaluationTree {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    (value.mode === "all" || value.mode === "any") &&
+    typeof value.met === "boolean" &&
     Array.isArray(value.conditions) &&
     Array.isArray(value.groups)
   );
@@ -161,9 +179,11 @@ function getConditionTreeCounts(tree: RuntimeConditionTree): {
 
 function RuntimeConditionTreePanel({
   tree,
+  evaluation,
   depth = 0,
 }: {
   tree: RuntimeConditionTree;
+  evaluation?: RuntimeConditionEvaluationTree;
   depth?: number;
 }) {
   const counts = getConditionTreeCounts(tree);
@@ -192,6 +212,9 @@ function RuntimeConditionTreePanel({
         <div className="space-y-2">
           {tree.conditions.map((condition, index) => {
             const detail = describeRuntimeCondition(condition);
+            const conditionEvaluation = evaluation?.conditions[index] as
+              | RuntimeConditionEvaluation
+              | undefined;
             return (
               <div
                 key={`${condition.kind}-${detail.summary}-${index}`}
@@ -201,9 +224,25 @@ function RuntimeConditionTreePanel({
                   <ExecutionBadge label={detail.kindLabel} tone="violet" />
                   <ExecutionBadge label={detail.operatorLabel} tone="slate" />
                   {condition.isNegated ? <ExecutionBadge label="negated" tone="rose" /> : null}
+                  {conditionEvaluation ? (
+                    <ExecutionBadge
+                      label={conditionEvaluation.met ? "passed" : "blocked"}
+                      tone={conditionEvaluation.met ? "emerald" : "rose"}
+                    />
+                  ) : null}
                 </div>
                 <DetailPrimary>{detail.summary}</DetailPrimary>
                 <p className="text-sm text-muted-foreground">{detail.detail}</p>
+                {conditionEvaluation ? (
+                  <div className="space-y-1 border border-border/60 bg-background/60 px-3 py-2 text-xs">
+                    <p className="uppercase tracking-[0.12em] text-muted-foreground">Evaluation</p>
+                    <p className={conditionEvaluation.met ? "text-emerald-300" : "text-rose-300"}>
+                      {conditionEvaluation.met
+                        ? "This condition currently passes."
+                        : (conditionEvaluation.reason ?? "This condition currently blocks launch.")}
+                    </p>
+                  </div>
+                ) : null}
               </div>
             );
           })}
@@ -216,6 +255,7 @@ function RuntimeConditionTreePanel({
             <RuntimeConditionTreePanel
               key={`${group.mode}-${index}`}
               tree={group}
+              evaluation={evaluation?.groups[index]}
               depth={depth + 1}
             />
           ))}
@@ -387,6 +427,10 @@ export function RuntimeStartGateDialog({
 
   const conditionTree =
     detail && isRuntimeConditionTree(detail.conditionTree) ? detail.conditionTree : null;
+  const evaluationTree =
+    detail && isRuntimeConditionEvaluationTree(detail.evaluationTree)
+      ? detail.evaluationTree
+      : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -448,7 +492,10 @@ export function RuntimeStartGateDialog({
             <section className="space-y-2 border border-border/70 bg-background/40 p-3">
               <DetailLabel>Condition tree</DetailLabel>
               {conditionTree ? (
-                <RuntimeConditionTreePanel tree={conditionTree} />
+                <RuntimeConditionTreePanel
+                  tree={conditionTree}
+                  evaluation={evaluationTree ?? undefined}
+                />
               ) : (
                 <div className="space-y-2 border border-border/70 bg-background/40 p-3">
                   <p className="text-sm text-muted-foreground">

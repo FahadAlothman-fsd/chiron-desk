@@ -87,7 +87,7 @@ function createHarness(tab: "primitive" | "work_units") {
                     cardinality: "one",
                     exists: true,
                     currentCount: 1,
-                    currentValues: ["incremental"],
+                    currentValues: [{ instanceId: "wufi-1", value: "incremental" }],
                     target: { page: "work-unit-fact-detail", factDefinitionId: "fact-primitive-1" },
                   },
                 ],
@@ -145,6 +145,27 @@ function createHarness(tab: "primitive" | "work_units") {
     project: {
       getRuntimeWorkUnitFacts: {
         queryOptions: getRuntimeWorkUnitFactsQueryOptionsMock,
+      },
+      getRuntimeWorkUnitFactDetail: {
+        queryOptions: vi.fn(() => ({
+          queryKey: ["runtime-work-unit-fact-detail", "project-1", "wu-1", "__idle__"],
+          queryFn: async () => null,
+        })),
+      },
+      getRuntimeWorkUnits: {
+        queryOptions: vi.fn(() => ({
+          queryKey: ["runtime-work-units", "project-1"],
+          queryFn: async () => ({ rows: [] }),
+        })),
+      },
+      createRuntimeWorkUnitFactValue: {
+        mutationOptions: vi.fn(() => ({ mutationFn: vi.fn(async () => ({})) })),
+      },
+      updateRuntimeWorkUnitFactValue: {
+        mutationOptions: vi.fn(() => ({ mutationFn: vi.fn(async () => ({})) })),
+      },
+      deleteRuntimeWorkUnitFactValue: {
+        mutationOptions: vi.fn(() => ({ mutationFn: vi.fn(async () => ({})) })),
       },
     },
   };
@@ -206,9 +227,8 @@ describe("runtime work-unit facts list route", () => {
     expect(markup).toContain("Work Units");
     expect(markup).toContain("Delivery Mode");
     expect(markup).toContain("incremental");
-    expect(markup).toContain(
-      'href="/projects/$projectId/work-units/$projectWorkUnitId/facts/$factDefinitionId"',
-    );
+    expect(markup).toContain("Instance wufi-1");
+    expect(markup).toContain("Open detail");
 
     expect(getRuntimeWorkUnitFactsQueryOptionsMock).toHaveBeenCalledWith({
       input: {
