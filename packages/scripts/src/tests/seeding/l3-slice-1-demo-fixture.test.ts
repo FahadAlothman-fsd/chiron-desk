@@ -145,7 +145,7 @@ describe("l3 slice-1 demo fixture", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, () =>
     expect(slice1FixtureOnlyFactExamples.definitionBackedExternalFacts).toHaveLength(
       methodologyDesignTimeSeedFacts.setupWorkUnitFactDefinitionKeys.length,
     );
-    expect(slice1FixtureOnlyFactExamples.boundExternalFacts).toHaveLength(5);
+    expect(slice1FixtureOnlyFactExamples.boundExternalFacts).toHaveLength(7);
 
     expect(
       slice1FixtureOnlyFactExamples.definitionBackedExternalFacts.map((row) => row.factKey),

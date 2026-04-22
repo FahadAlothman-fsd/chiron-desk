@@ -282,13 +282,15 @@ function buildBrainstormingDemoFixtureSeedRows(
       {
         id: contextFactId("defext-wu-project-knowledge-directory"),
         workflowId,
-        factKey: "wu_project_knowledge_directory",
+        factKey: "method_project_knowledge_directory",
         factKind: "bound_fact",
-        label: "Setup Project Knowledge Directory",
-        descriptionJson: { markdown: "Definition-backed external work-unit path directory fact." },
+        label: "Methodology Project Knowledge Directory",
+        descriptionJson: {
+          markdown: "Definition-backed external methodology path directory fact.",
+        },
         cardinality: "one",
         guidanceJson: guidanceJson(
-          "Uses setup project_knowledge_directory for work-unit-backed directory path coverage.",
+          "Uses methodology project_knowledge_directory for definition-backed directory path coverage.",
         ),
       },
       {
@@ -463,13 +465,13 @@ function buildBrainstormingDemoFixtureSeedRows(
       {
         id: contextFactId("bound-wu-project-knowledge-directory"),
         workflowId,
-        factKey: "bound_wu_project_knowledge_directory",
+        factKey: "bound_method_project_knowledge_directory",
         factKind: "bound_fact",
-        label: "Bound Setup Project Knowledge Directory",
-        descriptionJson: { markdown: "Bound external work-unit path directory fact." },
+        label: "Bound Methodology Project Knowledge Directory",
+        descriptionJson: { markdown: "Bound external methodology path directory fact." },
         cardinality: "one",
         guidanceJson: guidanceJson(
-          "Bound setup project_knowledge_directory for work-unit-backed directory path coverage.",
+          "Bound methodology project_knowledge_directory for directory path coverage.",
         ),
       },
       {
@@ -751,7 +753,7 @@ function buildBrainstormingDemoFixtureSeedRows(
         id: `${baseId}:external:wu-project-knowledge-dir`,
         contextFactDefinitionId: contextFactId("defext-wu-project-knowledge-directory"),
         provider: "bound_fact",
-        bindingKey: setupFactId("project-knowledge-directory"),
+        bindingKey: methodologyFactId("project-knowledge-directory"),
       },
       {
         id: `${baseId}:external:wu-session-notes-file`,
@@ -841,7 +843,7 @@ function buildBrainstormingDemoFixtureSeedRows(
         id: `${baseId}:external:bound-wu-project-knowledge-dir`,
         contextFactDefinitionId: contextFactId("bound-wu-project-knowledge-directory"),
         provider: "bound_fact",
-        bindingKey: setupFactId("project-knowledge-directory"),
+        bindingKey: methodologyFactId("project-knowledge-directory"),
       },
       {
         id: `${baseId}:external:bound-wu-session-notes-file`,
