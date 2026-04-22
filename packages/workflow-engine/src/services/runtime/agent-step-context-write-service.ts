@@ -13,8 +13,10 @@ import { RepositoryError } from "../../errors";
 import { AgentStepExecutionHarnessBindingRepository } from "../../repositories/agent-step-execution-harness-binding-repository";
 import { AgentStepExecutionStateRepository } from "../../repositories/agent-step-execution-state-repository";
 import { ExecutionReadRepository } from "../../repositories/execution-read-repository";
+import { ProjectFactRepository } from "../../repositories/project-fact-repository";
 import { ProjectWorkUnitRepository } from "../../repositories/project-work-unit-repository";
 import { StepExecutionRepository } from "../../repositories/step-execution-repository";
+import { WorkUnitFactRepository } from "../../repositories/work-unit-fact-repository";
 import { normalizeWorkflowContextFactValue } from "../runtime-manual-fact-crud-service";
 import { StepContextQueryService } from "../step-context-query-service";
 import { StepExecutionTransactionService } from "../step-execution-transaction-service";
@@ -55,7 +57,9 @@ export const AgentStepContextWriteServiceLive = Layer.effect(
   Effect.gen(function* () {
     const stepRepo = yield* StepExecutionRepository;
     const readRepo = yield* ExecutionReadRepository;
+    const projectFactRepo = yield* ProjectFactRepository;
     const projectWorkUnitRepo = yield* ProjectWorkUnitRepository;
+    const workUnitFactRepo = yield* WorkUnitFactRepository;
     const projectContextRepo = yield* ProjectContextRepository;
     const lifecycleRepo = yield* LifecycleRepository;
     const methodologyRepo = yield* MethodologyRepository;
@@ -173,6 +177,8 @@ export const AgentStepContextWriteServiceLive = Layer.effect(
             lifecycleRepo,
             methodologyRepo,
             projectWorkUnitRepo,
+            projectFactRepo,
+            workUnitFactRepo,
           });
 
           yield* logWriteTrace("normalized_current_values", {
@@ -295,9 +301,13 @@ function resolveCurrentValues(params: {
   lifecycleRepo: Pick<LifecycleRepository["Type"], "findFactSchemas" | "findWorkUnitTypes">;
   methodologyRepo: Pick<
     MethodologyRepository["Type"],
-    "findArtifactSlotsByWorkUnitType" | "findFactDefinitionsByVersionId"
+    | "findArtifactSlotsByWorkUnitType"
+    | "findFactDefinitionsByVersionId"
+    | "listWorkflowsByWorkUnitType"
   >;
   projectWorkUnitRepo: Pick<ProjectWorkUnitRepository["Type"], "getProjectWorkUnitById">;
+  projectFactRepo: Pick<ProjectFactRepository["Type"], "getCurrentValuesByDefinition">;
+  workUnitFactRepo: Pick<WorkUnitFactRepository["Type"], "getCurrentValuesByDefinition">;
 }) {
   return params.writeItem.contextFactKind === "artifact_slot_reference_fact"
     ? resolveArtifactReferenceValues(params)
@@ -307,11 +317,14 @@ function resolveCurrentValues(params: {
             methodologyRepo: params.methodologyRepo,
             lifecycleRepo: params.lifecycleRepo,
             projectWorkUnitRepo: params.projectWorkUnitRepo,
+            projectFactRepo: params.projectFactRepo,
+            workUnitFactRepo: params.workUnitFactRepo,
           },
           {
             projectId: params.context.workflowDetail.projectId,
             methodologyVersionId: params.context.projectPin.methodologyVersionId,
             workflowWorkUnitTypeId: params.context.workUnitType.id,
+            projectWorkUnitId: params.context.workflowDetail.projectWorkUnitId,
             definition: params.contextFactDefinition,
             value: value.valueJson,
           },

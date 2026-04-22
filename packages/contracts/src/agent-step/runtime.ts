@@ -4,6 +4,10 @@ import { AgentStepNormalizedError } from "./errors.js";
 import { ModelReference } from "../methodology/agent.js";
 import { WorkflowContextFactKind } from "../methodology/workflow.js";
 import { RuntimeStepExecutionNextStep } from "../runtime/executions.js";
+import {
+  DraftSpecSelectedFactSchema,
+  DraftSpecSelectedArtifactSchema,
+} from "../mcp/context-fact-crud-v2.js";
 
 export const AGENT_STEP_RUNTIME_STATES = [
   "not_started",
@@ -140,6 +144,12 @@ export const AgentStepRuntimeWriteItem = Schema.Struct({
   order: Schema.Number,
   requirementContextFactDefinitionIds: Schema.Array(Schema.NonEmptyString),
   exposureMode: Schema.Literal("requirements_only"),
+  selectedFactSchemas: Schema.optional(
+    Schema.Record({ key: Schema.NonEmptyString, value: DraftSpecSelectedFactSchema }),
+  ),
+  selectedArtifactSchemas: Schema.optional(
+    Schema.Record({ key: Schema.NonEmptyString, value: DraftSpecSelectedArtifactSchema }),
+  ),
 });
 export type AgentStepRuntimeWriteItem = typeof AgentStepRuntimeWriteItem.Type;
 

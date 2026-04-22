@@ -3,7 +3,9 @@ import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-
 import { Context, Effect, Layer } from "effect";
 
 import type { RepositoryError } from "../../errors";
+import { ProjectFactRepository } from "../../repositories/project-fact-repository";
 import { ProjectWorkUnitRepository } from "../../repositories/project-work-unit-repository";
+import { WorkUnitFactRepository } from "../../repositories/work-unit-fact-repository";
 import {
   normalizeWorkflowContextFactValue,
   type NormalizeWorkflowContextFactValueInput,
@@ -35,6 +37,8 @@ export const AgentStepContextFactCrudServiceLive = Layer.effect(
     const methodologyRepo = yield* MethodologyRepository;
     const lifecycleRepo = yield* LifecycleRepository;
     const projectWorkUnitRepo = yield* ProjectWorkUnitRepository;
+    const projectFactRepo = yield* ProjectFactRepository;
+    const workUnitFactRepo = yield* WorkUnitFactRepository;
 
     const normalizeValue: AgentStepContextFactCrudService["Type"]["normalizeWorkflowContextValue"] =
       (input) =>
@@ -43,6 +47,8 @@ export const AgentStepContextFactCrudServiceLive = Layer.effect(
             methodologyRepo,
             lifecycleRepo,
             projectWorkUnitRepo,
+            projectFactRepo,
+            workUnitFactRepo,
           },
           input,
         );

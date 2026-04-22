@@ -17,6 +17,11 @@ import type {
   WorkflowEditorDefinitionReadModel,
 } from "@chiron/methodology-engine";
 import { Effect } from "effect";
+import type {
+  DraftSpecSelectedArtifactSchema,
+  DraftSpecSelectedFactSchema,
+} from "@chiron/contracts/mcp/context-fact-crud-v2";
+import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-engine";
 
 import { RepositoryError } from "../../errors";
 import type { AgentStepExecutionHarnessBindingRow } from "../../repositories/agent-step-execution-harness-binding-repository";
@@ -197,22 +202,103 @@ export function deriveReadableContextFacts(params: {
   return [...readable.values()];
 }
 
-export function deriveRuntimeWriteItems(
-  payload: AgentStepDesignTimePayload,
-): readonly AgentStepRuntimeWriteItem[] {
-  return [...payload.writeItems]
-    .sort(
+export function deriveRuntimeWriteItems(params: {
+  payload: AgentStepDesignTimePayload;
+  contextFacts: readonly WorkflowContextFactDto[];
+  methodologyVersionId: string;
+  lifecycleRepo: LifecycleRepository;
+  methodologyRepo: MethodologyRepository;
+}): Effect.Effect<readonly AgentStepRuntimeWriteItem[], RepositoryError> {
+  return Effect.gen(function* () {
+    const factById = new Map(params.contextFacts.map((fact) => [getFactIdentifier(fact), fact]));
+
+    const writeItems = [...params.payload.writeItems].sort(
       (left, right) =>
         left.order - right.order || left.writeItemId.localeCompare(right.writeItemId),
-    )
-    .map((item) => ({
-      writeItemId: item.writeItemId,
-      contextFactDefinitionId: item.contextFactDefinitionId,
-      contextFactKind: item.contextFactKind,
-      order: item.order,
-      requirementContextFactDefinitionIds: [...item.requirementContextFactDefinitionIds],
-      exposureMode: "requirements_only",
-    }));
+    );
+
+    return yield* Effect.forEach(writeItems, (item) =>
+      Effect.gen(function* () {
+        const baseItem: AgentStepRuntimeWriteItem = {
+          writeItemId: item.writeItemId,
+          contextFactDefinitionId: item.contextFactDefinitionId,
+          contextFactKind: item.contextFactKind,
+          order: item.order,
+          requirementContextFactDefinitionIds: [...item.requirementContextFactDefinitionIds],
+          exposureMode: "requirements_only",
+        };
+
+        // Only populate schemas for work_unit_draft_spec_fact kinds
+        if (item.contextFactKind !== "work_unit_draft_spec_fact") {
+          return baseItem;
+        }
+
+        const fact = factById.get(item.contextFactDefinitionId);
+        if (!fact || fact.kind !== "work_unit_draft_spec_fact") {
+          return baseItem;
+        }
+
+        // Build draft-spec schemas using the same logic as MCP service
+        const selectedFacts = new Set(fact.selectedWorkUnitFactDefinitionIds);
+        const selectedArtifacts = new Set(fact.selectedArtifactSlotDefinitionIds);
+
+        const factSchemas = yield* params.lifecycleRepo.findFactSchemas(
+          params.methodologyVersionId,
+        );
+
+        const targetWorkUnit = (yield* params.lifecycleRepo.findWorkUnitTypes(
+          params.methodologyVersionId,
+        )).find((candidate) => candidate.id === fact.workUnitDefinitionId);
+
+        const slotDefinitions = targetWorkUnit
+          ? yield* params.methodologyRepo.findArtifactSlotsByWorkUnitType({
+              versionId: params.methodologyVersionId,
+              workUnitTypeKey: targetWorkUnit.key,
+            })
+          : [];
+
+        const selectedFactSchemas: Record<string, DraftSpecSelectedFactSchema> = Object.fromEntries(
+          factSchemas
+            .filter((schema) => selectedFacts.has(schema.id))
+            .map((schema) => [
+              schema.id,
+              {
+                factKey: schema.key,
+                ...(schema.name ? { label: schema.name } : {}),
+                ...(schema.description ? { description: schema.description } : {}),
+                valueType: schema.factType,
+                cardinality: schema.cardinality ?? "one",
+                ...(schema.validationJson !== undefined
+                  ? { validation: schema.validationJson }
+                  : {}),
+              },
+            ]),
+        );
+
+        const selectedArtifactSchemas: Record<string, DraftSpecSelectedArtifactSchema> =
+          Object.fromEntries(
+            slotDefinitions
+              .filter((slot) => selectedArtifacts.has(slot.id))
+              .map((slot) => [
+                slot.id,
+                {
+                  slotKey: slot.key,
+                  ...(slot.displayName ? { label: slot.displayName } : {}),
+                  ...(slot.descriptionJson ? { description: slot.descriptionJson } : {}),
+                  ...(slot.guidanceJson ? { guidance: slot.guidanceJson } : {}),
+                  ...(slot.rulesJson !== undefined ? { rules: slot.rulesJson } : {}),
+                },
+              ]),
+          );
+
+        return {
+          ...baseItem,
+          selectedFactSchemas,
+          selectedArtifactSchemas,
+        };
+      }),
+    );
+  });
 }
 
 export function deriveRuntimeState(params: {
@@ -559,7 +645,13 @@ export function ensureAgentStepRuntimeContext(
         payload: agentStepDefinition.payload,
         contextFacts: workflowEditor.contextFacts,
       }),
-      writeItems: deriveRuntimeWriteItems(agentStepDefinition.payload),
+      writeItems: yield* deriveRuntimeWriteItems({
+        payload: agentStepDefinition.payload,
+        contextFacts: workflowEditor.contextFacts,
+        methodologyVersionId: projectPin.methodologyVersionId,
+        lifecycleRepo: deps.lifecycleRepo,
+        methodologyRepo: deps.methodologyRepo,
+      }),
       contextFactById,
     } satisfies AgentStepRuntimeResolvedContext;
   });
