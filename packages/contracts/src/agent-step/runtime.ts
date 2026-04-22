@@ -3,6 +3,7 @@ import * as Schema from "effect/Schema";
 import { AgentStepNormalizedError } from "./errors.js";
 import { ModelReference } from "../methodology/agent.js";
 import { WorkflowContextFactKind } from "../methodology/workflow.js";
+import { RuntimeStepExecutionNextStep } from "../runtime/executions.js";
 
 export const AGENT_STEP_RUNTIME_STATES = [
   "not_started",
@@ -227,6 +228,7 @@ export const AgentStepRuntimeDetailPayload = Schema.Struct({
   writeSetCompletion: AgentStepWriteSetCompletion,
   timelinePreview: Schema.Array(AgentStepTimelineItem),
   projectRootPath: Schema.optional(Schema.NonEmptyString),
+  nextStep: Schema.optional(RuntimeStepExecutionNextStep),
 });
 export type AgentStepRuntimeDetailPayload = typeof AgentStepRuntimeDetailPayload.Type;
 

@@ -226,6 +226,11 @@ describe("l3 agent-step contracts", () => {
         blocked: 0,
         isComplete: true,
       },
+      nextStep: {
+        state: "active",
+        nextStepDefinitionId: "step-2",
+        nextStepExecutionId: "step-exec-2",
+      },
       timelinePreview: [
         {
           itemType: "thinking",
@@ -237,6 +242,7 @@ describe("l3 agent-step contracts", () => {
     });
 
     expect(detail.timelinePreview[0]?.itemType).toBe("thinking");
+    expect(detail.nextStep?.nextStepExecutionId).toBe("step-exec-2");
     expect(detail.contractBoundary.streamContract.streamCount).toBe(1);
     expect(detail.contractBoundary.requestContextAccess).toBe(false);
     expect(detail.contractBoundary.nativeMessageLog).toBe(false);
@@ -287,12 +293,17 @@ describe("l3 agent-step contracts", () => {
           blocked: 0,
           isComplete: false,
         },
+        nextStep: {
+          state: "inactive",
+          nextStepDefinitionId: "step-2",
+        },
         timelinePreview: [],
       },
     });
 
     expect(output.body.state).toBe("not_started");
     expect(output.body.composer.startSessionVisible).toBe(true);
+    expect(output.body.nextStep?.state).toBe("inactive");
   });
 
   it("locks MCP v2 to the full context-fact CRUD surface", () => {

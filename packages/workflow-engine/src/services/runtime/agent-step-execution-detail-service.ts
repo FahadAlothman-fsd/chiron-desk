@@ -142,6 +142,7 @@ export const AgentStepExecutionDetailServiceLive = Layer.effect(
             writeItems: refreshedContext.writeItems,
             writeSetCompletion,
             timelinePreview: timelinePreview.items,
+            ...(shell.body.nextStep ? { nextStep: shell.body.nextStep } : {}),
           },
         } satisfies GetAgentStepExecutionDetailOutput;
       });

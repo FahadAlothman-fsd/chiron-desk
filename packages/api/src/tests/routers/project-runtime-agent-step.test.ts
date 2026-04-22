@@ -114,6 +114,11 @@ function makeAgentStepLayer() {
           instructionsMarkdown: "Use the runtime boundary.",
           readableContextFacts: [],
           writeItems: [],
+          nextStep: {
+            state: "active",
+            nextStepDefinitionId: "step-def-2",
+            nextStepExecutionId: "step-exec-2",
+          },
           timelinePreview: [],
         },
       });
@@ -269,6 +274,7 @@ describe("project runtime agent-step router", () => {
     expect(testLayer.calls.timeline).toBe(1);
     expect(detail.stepExecutionId).toBe("agent-step-1");
     expect(detail.workflowExecutionId).toBe("workflow-exec-1");
+    expect(detail.body.nextStep?.nextStepExecutionId).toBe("step-exec-2");
     expect(timeline.cursor.before).toBe("cursor-1");
     expect(timeline.items).toHaveLength(1);
 
