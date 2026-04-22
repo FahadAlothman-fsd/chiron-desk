@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -60,6 +60,147 @@ function formatFactValue(value: unknown): string {
   } catch {
     return "[unserializable]";
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function getPathValidationKind(validation: unknown): "file" | "directory" | null {
+  if (!isRecord(validation) || validation.kind !== "path" || !isRecord(validation.path)) {
+    return null;
+  }
+
+  return validation.path.pathKind === "directory" ? "directory" : "file";
+}
+
+function getAllowedValidationValues(validation: unknown): string[] {
+  if (
+    !isRecord(validation) ||
+    validation.kind !== "allowed-values" ||
+    !Array.isArray(validation.values)
+  ) {
+    return [];
+  }
+
+  return validation.values.map((entry) => formatFactValue(entry));
+}
+
+function summarizeJsonValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.length === 0
+      ? "Empty list"
+      : `${value.length} item${value.length === 1 ? "" : "s"}`;
+  }
+
+  if (isRecord(value)) {
+    const keys = Object.keys(value);
+    if (keys.length === 0) {
+      return "Empty object";
+    }
+
+    const preview = keys.slice(0, 3).join(", ");
+    return keys.length > 3
+      ? `${keys.length} fields · ${preview}…`
+      : `${keys.length} fields · ${preview}`;
+  }
+
+  return formatFactValue(value);
+}
+
+function ValidationHintBadges({ validation }: { validation: unknown }): ReactNode {
+  const pathKind = getPathValidationKind(validation);
+  const allowedValues = getAllowedValidationValues(validation);
+
+  if (!pathKind && allowedValues.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {pathKind ? (
+        <span className="inline-flex items-center border border-amber-500/50 bg-amber-500/10 px-1.5 py-0.5 text-[0.62rem] uppercase tracking-[0.12em] text-amber-200">
+          {pathKind} path
+        </span>
+      ) : null}
+      {allowedValues.length > 0 ? (
+        <span className="inline-flex items-center border border-indigo-500/50 bg-indigo-500/10 px-1.5 py-0.5 text-[0.62rem] uppercase tracking-[0.12em] text-indigo-200">
+          {allowedValues.length} allowed value{allowedValues.length === 1 ? "" : "s"}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function ProjectFactValuePresentation(props: {
+  value: unknown;
+  factType: "string" | "number" | "boolean" | "json";
+  validation: unknown;
+  compact?: boolean;
+}) {
+  const { value, factType, validation, compact = false } = props;
+
+  if (factType === "boolean") {
+    return (
+      <div className="space-y-2">
+        <ValidationHintBadges validation={validation} />
+        <span
+          className={cn(
+            "inline-flex items-center border px-2 py-1 text-xs uppercase tracking-[0.12em]",
+            value === true
+              ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-200"
+              : "border-rose-500/50 bg-rose-500/10 text-rose-200",
+          )}
+        >
+          {value === true ? "True" : "False"}
+        </span>
+      </div>
+    );
+  }
+
+  if (factType === "number") {
+    return (
+      <div className="space-y-2">
+        <ValidationHintBadges validation={validation} />
+        <div className="border border-sky-500/30 bg-sky-500/10 px-2 py-1.5 font-mono text-sm text-sky-100">
+          {formatFactValue(value)}
+        </div>
+      </div>
+    );
+  }
+
+  if (factType === "json") {
+    return compact ? (
+      <div className="space-y-2">
+        <ValidationHintBadges validation={validation} />
+        <div className="border border-fuchsia-500/30 bg-fuchsia-500/10 px-2 py-1.5 text-xs text-fuchsia-100">
+          {summarizeJsonValue(value)}
+        </div>
+      </div>
+    ) : (
+      <div className="space-y-2">
+        <ValidationHintBadges validation={validation} />
+        <pre className="whitespace-pre-wrap break-words border border-fuchsia-500/30 bg-fuchsia-500/10 p-2 text-xs text-fuchsia-100">
+          {JSON.stringify(value, null, 2)}
+        </pre>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <ValidationHintBadges validation={validation} />
+      <div
+        className={cn(
+          "border border-teal-500/30 bg-teal-500/10 px-2 py-1.5 font-mono text-sm text-teal-100",
+          compact ? "truncate" : "whitespace-pre-wrap break-all",
+        )}
+        title={formatFactValue(value)}
+      >
+        {formatFactValue(value)}
+      </div>
+    </div>
+  );
 }
 
 function getMutationErrorMessage(error: unknown): string {
@@ -411,13 +552,20 @@ export function ProjectFactsRoute() {
 
                     {card.currentValues.length > 0 ? (
                       <ul className="space-y-1 text-xs">
-                        {card.currentValues.slice(0, 3).map((value, index) => (
+                        {card.currentValues.slice(0, 3).map((value) => (
                           <li
-                            key={`${card.factDefinitionId}-value-${index}`}
-                            className="truncate border border-border/70 bg-background/50 px-2 py-1"
-                            title={formatFactValue(value)}
+                            key={value.instanceId}
+                            className="space-y-2 border border-border/70 bg-background/50 px-2 py-2"
                           >
-                            {formatFactValue(value)}
+                            <p className="text-[0.62rem] uppercase tracking-[0.12em] text-muted-foreground">
+                              Instance {value.instanceId}
+                            </p>
+                            <ProjectFactValuePresentation
+                              value={value.value}
+                              factType={card.factType}
+                              validation={card.validation}
+                              compact
+                            />
                           </li>
                         ))}
                       </ul>
@@ -574,9 +722,11 @@ export function ProjectFactsRoute() {
                             <CardTitle className="text-sm">Current value</CardTitle>
                           </CardHeader>
                           <CardContent>
-                            <pre className="whitespace-pre-wrap break-words border border-border/70 bg-background/60 p-2 text-xs text-muted-foreground">
-                              {formatFactValue(valueRow.value)}
-                            </pre>
+                            <ProjectFactValuePresentation
+                              value={valueRow.value}
+                              factType={detail.factDefinition.factType}
+                              validation={detail.factDefinition.validation}
+                            />
                           </CardContent>
                         </Card>
                       </li>

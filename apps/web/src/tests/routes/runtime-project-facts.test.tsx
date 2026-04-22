@@ -102,7 +102,7 @@ function createHarness() {
                 cardinality: "one",
                 exists: true,
                 currentCount: 1,
-                currentValues: ["incremental"],
+                currentValues: [{ instanceId: "pfi-1", value: "incremental" }],
                 target: { page: "project-fact-detail", factDefinitionId: "fact-1" },
                 actions: {
                   addInstance: { kind: "add_project_fact_instance", factDefinitionId: "fact-1" },
@@ -208,13 +208,13 @@ describe("runtime project facts routes", () => {
     expect(markup).toContain("Delivery Mode");
     expect(markup).toContain("deliveryMode");
     expect(markup).toContain("incremental");
+    expect(markup).toContain("Instance pfi-1");
     expect(markup).toContain("Has instances");
-    expect(markup).toContain("Add value");
-    expect(markup).toContain('href="/projects/$projectId/facts/$factDefinitionId"');
+    expect(markup).toContain("Open detail");
 
-    expect(createRuntimeProjectFactValueMutationOptionsMock).not.toHaveBeenCalled();
-    expect(updateRuntimeProjectFactValueMutationOptionsMock).not.toHaveBeenCalled();
-    expect(deleteRuntimeProjectFactValueMutationOptionsMock).not.toHaveBeenCalled();
+    expect(createRuntimeProjectFactValueMutationOptionsMock).toHaveBeenCalledTimes(1);
+    expect(updateRuntimeProjectFactValueMutationOptionsMock).toHaveBeenCalledTimes(1);
+    expect(deleteRuntimeProjectFactValueMutationOptionsMock).toHaveBeenCalledTimes(1);
   });
 
   it("wires create, update, and delete controls only to runtime fact mutation procedures", async () => {
