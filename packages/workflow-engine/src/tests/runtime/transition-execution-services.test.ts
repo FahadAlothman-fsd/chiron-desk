@@ -148,7 +148,8 @@ function makeWorkUnitFactRepositoryLayer() {
     getCurrentValuesByDefinition: () => Effect.succeed([]),
     listFactsByWorkUnit: () => Effect.succeed([]),
     supersedeFactInstance: () => Effect.void,
-    updateFactInstance: () => Effect.succeed(null),
+    manualUpdateFactInstance: () => Effect.succeed(null),
+    createVersionedFactSuccessor: () => Effect.succeed(null),
     logicallyDeleteFactInstance: () => Effect.succeed(null),
   } as unknown as Context.Tag.Service<typeof WorkUnitFactRepository>);
 }
@@ -319,7 +320,8 @@ describe("TransitionExecutionCommandService", () => {
           getCurrentValuesByDefinition: () => Effect.succeed([]),
           listFactsByWorkUnit: () => Effect.succeed([]),
           supersedeFactInstance: () => Effect.void,
-          updateFactInstance: () => Effect.succeed(null),
+          manualUpdateFactInstance: () => Effect.succeed(null),
+          createVersionedFactSuccessor: () => Effect.succeed(null),
           logicallyDeleteFactInstance: () => Effect.succeed(null),
         } as unknown as Context.Tag.Service<typeof WorkUnitFactRepository>),
         Layer.succeed(TransitionExecutionRepository, {

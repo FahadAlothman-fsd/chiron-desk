@@ -82,6 +82,7 @@ const toWorkflowContextFactGroups = (params: {
   }>;
   instances: ReadonlyArray<{
     id: string;
+    instanceId: string;
     contextFactDefinitionId: string;
     instanceOrder: number;
     valueJson: unknown;
@@ -116,7 +117,7 @@ const toWorkflowContextFactGroups = (params: {
       .slice()
       .sort((left, right) => left.instanceOrder - right.instanceOrder)
       .map((instance) => ({
-        contextFactInstanceId: instance.id,
+        contextFactInstanceId: instance.instanceId,
         instanceOrder: instance.instanceOrder,
         valueJson: instance.valueJson,
         sourceStepExecutionId: instance.sourceStepExecutionId ?? undefined,

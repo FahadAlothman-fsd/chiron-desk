@@ -146,17 +146,20 @@ type WorkflowContextDefinition =
     };
 
 type FactDefinitionCatalogEntry = {
+  id: string;
   label: string;
   definition: RuntimePrimitiveDefinition;
 };
 
 type WorkUnitCatalogEntry = {
+  id?: string;
   label: string;
 };
 
 type BoundFactSourceDescriptor = {
   contextFactDefinitionId: string;
   factDefinitionId: string;
+  resolvedFactDefinitionId: string;
   source: "project" | "work_unit";
 };
 
@@ -684,17 +687,18 @@ function toProjectFactCatalog(value: unknown): Map<string, FactDefinitionCatalog
         return [];
       }
 
+      const catalogEntry = {
+        id: entry.id,
+        label: typeof entry.name === "string" ? entry.name : entry.key,
+        definition: {
+          factType,
+          ...(entry.validationJson !== undefined ? { validation: entry.validationJson } : {}),
+        },
+      } satisfies FactDefinitionCatalogEntry;
+
       return [
-        [
-          entry.id,
-          {
-            label: typeof entry.name === "string" ? entry.name : entry.key,
-            definition: {
-              factType,
-              ...(entry.validationJson !== undefined ? { validation: entry.validationJson } : {}),
-            },
-          } satisfies FactDefinitionCatalogEntry,
-        ],
+        [entry.id, catalogEntry],
+        [entry.key, catalogEntry],
       ];
     }),
   );
@@ -732,17 +736,18 @@ function toWorkUnitFactCatalog(value: unknown): Map<string, FactDefinitionCatalo
           return [];
         }
 
+        const catalogEntry = {
+          id: entry.id,
+          label: typeof entry.name === "string" ? entry.name : entry.key,
+          definition: {
+            factType,
+            ...(entry.validationJson !== undefined ? { validation: entry.validationJson } : {}),
+          },
+        } satisfies FactDefinitionCatalogEntry;
+
         return [
-          [
-            entry.id,
-            {
-              label: typeof entry.name === "string" ? entry.name : entry.key,
-              definition: {
-                factType,
-                ...(entry.validationJson !== undefined ? { validation: entry.validationJson } : {}),
-              },
-            } satisfies FactDefinitionCatalogEntry,
-          ],
+          [entry.id, catalogEntry],
+          [entry.key, catalogEntry],
         ];
       });
     }),
@@ -764,6 +769,14 @@ function toWorkUnitCatalog(value: unknown): Map<string, WorkUnitCatalogEntry> {
         [
           entry.id,
           {
+            id: entry.id,
+            label: typeof entry.displayName === "string" ? entry.displayName : entry.key,
+          } satisfies WorkUnitCatalogEntry,
+        ],
+        [
+          entry.key,
+          {
+            id: entry.id,
             label: typeof entry.displayName === "string" ? entry.displayName : entry.key,
           } satisfies WorkUnitCatalogEntry,
         ],
@@ -799,19 +812,22 @@ function toArtifactSlotCatalog(value: unknown): Map<string, WorkUnitCatalogEntry
         return [];
       }
 
-      return [
-        [
-          entry.id,
-          {
-            label:
-              typeof entry.displayName === "string"
-                ? entry.displayName
-                : typeof entry.key === "string"
-                  ? entry.key
-                  : entry.id,
-          } satisfies WorkUnitCatalogEntry,
-        ],
-      ];
+      const catalogEntry = {
+        id: entry.id,
+        label:
+          typeof entry.displayName === "string"
+            ? entry.displayName
+            : typeof entry.key === "string"
+              ? entry.key
+              : entry.id,
+      } satisfies WorkUnitCatalogEntry;
+
+      return typeof entry.key === "string"
+        ? [
+            [entry.id, catalogEntry],
+            [entry.key, catalogEntry],
+          ]
+        : [[entry.id, catalogEntry]];
     }),
   );
 }
@@ -2143,20 +2159,24 @@ export function WorkflowExecutionDetailRoute() {
         }
 
         if (projectFactCatalog.has(definition.factDefinitionId)) {
+          const resolvedDefinition = projectFactCatalog.get(definition.factDefinitionId)!;
           return [
             {
               contextFactDefinitionId: definition.contextFactDefinitionId,
               factDefinitionId: definition.factDefinitionId,
+              resolvedFactDefinitionId: resolvedDefinition.id,
               source: "project" as const,
             },
           ];
         }
 
         if (workUnitFactCatalog.has(definition.factDefinitionId)) {
+          const resolvedDefinition = workUnitFactCatalog.get(definition.factDefinitionId)!;
           return [
             {
               contextFactDefinitionId: definition.contextFactDefinitionId,
               factDefinitionId: definition.factDefinitionId,
+              resolvedFactDefinitionId: resolvedDefinition.id,
               source: "work_unit" as const,
             },
           ];
@@ -2173,10 +2193,14 @@ export function WorkflowExecutionDetailRoute() {
           ? (orpc.project.getRuntimeProjectFactDetail?.queryOptions?.({
               input: {
                 projectId,
-                factDefinitionId: descriptor.factDefinitionId,
+                factDefinitionId: descriptor.resolvedFactDefinitionId,
               },
             }) ?? {
-              queryKey: ["runtime-project-fact-detail", projectId, descriptor.factDefinitionId],
+              queryKey: [
+                "runtime-project-fact-detail",
+                projectId,
+                descriptor.resolvedFactDefinitionId,
+              ],
               queryFn: async () => null,
             })
           : detail
@@ -2184,14 +2208,14 @@ export function WorkflowExecutionDetailRoute() {
                 input: {
                   projectId,
                   projectWorkUnitId: detail.workUnit.projectWorkUnitId,
-                  factDefinitionId: descriptor.factDefinitionId,
+                  factDefinitionId: descriptor.resolvedFactDefinitionId,
                 },
               }) ?? {
                 queryKey: [
                   "runtime-work-unit-fact-detail",
                   projectId,
                   detail.workUnit.projectWorkUnitId,
-                  descriptor.factDefinitionId,
+                  descriptor.resolvedFactDefinitionId,
                 ],
                 queryFn: async () => null,
               })
@@ -2200,7 +2224,7 @@ export function WorkflowExecutionDetailRoute() {
                   "runtime-work-unit-fact-detail",
                   projectId,
                   "idle",
-                  descriptor.factDefinitionId,
+                  descriptor.resolvedFactDefinitionId,
                 ],
                 queryFn: async () => null,
               }) as { queryKey: unknown[]; queryFn: () => Promise<unknown> },

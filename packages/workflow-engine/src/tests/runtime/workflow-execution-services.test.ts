@@ -588,4 +588,161 @@ describe("WorkflowExecutionDetailService", () => {
     });
     expect(result?.workflowContextFacts).toEqual({ mode: "read_only_by_definition", groups: [] });
   });
+
+  it("exposes workflow-context logical instance ids for manual CRUD surfaces", async () => {
+    const layer = Layer.provide(
+      WorkflowExecutionDetailServiceLive,
+      Layer.mergeAll(
+        Layer.succeed(ExecutionReadRepository, {
+          getTransitionExecutionDetail: () => Effect.succeed(null),
+          listTransitionExecutionsForWorkUnit: () => Effect.succeed([]),
+          getWorkflowExecutionDetail: () =>
+            Effect.succeed({
+              workflowExecution: {
+                id: "wf-ctx-1",
+                transitionExecutionId: "tx-ctx-1",
+                workflowId: "workflow-ctx",
+                workflowRole: "primary",
+                status: "active",
+                supersededByWorkflowExecutionId: null,
+                startedAt: new Date("2026-03-28T10:05:00.000Z"),
+                completedAt: null,
+                supersededAt: null,
+              },
+              transitionExecution: {
+                id: "tx-ctx-1",
+                projectWorkUnitId: "wu-ctx-1",
+                transitionId: "transition-ctx-1",
+                status: "active",
+                primaryWorkflowExecutionId: "wf-ctx-1",
+                supersededByTransitionExecutionId: null,
+                startedAt: new Date("2026-03-28T10:00:00.000Z"),
+                completedAt: null,
+                supersededAt: null,
+              },
+              projectId: "proj-1",
+              projectWorkUnitId: "wu-ctx-1",
+              workUnitTypeId: "wut-1",
+              currentStateId: "state-a",
+            }),
+          listWorkflowExecutionsForTransition: () => Effect.succeed([]),
+          listActiveWorkflowExecutionsByProject: () => Effect.succeed([]),
+        } as unknown as Context.Tag.Service<typeof ExecutionReadRepository>),
+        Layer.succeed(StepExecutionRepository, {
+          createStepExecution: () => Effect.die("unused"),
+          getStepExecutionById: () => Effect.die("unused"),
+          findStepExecutionByWorkflowAndDefinition: () => Effect.die("unused"),
+          listStepExecutionsForWorkflow: () => Effect.succeed([]),
+          completeStepExecution: () => Effect.die("unused"),
+          upsertFormStepExecutionState: () => Effect.die("unused"),
+          getFormStepExecutionState: () => Effect.die("unused"),
+          writeWorkflowExecutionContextFact: () => Effect.die("unused"),
+          listWorkflowExecutionContextFacts: () =>
+            Effect.succeed([
+              {
+                id: "ctx-row-1",
+                workflowExecutionId: "wf-ctx-1",
+                contextFactDefinitionId: "ctx-communication-language",
+                instanceId: "ctx-instance-1",
+                instanceOrder: 0,
+                valueJson: { instanceId: "pf-language-1", value: "English" },
+                sourceStepExecutionId: null,
+                createdAt: new Date("2026-03-28T10:06:00.000Z"),
+                updatedAt: new Date("2026-03-28T10:06:00.000Z"),
+              },
+            ]),
+          listWorkflowContextFactDefinitions: () =>
+            Effect.succeed([
+              {
+                id: "ctx-communication-language",
+                factKey: "communication_language",
+                label: "Communication Language",
+                descriptionJson: null,
+              },
+            ]),
+          listWorkflowStepDefinitions: () => Effect.succeed([]),
+          listWorkflowEdges: () => Effect.succeed([]),
+        } as unknown as Context.Tag.Service<typeof StepExecutionRepository>),
+        Layer.succeed(BranchStepRuntimeRepository, {
+          createOnActivation: () => Effect.die("unused"),
+          saveSelection: () => Effect.die("unused"),
+          loadWithRoutes: () => Effect.succeed(null),
+        } as unknown as Context.Tag.Service<typeof BranchStepRuntimeRepository>),
+        Layer.succeed(ProjectContextRepository, {
+          findProjectPin: () => Effect.succeed(null),
+          hasExecutionHistoryForRepin: () => Effect.succeed(false),
+          pinProjectMethodologyVersion: () => Effect.die("unused"),
+          repinProjectMethodologyVersion: () => Effect.die("unused"),
+          getProjectPinLineage: () => Effect.succeed([]),
+          createProject: () => Effect.die("unused"),
+          listProjects: () => Effect.succeed([]),
+          getProjectById: () => Effect.succeed(null),
+        } as unknown as Context.Tag.Service<typeof ProjectContextRepository>),
+        Layer.succeed(MethodologyVersionBoundaryService, {
+          getVersionWorkspaceSnapshot: () => Effect.succeed(null),
+          getVersionWorkspaceStats: () => Effect.die("unused"),
+          getAuthoringSnapshot: () => Effect.die("unused"),
+          createMethodology: () => Effect.die("unused"),
+          updateMethodology: () => Effect.die("unused"),
+          archiveMethodology: () => Effect.die("unused"),
+          listMethodologies: () => Effect.die("unused"),
+          getMethodologyDetails: () => Effect.die("unused"),
+          createDraftVersion: () => Effect.die("unused"),
+          updateDraftVersion: () => Effect.die("unused"),
+          validateDraftVersion: () => Effect.die("unused"),
+          replaceDraftWorkflowSnapshot: () => Effect.die("unused"),
+          getDraftLineage: () => Effect.die("unused"),
+          publishDraftVersion: () => Effect.die("unused"),
+          getPublicationEvidence: () => Effect.die("unused"),
+          getPublishedContractByVersionAndWorkUnitType: () => Effect.die("unused"),
+          createFact: () => Effect.die("unused"),
+          updateFact: () => Effect.die("unused"),
+          deleteFact: () => Effect.die("unused"),
+          createDependencyDefinition: () => Effect.die("unused"),
+          updateDependencyDefinition: () => Effect.die("unused"),
+          deleteDependencyDefinition: () => Effect.die("unused"),
+          listWorkUnitWorkflows: () => Effect.die("unused"),
+          createWorkUnitWorkflow: () => Effect.die("unused"),
+          updateWorkUnitWorkflow: () => Effect.die("unused"),
+          deleteWorkUnitWorkflow: () => Effect.die("unused"),
+          replaceTransitionBindings: () => Effect.die("unused"),
+          deleteWorkUnit: () => Effect.die("unused"),
+          replaceWorkUnitFacts: () => Effect.die("unused"),
+          upsertWorkUnitLifecycleState: () => Effect.die("unused"),
+          deleteWorkUnitLifecycleState: () => Effect.die("unused"),
+          upsertWorkUnitLifecycleTransition: () => Effect.die("unused"),
+          saveWorkUnitLifecycleTransitionDialog: () => Effect.die("unused"),
+          deleteWorkUnitLifecycleTransition: () => Effect.die("unused"),
+          replaceWorkUnitTransitionConditionSets: () => Effect.die("unused"),
+          updateVersionMetadata: () => Effect.die("unused"),
+          createAgent: () => Effect.die("unused"),
+          updateAgent: () => Effect.die("unused"),
+          deleteAgent: () => Effect.die("unused"),
+          createWorkUnitMetadata: () => Effect.die("unused"),
+          updateWorkUnitMetadata: () => Effect.die("unused"),
+          updateDraftLifecycle: () => Effect.die("unused"),
+          getWorkUnitArtifactSlots: () => Effect.die("unused"),
+          createWorkUnitArtifactSlot: () => Effect.die("unused"),
+          updateWorkUnitArtifactSlot: () => Effect.die("unused"),
+          deleteWorkUnitArtifactSlot: () => Effect.die("unused"),
+          replaceWorkUnitArtifactSlots: () => Effect.die("unused"),
+        } as unknown as Context.Tag.Service<typeof MethodologyVersionBoundaryService>),
+        stepProgressionLayer,
+      ),
+    );
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* WorkflowExecutionDetailService;
+        return yield* service.getWorkflowExecutionDetail({
+          projectId: "proj-1",
+          workflowExecutionId: "wf-ctx-1",
+        });
+      }).pipe(Effect.provide(layer)),
+    );
+
+    expect(result?.workflowContextFacts.groups[0]?.instances[0]?.contextFactInstanceId).toBe(
+      "ctx-instance-1",
+    );
+  });
 });
