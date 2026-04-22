@@ -977,7 +977,14 @@ describe("l3 slice-1 form runtime services", () => {
       const existingRepositoryTypeField = result.detailAfterDraft.body.page.fields.find(
         (field) => field.fieldKey === "existingRepositoryType",
       );
-      expect(existingRepositoryTypeField?.widget.options).toBeUndefined();
+      expect(existingRepositoryTypeField?.widget.externalCardinality).toBe("one");
+      expect(existingRepositoryTypeField?.widget.options).toEqual([
+        {
+          value: { factInstanceId: "workunit-fact-existing", value: "monorepo" },
+          label: "monorepo",
+          description: "Repository Type",
+        },
+      ]);
       expect(existingRepositoryTypeField?.widget.bindingLabel).toBe("Repository Type");
     }
 

@@ -66,7 +66,10 @@ describe("agent-step SSE route", () => {
     const { createServerApp } = await import("../../index");
 
     const app = createServerApp({
-      runtimeStepServiceLayer: Layer.succeed(AgentStepEventStreamService, agentEventStreamService),
+      runtimeAgentStepServiceLayer: Layer.succeed(
+        AgentStepEventStreamService,
+        agentEventStreamService,
+      ),
     });
 
     const response = await app.request(

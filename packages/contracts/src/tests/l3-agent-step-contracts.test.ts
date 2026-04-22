@@ -6,7 +6,7 @@ import {
   AGENT_STEP_EDITOR_TABS,
   AGENT_STEP_NORMALIZED_ERROR_TAGS,
   AGENT_STEP_RUNTIME_STATES,
-  AGENT_STEP_V1_MCP_TOOLS,
+  AGENT_STEP_V2_MCP_TOOLS,
   AgentStepAllowedStateTransition,
   AgentStepContractBoundary,
   AgentStepDesignTimePayload,
@@ -19,10 +19,10 @@ import {
   UpdateAgentStepTurnSelectionInput,
 } from "../agent-step";
 import {
-  AGENT_STEP_MCP_V1_TOOLS,
-  AgentStepMcpRequestEnvelope,
-  AgentStepMcpResponseEnvelope,
-  AgentStepMcpScope,
+  AGENT_STEP_MCP_V2_TOOLS,
+  AgentStepMcpScopeV2,
+  AgentStepMcpV2RequestEnvelope,
+  AgentStepMcpV2ResponseEnvelope,
 } from "../mcp";
 
 describe("l3 agent-step contracts", () => {
@@ -172,9 +172,9 @@ describe("l3 agent-step contracts", () => {
       state: "active_idle",
       sessionStartPolicy: "explicit",
       contractBoundary: {
-        version: "v1",
-        supportedMcpTools: [...AGENT_STEP_V1_MCP_TOOLS],
-        stepSnapshotReadItemId: "read-step-snapshot",
+        version: "v2",
+        supportedMcpTools: [...AGENT_STEP_V2_MCP_TOOLS],
+        stepSnapshotReadItemId: "read_step_execution_snapshot",
         requestContextAccess: false,
         continuationMode: "bootstrap_only",
         nativeMessageLog: false,
@@ -252,9 +252,9 @@ describe("l3 agent-step contracts", () => {
         state: "not_started",
         sessionStartPolicy: "explicit",
         contractBoundary: {
-          version: "v1",
-          supportedMcpTools: [...AGENT_STEP_V1_MCP_TOOLS],
-          stepSnapshotReadItemId: "read-step-snapshot",
+          version: "v2",
+          supportedMcpTools: [...AGENT_STEP_V2_MCP_TOOLS],
+          stepSnapshotReadItemId: "read_step_execution_snapshot",
           requestContextAccess: false,
           continuationMode: "bootstrap_only",
           nativeMessageLog: false,
@@ -295,60 +295,61 @@ describe("l3 agent-step contracts", () => {
     expect(output.body.composer.startSessionVisible).toBe(true);
   });
 
-  it("locks MCP v1 to exactly three tools and omits request_context_access", () => {
-    expect(AGENT_STEP_MCP_V1_TOOLS).toEqual([
-      "read_step_snapshot",
-      "read_context_value",
-      "write_context_value",
+  it("locks MCP v2 to the full context-fact CRUD surface", () => {
+    expect(AGENT_STEP_MCP_V2_TOOLS).toEqual([
+      "read_step_execution_snapshot",
+      "read_context_fact_schema",
+      "read_context_fact_instances",
+      "read_attachable_targets",
+      "create_context_fact_instance",
+      "update_context_fact_instance",
+      "remove_context_fact_instance",
+      "delete_context_fact_instance",
     ]);
 
-    const scope = Schema.decodeUnknownSync(AgentStepMcpScope)({
-      version: "v1",
-      tools: [...AGENT_STEP_MCP_V1_TOOLS],
+    const scope = Schema.decodeUnknownSync(AgentStepMcpScopeV2)({
+      version: "v2",
+      tools: [...AGENT_STEP_MCP_V2_TOOLS],
       requestContextAccess: false,
     });
     expect(scope).toEqual({
-      version: "v1",
-      tools: [...AGENT_STEP_MCP_V1_TOOLS],
+      version: "v2",
+      tools: [...AGENT_STEP_MCP_V2_TOOLS],
       requestContextAccess: false,
     });
 
     expect(() =>
-      Schema.decodeUnknownSync(AgentStepMcpRequestEnvelope)({
-        version: "v1",
+      Schema.decodeUnknownSync(AgentStepMcpV2RequestEnvelope)({
+        version: "v2",
         toolName: "request_context_access",
         input: {},
       }),
     ).toThrow();
 
-    const writeResponse = Schema.decodeUnknownSync(AgentStepMcpResponseEnvelope)({
-      version: "v1",
-      toolName: "write_context_value",
+    const writeResponse = Schema.decodeUnknownSync(AgentStepMcpV2ResponseEnvelope)({
+      version: "v2",
+      toolName: "update_context_fact_instance",
       output: {
         status: "applied",
-        stepExecutionId: "step-exec-1",
-        writeItemId: "write-prd",
-        appliedWrite: {
-          appliedWriteId: "applied-1",
-          contextFactDefinitionId: "fact-prd-artifact",
-          appliedAt: "2026-04-09T00:00:00.000Z",
-          valueJson: { relativePath: "docs/prd.md" },
-          rejected: true,
-        },
+        operation: "update",
+        factKey: "prd_artifact",
+        instanceId: "ctx-1",
+        value: { files: [{ filePath: "docs/prd.md", gitCommitHash: "abc123" }] },
+        changedContext: true,
       },
     });
 
-    expect(writeResponse.toolName).toBe("write_context_value");
-    if (writeResponse.toolName !== "write_context_value") {
-      throw new Error("expected write_context_value response");
+    expect(writeResponse.toolName).toBe("update_context_fact_instance");
+    if (writeResponse.toolName !== "update_context_fact_instance") {
+      throw new Error("expected update_context_fact_instance response");
     }
 
     if (!("output" in writeResponse)) {
-      throw new Error("expected write_context_value output envelope");
+      throw new Error("expected update_context_fact_instance output envelope");
     }
 
     expect(writeResponse.output.status).toBe("applied");
-    expect(writeResponse.output.appliedWrite).not.toHaveProperty("rejected");
+    expect(writeResponse.output.changedContext).toBe(true);
   });
 
   it("normalizes typed errors to harness/opencode families only", () => {
@@ -378,9 +379,9 @@ describe("l3 agent-step contracts", () => {
 
   it("keeps the exported contract boundary stable", () => {
     const boundary = Schema.decodeUnknownSync(AgentStepContractBoundary)({
-      version: "v1",
-      supportedMcpTools: [...AGENT_STEP_V1_MCP_TOOLS],
-      stepSnapshotReadItemId: "read-step-snapshot",
+      version: "v2",
+      supportedMcpTools: [...AGENT_STEP_V2_MCP_TOOLS],
+      stepSnapshotReadItemId: "read_step_execution_snapshot",
       requestContextAccess: false,
       continuationMode: "bootstrap_only",
       nativeMessageLog: false,

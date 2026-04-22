@@ -113,7 +113,9 @@ export const ArtifactSlotReferenceServiceLive = Layer.effect(
           versionId: params.methodologyVersionId,
           workUnitTypeKey: params.workUnitTypeKey,
         });
-        const slotDefinition = slotDefinitions.find((slot) => slot.id === params.slotDefinitionId);
+        const slotDefinition = slotDefinitions.find(
+          (slot) => slot.id === params.slotDefinitionId || slot.key === params.slotDefinitionId,
+        );
         if (!slotDefinition) {
           return yield* new ArtifactSlotReferencePayloadError({
             slotDefinitionId: params.slotDefinitionId,
@@ -167,7 +169,7 @@ export const ArtifactSlotReferenceServiceLive = Layer.effect(
               contextFactDefinitionId: value.contextFactDefinitionId,
               instanceOrder: value.instanceOrder,
               valueJson: {
-                slotDefinitionId: params.slotDefinitionId,
+                slotDefinitionId: slotDefinition.id,
                 files,
               } satisfies ArtifactSlotReferenceFactValue,
             };

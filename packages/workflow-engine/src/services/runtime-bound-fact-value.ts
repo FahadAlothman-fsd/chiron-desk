@@ -1,7 +1,7 @@
 import type { RuntimeFormResolvedField } from "@chiron/contracts/runtime/executions";
 
 type RuntimeBoundFactEnvelope = {
-  readonly instanceId: string;
+  readonly factInstanceId: string;
   readonly value: unknown;
 };
 
@@ -14,18 +14,18 @@ export const readRuntimeBoundFactEnvelope = (value: unknown): RuntimeBoundFactEn
   }
 
   if (typeof value.instanceId === "string") {
-    return { instanceId: value.instanceId, value: value.value };
+    return { factInstanceId: value.instanceId, value: value.value };
   }
 
   if (typeof value.factInstanceId === "string") {
-    return { instanceId: value.factInstanceId, value: value.value };
+    return { factInstanceId: value.factInstanceId, value: value.value };
   }
 
   return null;
 };
 
 export const getRuntimeBoundFactInstanceId = (value: unknown): string | undefined =>
-  readRuntimeBoundFactEnvelope(value)?.instanceId;
+  readRuntimeBoundFactEnvelope(value)?.factInstanceId;
 
 export const unwrapRuntimeBoundFactEnvelope = (value: unknown): unknown =>
   readRuntimeBoundFactEnvelope(value)?.value ?? value;
@@ -34,7 +34,7 @@ export const toCanonicalRuntimeBoundFactEnvelope = (params: {
   readonly instanceId: string;
   readonly value: unknown;
 }): RuntimeBoundFactEnvelope => ({
-  instanceId: params.instanceId,
+  factInstanceId: params.instanceId,
   value: params.value,
 });
 

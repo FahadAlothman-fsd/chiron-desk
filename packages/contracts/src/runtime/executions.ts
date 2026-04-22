@@ -635,6 +635,7 @@ export const RuntimeFormResolvedFieldWidget = RuntimeFormValueWidget.pipe(
       boundValueWidget: Schema.optional(RuntimeFormValueWidget),
       emptyState: Schema.optional(Schema.String),
       externalBindingKey: Schema.optional(Schema.NonEmptyString),
+      externalCardinality: Schema.optional(FactCardinality),
       artifactSlotDefinitionId: Schema.optional(Schema.NonEmptyString),
       bindingLabel: Schema.optional(Schema.String),
     }),

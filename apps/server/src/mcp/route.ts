@@ -7,28 +7,12 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import type {
-  AgentStepMcpRequestEnvelope,
-  AgentStepMcpResponseEnvelope,
+  AgentStepMcpV2RequestEnvelope,
+  AgentStepMcpV2ResponseEnvelope,
 } from "@chiron/contracts/mcp";
 
-const readStepSnapshotInputSchema = z.object({});
-
-const readContextValueInputSchema = z.object({
-  readItemId: z.string().min(1),
-  mode: z.enum(["latest", "all", "query"]),
-  queryParam: z.string().min(1).optional(),
-});
-
-const writeContextValueInputSchema = z.object({
-  writeItemId: z.string().min(1),
-  valueJson: z.unknown(),
-  appliedByTimelineItemId: z.string().min(1).optional(),
-});
-
-const readStepSnapshotOutputSchema = z.object({
-  readItemId: z.string().min(1),
-  stepExecutionId: z.string().min(1),
-  workflowExecutionId: z.string().min(1),
+const readStepExecutionSnapshotInputSchema = z.object({});
+const readStepExecutionSnapshotOutputSchema = z.object({
   state: z.enum([
     "not_started",
     "starting_session",
@@ -39,45 +23,141 @@ const readStepSnapshotOutputSchema = z.object({
   ]),
   objective: z.string().min(1),
   instructionsMarkdown: z.string().min(1),
-  contractVersion: z.literal("v1"),
-});
-
-const readContextValueOutputSchema = z.object({
-  readItemId: z.string().min(1),
-  mode: z.enum(["latest", "all", "query"]),
-  queryParam: z.string().optional(),
-  contextFactDefinitionId: z.string().min(1),
-  contextFactKind: z.enum([
-    "plain_value_fact",
-    "bound_fact",
-    "workflow_ref_fact",
-    "artifact_slot_reference_fact",
-    "work_unit_draft_spec_fact",
-  ]),
-  values: z.array(
+  completion: z.object({
+    total: z.number(),
+    withInstances: z.number(),
+    withoutInstances: z.number(),
+    isComplete: z.boolean(),
+  }),
+  readSet: z.array(
     z.object({
-      instanceId: z.string().min(1),
-      value: z.unknown(),
-      recordedAt: z.string().optional(),
+      factKey: z.string().min(1),
+      contextFactKind: z.string().min(1),
+      label: z.string().optional(),
+      description: z.unknown().optional(),
+      guidance: z.unknown().optional(),
+      access: z.object({
+        canReadSchema: z.boolean(),
+        canReadInstances: z.boolean(),
+        canReadAttachableTargets: z.boolean(),
+      }),
+    }),
+  ),
+  writeSet: z.array(
+    z.object({
+      factKey: z.string().min(1),
+      contextFactKind: z.string().min(1),
+      label: z.string().optional(),
+      description: z.unknown().optional(),
+      guidance: z.unknown().optional(),
+      instanceCount: z.number(),
+      hasInstances: z.boolean(),
+      requiredForCompletion: z.boolean(),
+      readAccess: z.object({
+        canReadSchema: z.boolean(),
+        canReadInstances: z.boolean(),
+        canReadAttachableTargets: z.boolean(),
+      }),
+      writeAccess: z.object({
+        canCreate: z.boolean(),
+        canUpdate: z.boolean(),
+        canRemove: z.boolean(),
+        canDelete: z.boolean(),
+      }),
     }),
   ),
 });
 
-const writeContextValueOutputSchema = z.object({
+const factKeyInputSchema = z.object({
+  factKey: z.string().min(1),
+});
+
+const readContextFactInstancesInputSchema = z.object({
+  factKey: z.string().min(1),
+  instanceIds: z.array(z.string().min(1)).optional(),
+  limit: z.number().optional(),
+});
+
+const readAttachableTargetsInputSchema = z.object({
+  factKey: z.string().min(1),
+  targetIds: z.array(z.string().min(1)).optional(),
+  targetFieldKey: z.string().min(1).optional(),
+  limit: z.number().optional(),
+});
+
+const writeInputSchema = z.object({
+  factKey: z.string().min(1),
+  instanceId: z.string().min(1).optional(),
+  value: z.unknown().optional(),
+});
+
+const readContextFactSchemaOutputSchema = z
+  .object({
+    factKey: z.string().min(1),
+    contextFactKind: z.string().min(1),
+    label: z.string().optional(),
+    description: z.unknown().optional(),
+    guidance: z.unknown().optional(),
+    cardinality: z.enum(["one", "many"]),
+    actions: z.array(z.enum(["create", "update", "remove", "delete"])),
+  })
+  .passthrough();
+
+const readContextFactInstancesOutputSchema = z.object({
+  factKey: z.string().min(1),
+  contextFactKind: z.string().min(1),
+  instances: z.array(
+    z
+      .object({
+        instanceId: z.string().min(1),
+        recordedAt: z.string().optional(),
+        value: z.unknown(),
+      })
+      .passthrough(),
+  ),
+});
+
+const readAttachableTargetsOutputSchema = z
+  .object({
+    factKey: z.string().min(1),
+    contextFactKind: z.string().min(1),
+  })
+  .passthrough();
+
+const writeOutputSchema = z.object({
   status: z.literal("applied"),
-  writeItemId: z.string().min(1),
-  appliedWrite: z.object({
-    appliedWriteId: z.string().min(1),
-    contextFactDefinitionId: z.string().min(1),
-    appliedAt: z.string(),
-    valueJson: z.unknown(),
-  }),
+  operation: z.enum(["create", "update", "remove", "delete"]),
+  factKey: z.string().min(1),
+  instanceId: z.string().min(1),
+  value: z.unknown().optional(),
+  changedContext: z.boolean(),
 });
 
 type StepExecutionBinding = {
   readonly server: McpServer;
   readonly transport: StreamableHTTPTransport;
 };
+
+function serializeForTrace(value: unknown) {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function logMcpTrace(
+  phase: string,
+  payload: Record<string, unknown>,
+  level: "info" | "error" = "info",
+) {
+  const effect = Effect.annotateLogs({
+    mcpPhase: phase,
+    mcpPayload: serializeForTrace(payload),
+  })(level === "error" ? Effect.logError("mcp trace") : Effect.logInfo("mcp trace"));
+
+  Effect.runFork(effect);
+}
 
 function mapEffectError(error: unknown): never {
   const tag =
@@ -110,8 +190,9 @@ function mapEffectError(error: unknown): never {
 
 async function executeMcpRequest(
   serviceLayer: Layer.Layer<any>,
-  request: AgentStepMcpRequestEnvelope,
-): Promise<AgentStepMcpResponseEnvelope> {
+  request: AgentStepMcpV2RequestEnvelope,
+): Promise<AgentStepMcpV2ResponseEnvelope> {
+  logMcpTrace("execute.request", request);
   const exit = await Effect.runPromiseExit(
     Effect.gen(function* () {
       const service = yield* AgentStepMcpService;
@@ -121,18 +202,36 @@ async function executeMcpRequest(
   );
 
   if (exit._tag === "Success") {
+    logMcpTrace("execute.response", exit.value);
     return exit.value;
   }
 
   const failure = Cause.failureOption(exit.cause);
   if (Option.isSome(failure)) {
+    logMcpTrace(
+      "execute.failure",
+      {
+        request,
+        error:
+          failure.value instanceof Error
+            ? {
+                name: failure.value.name,
+                message: failure.value.message,
+                stack: failure.value.stack,
+              }
+            : failure.value,
+      },
+      "error",
+    );
     mapEffectError(failure.value);
   }
 
+  logMcpTrace("execute.defect", { request, cause: Cause.pretty(exit.cause) }, "error");
   throw Cause.squash(exit.cause);
 }
 
 function toToolResult<T extends Record<string, unknown>>(output: T) {
+  logMcpTrace("tool.result", output);
   return {
     content: [{ type: "text" as const, text: JSON.stringify(output, null, 2) }],
     ...(output && typeof output === "object" && !Array.isArray(output)
@@ -143,6 +242,18 @@ function toToolResult<T extends Record<string, unknown>>(output: T) {
 
 function toToolError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
+
+  logMcpTrace(
+    "tool.error",
+    {
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : error,
+      message,
+    },
+    "error",
+  );
 
   return {
     isError: true,
@@ -169,20 +280,26 @@ function createBinding(
   );
 
   server.registerTool(
-    "read_step_snapshot",
+    "read_step_execution_snapshot",
     {
-      title: "Read step snapshot",
-      description: "Read the current Chiron Agent-step snapshot for the bound step execution.",
+      title: "Read step execution snapshot",
+      description:
+        "Read the current Agent-step objective, completion summary, and readable/writable context-fact scope for the bound step execution.",
       annotations: { readOnlyHint: true, idempotentHint: true },
-      inputSchema: readStepSnapshotInputSchema,
-      outputSchema: readStepSnapshotOutputSchema,
+      inputSchema: readStepExecutionSnapshotInputSchema,
+      outputSchema: readStepExecutionSnapshotOutputSchema,
     },
     async () => {
       try {
+        logMcpTrace("tool.call", {
+          stepExecutionId,
+          toolName: "read_step_execution_snapshot",
+          input: {},
+        });
         const response = await executeMcpRequest(serviceLayer, {
-          version: "v1",
-          toolName: "read_step_snapshot",
-          input: { readItemId: "step_snapshot", stepExecutionId } as never,
+          version: "v2",
+          toolName: "read_step_execution_snapshot",
+          input: { stepExecutionId } as never,
         });
         return "output" in response ? toToolResult(response.output) : toToolError(response.error);
       } catch (error) {
@@ -192,19 +309,25 @@ function createBinding(
   );
 
   server.registerTool(
-    "read_context_value",
+    "read_context_fact_schema",
     {
-      title: "Read context value",
-      description: "Read one context value that is inside the Agent-step read scope.",
+      title: "Read context fact schema",
+      description:
+        "Read the schema, validation, cardinality, and allowed CRUD actions for one context fact in MCP scope.",
       annotations: { readOnlyHint: true, idempotentHint: true },
-      inputSchema: readContextValueInputSchema,
-      outputSchema: readContextValueOutputSchema,
+      inputSchema: factKeyInputSchema,
+      outputSchema: readContextFactSchemaOutputSchema,
     },
     async (input) => {
       try {
+        logMcpTrace("tool.call", {
+          stepExecutionId,
+          toolName: "read_context_fact_schema",
+          input,
+        });
         const response = await executeMcpRequest(serviceLayer, {
-          version: "v1",
-          toolName: "read_context_value",
+          version: "v2",
+          toolName: "read_context_fact_schema",
           input: { ...input, stepExecutionId } as never,
         });
         return "output" in response ? toToolResult(response.output) : toToolError(response.error);
@@ -215,20 +338,169 @@ function createBinding(
   );
 
   server.registerTool(
-    "write_context_value",
+    "read_context_fact_instances",
     {
-      title: "Write context value",
+      title: "Read context fact instances",
       description:
-        "Write one permitted Agent-step context value. Only applied writes are persisted in v1.",
-      annotations: { destructiveHint: true, idempotentHint: false },
-      inputSchema: writeContextValueInputSchema,
-      outputSchema: writeContextValueOutputSchema,
+        "Read current workflow-context instances for one fact key, optionally filtered by instance ids or limit.",
+      annotations: { readOnlyHint: true, idempotentHint: true },
+      inputSchema: readContextFactInstancesInputSchema,
+      outputSchema: readContextFactInstancesOutputSchema,
     },
     async (input) => {
       try {
+        logMcpTrace("tool.call", {
+          stepExecutionId,
+          toolName: "read_context_fact_instances",
+          input,
+        });
         const response = await executeMcpRequest(serviceLayer, {
-          version: "v1",
-          toolName: "write_context_value",
+          version: "v2",
+          toolName: "read_context_fact_instances",
+          input: { ...input, stepExecutionId } as never,
+        });
+        return "output" in response ? toToolResult(response.output) : toToolError(response.error);
+      } catch (error) {
+        return toToolError(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "read_attachable_targets",
+    {
+      title: "Read attachable targets",
+      description:
+        "Read eligible external targets for a bound, workflow-ref, work-unit-reference, or draft-spec context fact.",
+      annotations: { readOnlyHint: true, idempotentHint: true },
+      inputSchema: readAttachableTargetsInputSchema,
+      outputSchema: readAttachableTargetsOutputSchema,
+    },
+    async (input) => {
+      try {
+        logMcpTrace("tool.call", {
+          stepExecutionId,
+          toolName: "read_attachable_targets",
+          input,
+        });
+        const response = await executeMcpRequest(serviceLayer, {
+          version: "v2",
+          toolName: "read_attachable_targets",
+          input: { ...input, stepExecutionId } as never,
+        });
+        return "output" in response ? toToolResult(response.output) : toToolError(response.error);
+      } catch (error) {
+        return toToolError(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "create_context_fact_instance",
+    {
+      title: "Create context fact instance",
+      description:
+        "Create a new workflow-context fact instance for the bound step execution scope.",
+      annotations: { destructiveHint: true, idempotentHint: false },
+      inputSchema: writeInputSchema,
+      outputSchema: writeOutputSchema,
+    },
+    async (input) => {
+      try {
+        logMcpTrace("tool.call", {
+          stepExecutionId,
+          toolName: "create_context_fact_instance",
+          input,
+        });
+        const response = await executeMcpRequest(serviceLayer, {
+          version: "v2",
+          toolName: "create_context_fact_instance",
+          input: { ...input, stepExecutionId } as never,
+        });
+        return "output" in response ? toToolResult(response.output) : toToolError(response.error);
+      } catch (error) {
+        return toToolError(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "update_context_fact_instance",
+    {
+      title: "Update context fact instance",
+      description: "Update one existing workflow-context fact instance identified by instanceId.",
+      annotations: { destructiveHint: true, idempotentHint: false },
+      inputSchema: writeInputSchema,
+      outputSchema: writeOutputSchema,
+    },
+    async (input) => {
+      try {
+        logMcpTrace("tool.call", {
+          stepExecutionId,
+          toolName: "update_context_fact_instance",
+          input,
+        });
+        const response = await executeMcpRequest(serviceLayer, {
+          version: "v2",
+          toolName: "update_context_fact_instance",
+          input: { ...input, stepExecutionId } as never,
+        });
+        return "output" in response ? toToolResult(response.output) : toToolError(response.error);
+      } catch (error) {
+        return toToolError(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "remove_context_fact_instance",
+    {
+      title: "Remove context fact instance",
+      description:
+        "Remove workflow-context state only. For artifact facts, remove only context-local files that are not already part of the external artifact slot instance.",
+      annotations: { destructiveHint: true, idempotentHint: false },
+      inputSchema: writeInputSchema,
+      outputSchema: writeOutputSchema,
+    },
+    async (input) => {
+      try {
+        logMcpTrace("tool.call", {
+          stepExecutionId,
+          toolName: "remove_context_fact_instance",
+          input,
+        });
+        const response = await executeMcpRequest(serviceLayer, {
+          version: "v2",
+          toolName: "remove_context_fact_instance",
+          input: { ...input, stepExecutionId } as never,
+        });
+        return "output" in response ? toToolResult(response.output) : toToolError(response.error);
+      } catch (error) {
+        return toToolError(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "delete_context_fact_instance",
+    {
+      title: "Delete context fact instance",
+      description:
+        "Apply external deletion intent. For artifact facts, delete only files that already exist in the external artifact slot instance; this does not remove context-local-only files.",
+      annotations: { destructiveHint: true, idempotentHint: false },
+      inputSchema: writeInputSchema,
+      outputSchema: writeOutputSchema,
+    },
+    async (input) => {
+      try {
+        logMcpTrace("tool.call", {
+          stepExecutionId,
+          toolName: "delete_context_fact_instance",
+          input,
+        });
+        const response = await executeMcpRequest(serviceLayer, {
+          version: "v2",
+          toolName: "delete_context_fact_instance",
           input: { ...input, stepExecutionId } as never,
         });
         return "output" in response ? toToolResult(response.output) : toToolError(response.error);
@@ -250,6 +522,12 @@ export function createMcpRoute(serviceLayer: Layer.Layer<any>) {
 
   app.all("/", async (c) => {
     const stepExecutionId = c.req.query("stepExecutionId")?.trim();
+
+    logMcpTrace("http.request", {
+      method: c.req.method,
+      url: c.req.url,
+      stepExecutionId: stepExecutionId ?? null,
+    });
 
     if (!stepExecutionId) {
       return c.json({ error: "Missing required query param: stepExecutionId" }, 400);

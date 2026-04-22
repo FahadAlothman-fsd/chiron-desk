@@ -9,7 +9,10 @@ import { MethodologyEngineL1Live } from "@chiron/methodology-engine";
 import {
   ActionStepEventStreamService,
   AgentStepEventStreamService,
-  WorkflowEngineRuntimeStepServicesLive,
+  WorkflowEngineRuntimeAgentStepRouterServicesLive,
+  WorkflowEngineRuntimeAgentStepServicesLive,
+  WorkflowEngineRuntimeNonAgentStepServicesLive,
+  StepContextQueryServiceLive,
 } from "@chiron/workflow-engine";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
@@ -84,7 +87,33 @@ const methodologyL1ServiceLayer = Layer.provide(
 );
 
 const defaultRuntimeStepServiceLayer = Layer.provide(
-  WorkflowEngineRuntimeStepServicesLive,
+  WorkflowEngineRuntimeNonAgentStepServicesLive,
+  Layer.mergeAll(
+    runtimeRepoLayer,
+    methodologyRepoLayer,
+    lifecycleRepoLayer,
+    projectContextRepoLayer,
+    methodologyL1ServiceLayer,
+    OpencodeHarnessServiceLive,
+  ),
+) as Layer.Layer<any>;
+
+const defaultRuntimeAgentStepServiceLayer = Layer.provide(
+  WorkflowEngineRuntimeAgentStepRouterServicesLive.pipe(
+    Layer.provideMerge(StepContextQueryServiceLive),
+  ),
+  Layer.mergeAll(
+    runtimeRepoLayer,
+    methodologyRepoLayer,
+    lifecycleRepoLayer,
+    projectContextRepoLayer,
+    methodologyL1ServiceLayer,
+    OpencodeHarnessServiceLive,
+  ),
+) as Layer.Layer<any>;
+
+const defaultRuntimeMcpServiceLayer = Layer.provide(
+  WorkflowEngineRuntimeAgentStepServicesLive.pipe(Layer.provideMerge(StepContextQueryServiceLive)),
   Layer.mergeAll(
     runtimeRepoLayer,
     methodologyRepoLayer,
@@ -238,10 +267,15 @@ async function streamAgentStepSessionSse(
 
 export function createServerApp(options?: {
   readonly runtimeStepServiceLayer?: Layer.Layer<any>;
+  readonly runtimeAgentStepServiceLayer?: Layer.Layer<any>;
+  readonly runtimeMcpServiceLayer?: Layer.Layer<any>;
   readonly appRouter?: ReturnType<typeof createAppRouter>;
 }) {
   const runtimeStepServiceLayer =
     options?.runtimeStepServiceLayer ?? defaultRuntimeStepServiceLayer;
+  const runtimeAgentStepServiceLayer =
+    options?.runtimeAgentStepServiceLayer ?? defaultRuntimeAgentStepServiceLayer;
+  const runtimeMcpServiceLayer = options?.runtimeMcpServiceLayer ?? defaultRuntimeMcpServiceLayer;
   const appRouter = options?.appRouter ?? defaultAppRouter;
   const app = new Hono();
 
@@ -258,7 +292,7 @@ export function createServerApp(options?: {
 
   app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
-  app.route("/mcp", createMcpRoute(runtimeStepServiceLayer));
+  app.route("/mcp", createMcpRoute(runtimeMcpServiceLayer));
 
   const apiHandler = new OpenAPIHandler(appRouter, {
     plugins: [
@@ -349,7 +383,7 @@ export function createServerApp(options?: {
     }
 
     return streamSSE(c, async (stream) => {
-      await streamAgentStepSessionSse(stream, runtimeStepServiceLayer, {
+      await streamAgentStepSessionSse(stream, runtimeAgentStepServiceLayer, {
         projectId,
         stepExecutionId,
       });

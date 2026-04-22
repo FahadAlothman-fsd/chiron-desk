@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   AGENT_STEP_MCP_READ_MODES,
-  AGENT_STEP_V1_MCP_TOOLS,
+  AGENT_STEP_V2_MCP_TOOLS,
   AgentStepContractBoundary,
   AgentStepReadableContextFact,
   AgentStepRuntimeErrorEnvelope,
@@ -73,16 +73,21 @@ describe("mcp progressive disclosure contracts", () => {
   });
 
   it("locks progressive disclosure read/write ids on the runtime contract boundary", () => {
-    expect(AGENT_STEP_V1_MCP_TOOLS).toEqual([
-      "read_step_snapshot",
-      "read_context_value",
-      "write_context_value",
+    expect(AGENT_STEP_V2_MCP_TOOLS).toEqual([
+      "read_step_execution_snapshot",
+      "read_context_fact_schema",
+      "read_context_fact_instances",
+      "read_attachable_targets",
+      "create_context_fact_instance",
+      "update_context_fact_instance",
+      "remove_context_fact_instance",
+      "delete_context_fact_instance",
     ]);
 
     const boundary = Schema.decodeUnknownSync(AgentStepContractBoundary)({
-      version: "v1",
-      supportedMcpTools: [...AGENT_STEP_V1_MCP_TOOLS],
-      stepSnapshotReadItemId: "read-step-snapshot",
+      version: "v2",
+      supportedMcpTools: [...AGENT_STEP_V2_MCP_TOOLS],
+      stepSnapshotReadItemId: "read_step_execution_snapshot",
       requestContextAccess: false,
       continuationMode: "bootstrap_only",
       nativeMessageLog: false,
@@ -96,7 +101,7 @@ describe("mcp progressive disclosure contracts", () => {
       },
     });
 
-    expect(boundary.stepSnapshotReadItemId).toBe("read-step-snapshot");
+    expect(boundary.stepSnapshotReadItemId).toBe("read_step_execution_snapshot");
 
     const readable = Schema.decodeUnknownSync(AgentStepReadableContextFact)({
       readItemId: "supportingFlows",
@@ -186,7 +191,7 @@ describe("mcp progressive disclosure contracts", () => {
     const runtimeError = Schema.decodeUnknownSync(AgentStepRuntimeErrorEnvelope)({
       status: "error",
       error: new McpToolValidationError({
-        toolName: "read_context_value",
+        toolName: "read_context_fact_instances",
         message: "Unsupported read mode.",
       }),
     });

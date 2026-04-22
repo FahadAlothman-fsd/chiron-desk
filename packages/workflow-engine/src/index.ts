@@ -51,6 +51,7 @@ export * from "./services/runtime/agent-step-event-stream-service";
 export * from "./services/runtime/action-step-event-stream-service";
 export * from "./services/runtime/agent-step-snapshot-service";
 export * from "./services/runtime/agent-step-context-read-service";
+export * from "./services/runtime/agent-step-context-fact-crud-service";
 export * from "./services/runtime/artifact-slot-reference-service";
 export * from "./services/runtime/agent-step-context-write-service";
 export * from "./services/runtime/agent-step-mcp-service";

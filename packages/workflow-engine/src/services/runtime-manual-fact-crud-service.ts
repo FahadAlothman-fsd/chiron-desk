@@ -536,9 +536,25 @@ const parseRuntimeFactInstanceValue = (
   value: unknown,
   factKind: CanonicalWorkflowContextFactDefinition["kind"],
 ): Effect.Effect<ParsedRuntimeFactInstanceValue, RuntimeFactValidationError> => {
-  if (!isRecord(value) || typeof value.instanceId !== "string" || !("value" in value)) {
+  if (!isRecord(value) || !("value" in value)) {
     return Effect.fail(
-      toValidationError(factKind, "Bound facts require a { instanceId, value } payload."),
+      toValidationError(
+        factKind,
+        "Bound facts require a { factInstanceId, value } payload or legacy { instanceId, value } payload.",
+      ),
+    );
+  }
+
+  if (typeof value.factInstanceId === "string") {
+    return Effect.succeed({ instanceId: value.factInstanceId, value: value.value });
+  }
+
+  if (typeof value.instanceId !== "string") {
+    return Effect.fail(
+      toValidationError(
+        factKind,
+        "Bound facts require a { factInstanceId, value } payload or legacy { instanceId, value } payload.",
+      ),
     );
   }
 
@@ -852,7 +868,7 @@ export const normalizeWorkflowContextFactValue = (
         }).pipe(
           Effect.mapError((error) => toValidationError(params.definition.kind, error.message)),
         );
-        return { instanceId: envelope.instanceId, value: normalizedValue };
+        return { factInstanceId: envelope.instanceId, value: normalizedValue };
       }
       case "workflow_ref_fact": {
         const normalized = yield* parseWorkflowRefFactValue(params.value, params.definition.kind);
@@ -1225,173 +1241,20 @@ export const RuntimeManualFactCrudServiceLive = Layer.effect(
       });
 
     const normalizeWorkflowContextValue = (params: {
+      readonly projectId: string;
       readonly methodologyVersionId: string;
       readonly workflowWorkUnitTypeId: string;
       readonly definition: CanonicalWorkflowContextFactDefinition;
       readonly value: unknown;
     }): Effect.Effect<unknown, RuntimeManualFactCrudServiceError> =>
-      Effect.gen(function* () {
-        switch (params.definition.kind) {
-          case "plain_fact":
-          case "plain_value_fact":
-            return yield* validateValueAgainstDefinition({
-              value: params.value,
-              definition: {
-                valueType: normalizeFactType(
-                  getWorkflowContextFactValueType(params.definition) ?? "json",
-                ),
-                validationJson: params.definition.validationJson,
-              },
-            }).pipe(
-              Effect.mapError((error) => toValidationError(params.definition.kind, error.message)),
-            );
-          case "bound_fact": {
-            const envelope = yield* parseRuntimeFactInstanceValue(
-              params.value,
-              params.definition.kind,
-            );
-            const boundDefinition = yield* resolveBoundFactDefinition({
-              methodologyVersionId: params.methodologyVersionId,
-              workflowWorkUnitTypeId: params.workflowWorkUnitTypeId,
-              definition: params.definition,
-            });
-            const normalizedValue = yield* validateValueAgainstDefinition({
-              value: envelope.value,
-              definition: boundDefinition,
-            }).pipe(
-              Effect.mapError((error) => toValidationError(params.definition.kind, error.message)),
-            );
-            return { instanceId: envelope.instanceId, value: normalizedValue };
-          }
-          case "workflow_ref_fact": {
-            const normalized = yield* parseWorkflowRefFactValue(
-              params.value,
-              params.definition.kind,
-            );
-            if (
-              params.definition.allowedWorkflowDefinitionIds.length > 0 &&
-              !params.definition.allowedWorkflowDefinitionIds.includes(
-                normalized.workflowDefinitionId,
-              )
-            ) {
-              return yield* Effect.fail(
-                toValidationError(
-                  params.definition.kind,
-                  `Workflow '${normalized.workflowDefinitionId}' is not allowed for this fact.`,
-                ),
-              );
-            }
-            return normalized;
-          }
-          case "artifact_slot_reference_fact": {
-            const normalized = yield* parseArtifactSlotReferenceFactValue(
-              params.value,
-              params.definition.kind,
-            );
-            if (normalized.slotDefinitionId !== params.definition.slotDefinitionId) {
-              return yield* Effect.fail(
-                toValidationError(
-                  params.definition.kind,
-                  `Artifact snapshot fact must target slot '${params.definition.slotDefinitionId}'.`,
-                ),
-              );
-            }
-            return normalized;
-          }
-          case "work_unit_reference_fact": {
-            if (!isRecord(params.value) || typeof params.value.projectWorkUnitId !== "string") {
-              return yield* Effect.fail(
-                toValidationError(
-                  params.definition.kind,
-                  "Work-unit reference facts require a projectWorkUnitId.",
-                ),
-              );
-            }
-            return { projectWorkUnitId: params.value.projectWorkUnitId };
-          }
-          case "work_unit_draft_spec_fact": {
-            const normalized = yield* parseWorkUnitDraftSpecFactValue(
-              params.value,
-              params.definition.kind,
-            );
-            if (normalized.workUnitDefinitionId !== params.definition.workUnitDefinitionId) {
-              return yield* Effect.fail(
-                toValidationError(
-                  params.definition.kind,
-                  `Draft spec must target work unit '${params.definition.workUnitDefinitionId}'.`,
-                ),
-              );
-            }
-
-            const selectedFactIds = new Set(params.definition.selectedWorkUnitFactDefinitionIds);
-            const selectedArtifactIds = new Set(
-              params.definition.selectedArtifactSlotDefinitionIds,
-            );
-            const availableFactDefinitions = yield* lifecycleRepo.findFactSchemas(
-              params.methodologyVersionId,
-            );
-            const factDefinitionsById = new Map(
-              availableFactDefinitions.map((definition) => [definition.id, definition] as const),
-            );
-
-            const normalizedFactValues = yield* Effect.forEach(normalized.factValues, (factValue) =>
-              Effect.gen(function* () {
-                if (!selectedFactIds.has(factValue.workUnitFactDefinitionId)) {
-                  return yield* Effect.fail(
-                    toValidationError(
-                      params.definition.kind,
-                      `Work-unit fact '${factValue.workUnitFactDefinitionId}' is not selectable for this draft spec.`,
-                    ),
-                  );
-                }
-
-                const factDefinition = factDefinitionsById.get(factValue.workUnitFactDefinitionId);
-                if (!factDefinition) {
-                  return yield* Effect.fail(
-                    toValidationError(
-                      params.definition.kind,
-                      `Work-unit fact '${factValue.workUnitFactDefinitionId}' could not be resolved.`,
-                    ),
-                  );
-                }
-
-                const value = yield* validateValueAgainstDefinition({
-                  value: factValue.value,
-                  definition: {
-                    valueType: normalizeFactType(factDefinition.factType),
-                    validationJson: factDefinition.validationJson,
-                  },
-                }).pipe(
-                  Effect.mapError((error) =>
-                    toValidationError(params.definition.kind, error.message),
-                  ),
-                );
-
-                return {
-                  workUnitFactDefinitionId: factValue.workUnitFactDefinitionId,
-                  value,
-                };
-              }),
-            );
-
-            for (const artifactValue of normalized.artifactValues) {
-              if (!selectedArtifactIds.has(artifactValue.slotDefinitionId)) {
-                return yield* Effect.fail(
-                  toValidationError(
-                    params.definition.kind,
-                    `Artifact slot '${artifactValue.slotDefinitionId}' is not selectable for this draft spec.`,
-                  ),
-                );
-              }
-            }
-
-            return {
-              ...normalized,
-              factValues: normalizedFactValues,
-            };
-          }
-        }
-      });
+      normalizeWorkflowContextFactValue(
+        {
+          methodologyRepo,
+          lifecycleRepo,
+          projectWorkUnitRepo,
+        },
+        params,
+      );
 
     const applyProjectCrud = (input: Extract<RuntimeManualFactCrudInput, { scope: "project" }>) =>
       Effect.gen(function* () {

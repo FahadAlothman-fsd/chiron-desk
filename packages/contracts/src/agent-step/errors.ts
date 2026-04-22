@@ -10,9 +10,14 @@ export const AgentStepHarnessOperation = Schema.Literal(
 export type AgentStepHarnessOperation = typeof AgentStepHarnessOperation.Type;
 
 const AgentStepErrorMcpToolName = Schema.Literal(
-  "read_step_snapshot",
-  "read_context_value",
-  "write_context_value",
+  "read_step_execution_snapshot",
+  "read_context_fact_schema",
+  "read_context_fact_instances",
+  "read_attachable_targets",
+  "create_context_fact_instance",
+  "update_context_fact_instance",
+  "remove_context_fact_instance",
+  "delete_context_fact_instance",
 );
 
 export const AGENT_STEP_NORMALIZED_ERROR_TAGS = [
@@ -62,7 +67,12 @@ export class McpToolValidationError extends Schema.TaggedError<McpToolValidation
 export class McpWriteRequirementError extends Schema.TaggedError<McpWriteRequirementError>()(
   "McpWriteRequirementError",
   {
-    toolName: Schema.Literal("write_context_value"),
+    toolName: Schema.Literal(
+      "create_context_fact_instance",
+      "update_context_fact_instance",
+      "remove_context_fact_instance",
+      "delete_context_fact_instance",
+    ),
     writeItemId: Schema.NonEmptyString,
     unsatisfiedContextFactDefinitionIds: Schema.Array(Schema.NonEmptyString),
     message: Schema.String,

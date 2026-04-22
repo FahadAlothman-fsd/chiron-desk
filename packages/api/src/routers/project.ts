@@ -130,6 +130,8 @@ export function createProjectRouter(
   >,
   runtimeServiceLayer?: Layer.Layer<any>,
   runtimeQueryServiceLayer?: Layer.Layer<any>,
+  runtimeStepServiceLayer?: Layer.Layer<any>,
+  runtimeAgentStepServiceLayer?: Layer.Layer<any>,
 ) {
   type ProjectionFactSchema = {
     key: string;
@@ -335,8 +337,13 @@ export function createProjectRouter(
 
   return {
     ...createProjectRuntimeRouter(
-      runtimeServiceLayer ?? (baseServiceLayer as Layer.Layer<any>),
+      runtimeServiceLayer ?? baseServiceLayer ?? (baseServiceLayer as Layer.Layer<any>),
       runtimeQueryServiceLayer ?? runtimeServiceLayer ?? (baseServiceLayer as Layer.Layer<any>),
+      runtimeStepServiceLayer ?? runtimeServiceLayer ?? (baseServiceLayer as Layer.Layer<any>),
+      runtimeAgentStepServiceLayer ??
+        runtimeStepServiceLayer ??
+        runtimeServiceLayer ??
+        (baseServiceLayer as Layer.Layer<any>),
     ),
 
     listProjects: publicProcedure.handler(async () => {

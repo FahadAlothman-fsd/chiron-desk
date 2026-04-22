@@ -28,9 +28,18 @@ import type {
 } from "../../repositories/step-execution-repository";
 
 export const AGENT_STEP_CONTRACT_BOUNDARY: AgentStepContractBoundary = {
-  version: "v1",
-  supportedMcpTools: ["read_step_snapshot", "read_context_value", "write_context_value"],
-  stepSnapshotReadItemId: "step_snapshot",
+  version: "v2",
+  supportedMcpTools: [
+    "read_step_execution_snapshot",
+    "read_context_fact_schema",
+    "read_context_fact_instances",
+    "read_attachable_targets",
+    "create_context_fact_instance",
+    "update_context_fact_instance",
+    "remove_context_fact_instance",
+    "delete_context_fact_instance",
+  ],
+  stepSnapshotReadItemId: "read_step_execution_snapshot",
   requestContextAccess: false,
   continuationMode: "bootstrap_only",
   nativeMessageLog: false,

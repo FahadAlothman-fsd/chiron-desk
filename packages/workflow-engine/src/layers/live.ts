@@ -4,6 +4,8 @@ import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-
 import { ProjectContextRepository } from "@chiron/project-context";
 import { SandboxGitServiceLive } from "@chiron/sandbox-engine";
 
+import { ProjectWorkUnitRepository } from "../repositories/project-work-unit-repository";
+
 import { RuntimeArtifactServiceLive } from "../services/runtime-artifact-service";
 import { RuntimeFactServiceLive } from "../services/runtime-fact-service";
 import { RuntimeManualFactCrudServiceLive } from "../services/runtime-manual-fact-crud-service";
@@ -34,6 +36,7 @@ import { WorkflowExecutionDetailServiceLive } from "../services/workflow-executi
 import { WorkflowContextExternalPrefillServiceLive } from "../services/workflow-context-external-prefill-service";
 import { WorkflowExecutionStepCommandServiceLive } from "../services/workflow-execution-step-command-service";
 import { AgentStepContextReadServiceLive } from "../services/runtime/agent-step-context-read-service";
+import { AgentStepContextFactCrudServiceLive } from "../services/runtime/agent-step-context-fact-crud-service";
 import { ArtifactSlotReferenceServiceLive } from "../services/runtime/artifact-slot-reference-service";
 import { AgentStepContextWriteServiceLive } from "../services/runtime/agent-step-context-write-service";
 import { ActionStepEventStreamServiceLive } from "../services/runtime/action-step-event-stream-service";
@@ -50,7 +53,6 @@ const WorkflowEngineRuntimeBaseLayer = Layer.mergeAll(
   RuntimeGateServiceLive,
   RuntimeWorkflowIndexServiceLive,
   RuntimeFactServiceLive,
-  RuntimeManualFactCrudServiceLive,
   RuntimeArtifactServiceLive,
 );
 
@@ -200,6 +202,28 @@ const WorkflowEngineRuntimeActionStepEventStreamLayer = Layer.provide(
   WorkflowEngineRuntimeStepDetailLayer,
 );
 
+export const WorkflowEngineRuntimeNonAgentStepServicesLive = Layer.mergeAll(
+  RuntimeManualFactCrudServiceLive,
+  WorkflowEngineRuntimeStepCoreLayer,
+  WorkflowEngineRuntimeStepLifecycleLayer,
+  WorkflowEngineRuntimeActionStepLayer,
+  WorkflowEngineRuntimeStepTransactionLayer,
+  WorkflowEngineRuntimeStepFormLayer,
+  WorkflowEngineRuntimeInvokeCompletionLayer,
+  WorkflowEngineRuntimeInvokePropagationLayer,
+  WorkflowEngineRuntimeActionStepDetailLayer,
+  WorkflowEngineRuntimeInvokeStepDetailLayer,
+  WorkflowEngineRuntimeExternalPrefillLayer,
+  InvokeTargetResolutionServiceLive,
+  WorkflowEngineRuntimeStepCommandLayer,
+  WorkflowEngineRuntimeStepDetailLayer,
+  InvokeWorkflowExecutionServiceLive,
+  InvokeWorkUnitExecutionServiceLive.pipe(
+    Layer.provideMerge(WorkflowEngineRuntimeExternalPrefillLayer),
+  ),
+  WorkflowEngineRuntimeActionStepEventStreamLayer,
+);
+
 const WorkflowEngineRuntimeAgentStepSnapshotLayer = Layer.provide(
   AgentStepSnapshotServiceLive,
   WorkflowEngineRuntimeAgentStepBaseLayer,
@@ -213,6 +237,11 @@ const WorkflowEngineRuntimeAgentStepContextReadLayer = Layer.provide(
   ),
 );
 
+const WorkflowEngineRuntimeAgentStepContextFactCrudLayer = Layer.provide(
+  AgentStepContextFactCrudServiceLive,
+  Layer.mergeAll(WorkflowEngineRuntimeAgentStepBaseLayer, Layer.service(ProjectWorkUnitRepository)),
+);
+
 const WorkflowEngineRuntimeAgentStepContextWriteLayer = Layer.provide(
   AgentStepContextWriteServiceLive,
   WorkflowEngineRuntimeAgentStepBaseLayer,
@@ -221,10 +250,39 @@ const WorkflowEngineRuntimeAgentStepContextWriteLayer = Layer.provide(
 const WorkflowEngineRuntimeAgentStepMcpLayer = Layer.provide(
   AgentStepMcpServiceLive,
   Layer.mergeAll(
+    WorkflowEngineRuntimeAgentStepBaseLayer,
     WorkflowEngineRuntimeAgentStepSnapshotLayer,
+    WorkflowEngineRuntimeAgentStepContextFactCrudLayer,
     WorkflowEngineRuntimeAgentStepContextReadLayer,
     WorkflowEngineRuntimeAgentStepContextWriteLayer,
   ),
+);
+
+export const WorkflowEngineRuntimeAgentStepServicesLive = Layer.mergeAll(
+  WorkflowEngineRuntimeStepCoreLayer,
+  WorkflowEngineRuntimeStepLifecycleLayer,
+  WorkflowEngineRuntimeStepTransactionLayer,
+  WorkflowEngineRuntimeStepDetailLayer,
+  WorkflowEngineRuntimeAgentStepTimelineLayer,
+  WorkflowEngineRuntimeAgentStepDetailLayer,
+  WorkflowEngineRuntimeAgentStepSessionLayer,
+  WorkflowEngineRuntimeAgentStepEventStreamLayer,
+  WorkflowEngineRuntimeAgentStepSnapshotLayer,
+  WorkflowEngineRuntimeAgentStepContextFactCrudLayer,
+  WorkflowEngineRuntimeAgentStepContextReadLayer,
+  WorkflowEngineRuntimeAgentStepContextWriteLayer,
+  WorkflowEngineRuntimeAgentStepMcpLayer,
+);
+
+export const WorkflowEngineRuntimeAgentStepRouterServicesLive = Layer.mergeAll(
+  WorkflowEngineRuntimeStepCoreLayer,
+  WorkflowEngineRuntimeStepLifecycleLayer,
+  WorkflowEngineRuntimeStepTransactionLayer,
+  WorkflowEngineRuntimeStepDetailLayer,
+  WorkflowEngineRuntimeAgentStepTimelineLayer,
+  WorkflowEngineRuntimeAgentStepDetailLayer,
+  WorkflowEngineRuntimeAgentStepSessionLayer,
+  WorkflowEngineRuntimeAgentStepEventStreamLayer,
 );
 
 export const WorkflowEngineRuntimeStepServicesLive = Layer.mergeAll(
@@ -245,15 +303,8 @@ export const WorkflowEngineRuntimeStepServicesLive = Layer.mergeAll(
   InvokeWorkUnitExecutionServiceLive.pipe(
     Layer.provideMerge(WorkflowEngineRuntimeExternalPrefillLayer),
   ),
-  WorkflowEngineRuntimeAgentStepTimelineLayer,
-  WorkflowEngineRuntimeAgentStepDetailLayer,
-  WorkflowEngineRuntimeAgentStepSessionLayer,
-  WorkflowEngineRuntimeAgentStepEventStreamLayer,
   WorkflowEngineRuntimeActionStepEventStreamLayer,
-  WorkflowEngineRuntimeAgentStepSnapshotLayer,
-  WorkflowEngineRuntimeAgentStepContextReadLayer,
-  WorkflowEngineRuntimeAgentStepContextWriteLayer,
-  WorkflowEngineRuntimeAgentStepMcpLayer,
+  WorkflowEngineRuntimeAgentStepServicesLive,
 );
 
 export const WorkflowEngineRuntimeServicesLive = Layer.mergeAll(

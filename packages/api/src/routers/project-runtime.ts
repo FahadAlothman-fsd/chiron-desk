@@ -570,6 +570,8 @@ function runStreamEffect<A>(
 export function createProjectRuntimeRouter(
   serviceLayer: Layer.Layer<any>,
   queryServiceLayer: Layer.Layer<any> = serviceLayer,
+  stepServiceLayer: Layer.Layer<any> = serviceLayer,
+  agentStepServiceLayer: Layer.Layer<any> = stepServiceLayer,
 ) {
   return {
     getRuntimeOverview: publicProcedure.input(projectIdInput).handler(async ({ input }) =>
@@ -870,7 +872,7 @@ export function createProjectRuntimeRouter(
       .input(activateWorkflowStepExecutionInput)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          stepServiceLayer,
           Effect.gen(function* () {
             const workflowExecutionStepCommandService = yield* WorkflowExecutionStepCommandService;
             return yield* workflowExecutionStepCommandService.activateWorkflowStepExecution(input);
@@ -882,7 +884,7 @@ export function createProjectRuntimeRouter(
       .input(activateWorkflowStepExecutionInput)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          stepServiceLayer,
           Effect.gen(function* () {
             const workflowExecutionStepCommandService = yield* WorkflowExecutionStepCommandService;
             return yield* workflowExecutionStepCommandService.activateFirstWorkflowStepExecution(
@@ -896,7 +898,7 @@ export function createProjectRuntimeRouter(
       .input(getRuntimeStepExecutionDetailInput)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          stepServiceLayer,
           Effect.gen(function* () {
             const stepExecutionDetailService = yield* StepExecutionDetailService;
             const detail = yield* stepExecutionDetailService.getRuntimeStepExecutionDetail(input);
@@ -916,7 +918,7 @@ export function createProjectRuntimeRouter(
       .input(getAgentStepExecutionDetailInput)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          agentStepServiceLayer,
           Effect.gen(function* () {
             const agentStepExecutionDetailService = yield* AgentStepExecutionDetailService;
             const detail =
@@ -937,7 +939,7 @@ export function createProjectRuntimeRouter(
       .input(getAgentStepTimelinePageInput)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          agentStepServiceLayer,
           Effect.gen(function* () {
             const agentStepTimelineService = yield* AgentStepTimelineService;
             return yield* agentStepTimelineService.getTimelinePage(input);
@@ -949,7 +951,7 @@ export function createProjectRuntimeRouter(
       .input(startAgentStepSessionInput)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          agentStepServiceLayer,
           Effect.gen(function* () {
             const agentStepSessionCommandService = yield* AgentStepSessionCommandService;
             return yield* agentStepSessionCommandService.startAgentStepSession(input);
@@ -961,7 +963,7 @@ export function createProjectRuntimeRouter(
       .input(reconnectAgentStepSessionInput)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          agentStepServiceLayer,
           Effect.gen(function* () {
             const agentStepSessionCommandService = yield* AgentStepSessionCommandService;
             return yield* agentStepSessionCommandService.reconnectAgentStepSession(input);
@@ -973,7 +975,7 @@ export function createProjectRuntimeRouter(
       .input(sendAgentStepMessageInput)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          agentStepServiceLayer,
           Effect.gen(function* () {
             const agentStepSessionCommandService = yield* AgentStepSessionCommandService;
             return yield* agentStepSessionCommandService.sendAgentStepMessage(input);
@@ -985,7 +987,7 @@ export function createProjectRuntimeRouter(
       .input(updateAgentStepTurnSelectionInput)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          agentStepServiceLayer,
           Effect.gen(function* () {
             const agentStepSessionCommandService = yield* AgentStepSessionCommandService;
             return yield* agentStepSessionCommandService.updateAgentStepTurnSelection(input);
@@ -997,7 +999,7 @@ export function createProjectRuntimeRouter(
       .input(completeAgentStepExecutionInput)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          agentStepServiceLayer,
           Effect.gen(function* () {
             const agentStepSessionCommandService = yield* AgentStepSessionCommandService;
             return yield* agentStepSessionCommandService.completeAgentStepExecution(input);
@@ -1009,7 +1011,7 @@ export function createProjectRuntimeRouter(
       .input(startActionStepExecutionInput)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          stepServiceLayer,
           Effect.gen(function* () {
             const actionStepRuntimeService = yield* ActionStepRuntimeService;
             return yield* actionStepRuntimeService.startExecution(input);
@@ -1021,7 +1023,7 @@ export function createProjectRuntimeRouter(
       .input(runActionStepActionsInput)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          stepServiceLayer,
           Effect.gen(function* () {
             const actionStepRuntimeService = yield* ActionStepRuntimeService;
             return yield* actionStepRuntimeService.runActions(input);
@@ -1033,7 +1035,7 @@ export function createProjectRuntimeRouter(
       .input(retryActionStepActionsInput)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          stepServiceLayer,
           Effect.gen(function* () {
             const actionStepRuntimeService = yield* ActionStepRuntimeService;
             return yield* actionStepRuntimeService.retryActions(input);
@@ -1045,7 +1047,7 @@ export function createProjectRuntimeRouter(
       .input(skipActionStepActionsInput)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          stepServiceLayer,
           Effect.gen(function* () {
             const actionStepRuntimeService = yield* ActionStepRuntimeService;
             return yield* actionStepRuntimeService.skipActions(input);
@@ -1057,7 +1059,7 @@ export function createProjectRuntimeRouter(
       .input(skipActionStepActionItemsInput)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          stepServiceLayer,
           Effect.gen(function* () {
             const actionStepRuntimeService = yield* ActionStepRuntimeService;
             return yield* actionStepRuntimeService.skipActionItems(input);
@@ -1069,7 +1071,7 @@ export function createProjectRuntimeRouter(
       .input(completeActionStepExecutionInput)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          stepServiceLayer,
           Effect.gen(function* () {
             const actionStepRuntimeService = yield* ActionStepRuntimeService;
             return yield* actionStepRuntimeService.completeStep(input);
@@ -1081,7 +1083,7 @@ export function createProjectRuntimeRouter(
       .input(getAgentStepExecutionDetailInput)
       .handler(async ({ input }) =>
         runStreamEffect(
-          serviceLayer,
+          stepServiceLayer,
           Effect.gen(function* () {
             const actionStepEventStreamService = yield* ActionStepEventStreamService;
             return actionStepEventStreamService.streamExecutionEvents(input);
@@ -1093,7 +1095,7 @@ export function createProjectRuntimeRouter(
       .input(getAgentStepExecutionDetailInput)
       .handler(async ({ input }) =>
         runStreamEffect(
-          serviceLayer,
+          agentStepServiceLayer,
           Effect.gen(function* () {
             const agentStepEventStreamService = yield* AgentStepEventStreamService;
             return agentStepEventStreamService.streamSessionEvents(input);
@@ -1103,7 +1105,7 @@ export function createProjectRuntimeRouter(
 
     saveFormStepDraft: protectedProcedure.input(saveFormStepDraftInput).handler(async ({ input }) =>
       runEffect(
-        serviceLayer,
+        stepServiceLayer,
         Effect.gen(function* () {
           const workflowExecutionStepCommandService = yield* WorkflowExecutionStepCommandService;
           return yield* workflowExecutionStepCommandService.saveFormStepDraft(input);
@@ -1113,7 +1115,7 @@ export function createProjectRuntimeRouter(
 
     submitFormStep: protectedProcedure.input(submitFormStepInput).handler(async ({ input }) =>
       runEffect(
-        serviceLayer,
+        stepServiceLayer,
         Effect.gen(function* () {
           const workflowExecutionStepCommandService = yield* WorkflowExecutionStepCommandService;
           return yield* workflowExecutionStepCommandService.submitFormStep(input);
@@ -1125,7 +1127,7 @@ export function createProjectRuntimeRouter(
       .input(saveBranchStepSelectionInput)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          stepServiceLayer,
           Effect.gen(function* () {
             const workflowExecutionStepCommandService = yield* WorkflowExecutionStepCommandService;
             return yield* workflowExecutionStepCommandService.saveBranchStepSelection(input);
@@ -1137,7 +1139,7 @@ export function createProjectRuntimeRouter(
       .input(completeStepExecutionInput)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          stepServiceLayer,
           Effect.gen(function* () {
             const workflowExecutionStepCommandService = yield* WorkflowExecutionStepCommandService;
             return yield* workflowExecutionStepCommandService.completeStepExecution(input);
@@ -1149,7 +1151,7 @@ export function createProjectRuntimeRouter(
       .input(startInvokeWorkflowTargetInput)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          stepServiceLayer,
           Effect.gen(function* () {
             const invokeWorkflowExecutionService = yield* InvokeWorkflowExecutionService;
             return yield* invokeWorkflowExecutionService.startInvokeWorkflowTarget(input);
@@ -1161,7 +1163,7 @@ export function createProjectRuntimeRouter(
       .input(startInvokeWorkUnitTargetInput)
       .handler(async ({ input }) =>
         runEffect(
-          serviceLayer,
+          stepServiceLayer,
           Effect.gen(function* () {
             const invokeWorkUnitExecutionService = yield* InvokeWorkUnitExecutionService;
             return yield* invokeWorkUnitExecutionService.startInvokeWorkUnitTarget(input);

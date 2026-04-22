@@ -159,9 +159,8 @@ describe("mcp context fact CRUD v2 contracts", () => {
         {
           instanceId: "ctx-2",
           value: {
-            slotDefinitionId: "slot-1",
             artifactInstanceId: "artifact-1",
-            files: [{ filePath: "docs/brief.md", gitCommitHash: "abc123" }],
+            files: [{ filePath: "docs/brief.md", gitCommitHash: "abc123", deleted: true }],
           },
           artifactSlotKey: "project_overview",
         },
@@ -262,7 +261,6 @@ describe("mcp context fact CRUD v2 contracts", () => {
         instanceId: "ctx-1",
         value: {
           files: [{ filePath: "docs/brief.md", gitCommitHash: "abc123" }],
-          slotDefinitionId: "slot-1",
           artifactInstanceId: "artifact-1",
         },
       }).instanceId,
@@ -285,14 +283,16 @@ describe("mcp context fact CRUD v2 contracts", () => {
       Schema.decodeUnknownSync(DeleteContextFactInstanceInputV2)({
         factKey: "project_overview_artifact",
         instanceId: "ctx-1",
-        filePath: "docs/brief.md",
-        deleted: true,
+        value: {
+          files: [{ filePath: "docs/brief.md", deleted: true }],
+        },
       }),
     ).toEqual({
       factKey: "project_overview_artifact",
       instanceId: "ctx-1",
-      filePath: "docs/brief.md",
-      deleted: true,
+      value: {
+        files: [{ filePath: "docs/brief.md", deleted: true }],
+      },
     });
   });
 

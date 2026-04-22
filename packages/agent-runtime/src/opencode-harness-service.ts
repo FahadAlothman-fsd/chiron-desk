@@ -828,9 +828,19 @@ function getThinkingParts(
 }
 
 function getToolKind(toolName: string): "harness" | "mcp" {
-  return toolName === "read_step_snapshot" ||
-    toolName === "read_context_value" ||
-    toolName === "write_context_value"
+  const normalized = toolName.startsWith("chiron_") ? toolName.slice("chiron_".length) : toolName;
+
+  return normalized === "read_step_snapshot" ||
+    normalized === "read_context_value" ||
+    normalized === "write_context_value" ||
+    normalized === "read_step_execution_snapshot" ||
+    normalized === "read_context_fact_schema" ||
+    normalized === "read_context_fact_instances" ||
+    normalized === "read_attachable_targets" ||
+    normalized === "create_context_fact_instance" ||
+    normalized === "update_context_fact_instance" ||
+    normalized === "remove_context_fact_instance" ||
+    normalized === "delete_context_fact_instance"
     ? "mcp"
     : "harness";
 }

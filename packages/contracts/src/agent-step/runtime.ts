@@ -59,10 +59,15 @@ export const AgentStepAllowedStateTransition = Schema.Union(
 );
 export type AgentStepAllowedStateTransition = typeof AgentStepAllowedStateTransition.Type;
 
-export const AGENT_STEP_V1_MCP_TOOLS = [
-  "read_step_snapshot",
-  "read_context_value",
-  "write_context_value",
+export const AGENT_STEP_V2_MCP_TOOLS = [
+  "read_step_execution_snapshot",
+  "read_context_fact_schema",
+  "read_context_fact_instances",
+  "read_attachable_targets",
+  "create_context_fact_instance",
+  "update_context_fact_instance",
+  "remove_context_fact_instance",
+  "delete_context_fact_instance",
 ] as const;
 
 export const AGENT_STEP_MCP_READ_MODES = ["latest", "all", "query"] as const;
@@ -87,9 +92,18 @@ export const AgentStepStreamContract = Schema.Struct({
 export type AgentStepStreamContract = typeof AgentStepStreamContract.Type;
 
 export const AgentStepContractBoundary = Schema.Struct({
-  version: Schema.Literal("v1"),
+  version: Schema.Literal("v2"),
   supportedMcpTools: Schema.Array(
-    Schema.Literal("read_step_snapshot", "read_context_value", "write_context_value"),
+    Schema.Literal(
+      "read_step_execution_snapshot",
+      "read_context_fact_schema",
+      "read_context_fact_instances",
+      "read_attachable_targets",
+      "create_context_fact_instance",
+      "update_context_fact_instance",
+      "remove_context_fact_instance",
+      "delete_context_fact_instance",
+    ),
   ),
   stepSnapshotReadItemId: Schema.NonEmptyString,
   requestContextAccess: Schema.Literal(false),

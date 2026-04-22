@@ -703,7 +703,7 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
             .sort((a, b) => a.key.localeCompare(b.key));
           const conditionTree = toStartGate(startSets);
           const gateSummary = yield* runtimeGateService
-            .evaluateStartGate({
+            .evaluateStartGateExhaustive({
               projectId: input.projectId,
               conditionTree,
             })
@@ -712,6 +712,12 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
                 Effect.succeed({
                   result: "blocked" as const,
                   evaluatedAt: new Date().toISOString(),
+                  evaluationTree: {
+                    mode: conditionTree.mode,
+                    met: false,
+                    conditions: [],
+                    groups: [],
+                  },
                 }),
               ),
             );
@@ -738,6 +744,7 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
               result: gateSummary.result,
             },
             conditionTree,
+            evaluationTree: gateSummary.evaluationTree,
             launchability: {
               canLaunch: gateSummary.result === "available",
               availableWorkflows,
@@ -829,7 +836,7 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
           const conditionTree = toStartGate(startSets);
 
           const gateSummary = yield* runtimeGateService
-            .evaluateStartGate({
+            .evaluateStartGateExhaustive({
               projectId: input.projectId,
               projectWorkUnitId: projectWorkUnit.id,
               conditionTree,
@@ -839,6 +846,12 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
                 Effect.succeed({
                   result: "blocked" as const,
                   evaluatedAt: new Date().toISOString(),
+                  evaluationTree: {
+                    mode: conditionTree.mode,
+                    met: false,
+                    conditions: [],
+                    groups: [],
+                  },
                 }),
               ),
             );
@@ -869,6 +882,7 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
               result: gateSummary.result,
             },
             conditionTree,
+            evaluationTree: gateSummary.evaluationTree,
             launchability: {
               canLaunch: gateSummary.result === "available",
               availableWorkflows,

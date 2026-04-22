@@ -5,6 +5,7 @@ import {
   TransitionExecutionStatus,
   WorkflowExecutionStatus,
 } from "./status.js";
+import { RuntimeConditionEvaluationTree } from "./conditions.js";
 
 export const RuntimeFactPrimitiveType = Schema.Literal("string", "number", "boolean", "json");
 export type RuntimeFactPrimitiveType = typeof RuntimeFactPrimitiveType.Type;
@@ -281,6 +282,7 @@ export const GetTransitionStartGateDetailsOutput = Schema.Struct({
   }),
   gateSummary: Schema.Struct({ result: RuntimeCandidateAvailability }),
   conditionTree: Schema.Unknown,
+  evaluationTree: Schema.optional(RuntimeConditionEvaluationTree),
   launchability: Schema.Struct({
     canLaunch: Schema.Boolean,
     availableWorkflows: Schema.Array(

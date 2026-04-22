@@ -46,6 +46,7 @@ export type PlainFactValue = typeof PlainFactValue.Type;
 export const BoundFactValue = Schema.Struct({
   factInstanceId: Schema.NonEmptyString,
   value: Schema.Unknown,
+  deleted: Schema.optional(Schema.Boolean),
 });
 export type BoundFactValue = typeof BoundFactValue.Type;
 
@@ -62,11 +63,11 @@ export type WorkUnitReferenceFactValueV2 = typeof WorkUnitReferenceFactValueV2.T
 export const ArtifactSlotReferenceFileView = Schema.Struct({
   filePath: Schema.NonEmptyString,
   gitCommitHash: Schema.NullOr(Schema.NonEmptyString),
+  deleted: Schema.optional(Schema.Boolean),
 });
 export type ArtifactSlotReferenceFileView = typeof ArtifactSlotReferenceFileView.Type;
 
 export const ArtifactSlotReferenceFactValueV2 = Schema.Struct({
-  slotDefinitionId: Schema.NonEmptyString,
   artifactInstanceId: Schema.optional(Schema.NonEmptyString),
   files: Schema.Array(ArtifactSlotReferenceFileView),
 });
@@ -99,6 +100,9 @@ export const ContextFactInstanceValueV2 = Schema.Union(
   WorkUnitDraftSpecAuthoredValue,
 );
 export type ContextFactInstanceValueV2 = typeof ContextFactInstanceValueV2.Type;
+
+export const ContextFactValueInputV2 = Schema.Unknown;
+export type ContextFactValueInputV2 = typeof ContextFactValueInputV2.Type;
 
 export const ReadStepExecutionSnapshotInputV2 = Schema.Struct({});
 export type ReadStepExecutionSnapshotInputV2 = typeof ReadStepExecutionSnapshotInputV2.Type;
@@ -404,29 +408,28 @@ export type ReadAttachableTargetsOutputV2 = typeof ReadAttachableTargetsOutputV2
 
 export const CreateContextFactInstanceInputV2 = Schema.Struct({
   factKey: ContextFactKey,
-  value: ContextFactInstanceValueV2,
+  value: ContextFactValueInputV2,
 });
 export type CreateContextFactInstanceInputV2 = typeof CreateContextFactInstanceInputV2.Type;
 
 export const UpdateContextFactInstanceInputV2 = Schema.Struct({
   factKey: ContextFactKey,
   instanceId: ContextFactInstanceId,
-  value: ContextFactInstanceValueV2,
+  value: ContextFactValueInputV2,
 });
 export type UpdateContextFactInstanceInputV2 = typeof UpdateContextFactInstanceInputV2.Type;
 
 export const RemoveContextFactInstanceInputV2 = Schema.Struct({
   factKey: ContextFactKey,
   instanceId: ContextFactInstanceId,
-  filePath: Schema.optional(Schema.NonEmptyString),
+  value: Schema.optional(ContextFactValueInputV2),
 });
 export type RemoveContextFactInstanceInputV2 = typeof RemoveContextFactInstanceInputV2.Type;
 
 export const DeleteContextFactInstanceInputV2 = Schema.Struct({
   factKey: ContextFactKey,
   instanceId: ContextFactInstanceId,
-  filePath: Schema.optional(Schema.NonEmptyString),
-  deleted: Schema.Boolean,
+  value: Schema.optional(ContextFactValueInputV2),
 });
 export type DeleteContextFactInstanceInputV2 = typeof DeleteContextFactInstanceInputV2.Type;
 

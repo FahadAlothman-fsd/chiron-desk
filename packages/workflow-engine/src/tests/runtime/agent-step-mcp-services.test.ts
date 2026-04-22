@@ -5,7 +5,6 @@ import { McpToolValidationError, McpWriteRequirementError } from "@chiron/contra
 
 import { AgentStepMcpService } from "../../services/runtime/agent-step-mcp-service";
 import { AgentStepSessionCommandService } from "../../services/runtime/agent-step-session-command-service";
-import { AgentStepSnapshotService } from "../../services/runtime/agent-step-snapshot-service";
 import { makeAgentStepRuntimeTestContext } from "./agent-step-runtime-test-support";
 
 async function seedSavedSession(ctx: ReturnType<typeof makeAgentStepRuntimeTestContext>) {
@@ -21,18 +20,6 @@ async function seedSavedSession(ctx: ReturnType<typeof makeAgentStepRuntimeTestC
   );
 
   const now = new Date("2026-04-09T12:00:00.000Z");
-  const existing = ctx.bindings[0];
-  if (existing) {
-    existing.bindingState = "bound";
-    existing.sessionId = started.session.sessionId;
-    existing.serverInstanceId = started.serverInstanceId ?? null;
-    existing.serverBaseUrl = started.serverBaseUrl ?? null;
-    existing.selectedAgentKey = started.session.agent ?? ctx.agentPayload.harnessSelection.agent;
-    existing.selectedModelJson = started.session.model ?? ctx.agentPayload.harnessSelection.model;
-    existing.updatedAt = now;
-    return;
-  }
-
   ctx.bindings.push({
     id: "binding-1",
     stepExecutionId: "step-exec-1",
@@ -51,292 +38,165 @@ async function seedSavedSession(ctx: ReturnType<typeof makeAgentStepRuntimeTestC
 const withHiddenStepExecutionId = <T extends object>(input: T) =>
   ({ ...input, stepExecutionId: "step-exec-1" }) as T & { stepExecutionId: string };
 
-describe("AgentStep MCP services", () => {
-  it("implements read_step_snapshot and read_context_value v1 semantics", async () => {
+const runMcp = async (
+  ctx: ReturnType<typeof makeAgentStepRuntimeTestContext>,
+  request: Parameters<AgentStepMcpService["Type"]["execute"]>[0],
+) =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const service = yield* AgentStepMcpService;
+      return yield* service.execute(request);
+    }).pipe(Effect.provide(ctx.runtimeLayer)),
+  );
+
+const startSession = async (ctx: ReturnType<typeof makeAgentStepRuntimeTestContext>) => {
+  await seedSavedSession(ctx);
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const session = yield* AgentStepSessionCommandService;
+      yield* session.startAgentStepSession({
+        projectId: "project-1",
+        stepExecutionId: "step-exec-1",
+      });
+    }).pipe(Effect.provide(ctx.runtimeLayer)),
+  );
+};
+
+describe("AgentStep MCP v2 services", () => {
+  it("reads the step snapshot, schema, and instances through the v2 surface", async () => {
     const ctx = makeAgentStepRuntimeTestContext();
 
-    const snapshot = await Effect.runPromise(
-      Effect.gen(function* () {
-        const service = yield* AgentStepSnapshotService;
-        return yield* service.readStepSnapshot(
-          withHiddenStepExecutionId({ readItemId: "step_snapshot" }) as any,
-        );
-      }).pipe(Effect.provide(ctx.runtimeLayer)),
-    );
-
-    expect(snapshot).toEqual({
-      readItemId: "step_snapshot",
-      stepExecutionId: "step-exec-1",
-      workflowExecutionId: "wfexec-1",
-      state: "not_started",
-      objective: ctx.agentPayload.objective,
-      instructionsMarkdown: ctx.agentPayload.instructionsMarkdown,
-      contractVersion: "v1",
+    const snapshot = await runMcp(ctx, {
+      version: "v2",
+      toolName: "read_step_execution_snapshot",
+      input: withHiddenStepExecutionId({}),
     });
 
-    const mcpRead = await Effect.runPromise(
-      Effect.gen(function* () {
-        const service = yield* AgentStepMcpService;
-        return yield* service.execute({
-          version: "v1",
-          toolName: "read_context_value",
-          input: withHiddenStepExecutionId({ readItemId: "project-context", mode: "all" }) as any,
-        });
-      }).pipe(Effect.provide(ctx.runtimeLayer)),
-    );
-
-    expect(mcpRead.response).toMatchObject({
-      version: "v1",
-      toolName: "read_context_value",
-      output: {
-        readItemId: "project-context",
-        mode: "all",
-        contextFactDefinitionId: "ctx-project-context",
-        contextFactKind: "plain_value_fact",
-      },
-    });
-    if (mcpRead.response.toolName !== "read_context_value") {
-      throw new Error("expected read_context_value response");
+    expect(snapshot.response.toolName).toBe("read_step_execution_snapshot");
+    if (snapshot.response.toolName !== "read_step_execution_snapshot") {
+      throw new Error("expected read_step_execution_snapshot response");
     }
-    expect(mcpRead.response.output.values).toHaveLength(1);
-    expect(mcpRead.newlyExposedWriteItems).toEqual([]);
-  });
-
-  it("applies valid writes, returns newly exposed write items, and does not persist invalid writes", async () => {
-    const ctx = makeAgentStepRuntimeTestContext();
-
-    await seedSavedSession(ctx);
-
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        const service = yield* AgentStepMcpService;
-        yield* service.execute({
-          version: "v1",
-          toolName: "write_context_value",
-          input: withHiddenStepExecutionId({
-            writeItemId: "write-review-notes",
-            valueJson: "needs more references",
-          }) as any,
-        });
-      }).pipe(Effect.provide(ctx.runtimeLayer)),
-    ).catch(() => undefined);
-
-    expect(ctx.appliedWrites).toHaveLength(0);
-
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        const session = yield* AgentStepSessionCommandService;
-        yield* session.startAgentStepSession({
-          projectId: "project-1",
-          stepExecutionId: "step-exec-1",
-        });
-      }).pipe(Effect.provide(ctx.runtimeLayer)),
-    );
-
-    const writeResult = await Effect.runPromise(
-      Effect.gen(function* () {
-        const service = yield* AgentStepMcpService;
-        return yield* service.execute({
-          version: "v1",
-          toolName: "write_context_value",
-          input: withHiddenStepExecutionId({
-            writeItemId: "write-summary",
-            valueJson: "Approved summary",
-          }) as any,
-        });
-      }).pipe(Effect.provide(ctx.runtimeLayer)),
-    );
-
-    expect(writeResult.response.toolName).toBe("write_context_value");
-    if (writeResult.response.toolName !== "write_context_value") {
-      throw new Error("expected write_context_value response");
-    }
-    expect(writeResult.response.output.status).toBe("applied");
-    expect(writeResult.response.output.appliedWrite.valueJson).toBe("Approved summary");
-    expect(writeResult.newlyExposedWriteItems.map((item) => item.writeItemId)).toEqual([
-      "write-artifact",
+    expect(snapshot.response.output.readSet[0]?.factKey).toBe("project-context");
+    expect(snapshot.response.output.writeSet.map((item) => item.factKey)).toEqual([
+      "review-notes",
+      "artifact",
+      "summary",
     ]);
-    expect(ctx.appliedWrites).toHaveLength(1);
-    expect(ctx.contextFacts.some((fact) => fact.contextFactDefinitionId === "ctx-summary")).toBe(
-      true,
-    );
 
-    const invalidWrite = await Effect.runPromise(
-      Effect.gen(function* () {
-        const service = yield* AgentStepMcpService;
-        return yield* Effect.either(
-          service.execute({
-            version: "v1",
-            toolName: "write_context_value",
-            input: withHiddenStepExecutionId({
-              writeItemId: "write-summary",
-              valueJson: "",
-            }) as any,
-          }),
-        );
-      }).pipe(Effect.provide(ctx.runtimeLayer)),
-    );
+    const schema = await runMcp(ctx, {
+      version: "v2",
+      toolName: "read_context_fact_schema",
+      input: withHiddenStepExecutionId({ factKey: "summary" }),
+    });
 
-    expect(invalidWrite._tag).toBe("Left");
-    if (invalidWrite._tag !== "Left") {
-      throw new Error("expected invalid write to fail");
+    expect(schema.response.toolName).toBe("read_context_fact_schema");
+    if (schema.response.toolName !== "read_context_fact_schema") {
+      throw new Error("expected read_context_fact_schema response");
     }
-    expect(invalidWrite.left).toBeInstanceOf(McpToolValidationError);
-    expect(ctx.appliedWrites).toHaveLength(1);
+    expect(schema.response.output.actions).toEqual(["create", "update", "remove"]);
 
-    const invalidShapeWrite = await Effect.runPromise(
-      Effect.gen(function* () {
-        const service = yield* AgentStepMcpService;
-        return yield* Effect.either(
-          service.execute({
-            version: "v1",
-            toolName: "write_context_value",
-            input: withHiddenStepExecutionId({
-              writeItemId: "write-summary",
-              valueJson: { summary: "Approved summary" },
-            }) as any,
-          }),
-        );
-      }).pipe(Effect.provide(ctx.runtimeLayer)),
-    );
+    const instances = await runMcp(ctx, {
+      version: "v2",
+      toolName: "read_context_fact_instances",
+      input: withHiddenStepExecutionId({ factKey: "project-context" }),
+    });
 
-    expect(invalidShapeWrite._tag).toBe("Left");
-    if (invalidShapeWrite._tag !== "Left") {
-      throw new Error("expected invalid shape write to fail");
+    expect(instances.response.toolName).toBe("read_context_fact_instances");
+    if (instances.response.toolName !== "read_context_fact_instances") {
+      throw new Error("expected read_context_fact_instances response");
     }
-    expect(invalidShapeWrite.left).toBeInstanceOf(McpToolValidationError);
-    expect(invalidShapeWrite.left.message).toContain("string");
-    expect(ctx.appliedWrites).toHaveLength(1);
+    expect(instances.response.output.instances).toHaveLength(1);
+    expect(instances.response.output.instances[0]?.value).toEqual({ problem: "Need a plan" });
   });
 
-  it("rejects blocked writes until requirements are satisfied", async () => {
+  it("enforces active-session gating and requirement gating for v2 writes", async () => {
     const ctx = makeAgentStepRuntimeTestContext();
 
     await seedSavedSession(ctx);
 
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        const session = yield* AgentStepSessionCommandService;
-        yield* session.startAgentStepSession({
-          projectId: "project-1",
-          stepExecutionId: "step-exec-1",
-        });
-      }).pipe(Effect.provide(ctx.runtimeLayer)),
-    );
-
-    const blocked = await Effect.runPromise(
+    const inactiveWrite = await Effect.runPromise(
       Effect.gen(function* () {
         const service = yield* AgentStepMcpService;
         return yield* Effect.either(
           service.execute({
-            version: "v1",
-            toolName: "write_context_value",
+            version: "v2",
+            toolName: "create_context_fact_instance",
             input: withHiddenStepExecutionId({
-              writeItemId: "write-artifact",
-              valueJson: { relativePath: "docs/setup.md" },
-            }) as any,
+              factKey: "review-notes",
+              value: "needs more references",
+            }),
           }),
         );
       }).pipe(Effect.provide(ctx.runtimeLayer)),
     );
 
-    expect(blocked._tag).toBe("Left");
-    if (blocked._tag !== "Left") {
+    expect(inactiveWrite._tag).toBe("Left");
+
+    await startSession(ctx);
+
+    const blockedWrite = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* AgentStepMcpService;
+        return yield* Effect.either(
+          service.execute({
+            version: "v2",
+            toolName: "create_context_fact_instance",
+            input: withHiddenStepExecutionId({
+              factKey: "artifact",
+              value: { files: ["docs/setup.md"] },
+            }),
+          }),
+        );
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    expect(blockedWrite._tag).toBe("Left");
+    if (blockedWrite._tag !== "Left") {
       throw new Error("expected blocked write to fail");
     }
-    expect(blocked.left).toBeInstanceOf(McpWriteRequirementError);
-    expect(ctx.appliedWrites).toHaveLength(0);
+    expect(blockedWrite.left).toBeInstanceOf(McpWriteRequirementError);
+
+    const created = await runMcp(ctx, {
+      version: "v2",
+      toolName: "create_context_fact_instance",
+      input: withHiddenStepExecutionId({ factKey: "summary", value: "Approved summary" }),
+    });
+
+    expect(created.response.toolName).toBe("create_context_fact_instance");
+    if (created.response.toolName !== "create_context_fact_instance") {
+      throw new Error("expected create_context_fact_instance response");
+    }
+    expect(created.response.output.value).toBe("Approved summary");
+    expect(created.newlyExposedWriteItems.map((item) => item.writeItemId)).toEqual([
+      "write-artifact",
+    ]);
   });
 
-  it("returns structured validation errors for invalid progressive-disclosure query params", async () => {
+  it("updates artifact facts with committed files on the v2 surface", async () => {
     const ctx = makeAgentStepRuntimeTestContext();
+    await startSession(ctx);
 
-    const invalidRead = await Effect.runPromise(
-      Effect.gen(function* () {
-        const service = yield* AgentStepMcpService;
-        return yield* Effect.either(
-          service.execute({
-            version: "v1",
-            toolName: "read_context_value",
-            input: withHiddenStepExecutionId({
-              readItemId: "project-context",
-              mode: "query",
-              queryParam: "limit=0",
-            }) as any,
-          }),
-        );
-      }).pipe(Effect.provide(ctx.runtimeLayer)),
-    );
+    await runMcp(ctx, {
+      version: "v2",
+      toolName: "create_context_fact_instance",
+      input: withHiddenStepExecutionId({ factKey: "summary", value: "Approved summary" }),
+    });
 
-    expect(invalidRead._tag).toBe("Left");
-    if (invalidRead._tag !== "Left") {
-      throw new Error("expected invalid read to fail");
+    const createdArtifact = await runMcp(ctx, {
+      version: "v2",
+      toolName: "create_context_fact_instance",
+      input: withHiddenStepExecutionId({
+        factKey: "artifact",
+        value: { files: ["docs/setup.md"] },
+      }),
+    });
+
+    expect(createdArtifact.response.toolName).toBe("create_context_fact_instance");
+    if (createdArtifact.response.toolName !== "create_context_fact_instance") {
+      throw new Error("expected create_context_fact_instance response");
     }
-
-    expect(invalidRead.left).toBeInstanceOf(McpToolValidationError);
-    expect(invalidRead.left.message).toContain("limit");
-  });
-
-  it("records committed git metadata for artifact reference writes", async () => {
-    const ctx = makeAgentStepRuntimeTestContext();
-
-    await seedSavedSession(ctx);
-
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        const session = yield* AgentStepSessionCommandService;
-        yield* session.startAgentStepSession({
-          projectId: "project-1",
-          stepExecutionId: "step-exec-1",
-        });
-      }).pipe(Effect.provide(ctx.runtimeLayer)),
-    );
-
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        const service = yield* AgentStepMcpService;
-        yield* service.execute({
-          version: "v1",
-          toolName: "write_context_value",
-          input: withHiddenStepExecutionId({
-            writeItemId: "write-summary",
-            valueJson: "Approved summary",
-          }) as any,
-        });
-      }).pipe(Effect.provide(ctx.runtimeLayer)),
-    );
-
-    const artifactWrite = await Effect.runPromise(
-      Effect.gen(function* () {
-        const service = yield* AgentStepMcpService;
-        return yield* service.execute({
-          version: "v1",
-          toolName: "write_context_value",
-          input: withHiddenStepExecutionId({
-            writeItemId: "write-artifact",
-            valueJson: { relativePath: "docs/setup.md" },
-          }) as any,
-        });
-      }).pipe(Effect.provide(ctx.runtimeLayer)),
-    );
-
-    expect(artifactWrite.response.toolName).toBe("write_context_value");
-    if (artifactWrite.response.toolName !== "write_context_value") {
-      throw new Error("expected write_context_value response");
-    }
-
-    expect(artifactWrite.response.output.appliedWrite.valueJson).toEqual({
-      slotDefinitionId: "slot-1",
-      files: [
-        {
-          filePath: "docs/setup.md",
-          status: "present",
-          gitCommitHash: "commit-123",
-          gitBlobHash: "blob-123",
-          gitCommitSubject: "seed",
-          gitCommitBody: "seed body",
-        },
-      ],
+    expect(createdArtifact.response.output.value).toEqual({
+      files: [{ filePath: "docs/setup.md", gitCommitHash: "commit-123" }],
     });
     expect(
       ctx.contextFacts.find((fact) => fact.contextFactDefinitionId === "ctx-artifact")?.valueJson,
@@ -355,76 +215,7 @@ describe("AgentStep MCP services", () => {
     });
   });
 
-  it("rejects artifact reference writes when the file is not committed", async () => {
-    const ctx = makeAgentStepRuntimeTestContext({
-      artifactReferenceResolutions: {
-        "docs/setup.md": {
-          status: "not_committed",
-          relativePath: "docs/setup.md",
-          tracked: true,
-          untracked: false,
-          staged: true,
-          modified: false,
-          deleted: false,
-        },
-      },
-    });
-
-    await seedSavedSession(ctx);
-
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        const session = yield* AgentStepSessionCommandService;
-        yield* session.startAgentStepSession({
-          projectId: "project-1",
-          stepExecutionId: "step-exec-1",
-        });
-      }).pipe(Effect.provide(ctx.runtimeLayer)),
-    );
-
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        const service = yield* AgentStepMcpService;
-        yield* service.execute({
-          version: "v1",
-          toolName: "write_context_value",
-          input: withHiddenStepExecutionId({
-            writeItemId: "write-summary",
-            valueJson: "Approved summary",
-          }) as any,
-        });
-      }).pipe(Effect.provide(ctx.runtimeLayer)),
-    );
-
-    const result = await Effect.runPromise(
-      Effect.gen(function* () {
-        const service = yield* AgentStepMcpService;
-        return yield* Effect.either(
-          service.execute({
-            version: "v1",
-            toolName: "write_context_value",
-            input: withHiddenStepExecutionId({
-              writeItemId: "write-artifact",
-              valueJson: { relativePath: "docs/setup.md" },
-            }) as any,
-          }),
-        );
-      }).pipe(Effect.provide(ctx.runtimeLayer)),
-    );
-
-    expect(result._tag).toBe("Left");
-    if (result._tag !== "Left") {
-      throw new Error("expected artifact write to fail");
-    }
-
-    expect(result.left).toBeInstanceOf(McpToolValidationError);
-    expect(result.left.message).toContain("not committed yet");
-    expect(ctx.contextFacts.some((fact) => fact.contextFactDefinitionId === "ctx-artifact")).toBe(
-      false,
-    );
-  });
-
-  it("records deleted artifact updates distinctly when an existing artifact path is removed", async () => {
+  it("distinguishes artifact remove for context-local files from artifact delete for external-slot files", async () => {
     const ctx = makeAgentStepRuntimeTestContext({
       initialContextFacts: [
         {
@@ -443,73 +234,176 @@ describe("AgentStep MCP services", () => {
           contextFactDefinitionId: "ctx-artifact",
           instanceOrder: 0,
           valueJson: {
-            relativePath: "docs/setup.md",
-            gitCommitHash: "commit-old",
-            gitBlobHash: "blob-old",
-            gitCommitSubject: "subject-old",
-            gitCommitBody: "body-old",
+            slotDefinitionId: "slot-1",
+            files: [
+              {
+                filePath: "docs/external.md",
+                status: "present",
+                gitCommitHash: "commit-old",
+                gitBlobHash: "blob-old",
+                gitCommitSubject: "subject-old",
+                gitCommitBody: "body-old",
+              },
+              {
+                filePath: "docs/local.md",
+                status: "present",
+                gitCommitHash: "commit-local",
+                gitBlobHash: "blob-local",
+                gitCommitSubject: "subject-local",
+                gitCommitBody: "body-local",
+              },
+            ],
           },
           sourceStepExecutionId: "step-exec-1",
           createdAt: new Date("2026-04-09T12:00:02.000Z"),
           updatedAt: new Date("2026-04-09T12:00:02.000Z"),
         },
       ],
-      artifactReferenceResolutions: {
-        "docs/setup.md": {
-          status: "not_committed",
-          relativePath: "docs/setup.md",
-          tracked: true,
-          untracked: false,
-          staged: false,
-          modified: false,
-          deleted: true,
+      currentArtifactState: {
+        exists: true,
+        snapshot: {
+          id: "artifact-instance-1",
+          projectWorkUnitId: "pwu-1",
+          slotDefinitionId: "slot-1",
+          recordedByTransitionExecutionId: null,
+          recordedByWorkflowExecutionId: "wfexec-1",
+          recordedByUserId: null,
+          supersededByProjectArtifactSnapshotId: null,
+          createdAt: new Date("2026-04-09T12:00:00.000Z"),
         },
+        members: [
+          {
+            id: "member-1",
+            artifactSnapshotId: "artifact-instance-1",
+            filePath: "docs/external.md",
+            memberStatus: "present",
+            gitCommitHash: "commit-old",
+            gitBlobHash: "blob-old",
+            gitCommitTitle: "subject-old",
+            gitCommitBody: "body-old",
+          },
+        ],
       },
     });
+    await startSession(ctx);
 
-    await seedSavedSession(ctx);
-
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        const session = yield* AgentStepSessionCommandService;
-        yield* session.startAgentStepSession({
-          projectId: "project-1",
-          stepExecutionId: "step-exec-1",
-        });
-      }).pipe(Effect.provide(ctx.runtimeLayer)),
-    );
-
-    const artifactWrite = await Effect.runPromise(
+    const invalidRemove = await Effect.runPromise(
       Effect.gen(function* () {
         const service = yield* AgentStepMcpService;
-        return yield* service.execute({
-          version: "v1",
-          toolName: "write_context_value",
-          input: withHiddenStepExecutionId({
-            writeItemId: "write-artifact",
-            valueJson: { relativePath: "docs/setup.md", status: "deleted" },
-          }) as any,
-        });
+        return yield* Effect.either(
+          service.execute({
+            version: "v2",
+            toolName: "remove_context_fact_instance",
+            input: withHiddenStepExecutionId({
+              factKey: "artifact",
+              instanceId: "fact-artifact-1",
+              value: { files: ["docs/external.md"] },
+            }),
+          }),
+        );
       }).pipe(Effect.provide(ctx.runtimeLayer)),
     );
 
-    expect(artifactWrite.response.toolName).toBe("write_context_value");
-    if (artifactWrite.response.toolName !== "write_context_value") {
-      throw new Error("expected write_context_value response");
+    expect(invalidRemove._tag).toBe("Left");
+    if (invalidRemove._tag !== "Left") {
+      throw new Error("expected invalid remove to fail");
     }
+    expect(invalidRemove.left).toBeInstanceOf(McpToolValidationError);
 
-    expect(artifactWrite.response.output.appliedWrite.valueJson).toEqual({
-      slotDefinitionId: "slot-1",
-      files: [
-        {
-          filePath: "docs/setup.md",
-          status: "deleted",
-          gitCommitHash: "commit-old",
-          gitBlobHash: "blob-old",
-          gitCommitSubject: "subject-old",
-          gitCommitBody: "body-old",
-        },
-      ],
+    const removed = await runMcp(ctx, {
+      version: "v2",
+      toolName: "remove_context_fact_instance",
+      input: withHiddenStepExecutionId({
+        factKey: "artifact",
+        instanceId: "fact-artifact-1",
+        value: { files: ["docs/local.md"] },
+      }),
     });
+
+    expect(removed.response.toolName).toBe("remove_context_fact_instance");
+    if (removed.response.toolName !== "remove_context_fact_instance") {
+      throw new Error("expected remove_context_fact_instance response");
+    }
+    expect(removed.response.output.value).toEqual({
+      artifactInstanceId: "artifact-instance-1",
+      files: [{ filePath: "docs/external.md", gitCommitHash: "commit-old" }],
+    });
+    const updatedInstanceId = removed.response.output.instanceId;
+
+    const invalidDelete = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* AgentStepMcpService;
+        return yield* Effect.either(
+          service.execute({
+            version: "v2",
+            toolName: "delete_context_fact_instance",
+            input: withHiddenStepExecutionId({
+              factKey: "artifact",
+              instanceId: updatedInstanceId,
+              value: { files: ["docs/local.md"] },
+            }),
+          }),
+        );
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    expect(invalidDelete._tag).toBe("Left");
+    if (invalidDelete._tag !== "Left") {
+      throw new Error("expected invalid delete to fail");
+    }
+    expect(invalidDelete.left).toBeInstanceOf(McpToolValidationError);
+
+    const deleted = await runMcp(ctx, {
+      version: "v2",
+      toolName: "delete_context_fact_instance",
+      input: withHiddenStepExecutionId({
+        factKey: "artifact",
+        instanceId: updatedInstanceId,
+        value: { files: ["docs/external.md"] },
+      }),
+    });
+
+    expect(deleted.response.toolName).toBe("delete_context_fact_instance");
+    if (deleted.response.toolName !== "delete_context_fact_instance") {
+      throw new Error("expected delete_context_fact_instance response");
+    }
+    expect(deleted.response.output.value).toEqual({
+      artifactInstanceId: "artifact-instance-1",
+      files: [{ filePath: "docs/external.md", gitCommitHash: "commit-123", deleted: true }],
+    });
+  });
+
+  it("rejects artifact writes that provide object file entries instead of file path strings", async () => {
+    const ctx = makeAgentStepRuntimeTestContext();
+    await startSession(ctx);
+
+    await runMcp(ctx, {
+      version: "v2",
+      toolName: "create_context_fact_instance",
+      input: withHiddenStepExecutionId({ factKey: "summary", value: "Approved summary" }),
+    });
+
+    const invalidArtifactCreate = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* AgentStepMcpService;
+        return yield* Effect.either(
+          service.execute({
+            version: "v2",
+            toolName: "create_context_fact_instance",
+            input: withHiddenStepExecutionId({
+              factKey: "artifact",
+              value: { files: [{ path: "docs/setup.md", content: "nope" }] },
+            }),
+          }),
+        );
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    expect(invalidArtifactCreate._tag).toBe("Left");
+    if (invalidArtifactCreate._tag !== "Left") {
+      throw new Error("expected invalid artifact create to fail");
+    }
+    expect(invalidArtifactCreate.left).toBeInstanceOf(McpToolValidationError);
+    expect(invalidArtifactCreate.left.message).toContain("value.files");
   });
 });

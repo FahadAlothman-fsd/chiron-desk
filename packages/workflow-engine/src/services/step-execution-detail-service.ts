@@ -311,6 +311,7 @@ function resolveBoundExternalFactOptions(params: {
     id: string;
     key: string;
     name: string | null;
+    cardinality: string | null;
   }[];
   workUnitFactSchemas: readonly FactSchemaRow[];
   projectFactInstances: readonly {
@@ -597,7 +598,12 @@ function buildResolvedField(params: {
   field: FormFieldBinding;
   contextFact: WorkflowContextFactDto;
   factSchemas: ReturnType<typeof buildFactSchemaLookup>;
-  methodologyFactDefinitions: readonly { id: string; key: string; name: string | null }[];
+  methodologyFactDefinitions: readonly {
+    id: string;
+    key: string;
+    name: string | null;
+    cardinality: string | null;
+  }[];
   artifactSlotDefinitions: readonly { id: string; key: string; displayName: string | null }[];
   projectFactInstances: readonly { id: string; factDefinitionId: string; valueJson: unknown }[];
   currentWorkUnitFactInstances: readonly {
@@ -654,9 +660,21 @@ function buildResolvedField(params: {
           : undefined;
       const bindingLabel =
         external?.name ?? externalDefinition?.name ?? humanizeKey(externalBindingId);
+      const externalCardinality =
+        external?.cardinality === "many" || externalDefinition?.cardinality === "many"
+          ? "many"
+          : "one";
       const isReferenceFact =
         params.contextFact.valueType === "work_unit" ||
         typeof params.contextFact.workUnitDefinitionId === "string";
+      const boundOptions = resolveBoundExternalFactOptions({
+        bindingKey: externalBindingId,
+        methodologyFactDefinitions: params.methodologyFactDefinitions,
+        workUnitFactSchemas: [...params.factSchemas.byId.values()],
+        projectFactInstances: params.projectFactInstances,
+        currentWorkUnitFactInstances: params.currentWorkUnitFactInstances,
+        projectWorkUnits: params.projectWorkUnits,
+      });
       const boundValueWidget = buildPrimitiveWidget({
         valueType: (params.contextFact.valueType ?? external?.factType ?? "json") as FactType,
         cardinality: params.contextFact.cardinality,
@@ -674,24 +692,11 @@ function buildResolvedField(params: {
               renderedMultiplicity,
               boundValueWidget,
               externalBindingKey: externalBindingId,
+              externalCardinality,
               bindingLabel,
-              ...(resolveBoundExternalFactOptions({
-                bindingKey: externalBindingId,
-                methodologyFactDefinitions: params.methodologyFactDefinitions,
-                workUnitFactSchemas: [...params.factSchemas.byId.values()],
-                projectFactInstances: params.projectFactInstances,
-                currentWorkUnitFactInstances: params.currentWorkUnitFactInstances,
-                projectWorkUnits: params.projectWorkUnits,
-              })
+              ...(boundOptions
                 ? {
-                    options: resolveBoundExternalFactOptions({
-                      bindingKey: externalBindingId,
-                      methodologyFactDefinitions: params.methodologyFactDefinitions,
-                      workUnitFactSchemas: [...params.factSchemas.byId.values()],
-                      projectFactInstances: params.projectFactInstances,
-                      currentWorkUnitFactInstances: params.currentWorkUnitFactInstances,
-                      projectWorkUnits: params.projectWorkUnits,
-                    }),
+                    options: boundOptions,
                   }
                 : {
                     emptyState:
@@ -708,8 +713,17 @@ function buildResolvedField(params: {
                 validation: external?.validationJson,
                 externalBindingKey: externalBindingId,
               }),
+              externalCardinality,
               boundValueWidget,
               bindingLabel,
+              ...(boundOptions
+                ? {
+                    options: boundOptions,
+                  }
+                : {
+                    emptyState:
+                      "No eligible existing instances are available yet. Create the required fact first.",
+                  }),
             },
       };
     }

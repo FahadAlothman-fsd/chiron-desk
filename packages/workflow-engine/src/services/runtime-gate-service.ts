@@ -61,6 +61,9 @@ export class RuntimeGateService extends Context.Tag("RuntimeGateService")<
     readonly evaluateStartGate: (
       input: RuntimeGateEvaluationInput,
     ) => Effect.Effect<RuntimeGateEvaluationResult, RuntimeGateError>;
+    readonly evaluateStartGateExhaustive: (
+      input: RuntimeGateEvaluationInput,
+    ) => Effect.Effect<RuntimeGateEvaluationWithTreeResult, RuntimeGateError>;
     readonly evaluateCompletionGate: (
       input: RuntimeGateEvaluationInput,
     ) => Effect.Effect<RuntimeGateEvaluationResult, RuntimeGateError>;
@@ -531,6 +534,7 @@ export const RuntimeGateServiceLive = Layer.effect(
 
     return RuntimeGateService.of({
       evaluateStartGate: evaluate,
+      evaluateStartGateExhaustive: evaluateExhaustive,
       evaluateCompletionGate: evaluate,
       evaluateCompletionGateExhaustive: evaluateExhaustive,
     });

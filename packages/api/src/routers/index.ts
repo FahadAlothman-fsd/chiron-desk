@@ -28,6 +28,9 @@ import {
   TransitionExecutionRepository,
   WorkflowExecutionRepository,
   WorkUnitFactRepository,
+  WorkflowEngineRuntimeNonAgentStepServicesLive,
+  WorkflowEngineRuntimeAgentStepServicesLive,
+  WorkflowEngineRuntimeAgentStepRouterServicesLive,
   WorkflowEngineRuntimeLive,
   WorkflowEngineRuntimeStepServicesLive,
 } from "@chiron/workflow-engine";
@@ -75,7 +78,7 @@ export function createAppRouter(
   >;
   const runtimeServiceLayer = Layer.mergeAll(
     WorkflowEngineRuntimeLive,
-    WorkflowEngineRuntimeStepServicesLive,
+    WorkflowEngineRuntimeNonAgentStepServicesLive,
   ).pipe(
     Layer.provide(
       Layer.mergeAll(
@@ -99,6 +102,36 @@ export function createAppRouter(
       OpencodeHarnessServiceLive,
     ),
   ) as Layer.Layer<any>;
+  const runtimeStepServiceLayer = Layer.mergeAll(
+    WorkflowEngineRuntimeLive,
+    WorkflowEngineRuntimeNonAgentStepServicesLive,
+  ).pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        methodologyServiceLayer,
+        runtimeRepoLayer,
+        repoLayer,
+        lifecycleRepoLayer,
+        projectContextRepoLayer,
+        OpencodeHarnessServiceLive,
+      ),
+    ),
+  ) as Layer.Layer<any>;
+  const runtimeAgentStepServiceLayer = Layer.mergeAll(
+    WorkflowEngineRuntimeLive,
+    WorkflowEngineRuntimeAgentStepRouterServicesLive,
+  ).pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        methodologyServiceLayer,
+        runtimeRepoLayer,
+        repoLayer,
+        lifecycleRepoLayer,
+        projectContextRepoLayer,
+        OpencodeHarnessServiceLive,
+      ),
+    ),
+  ) as Layer.Layer<any>;
   const projectServiceLayer = Layer.mergeAll(
     methodologyServiceLayer,
     runtimeServiceLayer,
@@ -117,8 +150,10 @@ export function createAppRouter(
     methodology: createMethodologyRouter(methodologyServiceLayer),
     project: createProjectRouter(
       methodologyServiceLayer,
-      projectServiceLayer,
+      runtimeServiceLayer,
       runtimeQueryServiceLayer,
+      runtimeStepServiceLayer,
+      runtimeAgentStepServiceLayer,
     ),
   };
 }
