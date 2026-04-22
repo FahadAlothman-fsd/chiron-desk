@@ -898,6 +898,30 @@ export const StartInvokeWorkflowTargetOutput = Schema.Struct({
 });
 export type StartInvokeWorkflowTargetOutput = typeof StartInvokeWorkflowTargetOutput.Type;
 
+export const SingletonAutoAttachWarningCode = Schema.Literal(
+  "singleton_auto_attach_no_match",
+  "singleton_auto_attach_multiple_matches",
+);
+export type SingletonAutoAttachWarningCode = typeof SingletonAutoAttachWarningCode.Type;
+
+export const SingletonAutoAttachWarning = Schema.Struct({
+  code: SingletonAutoAttachWarningCode,
+  targetWorkUnitDefinitionId: Schema.NonEmptyString,
+  targetWorkUnitLabel: Schema.optional(Schema.String),
+  matchCount: Schema.Number,
+  matchedProjectWorkUnitIds: Schema.Array(Schema.NonEmptyString),
+  matchedWorkUnits: Schema.Array(
+    Schema.Struct({
+      projectWorkUnitId: Schema.NonEmptyString,
+      label: Schema.String,
+    }),
+  ),
+  message: Schema.String,
+  contextFactDefinitionId: Schema.optional(Schema.NonEmptyString),
+  factDefinitionId: Schema.optional(Schema.NonEmptyString),
+});
+export type SingletonAutoAttachWarning = typeof SingletonAutoAttachWarning.Type;
+
 export const StartInvokeWorkUnitTargetInput = Schema.Struct({
   projectId: Schema.NonEmptyString,
   stepExecutionId: Schema.NonEmptyString,
@@ -1081,30 +1105,6 @@ export const SaveBranchStepSelectionOutput = Schema.Struct({
   result: Schema.Literal("saved"),
 });
 export type SaveBranchStepSelectionOutput = typeof SaveBranchStepSelectionOutput.Type;
-
-export const SingletonAutoAttachWarningCode = Schema.Literal(
-  "singleton_auto_attach_no_match",
-  "singleton_auto_attach_multiple_matches",
-);
-export type SingletonAutoAttachWarningCode = typeof SingletonAutoAttachWarningCode.Type;
-
-export const SingletonAutoAttachWarning = Schema.Struct({
-  code: SingletonAutoAttachWarningCode,
-  targetWorkUnitDefinitionId: Schema.NonEmptyString,
-  targetWorkUnitLabel: Schema.optional(Schema.String),
-  matchCount: Schema.Number,
-  matchedProjectWorkUnitIds: Schema.Array(Schema.NonEmptyString),
-  matchedWorkUnits: Schema.Array(
-    Schema.Struct({
-      projectWorkUnitId: Schema.NonEmptyString,
-      label: Schema.String,
-    }),
-  ),
-  message: Schema.String,
-  contextFactDefinitionId: Schema.optional(Schema.NonEmptyString),
-  factDefinitionId: Schema.optional(Schema.NonEmptyString),
-});
-export type SingletonAutoAttachWarning = typeof SingletonAutoAttachWarning.Type;
 
 export const StartTransitionExecutionInput = Schema.Struct({
   projectId: Schema.String,
