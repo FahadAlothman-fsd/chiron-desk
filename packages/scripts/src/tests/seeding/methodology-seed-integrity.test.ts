@@ -90,7 +90,7 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
       work_unit_lifecycle_states: 6,
       work_unit_lifecycle_transitions: 6,
       transition_condition_sets: 12,
-      work_unit_fact_definitions: 50,
+      work_unit_fact_definitions: 46,
       methodology_artifact_slot_definitions: 6,
       methodology_artifact_slot_templates: 10,
       methodology_link_type_definitions: 6,
@@ -98,7 +98,7 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
       methodology_workflow_steps: 0,
       methodology_workflow_edges: 0,
       methodology_transition_workflow_bindings: 16,
-      methodology_fact_definitions: 16,
+      methodology_fact_definitions: 18,
     });
 
     expect(methodologyDesignTimeSeedFacts).toEqual({
@@ -112,6 +112,8 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
         "deep_dive_target",
       ],
       methodologyFactDefinitionKeys: [
+        "project_knowledge_directory",
+        "planning_artifacts_directory",
         "repository_type",
         "project_parts",
         "technology_stack_by_part",
@@ -126,6 +128,8 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
         "branch_note",
         "requires_product_brief",
         "deep_dive_target",
+        "project_knowledge_directory",
+        "planning_artifacts_directory",
         "repository_type",
         "project_parts",
         "technology_stack_by_part",
@@ -895,7 +899,7 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
     expect(methodologyCanonicalTableSeedRows.methodology_workflow_edges).toHaveLength(0);
 
     const factDefinitions = methodologyCanonicalTableSeedRows.methodology_fact_definitions;
-    expect(factDefinitions).toHaveLength(16);
+    expect(factDefinitions).toHaveLength(18);
 
     const dependencyDefinitions =
       methodologyCanonicalTableSeedRows.methodology_link_type_definitions;
@@ -910,7 +914,8 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
       new Set([
         "communication_language",
         "document_output_language",
-        "project_root_directory",
+        "project_knowledge_directory",
+        "planning_artifacts_directory",
         "repository_type",
         "project_parts",
         "technology_stack_by_part",
@@ -943,15 +948,35 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
       expect(["one", "many"]).toContain(factDefinition.cardinality);
     }
 
-    const projectRootDirectoryFact = factDefinitions.find(
-      (factDefinition) => factDefinition.key === "project_root_directory",
+    const projectKnowledgeDirectoryMethodFactRows = factDefinitions.filter(
+      (factDefinition) => factDefinition.key === "project_knowledge_directory",
     );
-    expect(projectRootDirectoryFact?.validationJson).toMatchObject({
-      kind: "path",
-      path: {
-        pathKind: "directory",
-      },
-    });
+    expect(projectKnowledgeDirectoryMethodFactRows).toHaveLength(2);
+    for (const projectKnowledgeDirectoryMethodFact of projectKnowledgeDirectoryMethodFactRows) {
+      expect(projectKnowledgeDirectoryMethodFact.defaultValueJson).toBe("docs");
+      expect(projectKnowledgeDirectoryMethodFact.validationJson).toMatchObject({
+        kind: "path",
+        path: {
+          pathKind: "directory",
+          safety: { disallowAbsolute: true, preventTraversal: true },
+        },
+      });
+    }
+
+    const planningArtifactsDirectoryMethodFactRows = factDefinitions.filter(
+      (factDefinition) => factDefinition.key === "planning_artifacts_directory",
+    );
+    expect(planningArtifactsDirectoryMethodFactRows).toHaveLength(2);
+    for (const planningArtifactsDirectoryMethodFact of planningArtifactsDirectoryMethodFactRows) {
+      expect(planningArtifactsDirectoryMethodFact.defaultValueJson).toBe(".sisyphus");
+      expect(planningArtifactsDirectoryMethodFact.validationJson).toMatchObject({
+        kind: "path",
+        path: {
+          pathKind: "directory",
+          safety: { disallowAbsolute: true, preventTraversal: true },
+        },
+      });
+    }
 
     const repositoryTypeFactRows = factDefinitions.filter(
       (factDefinition) => factDefinition.key === "repository_type",
@@ -1231,13 +1256,11 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
     expect(draftWorkUnitRows).toEqual(activeWorkUnitRows);
 
     const workUnitFactDefinitions = methodologyCanonicalTableSeedRows.work_unit_fact_definitions;
-    expect(workUnitFactDefinitions).toHaveLength(50);
+    expect(workUnitFactDefinitions).toHaveLength(46);
     expect(new Set(workUnitFactDefinitions.map((fact) => fact.key))).toEqual(
       new Set([
         "initiative_name",
         "project_kind",
-        "project_knowledge_directory",
-        "planning_artifacts_directory",
         "workflow_mode",
         "scan_level",
         "requires_brainstorming",
@@ -1263,7 +1286,7 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
     const setupWorkUnitFactDefinitions = workUnitFactDefinitions.filter((fact) =>
       fact.workUnitTypeId.includes(":wut:setup:"),
     );
-    expect(setupWorkUnitFactDefinitions).toHaveLength(20);
+    expect(setupWorkUnitFactDefinitions).toHaveLength(16);
     for (const factDefinition of setupWorkUnitFactDefinitions) {
       expect(factDefinition.workUnitTypeId).toBe(
         `seed:wut:setup:${factDefinition.methodologyVersionId}`,
@@ -1545,36 +1568,6 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
       });
     }
 
-    const projectKnowledgeDirectoryFactRows = workUnitFactDefinitions.filter(
-      (fact) => fact.key === "project_knowledge_directory",
-    );
-    expect(projectKnowledgeDirectoryFactRows).toHaveLength(2);
-    for (const projectKnowledgeDirectoryFact of projectKnowledgeDirectoryFactRows) {
-      expect(projectKnowledgeDirectoryFact.defaultValueJson).toBe("docs");
-      expect(projectKnowledgeDirectoryFact.validationJson).toMatchObject({
-        kind: "path",
-        path: {
-          pathKind: "directory",
-          safety: { disallowAbsolute: true, preventTraversal: true },
-        },
-      });
-    }
-
-    const planningArtifactsDirectoryFactRows = workUnitFactDefinitions.filter(
-      (fact) => fact.key === "planning_artifacts_directory",
-    );
-    expect(planningArtifactsDirectoryFactRows).toHaveLength(2);
-    for (const planningArtifactsDirectoryFact of planningArtifactsDirectoryFactRows) {
-      expect(planningArtifactsDirectoryFact.defaultValueJson).toBe(".sisyphus");
-      expect(planningArtifactsDirectoryFact.validationJson).toMatchObject({
-        kind: "path",
-        path: {
-          pathKind: "directory",
-          safety: { disallowAbsolute: true, preventTraversal: true },
-        },
-      });
-    }
-
     const workflowModeFactRows = workUnitFactDefinitions.filter(
       (fact) => fact.key === "workflow_mode",
     );
@@ -1740,9 +1733,9 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
       expect(template.guidanceJson).toBeTruthy();
       expect(template.content).toContain("{{workUnit.facts.initiative_name}}");
       expect(template.content).toContain("{{workUnit.facts.project_kind}}");
-      expect(template.content).toContain("{{methodology.facts.project_root_directory}}");
-      expect(template.content).toContain("{{workUnit.facts.project_knowledge_directory}}");
-      expect(template.content).toContain("{{workUnit.facts.planning_artifacts_directory}}");
+      expect(template.content).toContain("{{methodology.facts.project_knowledge_directory}}");
+      expect(template.content).toContain("{{methodology.facts.planning_artifacts_directory}}");
+      expect(template.content).not.toContain("project_root_directory");
     }
 
     const brainstormingArtifactSlotTemplates = artifactSlotTemplates.filter((template) =>

@@ -33,6 +33,8 @@ export const LOCKED_BMAD_SETUP_WORK_UNIT_FACT_KEYS = [
 ] as const;
 
 export const LOCKED_BMAD_METHODOLOGY_FACT_KEYS = [
+  "project_knowledge_directory",
+  "planning_artifacts_directory",
   "repository_type",
   "project_parts",
   "technology_stack_by_part",
@@ -433,62 +435,6 @@ const canonicalSetupFactDefinitions = [
     validationJson: toAllowedValuesValidation(["greenfield", "brownfield"]),
   },
   {
-    idSuffix: "project-knowledge-directory",
-    key: "project_knowledge_directory",
-    name: "Project Knowledge Directory",
-    factType: "string",
-    cardinality: "one" as const,
-    defaultValueJson: "docs",
-    descriptionJson: toDescriptionJson(
-      "Directory where durable setup knowledge artifacts are stored.",
-    ),
-    guidanceJson: toGuidanceJson(
-      "Folder for setup-created knowledge artifacts.",
-      "Use as the default output root for setup documentation.",
-    ),
-    validationJson: {
-      kind: "path" as const,
-      path: {
-        pathKind: "directory" as const,
-        normalization: {
-          trimWhitespace: true,
-        },
-        safety: {
-          disallowAbsolute: true,
-          preventTraversal: true,
-        },
-      },
-    },
-  },
-  {
-    idSuffix: "planning-artifacts-directory",
-    key: "planning_artifacts_directory",
-    name: "Planning Artifacts Directory",
-    factType: "string",
-    cardinality: "one" as const,
-    defaultValueJson: ".sisyphus",
-    descriptionJson: toDescriptionJson(
-      "Directory for planning artifacts established during setup.",
-    ),
-    guidanceJson: toGuidanceJson(
-      "Use for setup-created planning artifacts.",
-      "Prefer this for planning-oriented setup outputs unless a slot says otherwise.",
-    ),
-    validationJson: {
-      kind: "path" as const,
-      path: {
-        pathKind: "directory" as const,
-        normalization: {
-          trimWhitespace: true,
-        },
-        safety: {
-          disallowAbsolute: true,
-          preventTraversal: true,
-        },
-      },
-    },
-  },
-  {
     idSuffix: "workflow-mode",
     key: "workflow_mode",
     name: "Workflow Mode",
@@ -728,7 +674,7 @@ const canonicalSetupArtifactSlotTemplates = [
       "Use only supported template variable namespaces.",
     ),
     content:
-      "# {{workUnit.facts.initiative_name}}\n\n## Project Setup\n- Kind: {{workUnit.facts.project_kind}}\n{{#if methodology.facts.project_root_directory}}- Project root: {{methodology.facts.project_root_directory}}\n{{/if}}{{#if workUnit.facts.project_knowledge_directory}}- Knowledge directory: {{workUnit.facts.project_knowledge_directory}}\n{{/if}}{{#if workUnit.facts.planning_artifacts_directory}}- Planning artifacts: {{workUnit.facts.planning_artifacts_directory}}\n{{/if}}",
+      "# {{workUnit.facts.initiative_name}}\n\n## Project Setup\n- Kind: {{workUnit.facts.project_kind}}\n{{#if methodology.facts.project_knowledge_directory}}- Knowledge directory: {{methodology.facts.project_knowledge_directory}}\n{{/if}}{{#if methodology.facts.planning_artifacts_directory}}- Planning artifacts: {{methodology.facts.planning_artifacts_directory}}\n{{/if}}",
   },
 ] as const;
 
@@ -2186,29 +2132,56 @@ const canonicalMethodologyFactDefinitions = [
     validationJson: { kind: "none" as const },
   },
   {
-    idSuffix: "project-root-directory",
-    name: "Project Root Directory",
-    key: "project_root_directory",
+    idSuffix: "project-knowledge-directory",
+    name: "Project Knowledge Directory",
+    key: "project_knowledge_directory",
     valueType: "string",
     cardinality: "one" as const,
     descriptionJson: toDescriptionJson(
-      "Canonical project working directory used by the OpenCode harness when executing agent-driven steps against the project.",
+      "Methodology-level directory where durable setup knowledge artifacts are stored.",
     ),
     guidanceJson: toGuidanceJson(
-      "Set this to the repository root or other intended working directory for harness-driven work.",
-      "Use this as the default working directory for OpenCode harness operations unless a step explicitly overrides it.",
+      "Set the default folder for setup-created knowledge artifacts.",
+      "Use this as the methodology-owned default output root for setup documentation unless runtime context overrides it.",
     ),
-    defaultValueJson: null,
+    defaultValueJson: "docs",
     validationJson: {
       kind: "path" as const,
       path: {
         pathKind: "directory" as const,
         normalization: {
-          mode: "posix" as const,
           trimWhitespace: true,
         },
         safety: {
-          disallowAbsolute: false,
+          disallowAbsolute: true,
+          preventTraversal: true,
+        },
+      },
+    },
+  },
+  {
+    idSuffix: "planning-artifacts-directory",
+    name: "Planning Artifacts Directory",
+    key: "planning_artifacts_directory",
+    valueType: "string",
+    cardinality: "one" as const,
+    descriptionJson: toDescriptionJson(
+      "Methodology-level directory for planning artifacts established during setup and downstream planning flows.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Set the default folder for planning-oriented artifacts.",
+      "Prefer this methodology-owned directory for planning outputs unless a slot or runtime override says otherwise.",
+    ),
+    defaultValueJson: ".sisyphus",
+    validationJson: {
+      kind: "path" as const,
+      path: {
+        pathKind: "directory" as const,
+        normalization: {
+          trimWhitespace: true,
+        },
+        safety: {
+          disallowAbsolute: true,
           preventTraversal: true,
         },
       },
