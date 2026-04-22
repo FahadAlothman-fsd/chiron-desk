@@ -95,6 +95,7 @@ type WorkflowContextFactDialogProps = {
   dependencyDefinitions?: readonly WorkflowEditorPickerOption[];
   workUnitTypes: readonly WorkflowEditorPickerOption[];
   availableWorkflows: readonly WorkflowEditorPickerOption[];
+  currentWorkUnitDefinitionId?: string;
   workUnitFactsQueryScope: string;
   loadWorkUnitFacts: (workUnitTypeKey: string) => Promise<readonly WorkflowEditorPickerOption[]>;
   loadWorkUnitArtifactSlots: (
@@ -1335,7 +1336,11 @@ function SearchableMultiSelect(props: {
                     key={option.value}
                     value={`${option.value} ${option.label} ${option.description ?? ""}`}
                     density="compact"
+                    disabled={option.disabled}
                     onSelect={() => {
+                      if (option.disabled) {
+                        return;
+                      }
                       props.onChange(
                         selected
                           ? props.values.filter((value) => value !== option.value)
@@ -1346,9 +1351,25 @@ function SearchableMultiSelect(props: {
                     <Checkbox checked={selected} className="pointer-events-none" />
                     <div className="grid min-w-0 flex-1 gap-0.5">
                       <span className="truncate font-medium">{option.label}</span>
-                      {option.description ? (
+                      {option.badges?.length ? (
+                        <div className="flex flex-wrap gap-1">
+                          {option.badges.map((badge) => (
+                            <span
+                              key={`${option.value}-${badge.tone}-${badge.label}`}
+                              className={getPickerBadgeClassName(badge)}
+                            >
+                              {badge.label}
+                            </span>
+                          ))}
+                        </div>
+                      ) : option.description ? (
                         <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
                           {option.description}
+                        </span>
+                      ) : null}
+                      {option.disabledReason ? (
+                        <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-amber-300/90">
+                          {option.disabledReason}
                         </span>
                       ) : null}
                     </div>
@@ -3984,6 +4005,7 @@ export function WorkflowContextFactDialog({
   dependencyDefinitions = [],
   workUnitTypes,
   availableWorkflows,
+  currentWorkUnitDefinitionId,
   workUnitFactsQueryScope,
   loadWorkUnitFacts,
   loadWorkUnitArtifactSlots,
@@ -4013,6 +4035,7 @@ export function WorkflowContextFactDialog({
   const [pendingIncludedArtifactSlotDefinitionId, setPendingIncludedArtifactSlotDefinitionId] =
     useState("");
   const [draftSpecCards, setDraftSpecCards] = useState<WorkUnitDraftFactCard[]>([]);
+  const normalizedCurrentWorkflowWorkUnitId = currentWorkUnitDefinitionId?.trim() ?? "";
   const selectedWorkUnitDefinitionId =
     draft.kind === "work_unit_draft_spec_fact" ? (draft.workUnitDefinitionId?.trim() ?? "") : "";
   const selectedWorkUnitFactsQuery = useQuery({
@@ -4146,6 +4169,53 @@ export function WorkflowContextFactDialog({
 
     return optionsByIdentifier;
   }, [selectedWorkUnitArtifactSlots]);
+  const availableWorkflowOptions = useMemo(
+    () =>
+      availableWorkflows.map((option) => {
+        const optionWorkUnitId = option.workUnitDefinitionId?.trim() ?? "";
+        const isCrossWorkUnitWorkflow =
+          normalizedCurrentWorkflowWorkUnitId.length > 0 &&
+          optionWorkUnitId.length > 0 &&
+          optionWorkUnitId !== normalizedCurrentWorkflowWorkUnitId;
+
+        return isCrossWorkUnitWorkflow
+          ? {
+              ...option,
+              disabled: true,
+              disabledReason: "Belongs to a different work unit",
+            }
+          : option;
+      }),
+    [availableWorkflows, normalizedCurrentWorkflowWorkUnitId],
+  );
+  const invalidSelectedWorkflowReferences = useMemo(() => {
+    if (draft.kind !== "workflow_ref_fact") {
+      return [] as string[];
+    }
+
+    const workflowOptionsById = new Map(
+      availableWorkflowOptions.map((option) => [option.value, option] as const),
+    );
+
+    return draft.allowedWorkflowDefinitionIds.filter((workflowId) => {
+      const option = workflowOptionsById.get(workflowId);
+      if (!option) {
+        return true;
+      }
+
+      const optionWorkUnitId = option.workUnitDefinitionId?.trim() ?? "";
+      return (
+        normalizedCurrentWorkflowWorkUnitId.length > 0 &&
+        optionWorkUnitId.length > 0 &&
+        optionWorkUnitId !== normalizedCurrentWorkflowWorkUnitId
+      );
+    });
+  }, [
+    availableWorkflowOptions,
+    draft.allowedWorkflowDefinitionIds,
+    draft.kind,
+    normalizedCurrentWorkflowWorkUnitId,
+  ]);
   const constrainedSourceCardinality = useMemo(() => {
     switch (draft.kind) {
       case "bound_fact":
@@ -5602,7 +5672,7 @@ export function WorkflowContextFactDialog({
                               allowedWorkflowDefinitionIds: value ? [value] : [],
                             }))
                           }
-                          options={availableWorkflows}
+                          options={availableWorkflowOptions}
                           placeholder="Select an allowed workflow"
                           searchPlaceholder="Search workflows..."
                           emptyLabel="No workflows found."
@@ -5617,7 +5687,7 @@ export function WorkflowContextFactDialog({
                               allowedWorkflowDefinitionIds: values,
                             }))
                           }
-                          options={availableWorkflows}
+                          options={availableWorkflowOptions}
                           placeholder="Select allowed workflows"
                           searchPlaceholder="Search workflows..."
                           emptyLabel="No workflows found."
@@ -5653,6 +5723,14 @@ export function WorkflowContextFactDialog({
                           ))}
                         </div>
                       )}
+
+                      {invalidSelectedWorkflowReferences.length > 0 ? (
+                        <p className="text-xs text-amber-300/90" role="alert">
+                          Selected workflow references must belong to the same work unit as this
+                          workflow. Invalid selections:{" "}
+                          {invalidSelectedWorkflowReferences.join(", ")}.
+                        </p>
+                      ) : null}
                     </div>
                   ) : null}
 

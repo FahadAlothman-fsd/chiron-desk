@@ -61,6 +61,7 @@ type WorkflowEditorShellProps = {
   dependencyDefinitions: readonly WorkflowEditorPickerOption[];
   workUnitTypes: readonly WorkflowEditorPickerOption[];
   availableWorkflows: readonly WorkflowEditorPickerOption[];
+  currentWorkUnitDefinitionId?: string;
   availableTransitions: readonly WorkflowEditorPickerOption[];
   conditionOperators: readonly WorkflowConditionOperator[];
   workUnitFactsQueryScope: string;
@@ -1488,6 +1489,7 @@ export function WorkflowEditorShell({
         dependencyDefinitions={dependencyDefinitions}
         workUnitTypes={workUnitTypes}
         availableWorkflows={availableWorkflows}
+        currentWorkUnitDefinitionId={metadata.workUnitTypeId}
         workUnitFactsQueryScope={workUnitFactsQueryScope}
         loadWorkUnitFacts={loadWorkUnitFacts}
         loadWorkUnitArtifactSlots={loadWorkUnitArtifactSlots}

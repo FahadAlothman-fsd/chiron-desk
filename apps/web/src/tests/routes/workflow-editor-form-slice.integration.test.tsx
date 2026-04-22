@@ -1112,6 +1112,65 @@ describe("workflow editor form slice route", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("warns when a workflow ref fact contains workflows from a different work unit", async () => {
+    const { WorkflowContextFactDialog } = await import("../../features/workflow-editor/dialogs");
+
+    renderRoute(
+      <WorkflowContextFactDialog
+        open
+        mode="edit"
+        fact={{
+          contextFactDefinitionId: "ctx-supporting-workflows",
+          key: "supporting-workflows",
+          label: "Supporting Workflows",
+          descriptionMarkdown: "Workflow references for fan-out steps.",
+          kind: "workflow_ref_fact",
+          cardinality: "many",
+          guidance: {
+            humanMarkdown: "Choose the reusable workflow references.",
+            agentMarkdown: "Preserve the workflow ids as authored.",
+          },
+          externalFactDefinitionId: "",
+          allowedWorkflowDefinitionIds: ["wf.review", "wf.cross-unit"],
+          artifactSlotDefinitionId: "",
+          workUnitTypeKey: "",
+          includedFactDefinitionIds: [],
+          summary: "workflow ref fact · many · 2 workflows",
+        }}
+        methodologyFacts={[]}
+        currentWorkUnitFacts={[]}
+        artifactSlots={[]}
+        workUnitTypes={[]}
+        availableWorkflows={[
+          {
+            value: "wf.review",
+            label: "Review Workflow",
+            workUnitDefinitionId: "wut-setup",
+            workUnitTypeKey: "setup",
+          },
+          {
+            value: "wf.cross-unit",
+            label: "Cross Unit Workflow",
+            workUnitDefinitionId: "wut-brainstorming",
+            workUnitTypeKey: "brainstorming",
+          },
+        ]}
+        currentWorkUnitDefinitionId="wut-setup"
+        workUnitFactsQueryScope="WU.SETUP"
+        loadWorkUnitFacts={async () => []}
+        loadWorkUnitArtifactSlots={async () => []}
+        onOpenChange={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Value Semantics/ }));
+
+    expect(screen.getByRole("alert").textContent).toContain(
+      "Selected workflow references must belong to the same work unit as this workflow. Invalid selections: wf.cross-unit.",
+    );
+  });
+
   it("supports numeric bounds for plain context facts and blocks invalid ranges", async () => {
     const { WorkflowContextFactDialog } = await import("../../features/workflow-editor/dialogs");
     const onSave = vi.fn();
