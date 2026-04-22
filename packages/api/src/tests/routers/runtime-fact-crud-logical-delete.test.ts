@@ -198,7 +198,7 @@ function makeRouterHarness() {
           row.supersededByFactInstanceId = supersededByProjectFactInstanceId;
         }
       }),
-    updateFactInstance: ({ projectFactInstanceId, valueJson }) =>
+    manualUpdateFactInstance: ({ projectFactInstanceId, valueJson }) =>
       Effect.sync(() => {
         const row = projectFacts.find(
           (candidate) => candidate.id === projectFactInstanceId && candidate.status === "active",
@@ -209,6 +209,7 @@ function makeRouterHarness() {
         row.valueJson = valueJson;
         return row;
       }),
+    createVersionedFactSuccessor: () => Effect.die("unused"),
     logicallyDeleteFactInstance: ({ projectFactInstanceId, authoredByUserId }) =>
       Effect.sync(() => {
         const row = projectFacts.find(
@@ -262,7 +263,11 @@ function makeRouterHarness() {
           row.supersededByFactInstanceId = supersededByWorkUnitFactInstanceId;
         }
       }),
-    updateFactInstance: ({ workUnitFactInstanceId, valueJson, referencedProjectWorkUnitId }) =>
+    manualUpdateFactInstance: ({
+      workUnitFactInstanceId,
+      valueJson,
+      referencedProjectWorkUnitId,
+    }) =>
       Effect.sync(() => {
         const row = workUnitFacts.find(
           (candidate) => candidate.id === workUnitFactInstanceId && candidate.status === "active",
@@ -274,6 +279,7 @@ function makeRouterHarness() {
         row.referencedProjectWorkUnitId = referencedProjectWorkUnitId ?? null;
         return row;
       }),
+    createVersionedFactSuccessor: () => Effect.die("unused"),
     logicallyDeleteFactInstance: ({ workUnitFactInstanceId, authoredByUserId }) =>
       Effect.sync(() => {
         const row = workUnitFacts.find(

@@ -1443,33 +1443,17 @@ export const RuntimeManualFactCrudServiceLive = Layer.effect(
               );
             }
             const valueJson = yield* normalizeProjectValue(definition, payload.value);
-            const updated = projectFactRepo.updateFactInstance
-              ? yield* ensureCrudCompatible(
-                  payload.verb,
-                  projectFactRepo.updateFactInstance({
-                    projectFactInstanceId: payload.instanceId,
-                    valueJson,
-                    authoredByUserId: input.authoredByUserId ?? null,
-                    producedByTransitionExecutionId: input.producedByTransitionExecutionId ?? null,
-                    producedByWorkflowExecutionId: input.producedByWorkflowExecutionId ?? null,
-                  }),
-                  `Project fact instance '${payload.instanceId}' could not be updated.`,
-                )
-              : yield* Effect.gen(function* () {
-                  const replacement = yield* projectFactRepo.createFactInstance({
-                    projectId: input.projectId,
-                    factDefinitionId: definition.id,
-                    valueJson,
-                    authoredByUserId: input.authoredByUserId ?? null,
-                    producedByTransitionExecutionId: input.producedByTransitionExecutionId ?? null,
-                    producedByWorkflowExecutionId: input.producedByWorkflowExecutionId ?? null,
-                  });
-                  yield* projectFactRepo.supersedeFactInstance({
-                    projectFactInstanceId: payload.instanceId,
-                    supersededByProjectFactInstanceId: replacement.id,
-                  });
-                  return replacement;
-                });
+            const updated = yield* ensureCrudCompatible(
+              payload.verb,
+              projectFactRepo.manualUpdateFactInstance({
+                projectFactInstanceId: payload.instanceId,
+                valueJson,
+                authoredByUserId: input.authoredByUserId ?? null,
+                producedByTransitionExecutionId: input.producedByTransitionExecutionId ?? null,
+                producedByWorkflowExecutionId: input.producedByWorkflowExecutionId ?? null,
+              }),
+              `Project fact instance '${payload.instanceId}' could not be updated.`,
+            );
             return {
               scope: input.scope,
               factDefinitionId: definition.id,
@@ -1601,35 +1585,18 @@ export const RuntimeManualFactCrudServiceLive = Layer.effect(
               definition,
               value: payload.value,
             });
-            const updated = workUnitFactRepo.updateFactInstance
-              ? yield* ensureCrudCompatible(
-                  payload.verb,
-                  workUnitFactRepo.updateFactInstance({
-                    workUnitFactInstanceId: payload.instanceId,
-                    valueJson: persisted.valueJson,
-                    referencedProjectWorkUnitId: persisted.referencedProjectWorkUnitId ?? null,
-                    authoredByUserId: input.authoredByUserId ?? null,
-                    producedByTransitionExecutionId: input.producedByTransitionExecutionId ?? null,
-                    producedByWorkflowExecutionId: input.producedByWorkflowExecutionId ?? null,
-                  }),
-                  `Work-unit fact instance '${payload.instanceId}' could not be updated.`,
-                )
-              : yield* Effect.gen(function* () {
-                  const replacement = yield* workUnitFactRepo.createFactInstance({
-                    projectWorkUnitId: input.projectWorkUnitId,
-                    factDefinitionId: definition.id,
-                    valueJson: persisted.valueJson,
-                    referencedProjectWorkUnitId: persisted.referencedProjectWorkUnitId ?? null,
-                    authoredByUserId: input.authoredByUserId ?? null,
-                    producedByTransitionExecutionId: input.producedByTransitionExecutionId ?? null,
-                    producedByWorkflowExecutionId: input.producedByWorkflowExecutionId ?? null,
-                  });
-                  yield* workUnitFactRepo.supersedeFactInstance({
-                    workUnitFactInstanceId: payload.instanceId,
-                    supersededByWorkUnitFactInstanceId: replacement.id,
-                  });
-                  return replacement;
-                });
+            const updated = yield* ensureCrudCompatible(
+              payload.verb,
+              workUnitFactRepo.manualUpdateFactInstance({
+                workUnitFactInstanceId: payload.instanceId,
+                valueJson: persisted.valueJson,
+                referencedProjectWorkUnitId: persisted.referencedProjectWorkUnitId ?? null,
+                authoredByUserId: input.authoredByUserId ?? null,
+                producedByTransitionExecutionId: input.producedByTransitionExecutionId ?? null,
+                producedByWorkflowExecutionId: input.producedByWorkflowExecutionId ?? null,
+              }),
+              `Work-unit fact instance '${payload.instanceId}' could not be updated.`,
+            );
             return {
               scope: input.scope,
               factDefinitionId: definition.id,

@@ -394,7 +394,8 @@ function makeWorkflowContextCrudTestLayer() {
     getCurrentValuesByDefinition: () => Effect.die("unused"),
     listFactsByProject: () => Effect.die("unused"),
     supersedeFactInstance: () => Effect.die("unused"),
-    updateFactInstance: () => Effect.die("unused"),
+    manualUpdateFactInstance: () => Effect.die("unused"),
+    createVersionedFactSuccessor: () => Effect.die("unused"),
     logicallyDeleteFactInstance: () => Effect.die("unused"),
   } as unknown as Context.Tag.Service<typeof ProjectFactRepository>);
 
@@ -403,7 +404,8 @@ function makeWorkflowContextCrudTestLayer() {
     getCurrentValuesByDefinition: () => Effect.die("unused"),
     listFactsByWorkUnit: () => Effect.die("unused"),
     supersedeFactInstance: () => Effect.die("unused"),
-    updateFactInstance: () => Effect.die("unused"),
+    manualUpdateFactInstance: () => Effect.die("unused"),
+    createVersionedFactSuccessor: () => Effect.die("unused"),
     logicallyDeleteFactInstance: () => Effect.die("unused"),
   } as unknown as Context.Tag.Service<typeof WorkUnitFactRepository>);
 

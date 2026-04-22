@@ -5,8 +5,9 @@ import {
   ProjectFactRepository,
   RepositoryError,
   type ProjectFactInstanceRow,
+  type CreateVersionedProjectFactSuccessorParams,
   type DeleteProjectFactInstanceParams,
-  type UpdateProjectFactInstanceParams,
+  type ManualUpdateProjectFactInstanceParams,
 } from "@chiron/workflow-engine";
 import { projectFactInstances } from "../schema/runtime";
 
@@ -161,15 +162,38 @@ export function createProjectFactRepoLayer(db: DB): Layer.Layer<ProjectFactRepos
         await supersedeProjectFactRow(db, projectFactInstanceId, supersededByProjectFactInstanceId);
       }),
 
-    updateFactInstance: (params: UpdateProjectFactInstanceParams) =>
-      dbEffect("runtime.projectFacts.updateFactInstance", async () => {
+    manualUpdateFactInstance: (params: ManualUpdateProjectFactInstanceParams) =>
+      dbEffect("runtime.projectFacts.manualUpdateFactInstance", async () => {
+        const updated = await db
+          .update(projectFactInstances)
+          .set({
+            valueJson: params.valueJson,
+            ...(params.producedByTransitionExecutionId !== undefined
+              ? { producedByTransitionExecutionId: params.producedByTransitionExecutionId }
+              : {}),
+            ...(params.producedByWorkflowExecutionId !== undefined
+              ? { producedByWorkflowExecutionId: params.producedByWorkflowExecutionId }
+              : {}),
+            ...(params.authoredByUserId !== undefined
+              ? { authoredByUserId: params.authoredByUserId }
+              : {}),
+          })
+          .where(eq(projectFactInstances.id, params.projectFactInstanceId))
+          .returning();
+
+        const row = updated[0];
+        return row ? toRow(row) : null;
+      }),
+
+    createVersionedFactSuccessor: (params: CreateVersionedProjectFactSuccessorParams) =>
+      dbEffect("runtime.projectFacts.createVersionedFactSuccessor", async () => {
         return db.transaction(async (tx) => {
-          const existing = await getFactRowById(tx, params.projectFactInstanceId);
+          const existing = await getFactRowById(tx, params.previousProjectFactInstanceId);
           if (!existing) {
             return null;
           }
 
-          const updated = await insertProjectFactRow(tx, {
+          const successor = await insertProjectFactRow(tx, {
             projectId: existing.projectId,
             factDefinitionId: existing.factDefinitionId,
             valueJson: params.valueJson,
@@ -185,8 +209,8 @@ export function createProjectFactRepoLayer(db: DB): Layer.Layer<ProjectFactRepos
               : {}),
           });
 
-          await supersedeProjectFactRow(tx, existing.id, updated.id);
-          return toRow(updated);
+          await supersedeProjectFactRow(tx, existing.id, successor.id);
+          return toRow(successor);
         });
       }),
 

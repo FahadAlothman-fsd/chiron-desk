@@ -263,13 +263,14 @@ describe("runtime fact CRUD repositories", () => {
     );
 
     const updated = await run(ProjectFactRepository, (repo) =>
-      repo.updateFactInstance!({
+      repo.manualUpdateFactInstance({
         projectFactInstanceId: created.id,
         valueJson: "P0",
       }),
     );
 
     expect(updated?.valueJson).toBe("P0");
+    expect(updated?.id).toBe(created.id);
 
     const currentAfterUpdate = await run(ProjectFactRepository, (repo) =>
       repo.getCurrentValuesByDefinition({
@@ -279,10 +280,30 @@ describe("runtime fact CRUD repositories", () => {
     );
 
     expect(currentAfterUpdate).toHaveLength(1);
-    expect(currentAfterUpdate[0]?.id).toBe(updated?.id);
+    expect(currentAfterUpdate[0]?.id).toBe(created.id);
+
+    const successor = await run(ProjectFactRepository, (repo) =>
+      repo.createVersionedFactSuccessor({
+        previousProjectFactInstanceId: created.id,
+        valueJson: "P-1",
+      }),
+    );
+
+    expect(successor?.id).not.toBe(created.id);
+    expect(successor?.valueJson).toBe("P-1");
+
+    const currentAfterSuccessor = await run(ProjectFactRepository, (repo) =>
+      repo.getCurrentValuesByDefinition({
+        projectId: "project-1",
+        factDefinitionId: "project-fact-priority",
+      }),
+    );
+
+    expect(currentAfterSuccessor).toHaveLength(1);
+    expect(currentAfterSuccessor[0]?.id).toBe(successor?.id);
 
     const deleted = await run(ProjectFactRepository, (repo) =>
-      repo.logicallyDeleteFactInstance!({ projectFactInstanceId: updated!.id }),
+      repo.logicallyDeleteFactInstance!({ projectFactInstanceId: successor!.id }),
     );
 
     expect(deleted?.status).toBe("deleted");
@@ -332,7 +353,7 @@ describe("runtime fact CRUD repositories", () => {
     );
 
     const updated = await run(WorkUnitFactRepository, (repo) =>
-      repo.updateFactInstance!({
+      repo.manualUpdateFactInstance({
         workUnitFactInstanceId: created.id,
         referencedProjectWorkUnitId: replacement.id,
       }),
@@ -340,6 +361,7 @@ describe("runtime fact CRUD repositories", () => {
 
     expect(updated?.referencedProjectWorkUnitId).toBe(replacement.id);
     expect(updated?.valueJson).toBeNull();
+    expect(updated?.id).toBe(created.id);
 
     const currentAfterUpdate = await run(WorkUnitFactRepository, (repo) =>
       repo.getCurrentValuesByDefinition({
@@ -349,10 +371,30 @@ describe("runtime fact CRUD repositories", () => {
     );
 
     expect(currentAfterUpdate).toHaveLength(1);
-    expect(currentAfterUpdate[0]?.id).toBe(updated?.id);
+    expect(currentAfterUpdate[0]?.id).toBe(created.id);
+
+    const successor = await run(WorkUnitFactRepository, (repo) =>
+      repo.createVersionedFactSuccessor({
+        previousWorkUnitFactInstanceId: created.id,
+        referencedProjectWorkUnitId: target.id,
+      }),
+    );
+
+    expect(successor?.id).not.toBe(created.id);
+    expect(successor?.referencedProjectWorkUnitId).toBe(target.id);
+
+    const currentAfterSuccessor = await run(WorkUnitFactRepository, (repo) =>
+      repo.getCurrentValuesByDefinition({
+        projectWorkUnitId: source.id,
+        factDefinitionId: "wu-fact-link",
+      }),
+    );
+
+    expect(currentAfterSuccessor).toHaveLength(1);
+    expect(currentAfterSuccessor[0]?.id).toBe(successor?.id);
 
     const deleted = await run(WorkUnitFactRepository, (repo) =>
-      repo.logicallyDeleteFactInstance!({ workUnitFactInstanceId: updated!.id }),
+      repo.logicallyDeleteFactInstance!({ workUnitFactInstanceId: successor!.id }),
     );
 
     expect(deleted?.status).toBe("deleted");

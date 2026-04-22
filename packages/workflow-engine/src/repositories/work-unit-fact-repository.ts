@@ -16,8 +16,17 @@ export interface SupersedeWorkUnitFactInstanceParams {
   supersededByWorkUnitFactInstanceId: string;
 }
 
-export interface UpdateWorkUnitFactInstanceParams {
+export interface ManualUpdateWorkUnitFactInstanceParams {
   workUnitFactInstanceId: string;
+  valueJson?: unknown;
+  referencedProjectWorkUnitId?: string | null;
+  producedByTransitionExecutionId?: string | null;
+  producedByWorkflowExecutionId?: string | null;
+  authoredByUserId?: string | null;
+}
+
+export interface CreateVersionedWorkUnitFactSuccessorParams {
+  previousWorkUnitFactInstanceId: string;
   valueJson?: unknown;
   referencedProjectWorkUnitId?: string | null;
   producedByTransitionExecutionId?: string | null;
@@ -64,8 +73,11 @@ export class WorkUnitFactRepository extends Context.Tag(
     readonly supersedeFactInstance: (
       params: SupersedeWorkUnitFactInstanceParams,
     ) => Effect.Effect<void, RepositoryError>;
-    readonly updateFactInstance?: (
-      params: UpdateWorkUnitFactInstanceParams,
+    readonly manualUpdateFactInstance: (
+      params: ManualUpdateWorkUnitFactInstanceParams,
+    ) => Effect.Effect<WorkUnitFactInstanceRow | null, RepositoryError>;
+    readonly createVersionedFactSuccessor: (
+      params: CreateVersionedWorkUnitFactSuccessorParams,
     ) => Effect.Effect<WorkUnitFactInstanceRow | null, RepositoryError>;
     readonly logicallyDeleteFactInstance?: (
       params: DeleteWorkUnitFactInstanceParams,

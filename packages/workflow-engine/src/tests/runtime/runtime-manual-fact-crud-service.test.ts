@@ -110,7 +110,7 @@ const makeCrudTestLayer = () => {
           row.supersededByFactInstanceId = supersededByProjectFactInstanceId;
         }
       }),
-    updateFactInstance: ({ projectFactInstanceId, valueJson }) =>
+    manualUpdateFactInstance: ({ projectFactInstanceId, valueJson }) =>
       Effect.sync(() => {
         const row = projectFacts.find(
           (candidate) => candidate.id === projectFactInstanceId && candidate.status === "active",
@@ -119,6 +119,32 @@ const makeCrudTestLayer = () => {
           return null;
         }
         row.valueJson = valueJson;
+        return row;
+      }),
+    createVersionedFactSuccessor: ({ previousProjectFactInstanceId, valueJson }) =>
+      Effect.sync(() => {
+        const previous = projectFacts.find(
+          (candidate) =>
+            candidate.id === previousProjectFactInstanceId && candidate.status === "active",
+        );
+        if (!previous) {
+          return null;
+        }
+        const row = {
+          id: `pf-${nextProjectFactId++}`,
+          projectId: previous.projectId,
+          factDefinitionId: previous.factDefinitionId,
+          valueJson,
+          status: "active" as const,
+          supersededByFactInstanceId: null,
+          producedByTransitionExecutionId: null,
+          producedByWorkflowExecutionId: null,
+          authoredByUserId: null,
+          createdAt: now,
+        };
+        previous.status = "superseded";
+        previous.supersededByFactInstanceId = row.id;
+        projectFacts.push(row);
         return row;
       }),
     logicallyDeleteFactInstance: ({ projectFactInstanceId }) =>
@@ -176,7 +202,11 @@ const makeCrudTestLayer = () => {
           row.supersededByFactInstanceId = supersededByWorkUnitFactInstanceId;
         }
       }),
-    updateFactInstance: ({ workUnitFactInstanceId, valueJson, referencedProjectWorkUnitId }) =>
+    manualUpdateFactInstance: ({
+      workUnitFactInstanceId,
+      valueJson,
+      referencedProjectWorkUnitId,
+    }) =>
       Effect.sync(() => {
         const row = workUnitFacts.find(
           (candidate) => candidate.id === workUnitFactInstanceId && candidate.status === "active",
@@ -186,6 +216,37 @@ const makeCrudTestLayer = () => {
         }
         row.valueJson = valueJson ?? null;
         row.referencedProjectWorkUnitId = referencedProjectWorkUnitId ?? null;
+        return row;
+      }),
+    createVersionedFactSuccessor: ({
+      previousWorkUnitFactInstanceId,
+      valueJson,
+      referencedProjectWorkUnitId,
+    }) =>
+      Effect.sync(() => {
+        const previous = workUnitFacts.find(
+          (candidate) =>
+            candidate.id === previousWorkUnitFactInstanceId && candidate.status === "active",
+        );
+        if (!previous) {
+          return null;
+        }
+        const row = {
+          id: `wuf-${nextWorkUnitFactId++}`,
+          projectWorkUnitId: previous.projectWorkUnitId,
+          factDefinitionId: previous.factDefinitionId,
+          valueJson: valueJson ?? null,
+          referencedProjectWorkUnitId: referencedProjectWorkUnitId ?? null,
+          status: "active" as const,
+          supersededByFactInstanceId: null,
+          producedByTransitionExecutionId: null,
+          producedByWorkflowExecutionId: null,
+          authoredByUserId: null,
+          createdAt: now,
+        };
+        previous.status = "superseded";
+        previous.supersededByFactInstanceId = row.id;
+        workUnitFacts.push(row);
         return row;
       }),
     logicallyDeleteFactInstance: ({ workUnitFactInstanceId }) =>

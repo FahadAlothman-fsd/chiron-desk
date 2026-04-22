@@ -4,8 +4,9 @@ import { Effect, Layer } from "effect";
 import {
   RepositoryError,
   WorkUnitFactRepository,
+  type CreateVersionedWorkUnitFactSuccessorParams,
   type DeleteWorkUnitFactInstanceParams,
-  type UpdateWorkUnitFactInstanceParams,
+  type ManualUpdateWorkUnitFactInstanceParams,
   type WorkUnitFactInstanceRow,
 } from "@chiron/workflow-engine";
 import { workUnitFactInstances } from "../schema/runtime";
@@ -182,15 +183,41 @@ export function createWorkUnitFactRepoLayer(db: DB): Layer.Layer<WorkUnitFactRep
         );
       }),
 
-    updateFactInstance: (params: UpdateWorkUnitFactInstanceParams) =>
-      dbEffect("runtime.workUnitFacts.updateFactInstance", async () => {
+    manualUpdateFactInstance: (params: ManualUpdateWorkUnitFactInstanceParams) =>
+      dbEffect("runtime.workUnitFacts.manualUpdateFactInstance", async () => {
+        const updated = await db
+          .update(workUnitFactInstances)
+          .set({
+            ...(params.valueJson !== undefined ? { valueJson: params.valueJson } : {}),
+            ...(params.referencedProjectWorkUnitId !== undefined
+              ? { referencedProjectWorkUnitId: params.referencedProjectWorkUnitId }
+              : {}),
+            ...(params.producedByTransitionExecutionId !== undefined
+              ? { producedByTransitionExecutionId: params.producedByTransitionExecutionId }
+              : {}),
+            ...(params.producedByWorkflowExecutionId !== undefined
+              ? { producedByWorkflowExecutionId: params.producedByWorkflowExecutionId }
+              : {}),
+            ...(params.authoredByUserId !== undefined
+              ? { authoredByUserId: params.authoredByUserId }
+              : {}),
+          })
+          .where(eq(workUnitFactInstances.id, params.workUnitFactInstanceId))
+          .returning();
+
+        const row = updated[0];
+        return row ? toRow(row) : null;
+      }),
+
+    createVersionedFactSuccessor: (params: CreateVersionedWorkUnitFactSuccessorParams) =>
+      dbEffect("runtime.workUnitFacts.createVersionedFactSuccessor", async () => {
         return db.transaction(async (tx) => {
-          const existing = await getFactRowById(tx, params.workUnitFactInstanceId);
+          const existing = await getFactRowById(tx, params.previousWorkUnitFactInstanceId);
           if (!existing) {
             return null;
           }
 
-          const updated = await insertWorkUnitFactRow(tx, {
+          const successor = await insertWorkUnitFactRow(tx, {
             projectWorkUnitId: existing.projectWorkUnitId,
             factDefinitionId: existing.factDefinitionId,
             ...(params.valueJson !== undefined ? { valueJson: params.valueJson } : {}),
@@ -209,8 +236,8 @@ export function createWorkUnitFactRepoLayer(db: DB): Layer.Layer<WorkUnitFactRep
               : {}),
           });
 
-          await supersedeWorkUnitFactRow(tx, existing.id, updated.id);
-          return toRow(updated);
+          await supersedeWorkUnitFactRow(tx, existing.id, successor.id);
+          return toRow(successor);
         });
       }),
 
