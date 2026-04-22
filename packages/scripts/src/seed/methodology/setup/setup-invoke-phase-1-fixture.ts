@@ -97,6 +97,7 @@ function buildSetupInvokePhase1FixtureSeedRows(
 ): SetupInvokePhase1FixtureSeedRows {
   const workflowId = {
     setup: `seed:workflow:setup:setup-project:${methodologyVersionId}`,
+    generateProjectContext: `seed:workflow:setup:generate-project-context:${methodologyVersionId}`,
     brainstormingPrimary: `seed:workflow:brainstorming:brainstorming-primary:${methodologyVersionId}`,
     researchPrimary: `seed:workflow:research:research-primary:${methodologyVersionId}`,
     brainstormingSupport: `seed:workflow:brainstorming:brainstorming-support:${methodologyVersionId}`,
@@ -609,14 +610,14 @@ function buildSetupInvokePhase1FixtureSeedRows(
     ],
     methodologyWorkflowContextFactWorkflowReferences: [
       {
-        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:workflow-ref:brainstorming-primary`,
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:workflow-ref:generate-project-context`,
         contextFactDefinitionId: contextFactId.setup.followupWorkflows,
-        workflowDefinitionId: workflowId.brainstormingPrimary,
+        workflowDefinitionId: workflowId.generateProjectContext,
       },
       {
-        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:workflow-ref:research-primary`,
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:workflow-ref:setup-project`,
         contextFactDefinitionId: contextFactId.setup.followupWorkflows,
-        workflowDefinitionId: workflowId.researchPrimary,
+        workflowDefinitionId: workflowId.setup,
       },
       {
         id: `seed:l3-setup-invoke:brainstorming:${methodologyVersionId}:workflow-ref:brainstorming-support`,

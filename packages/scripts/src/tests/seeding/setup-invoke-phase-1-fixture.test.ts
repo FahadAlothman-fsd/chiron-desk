@@ -22,6 +22,7 @@ describe("setup invoke phase-1 fixture", () => {
 
     expect(setupInvokePhase1FixtureSeedRows.workflowIds).toEqual([
       "seed:workflow:setup:setup-project:mver_bmad_v1_active",
+      "seed:workflow:setup:generate-project-context:mver_bmad_v1_active",
       "seed:workflow:brainstorming:brainstorming-primary:mver_bmad_v1_active",
       "seed:workflow:research:research-primary:mver_bmad_v1_active",
       "seed:workflow:brainstorming:brainstorming-support:mver_bmad_v1_active",
@@ -149,13 +150,12 @@ describe("setup invoke phase-1 fixture", () => {
         expect.objectContaining({
           contextFactDefinitionId:
             "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-followup-workflows",
-          workflowDefinitionId:
-            "seed:workflow:brainstorming:brainstorming-primary:mver_bmad_v1_active",
+          workflowDefinitionId: "seed:workflow:setup:generate-project-context:mver_bmad_v1_active",
         }),
         expect.objectContaining({
           contextFactDefinitionId:
             "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-followup-workflows",
-          workflowDefinitionId: "seed:workflow:research:research-primary:mver_bmad_v1_active",
+          workflowDefinitionId: "seed:workflow:setup:setup-project:mver_bmad_v1_active",
         }),
       ]),
     );
