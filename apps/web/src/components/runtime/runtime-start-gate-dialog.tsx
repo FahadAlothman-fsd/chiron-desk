@@ -390,7 +390,7 @@ export function RuntimeStartGateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl rounded-none border border-border/80 bg-background">
+      <DialogContent className="max-h-[min(92vh,60rem)] max-w-[min(92vw,64rem)] overflow-y-auto rounded-none border border-border/80 bg-background">
         <DialogHeader>
           <DialogTitle>Start-gate drill-in</DialogTitle>
           <DialogDescription>
