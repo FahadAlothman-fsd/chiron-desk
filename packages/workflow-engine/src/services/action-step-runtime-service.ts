@@ -5,6 +5,7 @@ import type {
   RunActionStepActionsOutput,
   RuntimeActionAffectedTarget,
   RuntimeActionCompletionSummary,
+  RuntimeActionPropagationMapping,
   StartActionStepExecutionOutput,
 } from "@chiron/contracts/runtime/executions";
 import type { WorkflowContextFactDto } from "@chiron/contracts/methodology/workflow";
@@ -39,6 +40,7 @@ import {
   readRuntimeBoundFactEnvelope,
   toCanonicalRuntimeBoundFactEnvelope,
 } from "./runtime-bound-fact-value";
+import { parseArtifactSlotReferenceFactValue } from "./runtime/artifact-slot-reference-service";
 
 const makeActionRuntimeError = (operation: string, cause: string): RepositoryError =>
   new RepositoryError({
@@ -49,32 +51,199 @@ const makeActionRuntimeError = (operation: string, cause: string): RepositoryErr
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const isArtifactReferenceValue = (value: unknown): value is { relativePath: string } =>
-  isRecord(value) && typeof value.relativePath === "string" && value.relativePath.trim().length > 0;
+const readArtifactReferenceFiles = (
+  value: unknown,
+  fallbackSlotDefinitionId?: string,
+): ReadonlyArray<{
+  readonly filePath: string;
+  readonly status: "present" | "deleted";
+  readonly gitCommitHash?: string | null;
+  readonly gitBlobHash?: string | null;
+  readonly gitCommitSubject?: string | null;
+  readonly gitCommitBody?: string | null;
+}> => {
+  const files =
+    parseArtifactSlotReferenceFactValue(value, {
+      ...(fallbackSlotDefinitionId ? { fallbackSlotDefinitionId } : {}),
+    })?.files ?? [];
 
-const resolveArtifactGitMetadata = (value: unknown) => {
-  if (!isRecord(value)) {
+  if (!isRecord(value) || typeof value.gitCommitTitle !== "string") {
+    return files;
+  }
+
+  return files.map((file) =>
+    file.gitCommitSubject === undefined || file.gitCommitSubject === null
+      ? { ...file, gitCommitSubject: value.gitCommitTitle }
+      : file,
+  );
+};
+
+const isExplicitBoundDeleteValue = (value: unknown): boolean =>
+  isRecord(value) && value.deleted === true;
+
+const sameUnknown = (left: unknown, right: unknown): boolean =>
+  JSON.stringify(left) === JSON.stringify(right);
+
+const toBoundDisplayValue = (
+  value: unknown,
+  options: { readonly includeBinding?: boolean } = {},
+): unknown => {
+  const envelope = readRuntimeBoundFactEnvelope(value);
+  if (envelope) {
     return {
-      gitCommitHash: null,
-      gitBlobHash: null,
-      gitCommitTitle: null,
-      gitCommitBody: null,
+      ...(options.includeBinding ? { factInstanceId: envelope.factInstanceId } : {}),
+      value: envelope.value,
+      ...(isExplicitBoundDeleteValue(value) ? { deleted: true } : {}),
     };
   }
 
-  const commitTitle =
-    typeof value.gitCommitTitle === "string"
-      ? value.gitCommitTitle
-      : typeof value.gitCommitSubject === "string"
-        ? value.gitCommitSubject
-        : null;
+  return isRecord(value)
+    ? {
+        ...("value" in value ? { value: value.value } : { value }),
+        ...(value.deleted === true ? { deleted: true } : {}),
+      }
+    : { value };
+};
 
-  return {
-    gitCommitHash: typeof value.gitCommitHash === "string" ? value.gitCommitHash : null,
-    gitBlobHash: typeof value.gitBlobHash === "string" ? value.gitBlobHash : null,
-    gitCommitTitle: commitTitle,
-    gitCommitBody: typeof value.gitCommitBody === "string" ? value.gitCommitBody : null,
-  };
+const toArtifactDisplayValue = (params: {
+  readonly slotDefinitionId: string;
+  readonly files: ReadonlyArray<{
+    readonly filePath: string;
+    readonly status: "present" | "deleted";
+    readonly gitCommitHash?: string | null;
+    readonly gitBlobHash?: string | null;
+    readonly gitCommitSubject?: string | null;
+    readonly gitCommitBody?: string | null;
+  }>;
+}): unknown => ({
+  slotDefinitionId: params.slotDefinitionId,
+  files: params.files.map((file) => ({
+    filePath: file.filePath,
+    status: file.status,
+    ...(file.gitCommitHash !== undefined ? { gitCommitHash: file.gitCommitHash } : {}),
+    ...(file.gitBlobHash !== undefined ? { gitBlobHash: file.gitBlobHash } : {}),
+    ...(file.gitCommitSubject !== undefined ? { gitCommitSubject: file.gitCommitSubject } : {}),
+    ...(file.gitCommitBody !== undefined ? { gitCommitBody: file.gitCommitBody } : {}),
+  })),
+});
+
+const dedupeArtifactFiles = (
+  files: ReadonlyArray<{
+    readonly filePath: string;
+    readonly status: "present" | "deleted";
+    readonly gitCommitHash?: string | null;
+    readonly gitBlobHash?: string | null;
+    readonly gitCommitSubject?: string | null;
+    readonly gitCommitBody?: string | null;
+  }>,
+) => {
+  const filesByKey = new Map<string, (typeof files)[number]>();
+  for (const file of files) {
+    filesByKey.set(`${file.status}:${file.filePath}`, file);
+  }
+  return [...filesByKey.values()].sort((left, right) =>
+    left.filePath.localeCompare(right.filePath),
+  );
+};
+
+const buildBoundFactPropagationMappings = (params: {
+  readonly rows: readonly { valueJson: unknown }[];
+  readonly currentValues: readonly { id: string; valueJson: unknown }[];
+  readonly label: string;
+}): readonly RuntimeActionPropagationMapping[] => {
+  const currentById = new Map(params.currentValues.map((row) => [row.id, row] as const));
+
+  return params.rows.map((row) => {
+    const envelope = readRuntimeBoundFactEnvelope(row.valueJson);
+    const targetId = envelope?.factInstanceId;
+    const current = targetId ? currentById.get(targetId) : undefined;
+    const nextComparableValue =
+      envelope?.value ??
+      (isRecord(row.valueJson) && "value" in row.valueJson ? row.valueJson.value : row.valueJson);
+    const deleteRequested = isExplicitBoundDeleteValue(row.valueJson);
+
+    const operationKind: RuntimeActionPropagationMapping["operationKind"] = deleteRequested
+      ? current
+        ? "delete"
+        : "no_op"
+      : !current
+        ? "create"
+        : sameUnknown(current.valueJson, nextComparableValue)
+          ? "no_op"
+          : "update";
+
+    return {
+      targetKind: "external_fact",
+      operationKind,
+      ...(targetId ? { targetId } : {}),
+      label: params.label,
+      ...(current
+        ? {
+            previousValueJson: toBoundDisplayValue(
+              {
+                factInstanceId: current.id,
+                value: current.valueJson,
+              },
+              { includeBinding: true },
+            ),
+          }
+        : {}),
+      nextValueJson: toBoundDisplayValue(row.valueJson),
+    } satisfies RuntimeActionPropagationMapping;
+  });
+};
+
+const buildArtifactPropagationMappings = (params: {
+  readonly slotDefinitionId: string;
+  readonly rows: readonly { valueJson: unknown }[];
+  readonly currentState: ArtifactCurrentState;
+  readonly label: string;
+}): readonly RuntimeActionPropagationMapping[] => {
+  const nextFiles = dedupeArtifactFiles(
+    params.rows.flatMap((row) =>
+      readArtifactReferenceFiles(row.valueJson, params.slotDefinitionId),
+    ),
+  );
+  const previousFiles = params.currentState.members.map((member) => ({
+    filePath: member.filePath,
+    status: "present" as const,
+    gitCommitHash: member.gitCommitHash,
+    gitBlobHash: member.gitBlobHash,
+    gitCommitSubject: member.gitCommitTitle,
+    gitCommitBody: member.gitCommitBody,
+  }));
+
+  const hasPresentFiles = nextFiles.some((file) => file.status === "present");
+  const hasDeletedFiles = nextFiles.some((file) => file.status === "deleted");
+  const previousDisplay = params.currentState.exists
+    ? toArtifactDisplayValue({ slotDefinitionId: params.slotDefinitionId, files: previousFiles })
+    : undefined;
+  const nextDisplay = toArtifactDisplayValue({
+    slotDefinitionId: params.slotDefinitionId,
+    files: nextFiles,
+  });
+
+  const operationKind: RuntimeActionPropagationMapping["operationKind"] =
+    hasDeletedFiles && !hasPresentFiles
+      ? params.currentState.exists
+        ? "delete"
+        : "no_op"
+      : !params.currentState.exists && hasPresentFiles
+        ? "create"
+        : previousDisplay && sameUnknown(previousDisplay, nextDisplay)
+          ? "no_op"
+          : "update";
+
+  return [
+    {
+      targetKind: "artifact",
+      operationKind,
+      ...(params.currentState.snapshot ? { targetId: params.currentState.snapshot.id } : {}),
+      label: params.label,
+      ...(previousDisplay ? { previousValueJson: previousDisplay } : {}),
+      nextValueJson: nextDisplay,
+    } satisfies RuntimeActionPropagationMapping,
+  ];
 };
 
 type LoadedActionRuntimeContext = {
@@ -107,6 +276,7 @@ type ExecutedItemOutcome = {
   readonly resultSummaryJson: unknown;
   readonly resultJson: unknown;
   readonly affectedTargets: readonly RuntimeActionAffectedTarget[];
+  readonly propagationMappings: readonly RuntimeActionPropagationMapping[];
 };
 
 type EffectiveTargetContext = {
@@ -121,6 +291,14 @@ type ExecuteActionAttemptResult = {
   readonly action: ActionDefinition;
   readonly actionRow: ActionRow;
   readonly itemOutcomes: readonly ExecutedItemOutcome[];
+};
+
+export type ActionItemPreviewState = {
+  readonly targetContextFactDefinitionId: string;
+  readonly targetContextFactKey?: string;
+  readonly targetContextFactKind: "bound_fact" | "artifact_slot_reference_fact";
+  readonly affectedTargets: readonly RuntimeActionAffectedTarget[];
+  readonly propagationMappings: readonly RuntimeActionPropagationMapping[];
 };
 
 const SKIPPED_ACTION_CODE = "propagation_action_skipped";
@@ -187,6 +365,10 @@ export class ActionStepRuntimeService extends Context.Tag(
       projectId: string;
       stepExecutionId: string;
     }) => Effect.Effect<{ stepExecutionId: string; status: "completed" }, RepositoryError>;
+    readonly listActionItemPreviewState: (input: {
+      projectId: string;
+      stepExecutionId: string;
+    }) => Effect.Effect<ReadonlyMap<string, ActionItemPreviewState>, RepositoryError>;
     readonly getCompletionEligibility: (input: {
       projectId: string;
       stepExecutionId: string;
@@ -367,12 +549,14 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
       readonly contextFactDefinitionId: string;
       readonly contextFactKind: ActionDefinition["contextFactKind"];
       readonly affectedTargets: readonly RuntimeActionAffectedTarget[];
+      readonly propagationMappings: readonly RuntimeActionPropagationMapping[];
     }) => ({
       code: SKIPPED_ITEM_CODE,
       contextFactDefinitionId: params.contextFactDefinitionId,
       contextFactKind: params.contextFactKind,
       reason: "Skipped at runtime by operator request.",
       affectedTargets: params.affectedTargets,
+      propagationMappings: params.propagationMappings,
     });
 
     const isSkippedResult = (value: unknown, expectedCode: string): boolean =>
@@ -466,11 +650,18 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
         } satisfies EffectiveTargetContext;
       });
 
-    const normalizeArtifactPaths = (rows: readonly { valueJson: unknown }[]): readonly string[] => {
+    const normalizeArtifactPaths = (params: {
+      readonly rows: readonly { valueJson: unknown }[];
+      readonly slotDefinitionId: string;
+    }): readonly string[] => {
       const uniquePaths = new Set<string>();
-      for (const row of rows) {
-        if (isArtifactReferenceValue(row.valueJson)) {
-          const path = row.valueJson.relativePath.trim();
+      for (const row of params.rows) {
+        for (const file of readArtifactReferenceFiles(row.valueJson, params.slotDefinitionId)) {
+          if (file.status !== "present") {
+            continue;
+          }
+
+          const path = file.filePath.trim();
           if (path.length > 0) {
             uniquePaths.add(path);
           }
@@ -479,9 +670,104 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
       return [...uniquePaths].sort((left, right) => left.localeCompare(right));
     };
 
-    const resolveArtifactPresentFiles = (
-      rows: readonly { valueJson: unknown }[],
-    ): ReadonlyMap<
+    const resolveBoundCurrentValues = (params: {
+      readonly context: LoadedActionRuntimeContext;
+      readonly target: EffectiveTargetContext & { readonly contextFactKind: "bound_fact" };
+    }): Effect.Effect<readonly { id: string; valueJson: unknown }[], RepositoryError> =>
+      Effect.gen(function* () {
+        const contextFact = params.context.workflowContextFacts.find(
+          (fact) => fact.contextFactDefinitionId === params.target.contextFactDefinitionId,
+        );
+        if (!contextFact || contextFact.kind !== "bound_fact") {
+          return [];
+        }
+
+        const [factSchemas, factDefinitions] = yield* Effect.all([
+          lifecycleRepo.findFactSchemas(params.context.methodologyVersionId),
+          methodologyRepo.findFactDefinitionsByVersionId(params.context.methodologyVersionId),
+        ]);
+
+        const bindingId = contextFact.factDefinitionId;
+        const workUnitSchema = factSchemas.find(
+          (schema) => schema.id === bindingId || schema.key === bindingId,
+        );
+        const projectDefinition = factDefinitions.find(
+          (definition) => definition.id === bindingId || definition.key === bindingId,
+        );
+
+        if (workUnitSchema && !projectDefinition) {
+          const rows = yield* workUnitFactRepo.getCurrentValuesByDefinition({
+            projectWorkUnitId: params.context.workflowDetail.projectWorkUnitId,
+            factDefinitionId: workUnitSchema.id,
+          });
+
+          return rows.map((row) => ({ id: row.id, valueJson: row.valueJson }));
+        }
+
+        if (projectDefinition && !workUnitSchema) {
+          const rows = yield* projectFactRepo.getCurrentValuesByDefinition({
+            projectId: params.context.projectId,
+            factDefinitionId: projectDefinition.id,
+          });
+
+          return rows.map((row) => ({ id: row.id, valueJson: row.valueJson }));
+        }
+
+        return [];
+      });
+
+    const describePropagationItemState = (params: {
+      readonly context: LoadedActionRuntimeContext;
+      readonly action: ActionDefinition;
+      readonly item: ActionItemDefinition;
+      readonly rows: readonly {
+        contextFactDefinitionId: string;
+        instanceOrder: number;
+        valueJson: unknown;
+      }[];
+    }): Effect.Effect<ActionItemPreviewState, RepositoryError> =>
+      Effect.gen(function* () {
+        const target = yield* resolveEffectiveTargetContext({
+          context: params.context,
+          action: params.action,
+          item: params.item,
+        });
+        const label = target.contextFactLabel ?? target.contextFactKey;
+        const affectedTargets = resolveAffectedTargets({ target, rows: params.rows });
+
+        const propagationMappings =
+          target.contextFactKind === "bound_fact"
+            ? buildBoundFactPropagationMappings({
+                rows: params.rows,
+                currentValues: yield* resolveBoundCurrentValues({
+                  context: params.context,
+                  target,
+                }),
+                label,
+              })
+            : buildArtifactPropagationMappings({
+                slotDefinitionId: target.artifactSlotDefinitionId,
+                rows: params.rows,
+                currentState: yield* artifactRepo.getCurrentSnapshotBySlot({
+                  projectWorkUnitId: params.context.workflowDetail.projectWorkUnitId,
+                  slotDefinitionId: target.artifactSlotDefinitionId,
+                }),
+                label,
+              });
+
+        return {
+          targetContextFactDefinitionId: target.contextFactDefinitionId,
+          targetContextFactKey: target.contextFactKey,
+          targetContextFactKind: target.contextFactKind,
+          affectedTargets,
+          propagationMappings,
+        } satisfies ActionItemPreviewState;
+      });
+
+    const resolveArtifactPresentFiles = (params: {
+      readonly rows: readonly { valueJson: unknown }[];
+      readonly slotDefinitionId: string;
+    }): ReadonlyMap<
       string,
       {
         readonly filePath: string;
@@ -504,25 +790,26 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
         }
       >();
 
-      for (const row of rows) {
-        if (!isArtifactReferenceValue(row.valueJson)) {
-          continue;
-        }
+      for (const row of params.rows) {
+        for (const file of readArtifactReferenceFiles(row.valueJson, params.slotDefinitionId)) {
+          if (file.status !== "present") {
+            continue;
+          }
 
-        const filePath = row.valueJson.relativePath.trim();
-        if (filesByPath.has(filePath)) {
-          continue;
-        }
+          const filePath = file.filePath.trim();
+          if (filePath.length < 1 || filesByPath.has(filePath)) {
+            continue;
+          }
 
-        const metadata = resolveArtifactGitMetadata(row.valueJson);
-        filesByPath.set(filePath, {
-          filePath,
-          memberStatus: "present",
-          gitCommitHash: metadata.gitCommitHash,
-          gitBlobHash: metadata.gitBlobHash,
-          gitCommitTitle: metadata.gitCommitTitle,
-          gitCommitBody: metadata.gitCommitBody,
-        });
+          filesByPath.set(filePath, {
+            filePath,
+            memberStatus: "present",
+            gitCommitHash: file.gitCommitHash ?? null,
+            gitBlobHash: file.gitBlobHash ?? null,
+            gitCommitTitle: file.gitCommitSubject ?? null,
+            gitCommitBody: file.gitCommitBody ?? null,
+          });
+        }
       }
 
       return filesByPath;
@@ -539,8 +826,14 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
       }[];
     }): Effect.Effect<void, RepositoryError> =>
       Effect.gen(function* () {
-        const targetPaths = normalizeArtifactPaths(params.rows);
-        const presentFilesByPath = resolveArtifactPresentFiles(params.rows);
+        const targetPaths = normalizeArtifactPaths({
+          rows: params.rows,
+          slotDefinitionId: params.slotDefinitionId,
+        });
+        const presentFilesByPath = resolveArtifactPresentFiles({
+          rows: params.rows,
+          slotDefinitionId: params.slotDefinitionId,
+        });
         const current = yield* artifactRepo.getCurrentSnapshotBySlot({
           projectWorkUnitId: params.context.workflowDetail.projectWorkUnitId,
           slotDefinitionId: params.slotDefinitionId,
@@ -719,7 +1012,10 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
           return {
             contextFactDefinitionId: row.contextFactDefinitionId,
             instanceOrder: row.instanceOrder,
-            valueJson: toCanonicalRuntimeBoundFactEnvelope(envelope),
+            valueJson: toCanonicalRuntimeBoundFactEnvelope({
+              instanceId: envelope.factInstanceId,
+              value: envelope.value,
+            }),
             changed: false,
           };
         }
@@ -957,12 +1253,16 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
                     valueJson: row.valueJson,
                   }));
 
-              const affectedTargetsForItem = resolveAffectedTargets({
-                target: effectiveTarget,
+              const previewState = yield* describePropagationItemState({
+                context: params.context,
+                action: params.action,
+                item,
                 rows: usableRows,
               });
+              const affectedTargetsForItem = previewState.affectedTargets;
               const outcomeStatus = resolveItemExecutionStatus({
                 contextFactKind: effectiveTarget.contextFactKind,
+                artifactSlotDefinitionId: effectiveTarget.artifactSlotDefinitionId,
                 rows: usableRows,
               });
 
@@ -984,12 +1284,14 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
                       contextFactDefinitionId: effectiveTarget.contextFactDefinitionId,
                       contextFactKind: effectiveTarget.contextFactKind,
                       affectedTargets: affectedTargetsForItem,
+                      propagationMappings: previewState.propagationMappings,
                     }
                   : {
                       code: outcomeStatus.code,
                       contextFactDefinitionId: effectiveTarget.contextFactDefinitionId,
                       contextFactKind: effectiveTarget.contextFactKind,
                       reason: outcomeStatus.reason,
+                      propagationMappings: previewState.propagationMappings,
                     };
 
               const existingItem = yield* runtimeRepo.getActionExecutionItemByDefinitionId({
@@ -1028,6 +1330,7 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
                 resultSummaryJson,
                 resultJson,
                 affectedTargets: affectedTargetsForItem,
+                propagationMappings: previewState.propagationMappings,
               } satisfies ExecutedItemOutcome;
             }),
         );
@@ -1124,15 +1427,19 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
                 instanceOrder: row.instanceOrder,
                 valueJson: row.valueJson,
               }));
-            const affectedTargets = resolveAffectedTargets({
-              target: effectiveTarget,
+            const previewState = yield* describePropagationItemState({
+              context: params.context,
+              action: params.action,
+              item,
               rows: usableRows,
             });
+            const affectedTargets = previewState.affectedTargets;
             const resultSummaryJson = buildSkippedItemResultSummary();
             const resultJson = buildSkippedItemResult({
               contextFactDefinitionId: effectiveTarget.contextFactDefinitionId,
               contextFactKind: effectiveTarget.contextFactKind,
               affectedTargets,
+              propagationMappings: previewState.propagationMappings,
             });
 
             if (existingItem) {
@@ -1366,6 +1673,45 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
         return results;
       });
 
+    const listActionItemPreviewState = (input: { projectId: string; stepExecutionId: string }) =>
+      Effect.gen(function* () {
+        const context = yield* loadContext(input);
+        const contextRows = yield* stepRepo.listWorkflowExecutionContextFacts(
+          context.stepExecution.workflowExecutionId,
+        );
+
+        const entries = yield* Effect.forEach(context.actionStep.payload.actions, (action) =>
+          Effect.forEach(action.items, (item) =>
+            Effect.gen(function* () {
+              const rows = contextRows
+                .filter(
+                  (row) =>
+                    row.contextFactDefinitionId ===
+                    (item.targetContextFactDefinitionId ?? action.contextFactDefinitionId),
+                )
+                .sort((left, right) => left.instanceOrder - right.instanceOrder)
+                .map((row) => ({
+                  contextFactDefinitionId: row.contextFactDefinitionId,
+                  instanceOrder: row.instanceOrder,
+                  valueJson: row.valueJson,
+                }));
+
+              return [
+                item.itemId,
+                yield* describePropagationItemState({
+                  context,
+                  action,
+                  item,
+                  rows,
+                }),
+              ] as const;
+            }),
+          ),
+        ).pipe(Effect.map((groups) => groups.flat()));
+
+        return new Map(entries);
+      });
+
     const getCompletionEligibility = (input: { projectId: string; stepExecutionId: string }) =>
       Effect.gen(function* () {
         const context = yield* loadContext(input);
@@ -1549,26 +1895,41 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
         });
 
         if (!existingActionRow) {
-          if (selectedItems.length !== action.items.length) {
-            return yield* makeActionRuntimeError(
-              "action-step-runtime.skip-item",
-              "Cannot skip a subset of items before the action has started. Run the action first or skip the whole action.",
-            );
+          if (selectedItems.length === action.items.length) {
+            const actionResult = yield* skipWholeAction({
+              context,
+              action,
+              existingActionRow: null,
+            });
+
+            return {
+              stepExecutionId: context.stepExecution.id,
+              actionId: action.actionId,
+              itemResults: selectedItems.map((item) => ({
+                itemId: item.itemId,
+                result: actionResult.result === "already_running" ? "already_running" : "skipped",
+              })),
+            } satisfies SkipActionStepActionItemsOutput;
           }
 
-          const actionResult = yield* skipWholeAction({
+          const actionRow = yield* runtimeRepo.createActionExecution({
+            stepExecutionId: context.stepExecution.id,
+            actionDefinitionId: action.actionId,
+            actionKind: action.actionKind,
+            status: "needs_attention",
+          });
+
+          const itemResults = yield* applySkippedItems({
             context,
             action,
-            existingActionRow: null,
+            actionRow,
+            selectedItems,
           });
 
           return {
             stepExecutionId: context.stepExecution.id,
             actionId: action.actionId,
-            itemResults: selectedItems.map((item) => ({
-              itemId: item.itemId,
-              result: actionResult.result === "already_running" ? "already_running" : "skipped",
-            })),
+            itemResults,
           } satisfies SkipActionStepActionItemsOutput;
         }
 
@@ -1631,6 +1992,7 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
       skipActions,
       skipActionItems,
       completeStep,
+      listActionItemPreviewState,
       getCompletionEligibility,
     });
   }),
@@ -1638,6 +2000,7 @@ export const ActionStepRuntimeServiceLive = Layer.effect(
 
 function resolveItemExecutionStatus(params: {
   readonly contextFactKind: ActionDefinition["contextFactKind"];
+  readonly artifactSlotDefinitionId?: string;
   readonly rows: readonly {
     contextFactDefinitionId: string;
     instanceOrder: number;
@@ -1672,7 +2035,10 @@ function resolveItemExecutionStatus(params: {
           };
     }
     case "artifact_slot_reference_fact": {
-      const valid = params.rows.every((row) => isArtifactReferenceValue(row.valueJson));
+      const valid = params.rows.every(
+        (row) =>
+          readArtifactReferenceFiles(row.valueJson, params.artifactSlotDefinitionId).length > 0,
+      );
       return valid
         ? {
             status: "succeeded" as const,
@@ -1682,7 +2048,7 @@ function resolveItemExecutionStatus(params: {
         : {
             status: "failed" as const,
             code: "invalid_artifact_snapshot",
-            reason: "Artifact propagation requires a committed relativePath reference.",
+            reason: "Artifact propagation requires a valid artifact slot reference payload.",
           };
     }
     default:
@@ -1717,7 +2083,11 @@ function resolveAffectedTargets(params: {
       const uniqueArtifactPaths = new Set<string>();
       const artifactTargets: RuntimeActionAffectedTarget[] = [];
       for (const row of params.rows) {
-        if (!isArtifactReferenceValue(row.valueJson)) {
+        const files = readArtifactReferenceFiles(
+          row.valueJson,
+          params.target.artifactSlotDefinitionId,
+        );
+        if (files.length < 1) {
           artifactTargets.push({
             targetKind: "artifact" as const,
             targetState: "missing" as const,
@@ -1726,18 +2096,21 @@ function resolveAffectedTargets(params: {
           continue;
         }
 
-        const path = row.valueJson.relativePath.trim();
-        if (path.length < 1 || uniqueArtifactPaths.has(path)) {
-          continue;
-        }
+        for (const file of files) {
+          const path = file.filePath.trim();
+          const dedupeKey = `${file.status}:${path}`;
+          if (path.length < 1 || uniqueArtifactPaths.has(dedupeKey)) {
+            continue;
+          }
 
-        uniqueArtifactPaths.add(path);
-        artifactTargets.push({
-          targetKind: "artifact" as const,
-          targetState: "exists" as const,
-          targetId: path,
-          label: path,
-        });
+          uniqueArtifactPaths.add(dedupeKey);
+          artifactTargets.push({
+            targetKind: "artifact" as const,
+            targetState: file.status === "present" ? ("exists" as const) : ("missing" as const),
+            targetId: path,
+            label: path,
+          });
+        }
       }
 
       return artifactTargets.length > 0

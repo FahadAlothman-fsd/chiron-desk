@@ -437,6 +437,25 @@ export const RuntimeActionAffectedTarget = Schema.Struct({
 });
 export type RuntimeActionAffectedTarget = typeof RuntimeActionAffectedTarget.Type;
 
+export const RuntimeActionPropagationOperationKind = Schema.Literal(
+  "create",
+  "update",
+  "delete",
+  "no_op",
+);
+export type RuntimeActionPropagationOperationKind =
+  typeof RuntimeActionPropagationOperationKind.Type;
+
+export const RuntimeActionPropagationMapping = Schema.Struct({
+  targetKind: Schema.Literal("external_fact", "artifact"),
+  operationKind: RuntimeActionPropagationOperationKind,
+  targetId: Schema.optional(Schema.NonEmptyString),
+  label: Schema.optional(Schema.String),
+  previousValueJson: Schema.optional(Schema.Unknown),
+  nextValueJson: Schema.optional(Schema.Unknown),
+});
+export type RuntimeActionPropagationMapping = typeof RuntimeActionPropagationMapping.Type;
+
 export const RuntimeActionPropagationItemDetail = Schema.Struct({
   itemId: Schema.NonEmptyString,
   itemKey: Schema.NonEmptyString,
@@ -444,10 +463,12 @@ export const RuntimeActionPropagationItemDetail = Schema.Struct({
   sortOrder: Schema.Number,
   targetContextFactDefinitionId: Schema.NonEmptyString,
   targetContextFactKey: Schema.optional(Schema.String),
+  targetContextFactKind: Schema.Literal("bound_fact", "artifact_slot_reference_fact"),
   status: ActionStepRenderableItemStatus,
   resultSummaryJson: Schema.optional(Schema.Unknown),
   resultJson: Schema.optional(Schema.Unknown),
   affectedTargets: Schema.Array(RuntimeActionAffectedTarget),
+  propagationMappings: Schema.Array(RuntimeActionPropagationMapping),
   recoveryAction: Schema.optional(
     Schema.Struct({
       kind: Schema.Literal("recreate_bound_target_from_context_value"),
