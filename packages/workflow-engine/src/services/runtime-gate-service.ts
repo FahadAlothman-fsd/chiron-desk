@@ -242,6 +242,16 @@ type DraftSpecRuntimeValue = {
 const toComparableValue = (comparisonJson: unknown): unknown =>
   isRecord(comparisonJson) && "value" in comparisonJson ? comparisonJson.value : comparisonJson;
 
+const unwrapScalarValueRecord = (value: unknown): unknown => {
+  let current = value;
+
+  while (isRecord(current) && Object.keys(current).length === 1 && "value" in current) {
+    current = current.value;
+  }
+
+  return current;
+};
+
 const pickJsonSubFieldValues = (value: unknown, subFieldKey: string): readonly unknown[] => {
   if (!isRecord(value) || !(subFieldKey in value)) {
     return [];
@@ -313,7 +323,7 @@ const extractFactValues = (
     return rows.flatMap((row) =>
       typeof row.valueJson === "undefined" || row.valueJson === null
         ? []
-        : [unwrapRuntimeBoundFactEnvelope(row.valueJson)],
+        : [unwrapScalarValueRecord(unwrapRuntimeBoundFactEnvelope(row.valueJson))],
     );
   }
 
@@ -376,7 +386,9 @@ const evaluateFactValues = (params: {
           return !Array.isArray(value) || value.length > 0;
         });
       case "equals": {
-        const expected = toComparableValue(params.condition.comparisonJson);
+        const expected = unwrapScalarValueRecord(
+          toComparableValue(params.condition.comparisonJson),
+        );
         return extractedValues.some((value) => isDeepStrictEqual(value, expected));
       }
     }

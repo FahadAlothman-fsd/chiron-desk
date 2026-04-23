@@ -562,7 +562,7 @@ describe("runtime gate / branch overlap alignment", () => {
     const contextFactDefinitions: readonly WorkflowContextFactDto[] = [
       {
         contextFactDefinitionId: "requires-brainstorming-fact-id",
-        kind: "definition_backed_external_fact",
+        kind: "bound_fact",
         key: "requires_brainstorming",
         cardinality: "one",
         bindingKey: "requires-brainstorming",
