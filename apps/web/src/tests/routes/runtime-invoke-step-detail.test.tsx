@@ -180,7 +180,12 @@ function buildDetail(): any {
       sourceMode: "fact_backed" as const,
       sourceContextFactDefinitionId:
         "seed:l3-setup-invoke:setup:mver_bmad_v1_active:fact:research-draft-specs",
+      sourceContextFactLabel: "Research Draft Specs",
       sourceContextFactKey: "cf_research_draft_specs",
+      sourceContextFactKind: "work_unit_draft_spec_fact" as const,
+      sourceContextFactCardinality: "many" as const,
+      sourceContextFactValueType: "work_unit_draft_spec",
+      sourceContextFactWorkUnitDefinitionName: "Research",
       sourceContextFactInstanceValues: [
         {
           id: "research-001",
@@ -247,6 +252,8 @@ function buildDetail(): any {
         {
           workUnitLabel: "Story: Payments",
           transitionLabel: "Start implementation",
+          transitionFromStateLabel: "Activation",
+          transitionToStateLabel: "In Progress",
           status: "not_started" as const,
           availablePrimaryWorkflows: [
             {
@@ -262,7 +269,10 @@ function buildDetail(): any {
           ],
           invokeWorkUnitTargetExecutionId: "invoke-work-unit-row-2",
           workUnitDefinitionId: "work-unit-def-2",
+          workUnitDefinitionKey: "WU.STORY",
+          workUnitDefinitionName: "Story",
           transitionDefinitionId: "transition-def-2",
+          transitionDefinitionKey: "activation_to_in_progress",
           actions: {
             start: {
               kind: "start_invoke_work_unit_target" as const,
@@ -270,7 +280,27 @@ function buildDetail(): any {
               invokeWorkUnitTargetExecutionId: "invoke-work-unit-row-2",
             },
           },
-          bindingPreview: [],
+          bindingPreview: [
+            {
+              destinationKind: "work_unit_fact" as const,
+              destinationDefinitionId: "fact-story-direction",
+              destinationLabel: "Selected Direction",
+              destinationFactType: "string" as const,
+              destinationCardinality: "one" as const,
+              sourceKind: "literal" as const,
+              resolvedValueJson: "Prefilled direction",
+              requiresRuntimeValue: false,
+            },
+            {
+              destinationKind: "work_unit_fact" as const,
+              destinationDefinitionId: "fact-story-owner",
+              destinationLabel: "Owner",
+              destinationFactType: "string" as const,
+              destinationCardinality: "one" as const,
+              sourceKind: "runtime" as const,
+              requiresRuntimeValue: true,
+            },
+          ],
         },
         {
           workUnitLabel: "Story: Search",
@@ -569,12 +599,13 @@ describe("runtime invoke step detail route", () => {
     expect(screen.getByText("Invoke targets, completion rule & propagation preview")).toBeTruthy();
     expect(screen.getByText("Target kind")).toBeTruthy();
     expect(screen.getAllByText("Work unit").length).toBeGreaterThan(0);
-    expect(screen.getByText("Fact backed")).toBeTruthy();
+    expect(screen.getAllByText("Fact backed").length).toBeGreaterThan(0);
     expect(
       screen.getByText(
-        "Bound context fact: cf_research_draft_specs · seed:l3-setup-invoke:setup:mver_bmad_v1_active:fact:research-draft-specs",
+        "Bound context fact: Research Draft Specs · seed:l3-setup-invoke:setup:mver_bmad_v1_active:fact:research-draft-specs",
       ),
     ).toBeTruthy();
+    expect(screen.getByText("Type: work_unit_draft_spec_fact · many · Research")).toBeTruthy();
     expect(screen.getByText("Runtime instances: 1")).toBeTruthy();
     expect(screen.getByText(/#1:\s*{\s*"id":\s*"research-001"/)).toBeTruthy();
     expect(
@@ -590,9 +621,14 @@ describe("runtime invoke step detail route", () => {
     expect(screen.getAllByText("QA Review").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Story: Payments").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Story: Search").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Activation → In Progress").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("WU.STORY").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("activation_to_in_progress").length).toBeGreaterThan(0);
     expect(
       screen.getAllByText("No primary workflows are available for this transition.").length,
     ).toBeGreaterThan(0);
+    expect(screen.getAllByText(/prefill/i).length).toBeGreaterThan(0);
+    expect(screen.getByText("Prefilled direction")).toBeTruthy();
 
     expect(screen.getByRole("combobox")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Start workflow" })).toBeTruthy();
@@ -629,6 +665,9 @@ describe("runtime invoke step detail route", () => {
     await waitFor(() => expect(harness.detailQueryCalls()).toBeGreaterThan(1));
 
     await user.selectOptions(screen.getByRole("combobox"), "workflow-primary-2");
+    const overrideInput = screen.getByDisplayValue("Prefilled direction");
+    await user.clear(overrideInput);
+    await user.type(overrideInput, "Operator override");
     await user.click(screen.getAllByRole("button", { name: "Start work unit" }).at(1)!);
 
     await waitFor(() => expect(harness.startWorkUnitCalls).toHaveLength(1));
@@ -637,6 +676,12 @@ describe("runtime invoke step detail route", () => {
       stepExecutionId: "step-invoke-1",
       invokeWorkUnitTargetExecutionId: "invoke-work-unit-row-2",
       workflowDefinitionId: "workflow-primary-2",
+      runtimeFactValues: expect.arrayContaining([
+        {
+          workUnitFactDefinitionId: "fact-story-direction",
+          valueJson: "Operator override",
+        },
+      ]),
     });
 
     await waitFor(() => expect(screen.getAllByText("In Progress").length).toBeGreaterThan(0));
