@@ -200,7 +200,9 @@ describe("setup invoke phase-1 fixture", () => {
           invokeStepId:
             "seed:l3-setup-invoke:setup:mver_bmad_v1_active:step:invoke-brainstorming-fixed",
           destinationKey: "selected_direction",
-          sourceKind: "literal",
+          sourceKind: "context_fact",
+          contextFactDefinitionId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-brainstorming-draft-spec",
         }),
       ]),
     );

@@ -1501,9 +1501,9 @@ function buildSetupInvokePhase1FixtureSeedRows(
         destinationKey: "selected_direction",
         workUnitFactDefinitionId: workUnitFactId.brainstorming.selectedDirection,
         artifactSlotDefinitionId: null,
-        sourceKind: "literal",
-        contextFactDefinitionId: null,
-        literalValueJson: "Pursue the lightweight invoke-only validation direction.",
+        sourceKind: "context_fact",
+        contextFactDefinitionId: contextFactId.setup.brainstormingDraftSpec,
+        literalValueJson: null,
         sortOrder: 2,
       },
       {
