@@ -562,7 +562,6 @@ const makeCrudTestLayer = () => {
     listWorkflowsByWorkUnitType: () =>
       Effect.succeed([
         {
-          id: "wf-allowed",
           workflowDefinitionId: "wf-allowed",
           key: "wf_allowed",
           displayName: "Allowed Workflow",
@@ -961,6 +960,38 @@ describe("RuntimeManualFactCrudService", () => {
     );
   });
 
+  it("rejects empty work-unit draft specs", async () => {
+    const runtime = makeCrudTestLayer();
+
+    const failure = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* RuntimeManualFactCrudService;
+        return yield* service.apply({
+          scope: "workflow_context",
+          projectId: "project-1",
+          workflowExecutionId: "wfexec-1",
+          contextFactDefinitionId: "ctx-draft",
+          payload: {
+            verb: "create",
+            value: {
+              workUnitDefinitionId: "story",
+              factValues: [],
+              artifactValues: [],
+            },
+          },
+        });
+      }).pipe(
+        Effect.provide(runtime.layer),
+        Effect.catchAll((error) => Effect.succeed(error)),
+      ),
+    );
+
+    expect(failure?._tag).toBe("RuntimeFactValidationError");
+    expect((failure as { message?: string } | undefined)?.message).toContain(
+      "require at least one fact value or artifact value",
+    );
+  });
+
   it("rejects bound fact instance ids that do not exist in the current source", async () => {
     const runtime = makeCrudTestLayer();
 
@@ -987,5 +1018,28 @@ describe("RuntimeManualFactCrudService", () => {
     expect((failure as { message?: string } | undefined)?.message).toContain(
       "Omit factInstanceId if you intend to create a new instance later in an action step.",
     );
+  });
+
+  it("allows value-only bound fact creation when no external singleton exists yet", async () => {
+    const runtime = makeCrudTestLayer();
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* RuntimeManualFactCrudService;
+        return yield* service.apply({
+          scope: "workflow_context",
+          projectId: "project-1",
+          workflowExecutionId: "wfexec-1",
+          contextFactDefinitionId: "ctx-bound",
+          payload: {
+            verb: "create",
+            value: "P1",
+          },
+        });
+      }).pipe(Effect.provide(runtime.layer)),
+    );
+
+    expect(result.verb).toBe("create");
+    expect(runtime.state.workflowContextFacts.at(-1)?.valueJson).toEqual({ value: "P1" });
   });
 });

@@ -293,7 +293,6 @@ function makeWorkflowContextCrudTestLayer() {
     listWorkflowsByWorkUnitType: () =>
       Effect.succeed([
         {
-          id: "wf-allowed",
           workflowDefinitionId: "wf-allowed",
           key: "wf_allowed",
           displayName: "Allowed Workflow",

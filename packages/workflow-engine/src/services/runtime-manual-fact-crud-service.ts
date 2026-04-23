@@ -80,6 +80,7 @@ export type RuntimeManualFactCrudInput =
 
 type PrimitiveDefinition = {
   readonly valueType: FactType;
+  readonly cardinality?: "one" | "many";
   readonly validationJson: unknown;
 };
 
@@ -112,7 +113,7 @@ type ParsedManualCrudPayload =
   | { readonly verb: "delete" };
 
 type ParsedRuntimeFactInstanceValue = {
-  readonly instanceId: string;
+  readonly instanceId?: string;
   readonly value: unknown;
 };
 
@@ -538,12 +539,7 @@ const parseRuntimeFactInstanceValue = (
   factKind: CanonicalWorkflowContextFactDefinition["kind"],
 ): Effect.Effect<ParsedRuntimeFactInstanceValue, RuntimeFactValidationError> => {
   if (!isRecord(value) || !("value" in value)) {
-    return Effect.fail(
-      toValidationError(
-        factKind,
-        "Bound facts require a { factInstanceId, value } payload or legacy { instanceId, value } payload.",
-      ),
-    );
+    return Effect.succeed({ value });
   }
 
   if (typeof value.factInstanceId === "string") {
@@ -551,12 +547,7 @@ const parseRuntimeFactInstanceValue = (
   }
 
   if (typeof value.instanceId !== "string") {
-    return Effect.fail(
-      toValidationError(
-        factKind,
-        "Bound facts require a { factInstanceId, value } payload or legacy { instanceId, value } payload.",
-      ),
-    );
+    return Effect.succeed({ value: value.value });
   }
 
   return Effect.succeed({ instanceId: value.instanceId, value: value.value });
@@ -783,6 +774,7 @@ const resolveBoundFactDefinition = (
     if (params.definition.valueType) {
       return {
         valueType: params.definition.valueType,
+        cardinality: undefined,
         validationJson: undefined,
       } satisfies PrimitiveDefinition;
     }
@@ -803,6 +795,7 @@ const resolveBoundFactDefinition = (
     if (projectDefinition) {
       return {
         valueType: normalizeFactType(projectDefinition.valueType),
+        cardinality: projectDefinition.cardinality === "many" ? "many" : "one",
         validationJson: projectDefinition.validationJson,
       } satisfies PrimitiveDefinition;
     }
@@ -815,6 +808,7 @@ const resolveBoundFactDefinition = (
     if (workUnitDefinition) {
       return {
         valueType: normalizeFactType(workUnitDefinition.factType),
+        cardinality: workUnitDefinition.cardinality === "many" ? "many" : "one",
         validationJson: workUnitDefinition.validationJson,
       } satisfies PrimitiveDefinition;
     }
@@ -867,6 +861,7 @@ export const normalizeWorkflowContextFactValue = (
           workflowWorkUnitTypeId: params.workflowWorkUnitTypeId,
           definition: params.definition,
         });
+        let externalInstanceCount = 0;
         if (params.definition.workUnitDefinitionId) {
           if (!params.projectWorkUnitId) {
             return yield* Effect.fail(
@@ -881,7 +876,11 @@ export const normalizeWorkflowContextFactValue = (
             projectWorkUnitId: params.projectWorkUnitId,
             factDefinitionId: params.definition.factDefinitionId,
           });
-          if (!currentFactInstances.some((instance) => instance.id === envelope.instanceId)) {
+          externalInstanceCount = currentFactInstances.length;
+          if (
+            envelope.instanceId &&
+            !currentFactInstances.some((instance) => instance.id === envelope.instanceId)
+          ) {
             return yield* Effect.fail(
               toValidationError(
                 params.definition.kind,
@@ -894,7 +893,11 @@ export const normalizeWorkflowContextFactValue = (
             projectId: params.projectId,
             factDefinitionId: params.definition.factDefinitionId,
           });
-          if (!currentFactInstances.some((instance) => instance.id === envelope.instanceId)) {
+          externalInstanceCount = currentFactInstances.length;
+          if (
+            envelope.instanceId &&
+            !currentFactInstances.some((instance) => instance.id === envelope.instanceId)
+          ) {
             return yield* Effect.fail(
               toValidationError(
                 params.definition.kind,
@@ -904,13 +907,28 @@ export const normalizeWorkflowContextFactValue = (
           }
         }
 
+        if (
+          !envelope.instanceId &&
+          boundDefinition.cardinality === "one" &&
+          externalInstanceCount > 0
+        ) {
+          return yield* Effect.fail(
+            toValidationError(
+              params.definition.kind,
+              "Bound facts require factInstanceId when the underlying external fact has cardinality 'one' and already has an instance. Omit factInstanceId only when no external instance exists yet.",
+            ),
+          );
+        }
+
         const normalizedValue = yield* validateValueAgainstDefinition({
           value: envelope.value,
           definition: boundDefinition,
         }).pipe(
           Effect.mapError((error) => toValidationError(params.definition.kind, error.message)),
         );
-        return { factInstanceId: envelope.instanceId, value: normalizedValue };
+        return envelope.instanceId
+          ? { factInstanceId: envelope.instanceId, value: normalizedValue }
+          : { value: normalizedValue };
       }
       case "workflow_ref_fact": {
         const normalized = yield* parseWorkflowRefFactValue(params.value, params.definition.kind);
@@ -932,7 +950,7 @@ export const normalizeWorkflowContextFactValue = (
         });
         const workflowExistsLocally = allowedLocalWorkflows.some(
           (workflow) =>
-            workflow.id === normalized.workflowDefinitionId ||
+            workflow.workflowDefinitionId === normalized.workflowDefinitionId ||
             workflow.key === normalized.workflowDefinitionId,
         );
         if (!workflowExistsLocally) {
@@ -1037,6 +1055,15 @@ export const normalizeWorkflowContextFactValue = (
                 selectedArtifactDefinitions,
               })
             : yield* parseWorkUnitDraftSpecFactValue(params.value, params.definition.kind);
+
+        if (draftPayload.factValues.length === 0 && draftPayload.artifactValues.length === 0) {
+          return yield* Effect.fail(
+            toValidationError(
+              params.definition.kind,
+              "Work-unit draft spec facts require at least one fact value or artifact value.",
+            ),
+          );
+        }
 
         if (draftPayload.workUnitDefinitionId !== params.definition.workUnitDefinitionId) {
           return yield* Effect.fail(
