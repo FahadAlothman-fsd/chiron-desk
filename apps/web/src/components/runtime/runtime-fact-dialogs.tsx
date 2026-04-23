@@ -43,6 +43,7 @@ export type RuntimeFactOption = {
 export type RuntimePrimitiveDefinition = {
   readonly factType: RuntimePrimitiveFactType;
   readonly validation?: unknown;
+  readonly validationSourceLabel?: string;
 };
 
 export type RuntimeDraftSpecFieldDefinition = {
@@ -280,6 +281,16 @@ const getAllowedPrimitiveOptions = (
       },
     ];
   });
+};
+
+const getValidationKind = (validation: unknown): "allowed-values" | "path" | null => {
+  if (!isRecord(validation) || typeof validation.kind !== "string") {
+    return null;
+  }
+
+  return validation.kind === "allowed-values" || validation.kind === "path"
+    ? validation.kind
+    : null;
 };
 
 const getStructuredJsonFields = (
@@ -833,6 +844,29 @@ function PrimitiveEditor({
 }) {
   const allowedOptions = getAllowedPrimitiveOptions(definition);
   const pathValidationInfo = getPathValidationInfo(definition.validation);
+  const validationKind = getValidationKind(definition.validation);
+  const validationBadges = [
+    ...(validationKind === "path"
+      ? [pathValidationInfo?.pathKind === "directory" ? "folder path" : "file path"]
+      : validationKind
+        ? [validationKind]
+        : []),
+    ...(definition.validationSourceLabel ? [definition.validationSourceLabel] : []),
+  ];
+
+  const validationBadgeRow =
+    validationBadges.length > 0 && (allowedOptions.length > 0 || pathValidationInfo) ? (
+      <div className="flex flex-wrap gap-2">
+        {validationBadges.map((badge) => (
+          <span
+            key={`${label}-${badge}`}
+            className="inline-flex items-center rounded-full border border-border/70 bg-background/70 px-2 py-0.5 text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground"
+          >
+            {badge}
+          </span>
+        ))}
+      </div>
+    ) : null;
 
   if (definition.factType === "work_unit") {
     return (
@@ -867,6 +901,7 @@ function PrimitiveEditor({
       <Field>
         <FieldLabel>{label}</FieldLabel>
         <FieldContent>
+          {validationBadgeRow}
           <Select
             value={draft.textValue}
             onValueChange={(value) => onChange({ ...draft, textValue: value ?? "" })}
@@ -1083,6 +1118,7 @@ function PrimitiveEditor({
     <Field>
       <FieldLabel>{label}</FieldLabel>
       <FieldContent>
+        {validationBadgeRow}
         <Input
           value={draft.textValue}
           onChange={(event) => onChange({ ...draft, textValue: event.target.value })}

@@ -1378,6 +1378,14 @@ function buildWorkflowContextDialogEditor(params: {
             ? { validation: params.definition.validationJson }
             : {}),
         },
+        ...(resolvedDefinition?.definition.validation !== undefined
+          ? {
+              definition: {
+                ...resolvedDefinition.definition,
+                validationSourceLabel: "external fact",
+              },
+            }
+          : {}),
         workUnitOptions: params.workUnitOptions,
       };
     }

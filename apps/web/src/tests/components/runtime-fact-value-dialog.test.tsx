@@ -196,4 +196,79 @@ describe("runtime fact value dialog", () => {
       within(dialog).getByText("No source fact instances are currently available to bind from."),
     ).toBeTruthy();
   });
+
+  it("renders allowed-values bound facts with external validation badges and a select input", () => {
+    render(
+      <RuntimeFactValueDialog
+        open
+        onOpenChange={() => {}}
+        title="Create bound fact instance"
+        description="Create the first runtime instance for this workflow-context fact."
+        submitLabel="Create instance"
+        editor={{
+          kind: "bound_fact",
+          instanceLabel: "Project Kind instance ID",
+          instanceOptions: [],
+          definition: {
+            factType: "string",
+            validationSourceLabel: "external fact",
+            validation: {
+              kind: "allowed-values",
+              values: ["greenfield", "brownfield"],
+            },
+          },
+        }}
+        isPending={false}
+        onSubmit={() => {}}
+      />,
+    );
+
+    const dialog = screen.getAllByText("Create bound fact instance").at(-1)?.closest("form");
+    if (!dialog) {
+      throw new Error("Expected bound fact dialog form");
+    }
+
+    expect(within(dialog).getByText("allowed-values")).toBeTruthy();
+    expect(within(dialog).getByText("external fact")).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "Bound value" })).toBeTruthy();
+    expect(within(dialog).queryByRole("textbox", { name: "Bound value" })).toBeNull();
+    expect(within(dialog).getByText("Select a value")).toBeTruthy();
+  });
+
+  it("renders folder path badges for bound facts with directory path validation", () => {
+    render(
+      <RuntimeFactValueDialog
+        open
+        onOpenChange={() => {}}
+        title="Create bound fact instance"
+        description="Create the first runtime instance for this workflow-context fact."
+        submitLabel="Create instance"
+        editor={{
+          kind: "bound_fact",
+          instanceLabel: "Project Knowledge Directory instance ID",
+          instanceOptions: [],
+          definition: {
+            factType: "string",
+            validationSourceLabel: "external fact",
+            validation: {
+              kind: "path",
+              path: {
+                pathKind: "directory",
+              },
+            },
+          },
+        }}
+        isPending={false}
+        onSubmit={() => {}}
+      />,
+    );
+
+    const dialog = screen.getAllByText("Create bound fact instance").at(-1)?.closest("form");
+    if (!dialog) {
+      throw new Error("Expected bound fact dialog form");
+    }
+
+    expect(within(dialog).getByText("folder path")).toBeTruthy();
+    expect(within(dialog).getByText("external fact")).toBeTruthy();
+  });
 });
