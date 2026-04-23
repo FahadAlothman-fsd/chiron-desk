@@ -10,11 +10,10 @@ process.env.VITE_SERVER_URL ??= "http://localhost:3000";
   VITE_SERVER_URL: "http://localhost:3000",
 };
 
-const { useRouteContextMock, useParamsMock, useNavigateMock, useSSEMock } = vi.hoisted(() => ({
+const { useRouteContextMock, useParamsMock, useNavigateMock } = vi.hoisted(() => ({
   useRouteContextMock: vi.fn(),
   useParamsMock: vi.fn(),
   useNavigateMock: vi.fn(),
-  useSSEMock: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -38,10 +37,6 @@ vi.mock("@/features/methodologies/workspace-shell", () => ({
       {children}
     </div>
   ),
-}));
-
-vi.mock("@/lib/use-sse", () => ({
-  useSSE: (...args: unknown[]) => useSSEMock(...args),
 }));
 
 vi.mock("@/components/ui/skeleton", () => ({
@@ -716,7 +711,6 @@ async function renderHarness(initialDetail = buildDetail()) {
   );
 
   useParamsMock.mockReturnValue({ projectId: "project-1", stepExecutionId: "step-action-1" });
-  useSSEMock.mockReturnValue({ events: [], status: "open" });
   useRouteContextMock.mockReturnValue({
     queryClient,
     orpc: {
@@ -771,7 +765,6 @@ describe("action step execution route", () => {
     cleanup();
     useRouteContextMock.mockReset();
     useParamsMock.mockReset();
-    useSSEMock.mockReset();
   });
 
   it("renders locked run, retry, and completion states from the runtime payload", async () => {

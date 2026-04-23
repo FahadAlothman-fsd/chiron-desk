@@ -128,7 +128,9 @@ import {
   getGateStateTone,
   getStepTypeTone,
 } from "@/features/projects/execution-detail-visuals";
+import { RouteErrorCard } from "@/components/route-error-card";
 import { resolveRuntimeBackendUrl } from "@/lib/runtime-backend";
+import { useSSE } from "@/lib/use-sse";
 import { cn } from "@/lib/utils";
 
 export const runtimeStepExecutionDetailQueryKey = (projectId: string, stepExecutionId: string) =>
@@ -404,6 +406,107 @@ function formatInvokeBindingSourceValue(binding: InvokeWorkUnitBindingPreview): 
   return binding.sourceContextFactKey
     ? `Context fact: ${binding.sourceContextFactKey}`
     : "Context fact";
+}
+
+function formatInvokeSourceMetadata(params: {
+  kind?: string;
+  cardinality?: string;
+  valueType?: string;
+}): string | null {
+  const parts = [params.kind, params.cardinality, params.valueType].filter(
+    (value): value is string => typeof value === "string" && value.length > 0,
+  );
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+function formatInvokeTransitionPath(row: RuntimeInvokeWorkUnitTargetRow): string {
+  const fromLabel = row.transitionFromStateLabel ?? "Activation";
+  const toLabel = row.transitionToStateLabel ?? row.transitionLabel;
+  return `${fromLabel} → ${toLabel}`;
+}
+
+function formatInvokeDestinationMetadata(binding: InvokeWorkUnitBindingPreview): string {
+  if (binding.destinationKind === "artifact_slot") {
+    return `artifact slot${binding.destinationCardinality ? ` · ${binding.destinationCardinality}` : ""}`;
+  }
+
+  return ["work unit fact", binding.destinationFactType, binding.destinationCardinality]
+    .filter((value): value is string => typeof value === "string" && value.length > 0)
+    .join(" · ");
+}
+
+function getInvokeSourceTone(
+  sourceKind: InvokeWorkUnitBindingPreview["sourceKind"],
+): Parameters<typeof ExecutionBadge>[0]["tone"] {
+  switch (sourceKind) {
+    case "literal":
+      return "violet";
+    case "context_fact":
+      return "sky";
+    case "runtime":
+    default:
+      return "amber";
+  }
+}
+
+function getInvokeDestinationTone(
+  binding: InvokeWorkUnitBindingPreview,
+): Parameters<typeof ExecutionBadge>[0]["tone"] {
+  if (binding.destinationKind === "artifact_slot") {
+    return "amber";
+  }
+
+  if (binding.destinationFactType === "work_unit") {
+    return "lime";
+  }
+
+  if (binding.destinationFactType === "json" || binding.destinationCardinality === "many") {
+    return "rose";
+  }
+
+  return "slate";
+}
+
+function getInvokeBindingContainerTone(binding: InvokeWorkUnitBindingPreview): string {
+  if (binding.requiresRuntimeValue) {
+    return "border-amber-500/30 bg-amber-500/5";
+  }
+
+  if (binding.sourceKind === "literal") {
+    return "border-violet-500/30 bg-violet-500/5";
+  }
+
+  if (binding.sourceKind === "context_fact") {
+    return "border-sky-500/30 bg-sky-500/5";
+  }
+
+  return "border-border/70 bg-background/60";
+}
+
+function getEncodedOptionLabel(
+  options: ReadonlyArray<{ value: unknown; label: string }>,
+  encodedValue: string,
+): string | null {
+  const matched = options.find((option) => encodeOptionValue(option.value) === encodedValue);
+  return matched?.label ?? null;
+}
+
+function formatPrimaryWorkflowOption(
+  option: RuntimeInvokeWorkUnitTargetRow["availablePrimaryWorkflows"][number],
+): string {
+  return option.workflowDefinitionKey
+    ? `${option.workflowDefinitionName} · ${option.workflowDefinitionKey}`
+    : option.workflowDefinitionName;
+}
+
+function getSelectedPrimaryWorkflowLabel(
+  row: RuntimeInvokeWorkUnitTargetRow,
+  workflowDefinitionId: string,
+): string | null {
+  const matched = row.availablePrimaryWorkflows.find(
+    (option) => option.workflowDefinitionId === workflowDefinitionId,
+  );
+  return matched ? formatPrimaryWorkflowOption(matched) : null;
 }
 
 function parseRuntimeBindingInputValue(params: {
@@ -4927,21 +5030,58 @@ function InvokeInteractionSurface(props: {
 
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-3">
-            <div className="border border-border/70 bg-background/40 p-3">
-              <DetailLabel>Target kind</DetailLabel>
+            <div className="border border-sky-500/30 bg-sky-500/5 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <DetailLabel>Target kind</DetailLabel>
+                <ExecutionBadge label={formatInvokeTargetKindLabel(body.targetKind)} tone="sky" />
+              </div>
               <DetailPrimary>{formatInvokeTargetKindLabel(body.targetKind)}</DetailPrimary>
             </div>
-            <div className="border border-border/70 bg-background/40 p-3">
-              <DetailLabel>Source mode</DetailLabel>
+            <div
+              className={cn(
+                "p-3",
+                body.sourceMode === "fact_backed"
+                  ? "border border-violet-500/30 bg-violet-500/5"
+                  : "border border-amber-500/30 bg-amber-500/5",
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <DetailLabel>Source mode</DetailLabel>
+                <ExecutionBadge
+                  label={formatInvokeSourceModeLabel(body.sourceMode)}
+                  tone={body.sourceMode === "fact_backed" ? "violet" : "amber"}
+                />
+              </div>
               <DetailPrimary>{formatInvokeSourceModeLabel(body.sourceMode)}</DetailPrimary>
               {body.sourceMode === "fact_backed" ? (
                 <div className="mt-1 space-y-1 text-xs text-muted-foreground">
                   <p>
-                    Bound context fact: {body.sourceContextFactKey ?? "(key unavailable)"}
+                    Bound context fact:{" "}
+                    {body.sourceContextFactLabel ??
+                      body.sourceContextFactKey ??
+                      "(key unavailable)"}
                     {body.sourceContextFactDefinitionId
                       ? ` · ${body.sourceContextFactDefinitionId}`
                       : ""}
                   </p>
+                  {formatInvokeSourceMetadata({
+                    kind: body.sourceContextFactKind,
+                    cardinality: body.sourceContextFactCardinality,
+                    valueType:
+                      body.sourceContextFactWorkUnitDefinitionName ??
+                      body.sourceContextFactValueType,
+                  }) ? (
+                    <p>
+                      Type:{" "}
+                      {formatInvokeSourceMetadata({
+                        kind: body.sourceContextFactKind,
+                        cardinality: body.sourceContextFactCardinality,
+                        valueType:
+                          body.sourceContextFactWorkUnitDefinitionName ??
+                          body.sourceContextFactValueType,
+                      })}
+                    </p>
+                  ) : null}
                   <p>Runtime instances: {(body.sourceContextFactInstanceValues ?? []).length}</p>
                   {(body.sourceContextFactInstanceValues ?? []).length > 0 ? (
                     <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all border border-border/60 bg-background/30 p-2 text-[11px] leading-relaxed text-foreground/85">
@@ -4953,8 +5093,21 @@ function InvokeInteractionSurface(props: {
                 </div>
               ) : null}
             </div>
-            <div className="border border-border/70 bg-background/40 p-3">
-              <DetailLabel>Completion progress</DetailLabel>
+            <div
+              className={cn(
+                "p-3",
+                body.completionSummary.eligible
+                  ? "border border-emerald-500/30 bg-emerald-500/5"
+                  : "border border-amber-500/30 bg-amber-500/5",
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <DetailLabel>Completion progress</DetailLabel>
+                <ExecutionBadge
+                  label={body.completionSummary.eligible ? "Ready" : "Pending"}
+                  tone={body.completionSummary.eligible ? "emerald" : "amber"}
+                />
+              </div>
               <DetailPrimary>
                 {formatInvokeProgressLabel(
                   body.completionSummary.completedTargets,
@@ -4969,8 +5122,11 @@ function InvokeInteractionSurface(props: {
             </div>
           </div>
 
-          <div className="border border-border/70 bg-background/40 p-3">
-            <DetailLabel>Completion rule</DetailLabel>
+          <div className="border border-amber-500/20 bg-background/40 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <DetailLabel>Completion rule</DetailLabel>
+              <ExecutionBadge label="manual completion" tone="amber" />
+            </div>
             <DetailPrimary>{formatInvokeCompletionRuleLabel(body.targetKind)}</DetailPrimary>
             <p className="mt-1 text-xs text-muted-foreground">
               Completion remains manual and uses the shared complete-step action in the shell.
@@ -5150,6 +5306,10 @@ function InvokeInteractionSurface(props: {
                         : null;
                     const rowRuntimeInputs =
                       runtimeBindingInputsByRowId[row.invokeWorkUnitTargetExecutionId] ?? {};
+                    const selectedPrimaryWorkflowLabel = getSelectedPrimaryWorkflowLabel(
+                      row,
+                      selectedWorkflowId,
+                    );
 
                     return (
                       <Card
@@ -5162,7 +5322,25 @@ function InvokeInteractionSurface(props: {
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="space-y-1">
                               <CardTitle className="text-sm">{row.workUnitLabel}</CardTitle>
-                              <CardDescription>{row.transitionLabel}</CardDescription>
+                              <CardDescription>{formatInvokeTransitionPath(row)}</CardDescription>
+                              <div className="flex flex-wrap gap-2 pt-1">
+                                {row.workUnitDefinitionKey ? (
+                                  <ExecutionBadge label={row.workUnitDefinitionKey} tone="lime" />
+                                ) : null}
+                                {row.transitionDefinitionKey ? (
+                                  <ExecutionBadge label={row.transitionDefinitionKey} tone="sky" />
+                                ) : null}
+                                <ExecutionBadge
+                                  label={
+                                    row.availablePrimaryWorkflows.length > 0
+                                      ? "workflow ready"
+                                      : "needs workflow"
+                                  }
+                                  tone={
+                                    row.availablePrimaryWorkflows.length > 0 ? "violet" : "amber"
+                                  }
+                                />
+                              </div>
                             </div>
 
                             <div className="flex flex-wrap gap-2">
@@ -5184,13 +5362,25 @@ function InvokeInteractionSurface(props: {
                           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                             <div>
                               <DetailLabel>Work unit</DetailLabel>
-                              <DetailPrimary>{row.workUnitLabel}</DetailPrimary>
+                              <DetailPrimary>
+                                {row.workUnitDefinitionName ?? row.workUnitLabel}
+                              </DetailPrimary>
+                              {row.workUnitDefinitionKey ? (
+                                <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                                  {row.workUnitDefinitionKey}
+                                </p>
+                              ) : null}
                               <DetailCode>{row.workUnitDefinitionId}</DetailCode>
                             </div>
 
                             <div>
                               <DetailLabel>Transition</DetailLabel>
-                              <DetailPrimary>{row.transitionLabel}</DetailPrimary>
+                              <DetailPrimary>{formatInvokeTransitionPath(row)}</DetailPrimary>
+                              {row.transitionDefinitionKey ? (
+                                <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                                  {row.transitionDefinitionKey}
+                                </p>
+                              ) : null}
                               <DetailCode>{row.transitionDefinitionId}</DetailCode>
                             </div>
 
@@ -5208,9 +5398,15 @@ function InvokeInteractionSurface(props: {
                                 >
                                   <SelectTrigger
                                     id={`invoke-primary-workflow-${row.invokeWorkUnitTargetExecutionId}`}
-                                    className="w-full bg-background/80 text-foreground"
+                                    className="w-full border-violet-500/30 bg-violet-500/10 text-foreground"
                                   >
-                                    <SelectValue placeholder="Choose a primary workflow" />
+                                    <span className="flex flex-1 items-center gap-2 overflow-hidden text-left">
+                                      <ExecutionBadge label="primary" tone="violet" />
+                                      <span className="truncate">
+                                        {selectedPrimaryWorkflowLabel ??
+                                          "Choose a primary workflow"}
+                                      </span>
+                                    </span>
                                   </SelectTrigger>
                                   <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
                                     {row.availablePrimaryWorkflows.map((option) => (
@@ -5218,10 +5414,7 @@ function InvokeInteractionSurface(props: {
                                         key={option.workflowDefinitionId}
                                         value={option.workflowDefinitionId}
                                       >
-                                        {option.workflowDefinitionName}
-                                        {option.workflowDefinitionKey
-                                          ? ` (${option.workflowDefinitionKey})`
-                                          : ""}
+                                        {formatPrimaryWorkflowOption(option)}
                                       </SelectItem>
                                     ))}
                                   </SelectContent>
@@ -5282,16 +5475,48 @@ function InvokeInteractionSurface(props: {
                                     binding.destinationFactType === "json";
                                   const isWorkUnitSelector = isWorkUnitBinding(binding);
                                   const selectorOptions = binding.editorOptions ?? [];
+                                  const selectedBindingOptionLabel = getEncodedOptionLabel(
+                                    selectorOptions,
+                                    runtimeRawValue,
+                                  );
 
                                   return (
                                     <li
                                       key={`${row.invokeWorkUnitTargetExecutionId}-${binding.destinationDefinitionId}`}
-                                      className="space-y-2 border border-border/70 bg-background/60 p-2"
+                                      className={cn(
+                                        "space-y-3 border p-3",
+                                        getInvokeBindingContainerTone(binding),
+                                      )}
                                     >
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <ExecutionBadge
+                                          label={
+                                            binding.destinationKind === "artifact_slot"
+                                              ? "artifact destination"
+                                              : "fact destination"
+                                          }
+                                          tone={getInvokeDestinationTone(binding)}
+                                        />
+                                        <ExecutionBadge
+                                          label={binding.sourceKind.replaceAll("_", " ")}
+                                          tone={getInvokeSourceTone(binding.sourceKind)}
+                                        />
+                                        <ExecutionBadge
+                                          label={
+                                            binding.requiresRuntimeValue
+                                              ? "runtime required"
+                                              : "prefilled"
+                                          }
+                                          tone={binding.requiresRuntimeValue ? "amber" : "emerald"}
+                                        />
+                                      </div>
                                       <div className="grid gap-2 md:grid-cols-2">
                                         <div>
                                           <DetailLabel>Destination</DetailLabel>
                                           <DetailPrimary>{binding.destinationLabel}</DetailPrimary>
+                                          <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                                            {formatInvokeDestinationMetadata(binding)}
+                                          </p>
                                           <DetailCode>{binding.destinationDefinitionId}</DetailCode>
                                         </div>
                                         <div>
@@ -5299,6 +5524,19 @@ function InvokeInteractionSurface(props: {
                                           <DetailPrimary>
                                             {formatInvokeBindingSourceValue(binding)}
                                           </DetailPrimary>
+                                          {formatInvokeSourceMetadata({
+                                            kind: binding.sourceContextFactKind,
+                                            cardinality: binding.sourceContextFactCardinality,
+                                            valueType: binding.sourceContextFactValueType,
+                                          }) ? (
+                                            <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                                              {formatInvokeSourceMetadata({
+                                                kind: binding.sourceContextFactKind,
+                                                cardinality: binding.sourceContextFactCardinality,
+                                                valueType: binding.sourceContextFactValueType,
+                                              })}
+                                            </p>
+                                          ) : null}
                                           {binding.sourceContextFactDefinitionId ? (
                                             <DetailCode>
                                               {binding.sourceContextFactDefinitionId}
@@ -5328,8 +5566,11 @@ function InvokeInteractionSurface(props: {
                                               );
                                             }}
                                           >
-                                            <SelectTrigger className="w-full bg-background/80 text-foreground">
-                                              <SelectValue placeholder="Select an artifact source" />
+                                            <SelectTrigger className="w-full border-amber-500/30 bg-amber-500/10 text-foreground">
+                                              <span className="truncate text-left">
+                                                {selectedBindingOptionLabel ??
+                                                  "Select an artifact source"}
+                                              </span>
                                             </SelectTrigger>
                                             <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
                                               {selectorOptions.map((option) => (
@@ -5390,14 +5631,13 @@ function InvokeInteractionSurface(props: {
                                                   );
                                                 }}
                                               >
-                                                <SelectTrigger className="w-full bg-background/80 text-foreground">
-                                                  <SelectValue
-                                                    placeholder={
-                                                      isWorkUnitSelector
+                                                <SelectTrigger className="w-full border-sky-500/30 bg-sky-500/10 text-foreground">
+                                                  <span className="truncate text-left">
+                                                    {selectedBindingOptionLabel ??
+                                                      (isWorkUnitSelector
                                                         ? "Select a work unit"
-                                                        : `Select ${binding.destinationLabel}`
-                                                    }
-                                                  />
+                                                        : `Select ${binding.destinationLabel}`)}
+                                                  </span>
                                                 </SelectTrigger>
                                                 <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
                                                   {selectorOptions.map((option) => (
@@ -5437,8 +5677,12 @@ function InvokeInteractionSurface(props: {
                                                 );
                                               }}
                                             >
-                                              <SelectTrigger className="w-full bg-background/80 text-foreground">
-                                                <SelectValue placeholder="Select true or false" />
+                                              <SelectTrigger className="w-full border-violet-500/30 bg-violet-500/10 text-foreground">
+                                                <span className="truncate text-left">
+                                                  {runtimeRawValue.length > 0
+                                                    ? runtimeRawValue
+                                                    : "Select true or false"}
+                                                </span>
                                               </SelectTrigger>
                                               <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
                                                 <SelectItem value="true">true</SelectItem>
@@ -5492,6 +5736,19 @@ function InvokeInteractionSurface(props: {
                                               placeholder="Enter runtime value"
                                             />
                                           )}
+
+                                          <div>
+                                            <DetailLabel>
+                                              {binding.requiresRuntimeValue
+                                                ? "Current prefill"
+                                                : "Resolved prefill"}
+                                            </DetailLabel>
+                                            <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
+                                              {binding.resolvedValueJson === undefined
+                                                ? "No authored value resolved yet."
+                                                : formatUnknown(binding.resolvedValueJson)}
+                                            </pre>
+                                          </div>
                                         </div>
                                       )}
                                     </li>
@@ -7112,8 +7369,66 @@ export const Route = createFileRoute("/projects/$projectId/step-executions/$step
       queryKey: runtimeStepExecutionDetailQueryKey(params.projectId, params.stepExecutionId),
     });
   },
+  errorComponent: StepExecutionRouteErrorComponent,
   component: RuntimeFormStepDetailRoute,
 });
+
+function StepExecutionRouteErrorState(props: {
+  projectId: string;
+  stepExecutionId: string;
+  error: unknown;
+  onRetry?: () => void;
+}) {
+  return (
+    <MethodologyWorkspaceShell
+      title="Step execution detail"
+      stateLabel="failed"
+      segments={[
+        { label: "Projects", to: "/projects" },
+        {
+          label: props.projectId,
+          to: "/projects/$projectId",
+          params: { projectId: props.projectId },
+        },
+        { label: props.stepExecutionId },
+      ]}
+    >
+      <RouteErrorCard
+        title="Step execution detail failed"
+        description="This view could not be rendered cleanly. Use one of these links to recover even inside Electron."
+        detail={toErrorMessage(props.error)}
+        onRetry={props.onRetry}
+        actions={
+          <>
+            <Link className={buttonVariants({ variant: "outline" })} to="/projects">
+              Projects
+            </Link>
+            <Link
+              className={buttonVariants({ variant: "outline" })}
+              to="/projects/$projectId"
+              params={{ projectId: props.projectId }}
+            >
+              Project overview
+            </Link>
+          </>
+        }
+      />
+    </MethodologyWorkspaceShell>
+  );
+}
+
+function StepExecutionRouteErrorComponent(props: { error: unknown; reset: () => void }) {
+  const { projectId, stepExecutionId } = Route.useParams();
+
+  return (
+    <StepExecutionRouteErrorState
+      projectId={projectId}
+      stepExecutionId={stepExecutionId}
+      error={props.error}
+      onRetry={props.reset}
+    />
+  );
+}
 
 export function RuntimeFormStepDetailRoute() {
   const { projectId, stepExecutionId } = Route.useParams();
@@ -7182,13 +7497,17 @@ export function RuntimeFormStepDetailRoute() {
           </CardContent>
         </Card>
       ) : hasError ? (
-        <Card frame="cut-heavy" tone="runtime" corner="white">
-          <CardContent className="pt-4">
-            <p className="border border-destructive/60 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {toErrorMessage(combinedError)}
-            </p>
-          </CardContent>
-        </Card>
+        <StepExecutionRouteErrorState
+          projectId={projectId}
+          stepExecutionId={stepExecutionId}
+          error={combinedError}
+          onRetry={() => {
+            void stepDetailQuery.refetch();
+            if (isAgentStep) {
+              void agentDetailQuery.refetch();
+            }
+          }}
+        />
       ) : detail ? (
         detail.body.stepType === "form" ? (
           <FormInteractionSurface
