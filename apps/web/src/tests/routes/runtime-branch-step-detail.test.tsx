@@ -620,6 +620,8 @@ describe("runtime branch step detail route", () => {
                   conditions: [
                     {
                       met: true,
+                      expectedValueJson: true,
+                      currentValueJson: true,
                       condition: {
                         kind: "fact",
                         factDefinitionId: "fact-requires-brainstorming",
@@ -638,6 +640,8 @@ describe("runtime branch step detail route", () => {
                   conditions: [
                     {
                       met: false,
+                      expectedValueJson: "brainstorm_then_research",
+                      currentValueJson: "research_only",
                       reason: "Context fact 'branch_note' did not satisfy equals",
                       condition: {
                         kind: "fact",
@@ -661,6 +665,9 @@ describe("runtime branch step detail route", () => {
     expect(screen.getByText("requires_brainstorming equals true")).toBeTruthy();
     expect(screen.getByText("ANY group")).toBeTruthy();
     expect(screen.getByText("branch_note equals brainstorm_then_research")).toBeTruthy();
+    expect(screen.getAllByText("Expected").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Current").length).toBeGreaterThan(0);
+    expect(screen.getByText("research_only")).toBeTruthy();
     expect(screen.getByText("Context fact 'branch_note' did not satisfy equals")).toBeTruthy();
   });
 });

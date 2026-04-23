@@ -596,6 +596,49 @@ function getBranchConditionSummary(evaluation: RuntimeConditionEvaluation): stri
   return condition.isNegated ? `NOT ${expression}` : expression;
 }
 
+function getBranchConditionTargetLabel(evaluation: RuntimeConditionEvaluation): string {
+  const condition = evaluation.condition;
+
+  if (condition.kind === "artifact") {
+    return `artifact:${condition.slotKey}`;
+  }
+
+  return condition.subFieldKey
+    ? `${condition.factKey}.${condition.subFieldKey}`
+    : condition.factKey;
+}
+
+function getBranchConditionOperatorLabel(evaluation: RuntimeConditionEvaluation): string {
+  return evaluation.condition.isNegated
+    ? `NOT ${evaluation.condition.operator}`
+    : evaluation.condition.operator;
+}
+
+function getBranchConditionExpectedValue(evaluation: RuntimeConditionEvaluation): unknown {
+  if (typeof evaluation.expectedValueJson !== "undefined") {
+    return evaluation.expectedValueJson;
+  }
+
+  if (evaluation.condition.kind === "artifact") {
+    return evaluation.condition.operator === "exists" ? "present" : undefined;
+  }
+
+  return evaluation.condition.operator === "equals"
+    ? unwrapComparisonValue(evaluation.condition.comparisonJson)
+    : evaluation.condition.operator === "exists"
+      ? "present"
+      : undefined;
+}
+
+function BranchConditionValueCard({ label, value }: { label: string; value: unknown }) {
+  return (
+    <div className="space-y-1 border border-border/70 bg-background/40 p-2">
+      <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{label}</p>
+      <p className="break-all font-mono text-xs text-foreground/90">{formatUnknown(value)}</p>
+    </div>
+  );
+}
+
 function countBranchEvaluations(tree: RuntimeConditionEvaluationTree): {
   met: number;
   total: number;
@@ -664,9 +707,30 @@ function BranchConditionEvaluationTreePanel({
                   />
                   <ExecutionBadge label={evaluation.condition.kind} tone="slate" />
                 </div>
-                <p className="break-all font-mono text-[11px] text-foreground/85">
-                  {getBranchConditionSummary(evaluation)}
-                </p>
+                <div className="space-y-2">
+                  <p className="break-all font-mono text-[11px] text-foreground/85">
+                    {getBranchConditionSummary(evaluation)}
+                  </p>
+                  <div className="grid gap-2 md:grid-cols-5">
+                    <BranchConditionValueCard
+                      label="Target"
+                      value={getBranchConditionTargetLabel(evaluation)}
+                    />
+                    <BranchConditionValueCard
+                      label="Operator"
+                      value={getBranchConditionOperatorLabel(evaluation)}
+                    />
+                    <BranchConditionValueCard
+                      label="Expected"
+                      value={getBranchConditionExpectedValue(evaluation)}
+                    />
+                    <BranchConditionValueCard label="Current" value={evaluation.currentValueJson} />
+                    <BranchConditionValueCard
+                      label="Result"
+                      value={evaluation.met ? "matched" : "failed"}
+                    />
+                  </div>
+                </div>
                 {!evaluation.met && evaluation.reason ? (
                   <p className="text-xs text-muted-foreground">{evaluation.reason}</p>
                 ) : null}
