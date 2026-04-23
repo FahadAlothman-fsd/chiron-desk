@@ -210,7 +210,10 @@ function makeTestContext(options?: {
         workflowExecutionId: stepExecution.workflowExecutionId,
         contextFactDefinitionId: "ctx-artifact-1",
         instanceOrder: 0,
-        valueJson: { relativePath: "docs/plan.md" },
+        valueJson: {
+          slotDefinitionId: "slot-1",
+          files: [{ filePath: "docs/plan.md", status: "present" }],
+        },
         sourceStepExecutionId: null,
         createdAt: now,
         updatedAt: now,
@@ -496,7 +499,15 @@ function makeTestContext(options?: {
         projectFactRows.push(created);
         return created;
       }),
-    getCurrentValuesByDefinition: () => Effect.die("unused"),
+    getCurrentValuesByDefinition: ({ projectId, factDefinitionId }) =>
+      Effect.succeed(
+        projectFactRows.filter(
+          (row) =>
+            row.projectId === projectId &&
+            row.factDefinitionId === factDefinitionId &&
+            row.status === "active",
+        ),
+      ),
     listFactsByProject: () => Effect.succeed(projectFactRows),
     supersedeFactInstance: () => Effect.die("unused"),
   } as unknown as Context.Tag.Service<typeof ProjectFactRepository>);
@@ -536,7 +547,15 @@ function makeTestContext(options?: {
         workUnitFactRows.push(created);
         return created;
       }),
-    getCurrentValuesByDefinition: () => Effect.die("unused"),
+    getCurrentValuesByDefinition: ({ projectWorkUnitId, factDefinitionId }) =>
+      Effect.succeed(
+        workUnitFactRows.filter(
+          (row) =>
+            row.projectWorkUnitId === projectWorkUnitId &&
+            row.factDefinitionId === factDefinitionId &&
+            row.status === "active",
+        ),
+      ),
     listFactsByWorkUnit: () => Effect.succeed(workUnitFactRows),
     supersedeFactInstance: () => Effect.die("unused"),
   } as unknown as Context.Tag.Service<typeof WorkUnitFactRepository>);
@@ -965,11 +984,17 @@ describe("ActionStep runtime services", () => {
           contextFactDefinitionId: "ctx-artifact-1",
           instanceOrder: 0,
           valueJson: {
-            relativePath: "docs/final.md",
-            gitCommitHash: "commit-1",
-            gitBlobHash: "blob-1",
-            gitCommitSubject: "seed artifact",
-            gitCommitBody: "body-1",
+            slotDefinitionId: "slot-1",
+            files: [
+              {
+                filePath: "docs/final.md",
+                status: "present",
+                gitCommitHash: "commit-1",
+                gitBlobHash: "blob-1",
+                gitCommitSubject: "seed artifact",
+                gitCommitBody: "body-1",
+              },
+            ],
           },
           sourceStepExecutionId: null,
           createdAt: now,
@@ -1006,7 +1031,7 @@ describe("ActionStep runtime services", () => {
     expect(
       ctx.contextFacts.find((row) => row.contextFactDefinitionId === "ctx-definition-1")?.valueJson,
     ).toEqual({
-      instanceId: ctx.projectFactRows[0]?.id,
+      factInstanceId: ctx.projectFactRows[0]?.id,
       value: { value: { title: "needs bind" } },
     });
     expect(ctx.artifactSnapshotRows).toHaveLength(1);
@@ -1054,6 +1079,84 @@ describe("ActionStep runtime services", () => {
 
     expect(ctx.artifactSnapshotRows).toHaveLength(1);
     expect(ctx.artifactSnapshotRows[0]?.slotDefinitionId).toBe("slot-1");
+  });
+
+  it("shows canonical artifact slot reference targets as existing before the action runs", async () => {
+    const ctx = makeTestContext({ executionMode: "parallel" });
+
+    const detail = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* ActionStepDetailService;
+        return yield* service.buildActionStepExecutionDetailBody({
+          projectId: "project-1",
+          stepExecution: ctx.stepExecution,
+          workflowDetail: ctx.workflowDetail,
+        });
+      }).pipe(Effect.provide(ctx.detailLayer)),
+    );
+
+    expect(
+      detail.actions.find((action) => action.actionId === "action-3")?.items[0]?.affectedTargets,
+    ).toEqual([
+      {
+        targetKind: "artifact",
+        targetState: "exists",
+        targetId: "docs/plan.md",
+        label: "docs/plan.md",
+      },
+    ]);
+    expect(detail.actions.find((action) => action.actionId === "action-3")?.items[0]).toMatchObject(
+      {
+        targetContextFactKind: "artifact_slot_reference_fact",
+        propagationMappings: [
+          expect.objectContaining({
+            targetKind: "artifact",
+            operationKind: "create",
+          }),
+        ],
+      },
+    );
+  });
+
+  it("builds bound-fact preview mappings with item-level kind metadata", async () => {
+    const ctx = makeTestContext({ executionMode: "parallel" });
+    ctx.workUnitFactRows.push({
+      id: "external-1",
+      projectWorkUnitId: "work-unit-1",
+      factDefinitionId: "external-bound-1",
+      valueJson: { title: "old bound value" },
+      referencedProjectWorkUnitId: null,
+      status: "active",
+      supersededByFactInstanceId: null,
+      producedByTransitionExecutionId: null,
+      producedByWorkflowExecutionId: null,
+      authoredByUserId: null,
+      createdAt: now,
+    });
+
+    const detail = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* ActionStepDetailService;
+        return yield* service.buildActionStepExecutionDetailBody({
+          projectId: "project-1",
+          stepExecution: ctx.stepExecution,
+          workflowDetail: ctx.workflowDetail,
+        });
+      }).pipe(Effect.provide(ctx.detailLayer)),
+    );
+
+    expect(detail.actions.find((action) => action.actionId === "action-1")?.items[0]).toMatchObject(
+      {
+        targetContextFactKind: "bound_fact",
+        propagationMappings: [
+          expect.objectContaining({
+            targetKind: "external_fact",
+            targetId: "external-1",
+            operationKind: "update",
+          }),
+        ],
+      },
+    );
   });
 
   it("fails before snapshot insert when artifact slot reference cannot be resolved", async () => {
@@ -1361,7 +1464,7 @@ describe("ActionStep runtime services", () => {
     expect(
       ctx.contextFacts.find((row) => row.contextFactDefinitionId === "ctx-definition-1")?.valueJson,
     ).toEqual({
-      instanceId: ctx.projectFactRows[0]?.id,
+      factInstanceId: ctx.projectFactRows[0]?.id,
       value: { title: "definition" },
     });
   });
@@ -1421,13 +1524,13 @@ describe("ActionStep runtime services", () => {
     expect(
       ctx.contextFacts.find((row) => row.contextFactDefinitionId === "ctx-bound-1")?.valueJson,
     ).toEqual({
-      instanceId: ctx.workUnitFactRows[0]?.id,
+      factInstanceId: ctx.workUnitFactRows[0]?.id,
       value: { title: "bound missing instance" },
     });
     expect(
       ctx.contextFacts.find((row) => row.contextFactDefinitionId === "ctx-definition-1")?.valueJson,
     ).toEqual({
-      instanceId: ctx.projectFactRows[0]?.id,
+      factInstanceId: ctx.projectFactRows[0]?.id,
       value: { title: "definition missing instance" },
     });
   });
@@ -1504,7 +1607,6 @@ describe("ActionStep runtime services", () => {
 
     const defaultItem = ctx.itemRows.find((row) => row.itemDefinitionId === "item-bound-default");
     const overrideItem = ctx.itemRows.find((row) => row.itemDefinitionId === "item-bound-override");
-
     expect(defaultItem?.affectedTargetsJson).toEqual([
       {
         targetKind: "external_fact",
@@ -1687,6 +1789,110 @@ describe("ActionStep runtime services", () => {
     ).toMatchObject({
       status: "succeeded",
       resultJson: expect.objectContaining({ code: "propagation_action_applied_with_skips" }),
+    });
+  });
+
+  it("allows skipping a subset of items before the action starts", async () => {
+    const ctx = makeTestContext({
+      executionMode: "parallel",
+      actions: [
+        makeAction("action-artifact", {
+          key: "artifact-multi",
+          sortOrder: 10,
+          contextFactDefinitionId: "ctx-artifact-1",
+          contextFactKind: "artifact_slot_reference_fact",
+          items: [
+            {
+              itemId: "item-a",
+              itemKey: "item.a",
+              sortOrder: 10,
+            },
+            {
+              itemId: "item-b",
+              itemKey: "item.b",
+              sortOrder: 20,
+              targetContextFactDefinitionId: "ctx-artifact-2",
+            },
+          ],
+        }),
+      ],
+      contextFacts: [
+        {
+          id: "ctx-artifact-a",
+          workflowExecutionId: "workflow-exec-1",
+          contextFactDefinitionId: "ctx-artifact-1",
+          instanceOrder: 0,
+          valueJson: {
+            slotDefinitionId: "slot-1",
+            files: [{ filePath: "docs/a.md", status: "present" }],
+          },
+          sourceStepExecutionId: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: "ctx-artifact-b",
+          workflowExecutionId: "workflow-exec-1",
+          contextFactDefinitionId: "ctx-artifact-2",
+          instanceOrder: 0,
+          valueJson: {
+            slotDefinitionId: "slot-1",
+            files: [{ filePath: "docs/b.md", status: "present" }],
+          },
+          sourceStepExecutionId: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+    });
+
+    ctx.workflowContextFacts.push({
+      kind: "artifact_slot_reference_fact",
+      contextFactDefinitionId: "ctx-artifact-2",
+      key: "artifactSecondary",
+      label: "Artifact Secondary",
+      cardinality: "one",
+      slotDefinitionId: "slot-1",
+    });
+
+    const beforeDetail = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* ActionStepDetailService;
+        return yield* service.buildActionStepExecutionDetailBody({
+          projectId: "project-1",
+          stepExecution: ctx.stepExecution,
+          workflowDetail: ctx.workflowDetail,
+        });
+      }).pipe(Effect.provide(ctx.detailLayer)),
+    );
+
+    expect(beforeDetail.actions[0]?.items.map((item) => item.skipAction.enabled)).toEqual([
+      true,
+      true,
+    ]);
+
+    const skipped = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* ActionStepRuntimeService;
+        return yield* service.skipActionItems({
+          projectId: "project-1",
+          stepExecutionId: ctx.stepExecution.id,
+          actionId: "action-artifact",
+          itemIds: ["item-b"],
+        });
+      }).pipe(Effect.provide(ctx.runtimeLayer)),
+    );
+
+    expect(skipped.itemResults).toEqual([{ itemId: "item-b", result: "skipped" }]);
+    expect(
+      ctx.actionRows.find((row) => row.actionDefinitionId === "action-artifact"),
+    ).toMatchObject({
+      status: "needs_attention",
+      resultJson: expect.objectContaining({ code: "propagation_action_applied_with_skips" }),
+    });
+    expect(ctx.itemRows.find((row) => row.itemDefinitionId === "item-b")).toMatchObject({
+      status: "succeeded",
+      resultJson: expect.objectContaining({ code: "propagation_item_skipped" }),
     });
   });
 

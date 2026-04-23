@@ -1,4 +1,7 @@
-import type { RuntimeActionStepExecutionDetailBody } from "@chiron/contracts/runtime/executions";
+import type {
+  RuntimeActionPropagationMapping,
+  RuntimeActionStepExecutionDetailBody,
+} from "@chiron/contracts/runtime/executions";
 import { MethodologyRepository, LifecycleRepository } from "@chiron/methodology-engine";
 import { ProjectContextRepository } from "@chiron/project-context";
 import { Context, Effect, Layer } from "effect";
@@ -6,16 +9,8 @@ import { Context, Effect, Layer } from "effect";
 import { RepositoryError } from "../errors";
 import { ActionStepRuntimeRepository } from "../repositories/action-step-runtime-repository";
 import type { WorkflowExecutionDetailReadModel } from "../repositories/execution-read-repository";
-import {
-  StepExecutionRepository,
-  type RuntimeStepExecutionRow,
-  type RuntimeWorkflowExecutionContextFactRow,
-} from "../repositories/step-execution-repository";
+import { type RuntimeStepExecutionRow } from "../repositories/step-execution-repository";
 import { ActionStepRuntimeService } from "./action-step-runtime-service";
-import {
-  getRuntimeBoundFactInstanceId,
-  readRuntimeBoundFactEnvelope,
-} from "./runtime-bound-fact-value";
 
 const makeActionDetailError = (cause: string): RepositoryError =>
   new RepositoryError({
@@ -50,7 +45,6 @@ export const ActionStepDetailServiceLive = Layer.effect(
     const lifecycleRepo = yield* LifecycleRepository;
     const methodologyRepo = yield* MethodologyRepository;
     const runtimeRepo = yield* ActionStepRuntimeRepository;
-    const stepRepo = yield* StepExecutionRepository;
     const actionRuntime = yield* ActionStepRuntimeService;
 
     const buildActionStepExecutionDetailBody = ({
@@ -74,7 +68,7 @@ export const ActionStepDetailServiceLive = Layer.effect(
           return yield* makeActionDetailError("work-unit type missing for action detail");
         }
 
-        const [actionStep, workflowEditor, actionRows, completionSummary, contextRows] =
+        const [actionStep, workflowEditor, actionRows, completionSummary, previewItemsById] =
           yield* Effect.all([
             methodologyRepo.getActionStepDefinition({
               versionId: projectPin.methodologyVersionId,
@@ -91,7 +85,10 @@ export const ActionStepDetailServiceLive = Layer.effect(
               projectId,
               stepExecutionId: stepExecution.id,
             }),
-            stepRepo.listWorkflowExecutionContextFacts(stepExecution.workflowExecutionId),
+            actionRuntime.listActionItemPreviewState({
+              projectId,
+              stepExecutionId: stepExecution.id,
+            }),
           ]);
 
         if (!actionStep) {
@@ -121,12 +118,6 @@ export const ActionStepDetailServiceLive = Layer.effect(
                 itemRows.map((row) => [row.itemDefinitionId, row] as const),
               );
               const contextFact = contextFactsById.get(action.contextFactDefinitionId);
-              const previewTargetsByItemId = new Map(
-                [...action.items].map((item) => [
-                  item.itemId,
-                  buildPreviewTargetMeta({ item, action, contextRows, contextFactsById }),
-                ]),
-              );
               const runBlockedReason = getRunBlockedReason({
                 stepExecution,
                 action,
@@ -139,9 +130,13 @@ export const ActionStepDetailServiceLive = Layer.effect(
                 .sort((left, right) => left.sortOrder - right.sortOrder)
                 .map((item) => {
                   const itemRow = itemRowsById.get(item.itemId);
-                  const previewTarget =
-                    previewTargetsByItemId.get(item.itemId) ??
-                    buildPreviewTargetMeta({ item, action, contextRows, contextFactsById });
+                  const previewTarget = previewItemsById.get(item.itemId) ?? {
+                    targetContextFactDefinitionId: item.targetContextFactDefinitionId,
+                    targetContextFactKey: undefined,
+                    targetContextFactKind: "bound_fact" as const,
+                    affectedTargets: [],
+                    propagationMappings: [],
+                  };
                   const itemSkipBlockedReason = getItemSkipBlockedReason({
                     stepExecution,
                     action,
@@ -158,16 +153,27 @@ export const ActionStepDetailServiceLive = Layer.effect(
                     itemKey: item.itemKey,
                     ...(item.label ? { label: item.label } : {}),
                     sortOrder: item.sortOrder,
-                    targetContextFactDefinitionId: previewTarget.contextFactDefinitionId,
-                    ...(previewTarget.contextFactKey
-                      ? { targetContextFactKey: previewTarget.contextFactKey }
+                    targetContextFactDefinitionId: previewTarget.targetContextFactDefinitionId,
+                    ...(previewTarget.targetContextFactKey
+                      ? { targetContextFactKey: previewTarget.targetContextFactKey }
                       : {}),
+                    targetContextFactKind: previewTarget.targetContextFactKind,
                     status: mapItemStatus(itemRow),
                     ...(itemRow?.resultSummaryJson
                       ? { resultSummaryJson: itemRow.resultSummaryJson }
                       : {}),
                     ...(itemRow?.resultJson ? { resultJson: itemRow.resultJson } : {}),
-                    affectedTargets: itemRow?.affectedTargetsJson ?? previewTarget.affectedTargets,
+                    affectedTargets:
+                      itemRow?.status === "succeeded" &&
+                      hasResultCode(itemRow.resultJson, "propagation_applied")
+                        ? previewTarget.affectedTargets
+                        : (itemRow?.affectedTargetsJson ?? previewTarget.affectedTargets),
+                    propagationMappings:
+                      itemRow?.status === "succeeded" &&
+                      hasResultCode(itemRow.resultJson, "propagation_applied")
+                        ? previewTarget.propagationMappings
+                        : (readPropagationMappings(itemRow?.resultJson) ??
+                          previewTarget.propagationMappings),
                     ...(recoveryRequired
                       ? {
                           recoveryAction: {
@@ -262,6 +268,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function readPropagationMappings(
+  value: unknown,
+): readonly RuntimeActionPropagationMapping[] | undefined {
+  if (!isRecord(value) || !Array.isArray(value.propagationMappings)) {
+    return undefined;
+  }
+
+  return value.propagationMappings as readonly RuntimeActionPropagationMapping[];
+}
+
+function hasResultCode(value: unknown, expectedCode: string): boolean {
+  return isRecord(value) && value.code === expectedCode;
+}
+
 function getRunBlockedReason(params: {
   readonly stepExecution: RuntimeStepExecutionRow;
   readonly action: {
@@ -303,10 +323,6 @@ function getRunBlockedReason(params: {
   return priorBlocking
     ? "Sequential mode requires all earlier enabled actions to succeed first."
     : undefined;
-}
-
-function hasResultCode(value: unknown, code: string): boolean {
-  return isRecord(value) && value.code === code;
 }
 
 function mapActionStatus(
@@ -386,9 +402,6 @@ function getItemSkipBlockedReason(params: {
   if (params.actionRow?.status === "running") {
     return "Action is already running.";
   }
-  if (!params.actionRow && params.action.items.length > 1) {
-    return "Run the action or skip the whole action before skipping individual items.";
-  }
   if (params.itemRow?.status === "running") {
     return "Item is already running.";
   }
@@ -399,120 +412,4 @@ function getItemSkipBlockedReason(params: {
   }
 
   return undefined;
-}
-
-function isArtifactReferenceValue(value: unknown): value is { relativePath: string } {
-  return (
-    isRecord(value) &&
-    typeof value.relativePath === "string" &&
-    value.relativePath.trim().length > 0
-  );
-}
-
-function hasPreviewDefinitionBackedValue(value: unknown): boolean {
-  const envelope = readRuntimeBoundFactEnvelope(value);
-  if (envelope) {
-    return envelope.value !== undefined && envelope.value !== null;
-  }
-
-  return value !== undefined && value !== null;
-}
-
-function resolveEffectiveTargetContextFact(params: {
-  readonly item: { targetContextFactDefinitionId?: string | undefined };
-  readonly action: {
-    contextFactDefinitionId: string;
-  };
-  readonly contextFactsById: ReadonlyMap<
-    string,
-    { key: string; label?: string | undefined; kind: string }
-  >;
-}) {
-  const contextFactDefinitionId =
-    params.item.targetContextFactDefinitionId ?? params.action.contextFactDefinitionId;
-  return {
-    contextFactDefinitionId,
-    contextFact: params.contextFactsById.get(contextFactDefinitionId),
-  };
-}
-
-function buildPreviewTargetMeta(params: {
-  readonly item: { targetContextFactDefinitionId?: string | undefined };
-  readonly action: {
-    contextFactDefinitionId: string;
-    contextFactKind: RuntimeActionStepExecutionDetailBody["actions"][number]["contextFactKind"];
-  };
-  readonly contextRows: readonly RuntimeWorkflowExecutionContextFactRow[];
-  readonly contextFactsById: ReadonlyMap<
-    string,
-    { key: string; label?: string | undefined; kind: string }
-  >;
-}) {
-  const { contextFactDefinitionId, contextFact } = resolveEffectiveTargetContextFact(params);
-  const label = contextFact?.label ?? contextFact?.key;
-  const rows = params.contextRows
-    .filter((row) => row.contextFactDefinitionId === contextFactDefinitionId)
-    .sort((left, right) => left.instanceOrder - right.instanceOrder);
-
-  const affectedTargets = (() => {
-    switch (params.action.contextFactKind) {
-      case "artifact_slot_reference_fact":
-        return rows.length > 0
-          ? rows.map((row) =>
-              isArtifactReferenceValue(row.valueJson)
-                ? {
-                    targetKind: "artifact" as const,
-                    targetState: "exists" as const,
-                    targetId: row.valueJson.relativePath,
-                    label: row.valueJson.relativePath,
-                  }
-                : {
-                    targetKind: "artifact" as const,
-                    targetState: "missing" as const,
-                    ...(label ? { label } : {}),
-                  },
-            )
-          : [
-              {
-                targetKind: "artifact" as const,
-                targetState: "missing" as const,
-                ...(label ? { label } : {}),
-              },
-            ];
-      case "bound_fact":
-        return rows.length > 0
-          ? rows.map((row) => {
-              const targetId = getRuntimeBoundFactInstanceId(row.valueJson);
-              const hasUsableValue = hasPreviewDefinitionBackedValue(row.valueJson);
-
-              return targetId || hasUsableValue
-                ? {
-                    targetKind: "external_fact" as const,
-                    targetState: "exists" as const,
-                    ...(targetId ? { targetId } : {}),
-                    ...(label ? { label } : {}),
-                  }
-                : {
-                    targetKind: "external_fact" as const,
-                    targetState: "missing" as const,
-                    ...(label ? { label } : {}),
-                  };
-            })
-          : [
-              {
-                targetKind: "external_fact" as const,
-                targetState: "missing" as const,
-                ...(label ? { label } : {}),
-              },
-            ];
-      default:
-        return [];
-    }
-  })();
-
-  return {
-    contextFactDefinitionId,
-    contextFactKey: contextFact?.key,
-    affectedTargets,
-  };
 }
