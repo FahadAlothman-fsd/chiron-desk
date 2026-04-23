@@ -35,6 +35,7 @@ import {
 import { InvokeCompletionServiceLive } from "../../services/invoke-completion-service";
 import { InvokeStepDetailServiceLive } from "../../services/invoke-step-detail-service";
 import { ActionStepDetailService } from "../../services/action-step-detail-service";
+import { StepProgressionServiceLive } from "../../services/step-progression-service";
 import {
   StepExecutionDetailService,
   StepExecutionDetailServiceLive,
@@ -346,6 +347,7 @@ describe("runtime invoke step detail", () => {
       transitionLayer,
       projectWorkUnitLayer,
     );
+    const progressionLayer = Layer.provide(StepProgressionServiceLive, baseLayer);
     const invokeCompletionLayer = InvokeCompletionServiceLive.pipe(Layer.provide(baseLayer));
     const invokeStepDetailLayer = InvokeStepDetailServiceLive.pipe(
       Layer.provideMerge(baseLayer),
@@ -353,6 +355,7 @@ describe("runtime invoke step detail", () => {
     );
     const layer = StepExecutionDetailServiceLive.pipe(
       Layer.provideMerge(baseLayer),
+      Layer.provideMerge(progressionLayer),
       Layer.provideMerge(invokeStepDetailLayer),
     );
 
@@ -696,6 +699,7 @@ describe("runtime invoke step detail", () => {
       projectWorkUnitLayer,
       transitionLayer,
     );
+    const progressionLayer = Layer.provide(StepProgressionServiceLive, baseLayer);
     const invokeCompletionLayer = InvokeCompletionServiceLive.pipe(Layer.provide(baseLayer));
     const invokeStepDetailLayer = InvokeStepDetailServiceLive.pipe(
       Layer.provideMerge(baseLayer),
@@ -703,6 +707,7 @@ describe("runtime invoke step detail", () => {
     );
     const layer = StepExecutionDetailServiceLive.pipe(
       Layer.provideMerge(baseLayer),
+      Layer.provideMerge(progressionLayer),
       Layer.provideMerge(invokeStepDetailLayer),
     );
 
@@ -1178,6 +1183,7 @@ describe("runtime invoke step detail", () => {
       workUnitFactLayer,
       workflowRepoLayer,
     );
+    const progressionLayer = Layer.provide(StepProgressionServiceLive, baseLayer);
     const invokeCompletionLayer = InvokeCompletionServiceLive.pipe(Layer.provide(baseLayer));
     const invokeStepDetailLayer = InvokeStepDetailServiceLive.pipe(
       Layer.provideMerge(baseLayer),
@@ -1185,6 +1191,7 @@ describe("runtime invoke step detail", () => {
     );
     const layer = StepExecutionDetailServiceLive.pipe(
       Layer.provideMerge(baseLayer),
+      Layer.provideMerge(progressionLayer),
       Layer.provideMerge(invokeStepDetailLayer),
     );
 

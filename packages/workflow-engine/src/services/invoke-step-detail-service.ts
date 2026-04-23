@@ -48,12 +48,21 @@ type WorkUnitTypeSummary = {
   id: string;
   key: string;
   name: string;
+  cardinality?: string;
+};
+
+type RuntimeProjectWorkUnitOption = {
+  id: string;
+  workUnitTypeId: string;
+  displayName?: string | null;
 };
 
 type TransitionSummary = {
   transitionDefinitionId: string;
   transitionDefinitionKey?: string;
   transitionLabel: string;
+  transitionFromStateLabel?: string;
+  transitionToStateLabel?: string;
 };
 
 type WorkUnitInvokePayload = Extract<InvokeStepPayload, { targetKind: "work_unit" }>;
@@ -125,7 +134,7 @@ const optionListFromValidation = (
 const workUnitOptionsFromValidation = (params: {
   validationJson: unknown;
   workUnitTypes: readonly WorkUnitTypeSummary[];
-  projectWorkUnits: readonly { id: string; workUnitTypeId: string }[];
+  projectWorkUnits: readonly RuntimeProjectWorkUnitOption[];
 }): {
   editorOptions?: RuntimeFormFieldOption[];
   editorWorkUnitTypeKey?: string;
@@ -152,7 +161,12 @@ const workUnitOptionsFromValidation = (params: {
     .filter((workUnit) => workUnit.workUnitTypeId === workUnitType.id)
     .map((workUnit) => ({
       value: { projectWorkUnitId: workUnit.id },
-      label: `${workUnitType.name}:${shortId(workUnit.id)}`,
+      label:
+        typeof workUnit.displayName === "string" && workUnit.displayName.trim().length > 0
+          ? workUnit.displayName.trim()
+          : workUnitType.cardinality === "many_per_project"
+            ? `${workUnitType.key}:${shortId(workUnit.id)}`
+            : workUnitType.name,
     }));
 
   return {
@@ -178,6 +192,222 @@ const isFilePathPlainContextFact = (contextFact: WorkflowContextFactDto | undefi
   contextFact.validationJson.kind === "path" &&
   isPlainRecord(contextFact.validationJson.path) &&
   contextFact.validationJson.path.pathKind === "file";
+
+const asNonEmptyString = (value: unknown): string | null =>
+  typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+
+const stableStringify = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  }
+
+  if (isPlainRecord(value)) {
+    const keys = Object.keys(value).sort();
+    return `{${keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(",")}}`;
+  }
+
+  return JSON.stringify(value) ?? "null";
+};
+
+type ResolvedInvokeDraftTemplate = {
+  canonicalKey: string;
+  factValues: ReadonlyArray<{ workUnitFactDefinitionId: string; value: unknown }>;
+  artifactSlots: ReadonlyArray<{
+    artifactSlotDefinitionId: string;
+    files: ReadonlyArray<{
+      relativePath?: string;
+      sourceContextFactDefinitionId?: string;
+      clear: boolean;
+    }>;
+  }>;
+};
+
+const normalizeDraftFactValues = (value: unknown): ResolvedInvokeDraftTemplate["factValues"] => {
+  const entries = isPlainRecord(value)
+    ? Array.isArray(value.factValues)
+      ? value.factValues
+      : Array.isArray(value.facts)
+        ? value.facts
+        : []
+    : [];
+
+  return entries.flatMap((entry) => {
+    if (!isPlainRecord(entry)) {
+      return [];
+    }
+
+    const workUnitFactDefinitionId =
+      asNonEmptyString(entry.workUnitFactDefinitionId) ?? asNonEmptyString(entry.factDefinitionId);
+    if (!workUnitFactDefinitionId) {
+      return [];
+    }
+
+    return [{ workUnitFactDefinitionId, value: "value" in entry ? entry.value : entry.valueJson }];
+  });
+};
+
+const normalizeDraftArtifactSlots = (
+  value: unknown,
+): ResolvedInvokeDraftTemplate["artifactSlots"] => {
+  if (!isPlainRecord(value)) {
+    return [];
+  }
+
+  const groupedSlots = Array.isArray(value.artifactSlots)
+    ? value.artifactSlots.flatMap((entry) => {
+        if (!isPlainRecord(entry)) {
+          return [];
+        }
+
+        const artifactSlotDefinitionId =
+          asNonEmptyString(entry.artifactSlotDefinitionId) ??
+          asNonEmptyString(entry.slotDefinitionId);
+        if (!artifactSlotDefinitionId) {
+          return [];
+        }
+
+        const files = Array.isArray(entry.files)
+          ? entry.files.flatMap((file) =>
+              isPlainRecord(file)
+                ? [
+                    {
+                      ...(typeof file.relativePath === "string"
+                        ? { relativePath: file.relativePath }
+                        : {}),
+                      ...(typeof file.sourceContextFactDefinitionId === "string"
+                        ? { sourceContextFactDefinitionId: file.sourceContextFactDefinitionId }
+                        : {}),
+                      clear: file.clear === true,
+                    },
+                  ]
+                : [],
+            )
+          : [];
+
+        return [{ artifactSlotDefinitionId, files }];
+      })
+    : [];
+
+  if (groupedSlots.length > 0) {
+    return groupedSlots;
+  }
+
+  const flatEntries = Array.isArray(value.artifactValues)
+    ? value.artifactValues
+    : Array.isArray(value.artifacts)
+      ? value.artifacts
+      : [];
+  const slots = new Map<
+    string,
+    Array<{ relativePath?: string; sourceContextFactDefinitionId?: string; clear: boolean }>
+  >();
+  for (const entry of flatEntries) {
+    if (!isPlainRecord(entry)) {
+      continue;
+    }
+
+    const artifactSlotDefinitionId =
+      asNonEmptyString(entry.artifactSlotDefinitionId) ?? asNonEmptyString(entry.slotDefinitionId);
+    if (!artifactSlotDefinitionId) {
+      continue;
+    }
+
+    const files = slots.get(artifactSlotDefinitionId) ?? [];
+    files.push({
+      ...(typeof entry.relativePath === "string" ? { relativePath: entry.relativePath } : {}),
+      ...(typeof entry.sourceContextFactDefinitionId === "string"
+        ? { sourceContextFactDefinitionId: entry.sourceContextFactDefinitionId }
+        : {}),
+      clear: entry.clear === true,
+    });
+    slots.set(artifactSlotDefinitionId, files);
+  }
+
+  return [...slots.entries()].map(([artifactSlotDefinitionId, files]) => ({
+    artifactSlotDefinitionId,
+    files,
+  }));
+};
+
+const normalizeSourceDraftTemplate = (
+  value: unknown,
+  defaultWorkUnitDefinitionId?: string,
+): ResolvedInvokeDraftTemplate | null => {
+  if (!isPlainRecord(value)) {
+    return null;
+  }
+
+  const workUnitDefinitionId =
+    asNonEmptyString(value.workUnitDefinitionId) ??
+    asNonEmptyString(value.workUnitTypeId) ??
+    defaultWorkUnitDefinitionId ??
+    "";
+  if (
+    typeof defaultWorkUnitDefinitionId === "string" &&
+    defaultWorkUnitDefinitionId.length > 0 &&
+    workUnitDefinitionId !== defaultWorkUnitDefinitionId
+  ) {
+    return null;
+  }
+
+  return {
+    canonicalKey:
+      asNonEmptyString(value.draftKey) ??
+      asNonEmptyString(value.canonicalKey) ??
+      stableStringify(value),
+    factValues: normalizeDraftFactValues(value),
+    artifactSlots: normalizeDraftArtifactSlots(value),
+  };
+};
+
+const resolveDraftTemplateFromContextInstances = (params: {
+  sourceContextFact: WorkflowContextFactDto | undefined;
+  sourceInstances: readonly { valueJson: unknown }[];
+}): ResolvedInvokeDraftTemplate | null => {
+  if (params.sourceContextFact?.kind !== "work_unit_draft_spec_fact") {
+    return null;
+  }
+
+  const deduped = new Map<string, ResolvedInvokeDraftTemplate>();
+  for (const instance of params.sourceInstances) {
+    const normalized = normalizeSourceDraftTemplate(
+      instance.valueJson,
+      params.sourceContextFact.workUnitDefinitionId,
+    );
+    if (!normalized || deduped.has(normalized.canonicalKey)) {
+      continue;
+    }
+
+    deduped.set(normalized.canonicalKey, normalized);
+  }
+
+  return [...deduped.values()][0] ?? null;
+};
+
+const getContextFactValueTypeLabel = (
+  contextFact: WorkflowContextFactDto | undefined,
+): string | undefined => {
+  if (!contextFact) {
+    return undefined;
+  }
+
+  switch (contextFact.kind) {
+    case "plain_fact":
+      return contextFact.type;
+    case "plain_value_fact":
+      return contextFact.valueType;
+    case "bound_fact":
+      return contextFact.valueType;
+    case "artifact_slot_reference_fact":
+      return "artifact_snapshot";
+    case "workflow_ref_fact":
+      return "workflow_reference";
+    case "work_unit_reference_fact":
+      return "work_unit_reference";
+    case "work_unit_draft_spec_fact":
+      return "work_unit_draft_spec";
+  }
+};
 
 const toRelativePathOptionValue = (params: {
   relativePath: string;
@@ -262,6 +492,19 @@ const formatWorkUnitLabel = (name: string, projectWorkUnitId?: string): string =
 
 const getContextFactLabel = (contextFact: WorkflowContextFactDto): string =>
   contextFact.label ?? humanizeKey(contextFact.key);
+
+const getContextFactWorkUnitDefinitionName = (params: {
+  contextFact: WorkflowContextFactDto | undefined;
+  workUnitTypeById: ReadonlyMap<string, WorkUnitTypeSummary>;
+}): string | undefined => {
+  const workUnitDefinitionId =
+    params.contextFact?.kind === "work_unit_draft_spec_fact"
+      ? params.contextFact.workUnitDefinitionId
+      : undefined;
+  return workUnitDefinitionId
+    ? getWorkUnitTypeName(params.workUnitTypeById.get(workUnitDefinitionId), workUnitDefinitionId)
+    : undefined;
+};
 
 const normalizeContextFactInstanceValue = (params: {
   contextFact: WorkflowContextFactDto | undefined;
@@ -539,23 +782,27 @@ export const InvokeStepDetailServiceLive = Layer.effect(
               workUnitTypeKey: workUnitType.key,
             }),
           ]);
+          const stateLabels = new Map(
+            states.map((state) => [state.id, state.displayName ?? humanizeKey(state.key)] as const),
+          );
 
           for (const transition of transitions) {
             transitionsById.set(transition.id, {
               transitionDefinitionId: transition.id,
               transitionDefinitionKey: transition.transitionKey,
               transitionLabel: humanizeKey(transition.transitionKey),
+              transitionFromStateLabel:
+                transition.fromStateId !== null
+                  ? (stateLabels.get(transition.fromStateId) ?? transition.fromStateId)
+                  : "Activation",
+              transitionToStateLabel:
+                transition.toStateId !== null
+                  ? (stateLabels.get(transition.toStateId) ?? transition.toStateId)
+                  : undefined,
             });
           }
 
-          statesByWorkUnitTypeId.set(
-            workUnitTypeId,
-            new Map(
-              states.map(
-                (state) => [state.id, state.displayName ?? humanizeKey(state.key)] as const,
-              ),
-            ),
-          );
+          statesByWorkUnitTypeId.set(workUnitTypeId, stateLabels);
 
           for (const factSchema of factSchemas) {
             if (!workUnitFactDefinitionsById.has(factSchema.id)) {
@@ -636,11 +883,21 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                         )
                         .sort((left, right) => left.instanceOrder - right.instanceOrder)
                     : [];
+                  const sourceDraftTemplate = resolveDraftTemplateFromContextInstances({
+                    sourceContextFact,
+                    sourceInstances,
+                  });
                   const resolvedValueJson =
                     binding.source.kind === "literal"
                       ? binding.source.value
                       : binding.source.kind === "context_fact"
-                        ? resolveBindingSourceValue({ sourceContextFact, sourceInstances })
+                        ? sourceContextFact?.kind === "work_unit_draft_spec_fact"
+                          ? sourceDraftTemplate?.factValues.find(
+                              (entry) =>
+                                entry.workUnitFactDefinitionId ===
+                                binding.destination.workUnitFactDefinitionId,
+                            )?.value
+                          : resolveBindingSourceValue({ sourceContextFact, sourceInstances })
                         : undefined;
 
                   const bindingEditorOptions = optionListFromValidation(
@@ -684,6 +941,12 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                     sourceKind: binding.source.kind,
                     sourceContextFactDefinitionId: sourceContextFactDefinitionId,
                     sourceContextFactKey: sourceContextFact?.key,
+                    sourceContextFactLabel: sourceContextFact
+                      ? getContextFactLabel(sourceContextFact)
+                      : undefined,
+                    sourceContextFactKind: sourceContextFact?.kind,
+                    sourceContextFactCardinality: sourceContextFact?.cardinality,
+                    sourceContextFactValueType: getContextFactValueTypeLabel(sourceContextFact),
                     resolvedValueJson,
                     requiresRuntimeValue: binding.source.kind === "runtime",
                   };
@@ -706,6 +969,10 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                       )
                       .sort((left, right) => left.instanceOrder - right.instanceOrder)
                   : [];
+                const sourceDraftTemplate = resolveDraftTemplateFromContextInstances({
+                  sourceContextFact,
+                  sourceInstances,
+                });
                 const resolvedValueJson =
                   binding.source.kind === "literal"
                     ? binding.source.value
@@ -722,7 +989,15 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                           ? sourceInstances.length === 0
                             ? undefined
                             : sourceInstances[0]?.valueJson
-                          : undefined
+                          : sourceContextFact?.kind === "work_unit_draft_spec_fact"
+                            ? sourceDraftTemplate?.artifactSlots
+                                .find(
+                                  (slot) =>
+                                    slot.artifactSlotDefinitionId ===
+                                    binding.destination.artifactSlotDefinitionId,
+                                )
+                                ?.files.find((file) => file.clear !== true)?.relativePath
+                            : undefined
                       : undefined;
 
                 const artifactEditorMetadata = artifactOptionsFromContextFacts({
@@ -745,6 +1020,12 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                   sourceKind: binding.source.kind,
                   sourceContextFactDefinitionId: sourceContextFactDefinitionId,
                   sourceContextFactKey: sourceContextFact?.key,
+                  sourceContextFactLabel: sourceContextFact
+                    ? getContextFactLabel(sourceContextFact)
+                    : undefined,
+                  sourceContextFactKind: sourceContextFact?.kind,
+                  sourceContextFactCardinality: sourceContextFact?.cardinality,
+                  sourceContextFactValueType: getContextFactValueTypeLabel(sourceContextFact),
                   resolvedValueJson,
                   requiresRuntimeValue: binding.source.kind === "runtime",
                 };
@@ -1059,6 +1340,8 @@ export const InvokeStepDetailServiceLive = Layer.effect(
               row.projectWorkUnitId ?? undefined,
             ),
             transitionLabel: getTransitionLabel(transition, row.transitionDefinitionId),
+            transitionFromStateLabel: transition?.transitionFromStateLabel,
+            transitionToStateLabel: transition?.transitionToStateLabel,
             workflowLabel: row.workflowDefinitionId
               ? getWorkflowDefinitionName(selectedWorkflow, row.workflowDefinitionId)
               : undefined,
@@ -1151,6 +1434,16 @@ export const InvokeStepDetailServiceLive = Layer.effect(
           sourceMode: invokePayload.sourceMode,
           sourceContextFactDefinitionId,
           sourceContextFactKey: sourceContextFact?.key,
+          sourceContextFactLabel: sourceContextFact
+            ? getContextFactLabel(sourceContextFact)
+            : undefined,
+          sourceContextFactKind: sourceContextFact?.kind,
+          sourceContextFactCardinality: sourceContextFact?.cardinality,
+          sourceContextFactValueType: getContextFactValueTypeLabel(sourceContextFact),
+          sourceContextFactWorkUnitDefinitionName: getContextFactWorkUnitDefinitionName({
+            contextFact: sourceContextFact,
+            workUnitTypeById,
+          }),
           sourceContextFactInstanceValues: sourceContextFactInstances.map((instance) =>
             normalizeContextFactInstanceValue({
               contextFact: sourceContextFact,
