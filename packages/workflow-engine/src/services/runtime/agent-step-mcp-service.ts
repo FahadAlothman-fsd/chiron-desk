@@ -1000,18 +1000,25 @@ export const AgentStepMcpServiceLive = Layer.effect(
             return {
               factKey: params.fact.key,
               contextFactKind: "workflow_ref_fact",
-              candidates: params.fact.allowedWorkflowDefinitionIds.map((workflowDefinitionId) => {
-                const matched = workflowRows.find(
-                  (candidate) => candidate.id === workflowDefinitionId,
-                );
-                return {
-                  workflowDefinitionId,
-                  workflowKey: matched?.key ?? workflowDefinitionId,
-                  ...(matched?.displayName ? { workflowLabel: matched.displayName } : {}),
-                  ...(matched?.descriptionJson ? { description: matched.descriptionJson } : {}),
-                  ...(matched?.guidanceJson ? { guidance: matched.guidanceJson } : {}),
-                };
-              }),
+              candidates: params.fact.allowedWorkflowDefinitionIds
+                .map((workflowDefinitionId) => {
+                  const matched = workflowRows.find(
+                    (candidate) => candidate.workflowDefinitionId === workflowDefinitionId,
+                  );
+                  if (!matched) {
+                    return null;
+                  }
+                  return {
+                    workflowDefinitionId,
+                    workflowKey: matched.key,
+                    ...(matched.displayName ? { workflowLabel: matched.displayName } : {}),
+                    ...(matched.descriptionJson ? { description: matched.descriptionJson } : {}),
+                    ...(matched.guidanceJson ? { guidance: matched.guidanceJson } : {}),
+                  };
+                })
+                .filter(
+                  (candidate): candidate is NonNullable<typeof candidate> => candidate !== null,
+                ),
             };
           }
           case "work_unit_reference_fact": {

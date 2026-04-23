@@ -682,4 +682,93 @@ describe("AgentStep MCP v2 services", () => {
     expect(invalidArtifactCreate.left).toBeInstanceOf(McpToolValidationError);
     expect(invalidArtifactCreate.left.message).toContain("value.files");
   });
+
+  it("keeps workflow-ref attachable candidates aligned with accepted create ids", async () => {
+    const workflowEditorContextFacts = [
+      {
+        kind: "workflow_ref_fact" as const,
+        contextFactDefinitionId: "ctx-followup-workflows",
+        key: "followup-workflows",
+        label: "Follow-up Workflows",
+        cardinality: "many" as const,
+        allowedWorkflowDefinitionIds: ["wf-local", "wf-missing"],
+      },
+    ];
+
+    const ctx = makeAgentStepRuntimeTestContext({
+      workflowEditorContextFacts,
+      workflowDefinitions: [
+        {
+          workflowDefinitionId: "wf-local",
+          key: "setup_followup",
+          displayName: "Setup Follow-up",
+        },
+      ],
+      agentPayload: {
+        key: "followup_writer",
+        label: "Follow-up Writer",
+        objective: "Write workflow references.",
+        instructionsMarkdown: "Only use valid local follow-up workflows.",
+        harnessSelection: {
+          harness: "opencode",
+          agent: "fake-agent",
+          model: { provider: "fake-provider", model: "fake-model" },
+        },
+        explicitReadGrants: [{ contextFactDefinitionId: "ctx-followup-workflows" }],
+        writeItems: [
+          {
+            writeItemId: "write-followup-workflows",
+            contextFactDefinitionId: "ctx-followup-workflows",
+            contextFactKind: "workflow_ref_fact",
+            label: "Follow-up Workflows",
+            order: 100,
+            requirementContextFactDefinitionIds: [],
+          },
+        ],
+        completionRequirements: [],
+        runtimePolicy: {
+          sessionStart: "explicit",
+          continuationMode: "bootstrap_only",
+          liveStreamCount: 1,
+          bootstrapPromptNoReply: true,
+          nativeMessageLog: false,
+          persistedWritePolicy: "applied_only",
+        },
+      },
+    });
+    await startSession(ctx);
+
+    const attachable = await runMcp(ctx, {
+      version: "v2",
+      toolName: "read_attachable_targets",
+      input: withHiddenStepExecutionId({ factKey: "followup-workflows" }),
+    });
+
+    expect(attachable.response.toolName).toBe("read_attachable_targets");
+    if (attachable.response.toolName !== "read_attachable_targets") {
+      throw new Error("expected read_attachable_targets response");
+    }
+    expect(attachable.response.output.candidates).toEqual([
+      {
+        workflowDefinitionId: "wf-local",
+        workflowKey: "setup_followup",
+        workflowLabel: "Setup Follow-up",
+      },
+    ]);
+
+    const created = await runMcp(ctx, {
+      version: "v2",
+      toolName: "create_context_fact_instance",
+      input: withHiddenStepExecutionId({
+        factKey: "followup-workflows",
+        value: { workflowDefinitionId: "wf-local" },
+      }),
+    });
+
+    expect(created.response.toolName).toBe("create_context_fact_instance");
+    if (created.response.toolName !== "create_context_fact_instance") {
+      throw new Error("expected create_context_fact_instance response");
+    }
+    expect(created.response.output.value).toEqual({ workflowDefinitionId: "wf-local" });
+  });
 });
