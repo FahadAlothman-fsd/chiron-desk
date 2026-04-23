@@ -74,6 +74,8 @@ export const RuntimeConditionEvaluation = Schema.Struct({
   condition: RuntimeCondition,
   met: Schema.Boolean,
   reason: Schema.optional(Schema.String),
+  expectedValueJson: Schema.optional(Schema.Unknown),
+  currentValueJson: Schema.optional(Schema.Unknown),
 });
 export type RuntimeConditionEvaluation = typeof RuntimeConditionEvaluation.Type;
 

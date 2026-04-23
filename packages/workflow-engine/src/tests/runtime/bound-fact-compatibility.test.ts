@@ -101,11 +101,11 @@ describe("bound fact compatibility", () => {
     };
 
     expect(readRuntimeBoundFactEnvelope(legacy)).toEqual({
-      instanceId: "fact-1",
+      factInstanceId: "fact-1",
       value: "monorepo",
     });
     expect(readRuntimeBoundFactEnvelope(canonical)).toEqual({
-      instanceId: "fact-2",
+      factInstanceId: "fact-2",
       value: "polyrepo",
     });
     expect(normalizeRuntimeBoundFactFieldValue(referenceField, legacy)).toEqual(
@@ -192,6 +192,8 @@ describe("bound fact compatibility", () => {
     for (const valueJson of [
       { factInstanceId: "wu-fact-1", value: true },
       { instanceId: "wu-fact-1", value: true },
+      { factInstanceId: "wu-fact-1", value: { value: true } },
+      { instanceId: "wu-fact-1", value: { value: true } },
     ]) {
       const branchEvaluations = evaluateRoutes({
         routes: [route],
@@ -213,6 +215,11 @@ describe("bound fact compatibility", () => {
       const gateResult = await runGate(valueJson);
 
       expect(branchEvaluations[0]?.isValid).toBe(true);
+      expect(branchEvaluations[0]?.evaluationTree.groups[0]?.conditions[0]).toMatchObject({
+        met: true,
+        expectedValueJson: true,
+        currentValueJson: true,
+      });
       expect(gateResult.result).toBe("available");
       expect(gateResult.evaluationTree.met).toBe(true);
     }

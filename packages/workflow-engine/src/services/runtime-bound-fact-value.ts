@@ -52,6 +52,9 @@ export const normalizeRuntimeBoundFactFieldValue = (
   }
 
   return field.widget.control === "reference"
-    ? toCanonicalRuntimeBoundFactEnvelope(envelope)
+    ? toCanonicalRuntimeBoundFactEnvelope({
+        instanceId: envelope.factInstanceId,
+        value: envelope.value,
+      })
     : envelope.value;
 };

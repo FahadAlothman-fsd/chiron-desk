@@ -71,6 +71,41 @@ const getRouteSortOrder = (route: BranchEvaluableRoute, index: number): number =
 const toComparableValue = (comparisonJson: unknown): unknown =>
   isRecord(comparisonJson) && "value" in comparisonJson ? comparisonJson.value : comparisonJson;
 
+const unwrapScalarValueRecord = (value: unknown): unknown => {
+  let current = value;
+
+  while (isRecord(current) && Object.keys(current).length === 1 && "value" in current) {
+    current = current.value;
+  }
+
+  return current;
+};
+
+const normalizeDirectFactComparisonValue = (
+  definition: WorkflowContextFactDto,
+  value: unknown,
+): unknown => {
+  switch (definition.kind) {
+    case "plain_fact":
+    case "plain_value_fact":
+    case "bound_fact":
+      return unwrapScalarValueRecord(value);
+    case "workflow_ref_fact":
+    case "artifact_slot_reference_fact":
+    case "work_unit_reference_fact":
+    case "work_unit_draft_spec_fact":
+      return value;
+  }
+};
+
+const summarizeExtractedValues = (values: readonly unknown[]): unknown => {
+  if (values.length === 0) {
+    return null;
+  }
+
+  return values.length === 1 ? values[0] : values;
+};
+
 const toRuntimeCondition = (
   condition: BranchRouteConditionPayload,
   definition: WorkflowContextFactDto | undefined,
@@ -161,7 +196,7 @@ const extractFactValues = (
       return [];
     }
 
-    return [rawValue];
+    return [normalizeDirectFactComparisonValue(definition, rawValue)];
   }
 
   switch (definition.kind) {
@@ -233,6 +268,12 @@ const evaluateCondition = (params: {
         ),
       );
 
+  const expectedValue =
+    params.condition.operator === "equals"
+      ? toComparableValue(params.condition.comparisonJson)
+      : undefined;
+  const currentValue = summarizeExtractedValues(extractedValues);
+
   const baseMet = (() => {
     switch (params.condition.operator) {
       case "exists":
@@ -243,8 +284,7 @@ const evaluateCondition = (params: {
           return !Array.isArray(value) || value.length > 0;
         });
       case "equals": {
-        const expected = toComparableValue(params.condition.comparisonJson);
-        return extractedValues.some((value) => isDeepStrictEqual(value, expected));
+        return extractedValues.some((value) => isDeepStrictEqual(value, expectedValue));
       }
       default:
         return false;
@@ -256,6 +296,8 @@ const evaluateCondition = (params: {
   return {
     condition: runtimeCondition,
     met,
+    ...(typeof expectedValue !== "undefined" ? { expectedValueJson: expectedValue } : {}),
+    currentValueJson: currentValue,
     ...(!met
       ? {
           reason:
