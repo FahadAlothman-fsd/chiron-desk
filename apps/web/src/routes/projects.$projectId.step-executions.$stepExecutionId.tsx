@@ -19,7 +19,7 @@ import type {
   RuntimeInvokeWorkflowTargetRow,
   RuntimeWorkflowContextFactGroup,
 } from "@chiron/contracts/runtime/executions";
-import type { ActionStepSseEnvelope, AgentStepSseEnvelope } from "@chiron/contracts/sse/envelope";
+import type { AgentStepSseEnvelope } from "@chiron/contracts/sse/envelope";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -129,7 +129,6 @@ import {
   getStepTypeTone,
 } from "@/features/projects/execution-detail-visuals";
 import { resolveRuntimeBackendUrl } from "@/lib/runtime-backend";
-import { useSSE } from "@/lib/use-sse";
 import { cn } from "@/lib/utils";
 
 export const runtimeStepExecutionDetailQueryKey = (projectId: string, stepExecutionId: string) =>
@@ -163,15 +162,6 @@ const AGENT_STEP_SSE_EVENT_NAMES = [
   "session_state",
   "timeline",
   "tool_activity",
-  "error",
-  "done",
-] as const;
-
-const ACTION_STEP_SSE_EVENT_NAMES = [
-  "bootstrap",
-  "action-status-changed",
-  "action-item-status-changed",
-  "step-completion-eligibility-changed",
   "error",
   "done",
 ] as const;
@@ -737,13 +727,6 @@ function buildAgentStepStreamUrl(projectId: string, stepExecutionId: string): st
   return url.toString();
 }
 
-function buildActionStepStreamUrl(projectId: string, stepExecutionId: string): string {
-  const url = new URL(`${resolveRuntimeBackendUrl()}/sse/action-step-events`);
-  url.searchParams.set("projectId", projectId);
-  url.searchParams.set("stepExecutionId", stepExecutionId);
-  return url.toString();
-}
-
 function upsertTimelineItem(
   items: readonly AgentStepTimelineItem[],
   item: AgentStepTimelineItem,
@@ -985,6 +968,37 @@ function renderContextFactLabel(
 
 function renderContextFactKindLabel(kind: WorkflowContextFactKind): string {
   return kind.replaceAll("_", " ");
+}
+
+function formatPropagationOperationLabel(
+  kind: ActionBody["actions"][number]["items"][number]["propagationMappings"][number]["operationKind"],
+): string {
+  return kind === "no_op" ? "already in sync" : kind;
+}
+
+function getPropagationOperationTone(
+  kind: ActionBody["actions"][number]["items"][number]["propagationMappings"][number]["operationKind"],
+): Parameters<typeof ExecutionBadge>[0]["tone"] {
+  switch (kind) {
+    case "create":
+      return "sky";
+    case "update":
+      return "violet";
+    case "delete":
+      return "rose";
+    case "no_op":
+    default:
+      return "slate";
+  }
+}
+
+function isAppliedPropagationResult(value: unknown): boolean {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "code" in value &&
+    value.code === "propagation_applied"
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -3772,8 +3786,6 @@ function ActionInteractionSurface(props: {
   const { orpc, queryClient } = Route.useRouteContext();
   const shell = detail.shell;
   const body = detail.body;
-  const processedEventCountRef = useRef(0);
-  const [liveErrorMessage, setLiveErrorMessage] = useState<string | null>(null);
 
   const invalidateStepDetail = useCallback(async () => {
     await queryClient.invalidateQueries({
@@ -3781,92 +3793,33 @@ function ActionInteractionSurface(props: {
     });
   }, [projectId, queryClient, shell.stepExecutionId]);
 
-  const streamUrl =
-    shell.status === "active" ? buildActionStepStreamUrl(projectId, shell.stepExecutionId) : null;
-  const stream = useSSE<ActionStepSseEnvelope, ActionStepSseEnvelope>(streamUrl, {
-    eventNames: ACTION_STEP_SSE_EVENT_NAMES,
-  });
-
-  useEffect(() => {
-    if (!shell.stepExecutionId) {
-      return;
-    }
-
-    processedEventCountRef.current = 0;
-    setLiveErrorMessage(null);
-  }, [shell.stepExecutionId]);
-
-  useEffect(() => {
-    const nextEvents = stream.events.slice(processedEventCountRef.current);
-    if (nextEvents.length === 0) {
-      return;
-    }
-
-    processedEventCountRef.current = stream.events.length;
-
-    let shouldInvalidate = false;
-
-    for (const event of nextEvents) {
-      if (event.eventType === "error") {
-        setLiveErrorMessage(event.data.message);
-        shouldInvalidate = true;
-        continue;
-      }
-
-      if (event.eventType === "bootstrap") {
-        setLiveErrorMessage(null);
-      }
-
-      shouldInvalidate = true;
-    }
-
-    if (shouldInvalidate) {
-      void invalidateStepDetail();
-    }
-  }, [invalidateStepDetail, stream.events]);
-
   const runActionsMutation = useMutation(
     orpc.project.runActionStepActions.mutationOptions({
-      onSuccess: async () => {
-        setLiveErrorMessage(null);
-        await invalidateStepDetail();
-      },
+      onSuccess: invalidateStepDetail,
     }),
   );
 
   const retryActionsMutation = useMutation(
     orpc.project.retryActionStepActions.mutationOptions({
-      onSuccess: async () => {
-        setLiveErrorMessage(null);
-        await invalidateStepDetail();
-      },
+      onSuccess: invalidateStepDetail,
     }),
   );
 
   const skipActionsMutation = useMutation(
     orpc.project.skipActionStepActions.mutationOptions({
-      onSuccess: async () => {
-        setLiveErrorMessage(null);
-        await invalidateStepDetail();
-      },
+      onSuccess: invalidateStepDetail,
     }),
   );
 
   const skipActionItemsMutation = useMutation(
     orpc.project.skipActionStepActionItems.mutationOptions({
-      onSuccess: async () => {
-        setLiveErrorMessage(null);
-        await invalidateStepDetail();
-      },
+      onSuccess: invalidateStepDetail,
     }),
   );
 
   const completeStepMutation = useMutation(
     orpc.project.completeActionStepExecution.mutationOptions({
-      onSuccess: async () => {
-        setLiveErrorMessage(null);
-        await invalidateStepDetail();
-      },
+      onSuccess: invalidateStepDetail,
     }),
   );
 
@@ -3877,19 +3830,17 @@ function ActionInteractionSurface(props: {
     skipActionItemsMutation.isPending ||
     completeStepMutation.isPending;
 
-  const surfacedError =
-    liveErrorMessage ??
-    (runActionsMutation.error
-      ? toErrorMessage(runActionsMutation.error)
-      : retryActionsMutation.error
-        ? toErrorMessage(retryActionsMutation.error)
-        : skipActionsMutation.error
-          ? toErrorMessage(skipActionsMutation.error)
-          : skipActionItemsMutation.error
-            ? toErrorMessage(skipActionItemsMutation.error)
-            : completeStepMutation.error
-              ? toErrorMessage(completeStepMutation.error)
-              : null);
+  const surfacedError = runActionsMutation.error
+    ? toErrorMessage(runActionsMutation.error)
+    : retryActionsMutation.error
+      ? toErrorMessage(retryActionsMutation.error)
+      : skipActionsMutation.error
+        ? toErrorMessage(skipActionsMutation.error)
+        : skipActionItemsMutation.error
+          ? toErrorMessage(skipActionItemsMutation.error)
+          : completeStepMutation.error
+            ? toErrorMessage(completeStepMutation.error)
+            : null;
 
   const completionOutcome =
     shell.status === "completed"
@@ -3975,7 +3926,7 @@ function ActionInteractionSurface(props: {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-3">
             <div className="border border-border/70 bg-background/40 p-3">
               <DetailLabel>Execution mode</DetailLabel>
               <DetailPrimary>{formatActionExecutionModeLabel(body.executionMode)}</DetailPrimary>
@@ -4002,16 +3953,6 @@ function ActionInteractionSurface(props: {
               </DetailPrimary>
               <p className="mt-1 text-xs text-muted-foreground">
                 Duplicate run and retry requests do nothing once the server locks a row state.
-              </p>
-            </div>
-
-            <div className="border border-border/70 bg-background/40 p-3">
-              <DetailLabel>Live stream</DetailLabel>
-              <DetailPrimary>
-                {stream.status === "open" ? "Connected" : stream.status}
-              </DetailPrimary>
-              <p className="mt-1 text-xs text-muted-foreground">
-                SSE contract: <code>action_step_execution_events</code>
               </p>
             </div>
           </div>
@@ -4116,10 +4057,6 @@ function ActionInteractionSurface(props: {
                           label={action.enabled ? "Enabled" : "Disabled"}
                           tone={action.enabled ? "emerald" : "slate"}
                         />
-                        <ExecutionBadge
-                          label={action.contextFactKind.replaceAll("_", " ")}
-                          tone="slate"
-                        />
                       </div>
                     </div>
                   </CardHeader>
@@ -4131,11 +4068,28 @@ function ActionInteractionSurface(props: {
                         <DetailPrimary>{action.sortOrder}</DetailPrimary>
                       </div>
                       <div>
-                        <DetailLabel>Context fact</DetailLabel>
+                        <DetailLabel>Target scope</DetailLabel>
                         <DetailPrimary>
-                          {action.contextFactKey ?? action.contextFactDefinitionId}
+                          {
+                            new Set(action.items.map((item) => item.targetContextFactDefinitionId))
+                              .size
+                          }{" "}
+                          target
+                          {new Set(action.items.map((item) => item.targetContextFactDefinitionId))
+                            .size === 1
+                            ? ""
+                            : "s"}
+                          {" · "}
+                          {
+                            new Set(action.items.map((item) => item.targetContextFactKind)).size
+                          }{" "}
+                          kind
+                          {new Set(action.items.map((item) => item.targetContextFactKind)).size ===
+                          1
+                            ? ""
+                            : "s"}
                         </DetailPrimary>
-                        <DetailCode>{action.contextFactDefinitionId}</DetailCode>
+                        <DetailCode>Targets are selected per propagation item.</DetailCode>
                       </div>
                       <div>
                         <DetailLabel>Run / Retry / Skip</DetailLabel>
@@ -4199,112 +4153,209 @@ function ActionInteractionSurface(props: {
                             data-testid={`action-runtime-item-${item.itemId}`}
                             className="space-y-3 border border-border/70 bg-background/50 p-3"
                           >
-                            <div className="flex flex-wrap items-start justify-between gap-3">
-                              <div className="space-y-1">
-                                <DetailPrimary>{item.label ?? item.itemKey}</DetailPrimary>
-                                <DetailCode>{item.itemKey}</DetailCode>
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                <ExecutionBadge
-                                  label={formatActionRenderableStatusLabel(item.status)}
-                                  tone={getActionRenderableStatusTone(item.status)}
-                                />
-                                <ExecutionBadge label={`order ${item.sortOrder}`} tone="slate" />
-                                {item.recoveryAction ? (
-                                  <ExecutionBadge label="Recovery available" tone="amber" />
-                                ) : null}
-                              </div>
-                            </div>
+                            {(() => {
+                              const showAppliedStateLabels =
+                                item.status === "succeeded" &&
+                                isAppliedPropagationResult(item.resultJson);
+                              return (
+                                <>
+                                  <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div className="space-y-1">
+                                      <DetailPrimary>{item.label ?? item.itemKey}</DetailPrimary>
+                                      <DetailCode>{item.itemKey}</DetailCode>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                      <ExecutionBadge
+                                        label={formatActionRenderableStatusLabel(item.status)}
+                                        tone={getActionRenderableStatusTone(item.status)}
+                                      />
+                                      <ExecutionBadge
+                                        label={`order ${item.sortOrder}`}
+                                        tone="slate"
+                                      />
+                                      <ExecutionBadge
+                                        label={renderContextFactKindLabel(
+                                          item.targetContextFactKind,
+                                        )}
+                                        tone={getContextFactKindTone(item.targetContextFactKind)}
+                                      />
+                                      {item.recoveryAction ? (
+                                        <ExecutionBadge label="Recovery available" tone="amber" />
+                                      ) : null}
+                                    </div>
+                                  </div>
 
-                            {item.resultSummaryJson ? (
-                              <div>
-                                <DetailLabel>Result summary</DetailLabel>
-                                <pre className="mt-1 whitespace-pre-wrap break-words text-xs text-foreground">
-                                  {formatUnknown(item.resultSummaryJson)}
-                                </pre>
-                              </div>
-                            ) : null}
+                                  {item.resultSummaryJson ? (
+                                    <div>
+                                      <DetailLabel>Result summary</DetailLabel>
+                                      <pre className="mt-1 whitespace-pre-wrap break-words text-xs text-foreground">
+                                        {formatUnknown(item.resultSummaryJson)}
+                                      </pre>
+                                    </div>
+                                  ) : null}
 
-                            <div>
-                              <DetailLabel>Item target context</DetailLabel>
-                              <div className="mt-1 flex flex-wrap items-center gap-2">
-                                <ExecutionBadge
-                                  label={
-                                    item.targetContextFactKey ?? item.targetContextFactDefinitionId
-                                  }
-                                  tone="sky"
-                                />
-                                {item.targetContextFactKey ? (
-                                  <span className="text-xs text-muted-foreground">
-                                    {item.targetContextFactDefinitionId}
-                                  </span>
-                                ) : null}
-                              </div>
-                            </div>
+                                  <div>
+                                    <DetailLabel>Item target context</DetailLabel>
+                                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                                      <ExecutionBadge
+                                        label={
+                                          item.targetContextFactKey ??
+                                          item.targetContextFactDefinitionId
+                                        }
+                                        tone="sky"
+                                      />
+                                      {item.targetContextFactKey ? (
+                                        <span className="text-xs text-muted-foreground">
+                                          {item.targetContextFactDefinitionId}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  </div>
 
-                            {item.affectedTargets.length > 0 ? (
-                              <div className="space-y-2">
-                                <DetailLabel>Affected targets</DetailLabel>
-                                <ul className="space-y-2">
-                                  {item.affectedTargets.map((target, index) => (
-                                    <li
-                                      key={`${item.itemId}-${target.targetKind}-${target.targetId ?? index}`}
-                                      className={cn(
-                                        "flex items-center justify-between gap-3 border px-2 py-2",
-                                        getAffectedTargetRowClasses(target),
-                                      )}
-                                    >
-                                      <span className="min-w-0 truncate text-foreground">
-                                        {formatActionAffectedTarget(target)}
-                                      </span>
-                                      <div className="flex items-center gap-2">
-                                        {target.targetState ? (
-                                          <ExecutionBadge
-                                            label={target.targetState}
-                                            tone={getAffectedTargetStateTone(target)}
-                                          />
-                                        ) : null}
-                                        <ExecutionBadge
-                                          label={target.targetKind.replaceAll("_", " ")}
-                                          tone="slate"
-                                        />
+                                  {item.propagationMappings.length > 0 ? (
+                                    <div className="space-y-2">
+                                      <DetailLabel>Propagation mappings</DetailLabel>
+                                      <div className="space-y-3">
+                                        {item.propagationMappings.map((mapping, index) => (
+                                          <div
+                                            key={`${item.itemId}-${mapping.targetKind}-${mapping.targetId ?? index}`}
+                                            className="space-y-3 border border-border/70 bg-background/45 p-3"
+                                          >
+                                            <div className="flex flex-wrap items-start justify-between gap-2">
+                                              <div className="space-y-1">
+                                                <DetailPrimary>
+                                                  {mapping.label ??
+                                                    mapping.targetId ??
+                                                    `mapping ${index + 1}`}
+                                                </DetailPrimary>
+                                                {mapping.targetId ? (
+                                                  <DetailCode>{mapping.targetId}</DetailCode>
+                                                ) : null}
+                                              </div>
+                                              <div className="flex flex-wrap gap-2">
+                                                <ExecutionBadge
+                                                  label={formatPropagationOperationLabel(
+                                                    mapping.operationKind,
+                                                  )}
+                                                  tone={getPropagationOperationTone(
+                                                    mapping.operationKind,
+                                                  )}
+                                                />
+                                                <ExecutionBadge
+                                                  label={mapping.targetKind.replaceAll("_", " ")}
+                                                  tone="slate"
+                                                />
+                                              </div>
+                                            </div>
+
+                                            <div className="grid gap-3 md:grid-cols-2">
+                                              <div className="space-y-2 border border-border/60 bg-background/35 p-3">
+                                                <DetailLabel>
+                                                  {showAppliedStateLabels
+                                                    ? "Current external value"
+                                                    : "Previous external value"}
+                                                </DetailLabel>
+                                                {mapping.previousValueJson === undefined ? (
+                                                  <p className="text-xs text-muted-foreground">
+                                                    No external instance/value.
+                                                  </p>
+                                                ) : (
+                                                  renderContextFactInstanceValue(
+                                                    item.targetContextFactKind,
+                                                    mapping.previousValueJson,
+                                                  )
+                                                )}
+                                              </div>
+                                              <div className="space-y-2 border border-border/60 bg-background/35 p-3">
+                                                <DetailLabel>
+                                                  {showAppliedStateLabels
+                                                    ? "Current context value"
+                                                    : "Next propagated value"}
+                                                </DetailLabel>
+                                                {mapping.nextValueJson === undefined ? (
+                                                  <p className="text-xs text-muted-foreground">
+                                                    No propagated value.
+                                                  </p>
+                                                ) : (
+                                                  renderContextFactInstanceValue(
+                                                    item.targetContextFactKind,
+                                                    mapping.nextValueJson,
+                                                  )
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ))}
                                       </div>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            ) : null}
+                                    </div>
+                                  ) : null}
 
-                            {item.recoveryAction?.reasonIfDisabled ? (
-                              <p className="text-xs text-muted-foreground">
-                                {item.recoveryAction.reasonIfDisabled}
-                              </p>
-                            ) : null}
+                                  {item.affectedTargets.length > 0 ? (
+                                    <div className="space-y-2">
+                                      <DetailLabel>Affected targets</DetailLabel>
+                                      <ul className="space-y-2">
+                                        {item.affectedTargets.map((target, index) => (
+                                          <li
+                                            key={`${item.itemId}-${target.targetKind}-${target.targetId ?? index}`}
+                                            className={cn(
+                                              "flex items-center justify-between gap-3 border px-2 py-2",
+                                              getAffectedTargetRowClasses(target),
+                                            )}
+                                          >
+                                            <span className="min-w-0 truncate text-foreground">
+                                              {formatActionAffectedTarget(target)}
+                                            </span>
+                                            <div className="flex items-center gap-2">
+                                              {target.targetState ? (
+                                                <ExecutionBadge
+                                                  label={target.targetState}
+                                                  tone={getAffectedTargetStateTone(target)}
+                                                />
+                                              ) : null}
+                                              <ExecutionBadge
+                                                label={target.targetKind.replaceAll("_", " ")}
+                                                tone="slate"
+                                              />
+                                            </div>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  ) : null}
 
-                            {!item.skipAction.enabled && item.skipAction.reasonIfDisabled ? (
-                              <p className="text-xs text-muted-foreground">
-                                {item.skipAction.reasonIfDisabled}
-                              </p>
-                            ) : null}
+                                  {item.recoveryAction?.reasonIfDisabled ? (
+                                    <p className="text-xs text-muted-foreground">
+                                      {item.recoveryAction.reasonIfDisabled}
+                                    </p>
+                                  ) : null}
 
-                            <div className="flex justify-end">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                disabled={isBusy || !item.skipAction.enabled}
-                                onClick={() =>
-                                  skipActionItemsMutation.mutate({
-                                    projectId,
-                                    stepExecutionId: shell.stepExecutionId,
-                                    actionId: item.skipAction.actionId,
-                                    itemIds: [item.skipAction.itemId],
-                                  })
-                                }
-                              >
-                                Skip item
-                              </Button>
-                            </div>
+                                  {!item.skipAction.enabled && item.skipAction.reasonIfDisabled ? (
+                                    <p className="text-xs text-muted-foreground">
+                                      {item.skipAction.reasonIfDisabled}
+                                    </p>
+                                  ) : null}
+
+                                  <div className="flex justify-end">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      disabled={isBusy || !item.skipAction.enabled}
+                                      onClick={() =>
+                                        skipActionItemsMutation.mutate({
+                                          projectId,
+                                          stepExecutionId: shell.stepExecutionId,
+                                          actionId: item.skipAction.actionId,
+                                          itemIds: [item.skipAction.itemId],
+                                        })
+                                      }
+                                    >
+                                      Skip item
+                                    </Button>
+                                  </div>
+                                </>
+                              );
+                            })()}
                           </article>
                         ))}
                       </div>

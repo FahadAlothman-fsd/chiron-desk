@@ -241,12 +241,21 @@ function buildDetail(): any {
               sortOrder: 100,
               targetContextFactDefinitionId: "ctx-summary",
               targetContextFactKey: "summary",
+              targetContextFactKind: "bound_fact" as const,
               status: "not_started" as const,
               affectedTargets: [
                 {
                   targetKind: "external_fact" as const,
                   targetState: "missing" as const,
                   label: "summary",
+                },
+              ],
+              propagationMappings: [
+                {
+                  targetKind: "external_fact" as const,
+                  operationKind: "create" as const,
+                  label: "summary",
+                  nextValueJson: { value: { title: "summary next" } },
                 },
               ],
               skipAction: {
@@ -293,6 +302,7 @@ function buildDetail(): any {
               sortOrder: 100,
               targetContextFactDefinitionId: "ctx-environment",
               targetContextFactKey: "environment",
+              targetContextFactKind: "bound_fact" as const,
               status: "not_started" as const,
               affectedTargets: [
                 {
@@ -301,11 +311,19 @@ function buildDetail(): any {
                   label: "environment",
                 },
               ],
+              propagationMappings: [
+                {
+                  targetKind: "external_fact" as const,
+                  operationKind: "no_op" as const,
+                  targetId: "env-1",
+                  label: "environment",
+                  previousValueJson: { factInstanceId: "env-1", value: { env: "prod" } },
+                  nextValueJson: { factInstanceId: "env-1", value: { env: "prod" } },
+                },
+              ],
               skipAction: {
                 kind: "skip_action_step_action_items" as const,
-                enabled: false,
-                reasonIfDisabled:
-                  "Run the action or skip the whole action before skipping individual items.",
+                enabled: true,
                 actionId: "action-2",
                 itemId: "item-2",
               },
@@ -350,6 +368,7 @@ function buildDetail(): any {
               sortOrder: 100,
               targetContextFactDefinitionId: "ctx-artifact",
               targetContextFactKey: "artifact_ref",
+              targetContextFactKind: "artifact_slot_reference_fact" as const,
               status: "needs_attention" as const,
               resultSummaryJson: { summary: "Missing bound target." },
               affectedTargets: [
@@ -357,6 +376,21 @@ function buildDetail(): any {
                   targetKind: "artifact" as const,
                   targetState: "missing" as const,
                   label: "artifact_ref",
+                },
+              ],
+              propagationMappings: [
+                {
+                  targetKind: "artifact" as const,
+                  operationKind: "update" as const,
+                  label: "artifact_ref",
+                  previousValueJson: {
+                    slotDefinitionId: "slot-1",
+                    files: [{ filePath: "docs/old.md", status: "present" }],
+                  },
+                  nextValueJson: {
+                    slotDefinitionId: "slot-1",
+                    files: [{ filePath: "docs/new.md", status: "present" }],
+                  },
                 },
               ],
               recoveryAction: {
@@ -747,9 +781,13 @@ describe("action step execution route", () => {
     expect(screen.getByText(/Run propagation rows under the locked Plan A rules/i)).toBeTruthy();
     expect(screen.getAllByText(/Sequential/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/Lazy rows/i)).toBeTruthy();
-    expect(screen.getByText(/Connected/i)).toBeTruthy();
+    expect(screen.queryByText(/Connected/i)).toBeNull();
 
     const secondRow = screen.getByTestId("action-runtime-row-action-2");
+    expect(within(secondRow).getByText(/^bound fact$/i)).toBeTruthy();
+    expect(within(secondRow).getByText(/Previous external value/i)).toBeTruthy();
+    expect(within(secondRow).getByText(/Next propagated value/i)).toBeTruthy();
+    expect(within(secondRow).getByText(/already in sync/i)).toBeTruthy();
     expect(
       within(secondRow).getByText(
         /Sequential mode requires all earlier enabled actions to succeed first/i,
@@ -760,6 +798,10 @@ describe("action step execution route", () => {
       true,
     );
     expect(within(secondRow).getByRole("button", { name: /skip action/i })).toHaveProperty(
+      "disabled",
+      false,
+    );
+    expect(within(secondRow).getByRole("button", { name: /skip item/i })).toHaveProperty(
       "disabled",
       false,
     );
