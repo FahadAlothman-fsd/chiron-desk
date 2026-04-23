@@ -8,6 +8,7 @@ import {
   AgentStepMcpV2ResponseEnvelope,
   CreateContextFactInstanceInputV2,
   DeleteContextFactInstanceInputV2,
+  BoundFactValue,
   ReadAttachableTargetsInputV2,
   ReadContextFactInstancesInputV2,
   ReadContextFactInstancesOutputV2,
@@ -241,6 +242,12 @@ describe("mcp context fact CRUD v2 contracts", () => {
         },
       }).value,
     ).toEqual({ factInstanceId: "fact-1", value: true });
+
+    expect(
+      Schema.decodeUnknownSync(BoundFactValue)({
+        value: true,
+      }),
+    ).toEqual({ value: true });
 
     expect(
       Schema.decodeUnknownSync(CreateContextFactInstanceInputV2)({

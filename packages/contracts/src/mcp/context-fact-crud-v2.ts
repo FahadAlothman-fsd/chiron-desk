@@ -1,6 +1,10 @@
 import * as Schema from "effect/Schema";
 
 import { AgentStepRuntimeErrorEnvelope, AgentStepRuntimeState } from "../agent-step/runtime.js";
+import {
+  DraftSpecSelectedArtifactSchema,
+  DraftSpecSelectedFactSchema,
+} from "./draft-spec-schemas.js";
 import { FactCardinality, PlainFactType } from "../methodology/fact.js";
 import { WorkflowContextFactKind } from "../methodology/workflow.js";
 
@@ -44,7 +48,7 @@ export const PlainFactValue = Schema.Union(
 export type PlainFactValue = typeof PlainFactValue.Type;
 
 export const BoundFactValue = Schema.Struct({
-  factInstanceId: Schema.NonEmptyString,
+  factInstanceId: Schema.optional(Schema.NonEmptyString),
   value: Schema.Unknown,
   deleted: Schema.optional(Schema.Boolean),
 });
@@ -215,26 +219,6 @@ export const ArtifactSlotReferenceSchemaOutput = Schema.Struct({
   rules: Schema.optional(Schema.Unknown),
 }).pipe(Schema.extend(ContextFactSchemaCommon));
 export type ArtifactSlotReferenceSchemaOutput = typeof ArtifactSlotReferenceSchemaOutput.Type;
-
-export const DraftSpecSelectedFactSchema = Schema.Struct({
-  factKey: Schema.NonEmptyString,
-  label: Schema.optional(Schema.String),
-  description: Schema.optional(Schema.Unknown),
-  guidance: Schema.optional(Schema.Unknown),
-  valueType: Schema.Literal("string", "number", "boolean", "json", "work_unit"),
-  cardinality: FactCardinality,
-  validation: Schema.optional(Schema.Unknown),
-});
-export type DraftSpecSelectedFactSchema = typeof DraftSpecSelectedFactSchema.Type;
-
-export const DraftSpecSelectedArtifactSchema = Schema.Struct({
-  slotKey: Schema.NonEmptyString,
-  label: Schema.optional(Schema.String),
-  description: Schema.optional(Schema.Unknown),
-  guidance: Schema.optional(Schema.Unknown),
-  rules: Schema.optional(Schema.Unknown),
-});
-export type DraftSpecSelectedArtifactSchema = typeof DraftSpecSelectedArtifactSchema.Type;
 
 export const WorkUnitDraftSpecSchemaOutput = Schema.Struct({
   contextFactKind: Schema.Literal("work_unit_draft_spec_fact"),
