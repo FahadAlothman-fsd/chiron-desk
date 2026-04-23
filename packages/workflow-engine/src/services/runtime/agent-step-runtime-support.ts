@@ -201,13 +201,12 @@ export function deriveReadableContextFacts(params: {
 
   return [...readable.values()];
 }
-
 export function deriveRuntimeWriteItems(params: {
   payload: AgentStepDesignTimePayload;
   contextFacts: readonly WorkflowContextFactDto[];
   methodologyVersionId: string;
-  lifecycleRepo: LifecycleRepository;
-  methodologyRepo: MethodologyRepository;
+  lifecycleRepo: LifecycleRepository["Type"];
+  methodologyRepo: MethodologyRepository["Type"];
 }): Effect.Effect<readonly AgentStepRuntimeWriteItem[], RepositoryError> {
   return Effect.gen(function* () {
     const factById = new Map(params.contextFacts.map((fact) => [getFactIdentifier(fact), fact]));
@@ -248,7 +247,7 @@ export function deriveRuntimeWriteItems(params: {
 
         const targetWorkUnit = (yield* params.lifecycleRepo.findWorkUnitTypes(
           params.methodologyVersionId,
-        )).find((candidate) => candidate.id === fact.workUnitDefinitionId);
+        )).find((candidate: { id: string }) => candidate.id === fact.workUnitDefinitionId);
 
         const slotDefinitions = targetWorkUnit
           ? yield* params.methodologyRepo.findArtifactSlotsByWorkUnitType({
@@ -266,8 +265,13 @@ export function deriveRuntimeWriteItems(params: {
                 factKey: schema.key,
                 ...(schema.name ? { label: schema.name } : {}),
                 ...(schema.description ? { description: schema.description } : {}),
-                valueType: schema.factType,
-                cardinality: schema.cardinality ?? "one",
+                valueType: schema.factType as
+                  | "string"
+                  | "number"
+                  | "boolean"
+                  | "json"
+                  | "work_unit",
+                cardinality: (schema.cardinality ?? "one") as "one" | "many",
                 ...(schema.validationJson !== undefined
                   ? { validation: schema.validationJson }
                   : {}),
@@ -518,8 +522,14 @@ export function ensureAgentStepRuntimeContext(
     stepExecutionId: string;
     projectId?: string;
   },
-): Effect.Effect<AgentStepRuntimeResolvedContext, RepositoryError> {
+): Effect.Effect<
+  AgentStepRuntimeResolvedContext,
+  RepositoryError,
+  LifecycleRepository | MethodologyRepository
+> {
   return Effect.gen(function* () {
+    const lifecycleRepo = yield* LifecycleRepository;
+    const methodologyRepo = yield* MethodologyRepository;
     const stepExecution = yield* deps.stepRepo.getStepExecutionById(params.stepExecutionId);
     if (!stepExecution) {
       return yield* makeAgentRuntimeRepositoryError(
@@ -649,8 +659,8 @@ export function ensureAgentStepRuntimeContext(
         payload: agentStepDefinition.payload,
         contextFacts: workflowEditor.contextFacts,
         methodologyVersionId: projectPin.methodologyVersionId,
-        lifecycleRepo: deps.lifecycleRepo,
-        methodologyRepo: deps.methodologyRepo,
+        lifecycleRepo,
+        methodologyRepo,
       }),
       contextFactById,
     } satisfies AgentStepRuntimeResolvedContext;

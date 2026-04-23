@@ -936,6 +936,15 @@ describe("runtime agent step detail route", () => {
               order: 500,
               requirementContextFactDefinitionIds: [],
               exposureMode: "requirements_only",
+              selectedFactSchemas: {
+                "wu-fact-research-goals": {
+                  factKey: "research_goals",
+                  label: "Research Goals",
+                  valueType: "json",
+                  cardinality: "one",
+                },
+              },
+              selectedArtifactSchemas: {},
             },
           ],
         },
@@ -980,11 +989,13 @@ describe("runtime agent step detail route", () => {
     await user.click(screen.getByRole("button", { name: /^write$/i }));
 
     expect(screen.getByText("Research Draft Spec")).toBeTruthy();
-    expect(screen.getByText("research_goals")).toBeTruthy();
+    expect(screen.getByText("Research Goals")).toBeTruthy();
     expect(screen.getByText(/^json$/i)).toBeTruthy();
-    expect(screen.getByText("title")).toBeTruthy();
+    expect(screen.getByText("Title")).toBeTruthy();
     expect(screen.getByText("Pattern Analysis")).toBeTruthy();
-    expect(screen.getByText("priority")).toBeTruthy();
+    expect(screen.getByText("Question")).toBeTruthy();
+    expect(screen.getByText("Priority")).toBeTruthy();
+    expect(screen.getByText("Notes")).toBeTruthy();
     expect(screen.getByText(/^number$/i)).toBeTruthy();
     expect(screen.queryByText(/\{"title":\s*"Pattern Analysis"/i)).toBeNull();
   });

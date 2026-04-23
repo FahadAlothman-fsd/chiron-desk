@@ -2,6 +2,7 @@ import type {
   AgentStepRuntimeState,
   AgentStepTimelineCursor,
   AgentStepTimelineItem,
+  AgentStepRuntimeWriteItem,
   GetAgentStepExecutionDetailOutput,
 } from "@chiron/contracts/agent-step/runtime";
 import type { WorkflowContextFactKind } from "@chiron/contracts/methodology/workflow";
@@ -1059,6 +1060,43 @@ function getValueKindLabel(value: unknown): string {
   return typeof value;
 }
 
+function normalizeSchemaLabel(value: string): string {
+  return value.replaceAll(/[_-]+/g, " ");
+}
+
+function renderSchemaDisplayName(params: { label?: string; fallbackKey?: string }): string {
+  if (params.label) {
+    return params.label;
+  }
+
+  if (!params.fallbackKey) {
+    return "Value";
+  }
+
+  return normalizeSchemaLabel(params.fallbackKey)
+    .split(" ")
+    .filter((segment) => segment.length > 0)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+}
+
+function getDraftSpecValueTone(valueType?: string): Parameters<typeof ExecutionBadge>[0]["tone"] {
+  switch (valueType) {
+    case "string":
+      return "sky";
+    case "number":
+      return "amber";
+    case "boolean":
+      return "emerald";
+    case "json":
+      return "slate";
+    case "work_unit":
+      return "violet";
+    default:
+      return "slate";
+  }
+}
+
 function getWriteActionBadges(params: {
   kind: WorkflowContextFactKind;
   instanceCount: number;
@@ -1189,6 +1227,30 @@ function KeyValueObject(props: { values: Record<string, unknown> }) {
   );
 }
 
+function DraftSpecNestedValueTable(props: { values: Record<string, unknown> }) {
+  return (
+    <div className="grid gap-2 md:grid-cols-2">
+      {Object.entries(props.values).map(([nestedKey, nestedValue]) => (
+        <div
+          key={nestedKey}
+          className="space-y-1 border border-border/60 bg-background/45 px-2 py-2"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <DetailLabel>{renderSchemaDisplayName({ fallbackKey: nestedKey })}</DetailLabel>
+            <ExecutionBadge
+              label={getValueKindLabel(nestedValue)}
+              tone={getValueTone(nestedValue)}
+            />
+          </div>
+          <DetailPrimary className="break-words text-xs font-normal">
+            {formatPrimitiveValue(nestedValue)}
+          </DetailPrimary>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ArtifactFileCard(props: { file: Record<string, unknown>; index: number }) {
   const filePath =
     typeof props.file.filePath === "string" ? props.file.filePath : `file-${props.index + 1}`;
@@ -1248,6 +1310,10 @@ function ArtifactFileCard(props: { file: Record<string, unknown>; index: number 
 function renderContextFactInstanceValue(
   kind: WorkflowContextFactKind,
   value: unknown,
+  schemas?: {
+    selectedFactSchemas?: Record<string, { label?: string | undefined; factKey: string }>;
+    selectedArtifactSchemas?: Record<string, { label?: string | undefined; slotKey: string }>;
+  },
 ): React.ReactNode {
   if (kind === "bound_fact" && isRecord(value)) {
     const deleted = value.deleted === true;
@@ -1341,23 +1407,102 @@ function renderContextFactInstanceValue(
         {factValues ? (
           <div className="space-y-2">
             <DetailLabel>Fact values</DetailLabel>
-            <KeyValueObject values={factValues} />
+            <div className="space-y-2">
+              {Object.entries(factValues).map(([key, entry]) => {
+                const schemaEntry = Object.values(schemas?.selectedFactSchemas ?? {}).find(
+                  (schema) => schema.factKey === key,
+                );
+                return (
+                  <div
+                    key={key}
+                    className="space-y-2 border border-border/60 bg-background/35 px-2 py-2"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="space-y-1">
+                        <DetailLabel>
+                          {renderSchemaDisplayName({
+                            label: schemaEntry?.label,
+                            fallbackKey: schemaEntry?.factKey ?? key,
+                          })}
+                        </DetailLabel>
+                        <ExecutionBadge
+                          label={schemaEntry?.valueType ?? getValueKindLabel(entry)}
+                          tone={getDraftSpecValueTone(schemaEntry?.valueType)}
+                        />
+                      </div>
+                    </div>
+                    {isRecord(entry) && !Array.isArray(entry) ? (
+                      <DraftSpecNestedValueTable values={entry} />
+                    ) : Array.isArray(entry) ? (
+                      <div className="space-y-2">
+                        {entry.map((item, index) => (
+                          <div
+                            key={`${key}-${index}`}
+                            className="space-y-1 border border-border/60 bg-background/45 px-2 py-2"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <DetailLabel>Item {index + 1}</DetailLabel>
+                              <ExecutionBadge
+                                label={getValueKindLabel(item)}
+                                tone={getValueTone(item)}
+                              />
+                            </div>
+                            <DetailPrimary className="break-words text-xs font-normal">
+                              {formatPrimitiveValue(item)}
+                            </DetailPrimary>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <DetailPrimary className="break-words text-xs font-normal">
+                        {formatPrimitiveValue(entry)}
+                      </DetailPrimary>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         ) : factArray.length > 0 ? (
           <div className="space-y-2">
             <DetailLabel>Fact values</DetailLabel>
             <div className="space-y-2">
-              {factArray.map((entry, index) => (
-                <InstanceMetaRow
-                  key={`${typeof entry.workUnitFactDefinitionId === "string" ? entry.workUnitFactDefinitionId : index}`}
-                  label={
-                    typeof entry.workUnitFactDefinitionId === "string"
-                      ? entry.workUnitFactDefinitionId
-                      : `fact-${index + 1}`
-                  }
-                  value={formatPrimitiveValue(entry.value)}
-                />
-              ))}
+              {factArray.map((entry, index) => {
+                const factId =
+                  typeof entry.workUnitFactDefinitionId === "string"
+                    ? entry.workUnitFactDefinitionId
+                    : null;
+                const schema = factId ? schemas?.selectedFactSchemas?.[factId] : null;
+                const label = schema?.label ?? schema?.factKey ?? factId ?? `fact-${index + 1}`;
+                return (
+                  <div
+                    key={`${factId ?? index}`}
+                    className="space-y-2 border border-border/60 bg-background/35 px-2 py-2"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="space-y-1">
+                        <DetailLabel>
+                          {renderSchemaDisplayName({
+                            label,
+                            fallbackKey: schema?.factKey ?? factId ?? undefined,
+                          })}
+                        </DetailLabel>
+                        <ExecutionBadge
+                          label={schema?.valueType ?? getValueKindLabel(entry.value)}
+                          tone={getDraftSpecValueTone(schema?.valueType)}
+                        />
+                      </div>
+                    </div>
+                    {isRecord(entry.value) && !Array.isArray(entry.value) ? (
+                      <DraftSpecNestedValueTable values={entry.value} />
+                    ) : (
+                      <DetailPrimary className="break-words text-xs font-normal">
+                        {formatPrimitiveValue(entry.value)}
+                      </DetailPrimary>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         ) : null}
@@ -1380,23 +1525,25 @@ function renderContextFactInstanceValue(
           <div className="space-y-2">
             <DetailLabel>Artifact values</DetailLabel>
             <div className="space-y-2">
-              {artifactArray.map((entry, index) => (
-                <InstanceMetaRow
-                  key={`${typeof entry.slotDefinitionId === "string" ? entry.slotDefinitionId : index}`}
-                  label={
-                    typeof entry.slotDefinitionId === "string"
-                      ? entry.slotDefinitionId
-                      : `slot-${index + 1}`
-                  }
-                  value={
-                    entry.clear === true
-                      ? "Cleared"
-                      : typeof entry.relativePath === "string"
-                        ? entry.relativePath
-                        : formatUnknown(entry)
-                  }
-                />
-              ))}
+              {artifactArray.map((entry, index) => {
+                const slotId =
+                  typeof entry.slotDefinitionId === "string" ? entry.slotDefinitionId : null;
+                const schema = slotId ? schemas?.selectedArtifactSchemas?.[slotId] : null;
+                const label = schema?.label ?? schema?.slotKey ?? slotId ?? `slot-${index + 1}`;
+                return (
+                  <InstanceMetaRow
+                    key={`${slotId ?? index}`}
+                    label={label}
+                    value={
+                      entry.clear === true
+                        ? "Cleared"
+                        : typeof entry.relativePath === "string"
+                          ? entry.relativePath
+                          : formatUnknown(entry)
+                    }
+                  />
+                );
+              })}
             </div>
           </div>
         ) : null}
@@ -3564,8 +3711,9 @@ function ContextFactInstances(props: {
   group: RuntimeWorkflowContextFactGroup | undefined;
   emptyMessage: string;
   contextFactKind: WorkflowContextFactKind;
+  writeItem?: AgentStepRuntimeWriteItem;
 }) {
-  const { group, emptyMessage, contextFactKind } = props;
+  const { group, emptyMessage, contextFactKind, writeItem } = props;
 
   if (!group || group.instances.length === 0) {
     return <p className="text-xs text-muted-foreground">{emptyMessage}</p>;
@@ -3606,7 +3754,10 @@ function ContextFactInstances(props: {
             />
           ) : null}
 
-          {renderContextFactInstanceValue(contextFactKind, instance.valueJson)}
+          {renderContextFactInstanceValue(contextFactKind, instance.valueJson, {
+            selectedFactSchemas: writeItem?.selectedFactSchemas,
+            selectedArtifactSchemas: writeItem?.selectedArtifactSchemas,
+          })}
         </li>
       ))}
     </ul>
@@ -6392,6 +6543,7 @@ function AgentInteractionSurface(props: {
                             <ContextFactInstances
                               group={entry.group}
                               emptyMessage="No runtime values are currently available."
+                              contextFactKind={entry.contextFactKind}
                             />
                           </article>
                         ))
@@ -6528,6 +6680,7 @@ function AgentInteractionSurface(props: {
                                 group={entry.group}
                                 emptyMessage="No successful Chiron write-tool application yet."
                                 contextFactKind={entry.item.contextFactKind}
+                                writeItem={entry.item}
                               />
                             </div>
                           </article>
