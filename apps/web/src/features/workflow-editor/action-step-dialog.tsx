@@ -580,14 +580,12 @@ function summarizeActionKinds(
   factsById: ReadonlyMap<string, EligibleActionContextFact>,
 ) {
   const compatibility = derivePropagationActionCompatibility({ action, factsById });
-  const distinctKinds = [...compatibility.distinctKinds];
   const distinctTargets = compatibility.distinctTargetIds.size;
-  const primaryKind = distinctKinds[0];
 
   return {
     itemCount: action.items.length,
     distinctTargets,
-    kindLabel: primaryKind ? primaryKind.replaceAll("_", " ") : "unassigned",
+    distinctKinds: compatibility.distinctKinds.size,
   };
 }
 
@@ -645,7 +643,6 @@ function PropagationActionDialog({
   }
 
   const compatibility = derivePropagationActionCompatibility({ action: draft, factsById });
-  const primaryFact = compatibility.primary?.fact;
   const actionStats = summarizeActionKinds(draft, factsById);
   const normalizedExistingActionKeys = new Set(
     [...existingActionKeys].map((entry) => entry.trim()),
@@ -736,7 +733,7 @@ function PropagationActionDialog({
                       {actionStats.distinctTargets === 1 ? "" : "s"}
                     </span>
                     <span className="inline-flex rounded-none border border-border/70 px-2 py-1 text-[0.64rem] uppercase tracking-[0.12em] text-muted-foreground">
-                      {actionStats.kindLabel}
+                      {actionStats.distinctKinds} kind{actionStats.distinctKinds === 1 ? "" : "s"}
                     </span>
                   </div>
                 </div>
@@ -798,8 +795,8 @@ function PropagationActionDialog({
                 </div>
 
                 <div className="border border-border/70 bg-background/50 p-3 text-xs text-muted-foreground">
-                  This action stays grouped in the step overview. The runtime compatibility binding
-                  is derived from the first propagation item and kept out of the authoring surface.
+                  This action groups propagation items only. Each item selects its own target
+                  context fact, and mixed propagation kinds are allowed in the same action.
                 </div>
               </section>
 
@@ -1052,10 +1049,6 @@ function PropagationActionDialog({
 
               <section className="grid gap-2 border border-border/70 bg-background/40 p-4 text-xs text-muted-foreground">
                 <p className="text-[0.68rem] uppercase tracking-[0.14em]">Configured stats</p>
-                <p>
-                  Primary compatibility target: {primaryFact?.label ?? "Unassigned"}
-                  {primaryFact ? ` · ${primaryFact.kind.replaceAll("_", " ")}` : ""}
-                </p>
                 <p>
                   Distinct target facts: {compatibility.distinctTargetIds.size} · Compatible kind
                   set: {compatibility.distinctKinds.size}
