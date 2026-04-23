@@ -3,6 +3,7 @@ import * as Schema from "effect/Schema";
 import { AgentStepNormalizedError } from "./errors.js";
 import { ModelReference } from "../methodology/agent.js";
 import { WorkflowContextFactKind } from "../methodology/workflow.js";
+export { WorkflowContextFactKind } from "../methodology/workflow.js";
 import { RuntimeStepExecutionNextStep } from "../runtime/executions.js";
 import {
   DraftSpecSelectedFactSchema,

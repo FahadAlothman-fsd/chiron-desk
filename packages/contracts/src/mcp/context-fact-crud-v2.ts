@@ -5,6 +5,10 @@ import {
   DraftSpecSelectedArtifactSchema,
   DraftSpecSelectedFactSchema,
 } from "./draft-spec-schemas.js";
+export {
+  DraftSpecSelectedArtifactSchema,
+  DraftSpecSelectedFactSchema,
+} from "./draft-spec-schemas.js";
 import { FactCardinality, PlainFactType } from "../methodology/fact.js";
 import { WorkflowContextFactKind } from "../methodology/workflow.js";
 
