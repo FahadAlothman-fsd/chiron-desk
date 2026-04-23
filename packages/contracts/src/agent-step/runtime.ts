@@ -7,7 +7,7 @@ import { RuntimeStepExecutionNextStep } from "../runtime/executions.js";
 import {
   DraftSpecSelectedFactSchema,
   DraftSpecSelectedArtifactSchema,
-} from "../mcp/context-fact-crud-v2.js";
+} from "../mcp/draft-spec-schemas.js";
 
 export const AGENT_STEP_RUNTIME_STATES = [
   "not_started",

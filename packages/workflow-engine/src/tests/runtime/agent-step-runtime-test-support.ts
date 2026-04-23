@@ -106,6 +106,13 @@ export function makeAgentStepRuntimeTestContext(options?: {
   currentArtifactState?: ArtifactCurrentState;
   workflowEditorContextFacts?: WorkflowEditorDefinitionReadModel["contextFacts"];
   lifecycleFactSchemas?: readonly FactSchemaRow[];
+  workflowDefinitions?: readonly {
+    workflowDefinitionId: string;
+    key: string;
+    displayName?: string | null;
+    descriptionJson?: unknown;
+    guidanceJson?: unknown;
+  }[];
   agentPayload?: AgentStepDesignTimePayload;
   projectWorkUnits?: readonly ProjectWorkUnitRow[];
   workUnitFactsByWorkUnitId?: Readonly<Record<string, readonly WorkUnitFactInstanceRow[]>>;
@@ -539,6 +546,18 @@ export function makeAgentStepRuntimeTestContext(options?: {
           updatedAt: now,
         },
       ]),
+    listWorkflowsByWorkUnitType: () =>
+      Effect.succeed(
+        (options?.workflowDefinitions ?? []).map((workflow) => ({
+          workflowDefinitionId: workflow.workflowDefinitionId,
+          key: workflow.key,
+          ...(workflow.displayName ? { displayName: workflow.displayName } : {}),
+          ...(workflow.descriptionJson !== undefined
+            ? { descriptionJson: workflow.descriptionJson }
+            : {}),
+          ...(workflow.guidanceJson !== undefined ? { guidanceJson: workflow.guidanceJson } : {}),
+        })),
+      ),
   } as unknown as Context.Tag.Service<typeof MethodologyRepository>);
 
   const methodologyVersionBoundaryLayer = Layer.succeed(

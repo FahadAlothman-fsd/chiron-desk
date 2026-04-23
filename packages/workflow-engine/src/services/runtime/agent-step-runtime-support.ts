@@ -522,14 +522,8 @@ export function ensureAgentStepRuntimeContext(
     stepExecutionId: string;
     projectId?: string;
   },
-): Effect.Effect<
-  AgentStepRuntimeResolvedContext,
-  RepositoryError,
-  LifecycleRepository | MethodologyRepository
-> {
+): Effect.Effect<AgentStepRuntimeResolvedContext, RepositoryError> {
   return Effect.gen(function* () {
-    const lifecycleRepo = yield* LifecycleRepository;
-    const methodologyRepo = yield* MethodologyRepository;
     const stepExecution = yield* deps.stepRepo.getStepExecutionById(params.stepExecutionId);
     if (!stepExecution) {
       return yield* makeAgentRuntimeRepositoryError(
@@ -659,8 +653,8 @@ export function ensureAgentStepRuntimeContext(
         payload: agentStepDefinition.payload,
         contextFacts: workflowEditor.contextFacts,
         methodologyVersionId: projectPin.methodologyVersionId,
-        lifecycleRepo,
-        methodologyRepo,
+        lifecycleRepo: deps.lifecycleRepo,
+        methodologyRepo: deps.methodologyRepo,
       }),
       contextFactById,
     } satisfies AgentStepRuntimeResolvedContext;
