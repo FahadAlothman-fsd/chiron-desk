@@ -2,6 +2,7 @@ import * as React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { WorkflowEditorStep } from "../../features/workflow-editor/types";
 // @ts-expect-error jsdom package ships without local type declarations in this workspace.
 import { JSDOM } from "jsdom";
 
@@ -1159,6 +1160,122 @@ describe("workflow editor invoke route", () => {
     fireEvent.click(screen.getByRole("button", { name: "Discard Changes" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("invoke dialog preserves literal bindings on open without marking bindings dirty", async () => {
+    const { InvokeStepDialog } = await import("../../features/workflow-editor/dialogs");
+    const existingStep: WorkflowEditorStep = {
+      stepId: "step-invoke-literal-1",
+      stepType: "invoke",
+      payload: {
+        key: "invoke_brainstorming_fixed",
+        label: "Invoke Brainstorming Fixed",
+        targetKind: "work_unit",
+        sourceMode: "fixed",
+        workUnitDefinitionId: "wut-brainstorming",
+        bindings: [
+          {
+            destination: {
+              kind: "work_unit_fact",
+              workUnitFactDefinitionId: "wuf-brainstorming-desired-outcome",
+            },
+            source: {
+              kind: "literal",
+              value: "Confirm the seeded brainstorm direction and keep the invoke path moving.",
+            },
+          },
+        ],
+        activationTransitions: [
+          {
+            transitionId: "transition-activation-to-done",
+            workflowDefinitionIds: ["wf-brainstorming-primary"],
+          },
+        ],
+        guidance: {
+          human: { markdown: "" },
+          agent: { markdown: "" },
+        },
+      },
+    };
+
+    renderRoute(
+      <InvokeStepDialog
+        open
+        mode="edit"
+        step={existingStep}
+        availableWorkflows={[
+          {
+            value: "wf-brainstorming-primary",
+            label: "Brainstorming Primary",
+            description: "Primary brainstorming workflow.",
+          },
+        ]}
+        availableWorkUnits={[
+          {
+            value: "wut-brainstorming",
+            label: "Brainstorming",
+            description: "Brainstorming work unit",
+          },
+        ]}
+        availableTransitions={[]}
+        availableContextFacts={[
+          {
+            contextFactDefinitionId: "ctx-brainstorming-draft",
+            key: "cf_setup_brainstorming_draft_spec",
+            label: "Brainstorming Draft Spec",
+            descriptionMarkdown: "Draft spec",
+            kind: "work_unit_draft_spec_fact",
+            cardinality: "many",
+            guidance: { humanMarkdown: "", agentMarkdown: "" },
+            allowedWorkflowDefinitionIds: [],
+            includedFactDefinitionIds: ["wuf-brainstorming-desired-outcome"],
+            selectedWorkUnitFactDefinitionIds: ["wuf-brainstorming-desired-outcome"],
+            selectedArtifactSlotDefinitionIds: [],
+            summary: "work unit draft spec fact · many · brainstorming",
+            workUnitDefinitionId: "wut-brainstorming",
+            workUnitTypeKey: "wut-brainstorming",
+          },
+        ]}
+        workUnitFactsQueryScope="v1"
+        loadWorkUnitFacts={async () => [
+          {
+            id: "wuf-brainstorming-desired-outcome",
+            key: "desired_outcome",
+            label: "Desired Outcome",
+            valueType: "string",
+            cardinality: "one",
+            validationJson: { kind: "none" },
+          },
+        ]}
+        loadWorkUnitArtifactSlots={async () => []}
+        loadWorkUnitTransitions={async () => [
+          {
+            value: "transition-activation-to-done",
+            label: "Activation to Done",
+            secondaryLabel: "activation_to_done",
+            description: "Activation to Done",
+          },
+        ]}
+        loadWorkUnitWorkflows={async () => [
+          {
+            value: "wf-brainstorming-primary",
+            label: "Brainstorming Primary",
+            secondaryLabel: "wf_brainstorming_primary",
+            description: "Primary brainstorming workflow.",
+          },
+        ]}
+        onOpenChange={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Bindings/i }));
+
+    await waitFor(() => {
+      expect((screen.getByLabelText("Source Type") as HTMLSelectElement).value).toBe("literal");
+    });
+    expect(screen.queryByRole("button", { name: /Bindings \*/i })).toBeNull();
+    expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("branch route creates branch steps from the unlocked grid", async () => {

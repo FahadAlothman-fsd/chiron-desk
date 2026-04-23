@@ -1472,19 +1472,21 @@ const INVOKE_BINDING_SOURCE_OPTIONS = [
   {
     value: "context_fact",
     label: "Context Fact",
-    description: "Read from a compatible workflow context fact.",
+    description: "Prefill from a compatible workflow context fact or draft-spec selection.",
   },
   {
     value: "literal",
     label: "Literal",
-    description: "Provide a fixed literal value inline.",
+    description: "Hard-code a single authored value into the invoked work unit.",
   },
   {
     value: "runtime",
     label: "Runtime",
-    description: "Value will be supplied when the project runs.",
+    description: "Require an operator to supply the value when the invoke target starts.",
   },
 ] as const;
+
+const ALL_INVOKE_BINDING_SOURCE_KINDS = ["context_fact", "literal", "runtime"] as const;
 
 function isLiteralCapableFactDefinition(
   definition: Pick<
@@ -1536,10 +1538,28 @@ function isContextFactCompatibleWithDestination(
   }
 
   if (destination.kind === "artifact_slot") {
+    if (fact.kind === "work_unit_draft_spec_fact") {
+      return fact.selectedArtifactSlotDefinitionIds.includes(destination.definitionId);
+    }
+
     return fact.kind === "artifact_slot_reference_fact";
   }
 
+  if (fact.kind === "work_unit_draft_spec_fact") {
+    return fact.selectedWorkUnitFactDefinitionIds.includes(destination.definitionId);
+  }
+
   return getContextFactValueType(fact) === (destination.valueType ?? null);
+}
+
+function getInvokeBindingSourceKinds(
+  destination: InvokeBindingDestinationOption | undefined,
+): InvokeBindingDraft["sourceKind"][] {
+  if (!destination) {
+    return [...ALL_INVOKE_BINDING_SOURCE_KINDS];
+  }
+
+  return ["context_fact", ...(destination.literalAllowed ? (["literal"] as const) : []), "runtime"];
 }
 
 function createEmptyInvokeActivationTransitionDraft(): InvokeActivationTransitionDraft {
@@ -1828,7 +1848,7 @@ export function InvokeStepDialog({
         value: fact.contextFactDefinitionId,
         label: fact.label || fact.key,
         secondaryLabel: fact.key,
-        description: fact.summary,
+        description: summarizeContextFact(fact),
       })),
     [availableContextFacts],
   );
@@ -2042,13 +2062,11 @@ export function InvokeStepDialog({
         const destination = bindingDestinationsByKey.get(
           `${binding.destinationKind}:${binding.destinationDefinitionId}`,
         );
-        const compatibleSourceKinds: InvokeBindingDraft["sourceKind"][] = destination
-          ? [
-              "context_fact",
-              ...(destination.literalAllowed ? (["literal"] as const) : []),
-              "runtime",
-            ]
-          : ["context_fact", "runtime"];
+        if (!destination) {
+          return binding;
+        }
+
+        const compatibleSourceKinds = getInvokeBindingSourceKinds(destination);
         const nextSourceKind = compatibleSourceKinds.includes(binding.sourceKind)
           ? binding.sourceKind
           : (compatibleSourceKinds[0] ?? "context_fact");
@@ -2750,16 +2768,8 @@ export function InvokeStepDialog({
                                   : option;
                               },
                             );
-                            const availableSourceKinds: InvokeBindingDraft["sourceKind"][] =
-                              selectedDestination
-                                ? [
-                                    "context_fact",
-                                    ...(selectedDestination.literalAllowed
-                                      ? (["literal"] as const)
-                                      : []),
-                                    "runtime",
-                                  ]
-                                : ["context_fact", "runtime"];
+                            const availableSourceKinds =
+                              getInvokeBindingSourceKinds(selectedDestination);
                             const compatibleContextFactOptions = bindingContextFactOptions.filter(
                               (option) => {
                                 const sourceFact = contextFactsById.get(option.value);
@@ -2934,6 +2944,17 @@ export function InvokeStepDialog({
                                         Source note: only compatible context facts are shown for
                                         this destination.
                                       </p>
+                                      {(() => {
+                                        const sourceFact = contextFactsById.get(
+                                          binding.contextFactDefinitionId,
+                                        );
+                                        return sourceFact ? (
+                                          <p className="text-[0.7rem] text-muted-foreground">
+                                            Source metadata: {summarizeContextFact(sourceFact)} ·{" "}
+                                            {sourceFact.key}
+                                          </p>
+                                        ) : null;
+                                      })()}
                                     </div>
                                   ) : null}
 

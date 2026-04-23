@@ -95,7 +95,7 @@ const isLiteralCapableDestination = (destination: {
 
 const isContextFactCompatibleWithWorkUnitFact = (
   sourceFact: WorkflowContextFactDto,
-  destination: { factType: string; cardinality: string },
+  destination: { id: string; factType: string; cardinality: string; workUnitTypeId: string },
 ): boolean => {
   if (getWorkflowContextFactCardinality(sourceFact) !== destination.cardinality) {
     return false;
@@ -113,16 +113,34 @@ const isContextFactCompatibleWithWorkUnitFact = (
     return sourceFact.valueType === destination.factType;
   }
 
+  if (sourceFact.kind === "work_unit_draft_spec_fact") {
+    return (
+      sourceFact.workUnitDefinitionId === destination.workUnitTypeId &&
+      sourceFact.selectedWorkUnitFactDefinitionIds.includes(destination.id)
+    );
+  }
+
   return false;
 };
 
 const isContextFactCompatibleWithArtifactSlot = (
   sourceFact: WorkflowContextFactDto,
-  destination: { cardinality: "single" | "fileset" },
-): boolean =>
-  sourceFact.kind === "artifact_slot_reference_fact" &&
-  getWorkflowContextFactCardinality(sourceFact) ===
-    (destination.cardinality === "fileset" ? "many" : "one");
+  destination: { id: string; cardinality: "single" | "fileset"; workUnitTypeId: string },
+): boolean => {
+  if (
+    sourceFact.kind === "artifact_slot_reference_fact" &&
+    getWorkflowContextFactCardinality(sourceFact) ===
+      (destination.cardinality === "fileset" ? "many" : "one")
+  ) {
+    return true;
+  }
+
+  return (
+    sourceFact.kind === "work_unit_draft_spec_fact" &&
+    sourceFact.workUnitDefinitionId === destination.workUnitTypeId &&
+    sourceFact.selectedArtifactSlotDefinitionIds.includes(destination.id)
+  );
+};
 
 const validateBindingSet = (
   repo: MethodologyRepository["Type"],
