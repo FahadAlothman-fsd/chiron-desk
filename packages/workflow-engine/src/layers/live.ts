@@ -139,7 +139,7 @@ const WorkflowEngineRuntimeStepCommandLayer = Layer.provide(
 
 const WorkflowEngineRuntimeInvokeStepDetailLayer = Layer.provide(
   InvokeStepDetailServiceLive,
-  WorkflowEngineRuntimeInvokeCompletionLayer,
+  Layer.mergeAll(WorkflowEngineRuntimeInvokeCompletionLayer, SandboxGitServiceLive),
 );
 
 const WorkflowEngineRuntimeActionStepDetailLayer = Layer.provide(
@@ -203,6 +203,7 @@ const WorkflowEngineRuntimeActionStepEventStreamLayer = Layer.provide(
 );
 
 export const WorkflowEngineRuntimeNonAgentStepServicesLive = Layer.mergeAll(
+  SandboxGitServiceLive,
   RuntimeManualFactCrudServiceLive,
   WorkflowEngineRuntimeStepCoreLayer,
   WorkflowEngineRuntimeStepLifecycleLayer,
