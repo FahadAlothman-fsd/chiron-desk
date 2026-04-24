@@ -154,6 +154,7 @@
         "@chiron/env": "workspace:*",
         "@chiron/methodology-engine": "workspace:*",
         "@chiron/project-context": "workspace:*",
+        "@chiron/sandbox-engine": "workspace:*",
         "@chiron/workflow-engine": "workspace:*",
         "@orpc/client": "catalog:",
         "@orpc/openapi": "catalog:",

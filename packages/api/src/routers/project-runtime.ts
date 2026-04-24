@@ -1,5 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { Cause, Effect, Layer, Option, Stream } from "effect";
+import { readdir } from "node:fs/promises";
+import path from "node:path";
 import { z } from "zod";
 import type {
   ChoosePrimaryWorkflowForTransitionExecutionInput,
@@ -53,6 +55,8 @@ import {
   WorkflowExecutionCommandService,
   WorkflowExecutionDetailService,
 } from "@chiron/workflow-engine";
+import { ProjectContextRepository } from "@chiron/project-context";
+import { SandboxGitService } from "@chiron/sandbox-engine";
 import { protectedProcedure, publicProcedure } from "../index";
 
 const projectIdInput = z.object({ projectId: z.string().min(1) });
@@ -376,7 +380,77 @@ const startInvokeWorkUnitTargetInput: z.ZodType<StartInvokeWorkUnitTargetInput> 
       }),
     )
     .optional(),
+  runtimeArtifactValues: z
+    .array(
+      z.object({
+        artifactSlotDefinitionId: z.string().min(1),
+        relativePath: z.string().min(1).optional(),
+        sourceContextFactDefinitionId: z.string().min(1).optional(),
+        clear: z.boolean().optional(),
+        files: z
+          .array(
+            z.object({
+              relativePath: z.string().min(1).optional(),
+              sourceContextFactDefinitionId: z.string().min(1).optional(),
+              clear: z.boolean().optional(),
+            }),
+          )
+          .optional(),
+      }),
+    )
+    .optional(),
 });
+
+const listProjectRepoFilesInput = z.object({
+  projectId: z.string().min(1),
+  query: z.string().trim().optional(),
+  limit: z.number().int().positive().max(500).optional(),
+});
+
+const getProjectRepoFileStatusesInput = z.object({
+  projectId: z.string().min(1),
+  relativePaths: z.array(z.string().min(1)).max(500),
+});
+
+const projectRepoFileEntrySchema = z.object({
+  relativePath: z.string().min(1),
+  status: z.enum(["committed", "not_committed", "missing", "not_a_repo", "git_not_installed"]),
+  tracked: z.boolean().optional(),
+  untracked: z.boolean().optional(),
+  staged: z.boolean().optional(),
+  modified: z.boolean().optional(),
+  deleted: z.boolean().optional(),
+  gitCommitHash: z.string().nullable().optional(),
+  gitBlobHash: z.string().nullable().optional(),
+  gitCommitSubject: z.string().nullable().optional(),
+  gitCommitBody: z.string().nullable().optional(),
+  message: z.string().optional(),
+});
+
+async function listRepoFiles(rootPath: string): Promise<string[]> {
+  const results: string[] = [];
+  const ignored = new Set([".git", "node_modules", ".turbo", ".next", "dist", "build"]);
+
+  async function walk(current: string) {
+    const entries = await readdir(current, { withFileTypes: true });
+    for (const entry of entries) {
+      if (ignored.has(entry.name)) {
+        continue;
+      }
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        await walk(fullPath);
+        continue;
+      }
+      if (entry.isFile()) {
+        results.push(fullPath);
+      }
+    }
+  }
+
+  await walk(rootPath);
+  return results;
+}
 
 const checkArtifactSlotCurrentStateInput = z.object({
   projectId: z.string().min(1),
@@ -1167,6 +1241,133 @@ export function createProjectRuntimeRouter(
           Effect.gen(function* () {
             const invokeWorkUnitExecutionService = yield* InvokeWorkUnitExecutionService;
             return yield* invokeWorkUnitExecutionService.startInvokeWorkUnitTarget(input);
+          }),
+        ),
+      ),
+
+    listProjectRepoFiles: protectedProcedure
+      .input(listProjectRepoFilesInput)
+      .output(z.array(projectRepoFileEntrySchema))
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            const projectContextRepo = yield* ProjectContextRepository;
+            const sandboxGit = yield* SandboxGitService;
+            const project = yield* projectContextRepo.getProjectById({
+              projectId: input.projectId,
+            });
+            if (!project?.projectRootPath) {
+              return [];
+            }
+
+            const allFiles = yield* Effect.tryPromise({
+              try: () => listRepoFiles(project.projectRootPath!),
+              catch: (error) => error,
+            }).pipe(Effect.catchAll(() => Effect.succeed([] as string[])));
+
+            const normalizedQuery = input.query?.trim().toLowerCase() ?? "";
+            const filtered = allFiles.filter((filePath) =>
+              normalizedQuery.length === 0
+                ? true
+                : filePath.toLowerCase().includes(normalizedQuery),
+            );
+            const limited = filtered.slice(0, input.limit ?? 200);
+
+            return yield* Effect.forEach(limited, (filePath) =>
+              sandboxGit.resolveArtifactReference({
+                rootPath: project.projectRootPath!,
+                filePath,
+              }),
+            ).pipe(
+              Effect.map((entries) =>
+                entries.map((entry) => ({
+                  relativePath: entry.relativePath,
+                  status: entry.status,
+                  ...(entry.status === "not_committed"
+                    ? {
+                        tracked: entry.tracked,
+                        untracked: entry.untracked,
+                        staged: entry.staged,
+                        modified: entry.modified,
+                        deleted: entry.deleted,
+                      }
+                    : {}),
+                  ...(entry.status === "committed"
+                    ? {
+                        gitCommitHash: entry.gitCommitHash,
+                        gitBlobHash: entry.gitBlobHash,
+                        gitCommitSubject: entry.gitCommitSubject,
+                        gitCommitBody: entry.gitCommitBody,
+                      }
+                    : {}),
+                  ...(entry.status === "not_a_repo" || entry.status === "git_not_installed"
+                    ? { message: entry.message }
+                    : {}),
+                })),
+              ),
+            );
+          }),
+        ),
+      ),
+
+    getProjectRepoFileStatuses: protectedProcedure
+      .input(getProjectRepoFileStatusesInput)
+      .output(z.array(projectRepoFileEntrySchema))
+      .handler(async ({ input }) =>
+        runEffect(
+          serviceLayer,
+          Effect.gen(function* () {
+            if (input.relativePaths.length === 0) {
+              return [];
+            }
+
+            const projectContextRepo = yield* ProjectContextRepository;
+            const sandboxGit = yield* SandboxGitService;
+            const project = yield* projectContextRepo.getProjectById({
+              projectId: input.projectId,
+            });
+            if (!project?.projectRootPath) {
+              return [];
+            }
+
+            const uniqueRelativePaths = [
+              ...new Set(input.relativePaths.map((value) => value.trim())),
+            ].filter((value) => value.length > 0);
+
+            return yield* Effect.forEach(uniqueRelativePaths, (filePath) =>
+              sandboxGit.resolveArtifactReference({
+                rootPath: project.projectRootPath!,
+                filePath,
+              }),
+            ).pipe(
+              Effect.map((entries) =>
+                entries.flatMap((entry) => ({
+                  relativePath: entry.relativePath,
+                  status: entry.status,
+                  ...(entry.status === "not_committed"
+                    ? {
+                        tracked: entry.tracked,
+                        untracked: entry.untracked,
+                        staged: entry.staged,
+                        modified: entry.modified,
+                        deleted: entry.deleted,
+                      }
+                    : {}),
+                  ...(entry.status === "committed"
+                    ? {
+                        gitCommitHash: entry.gitCommitHash,
+                        gitBlobHash: entry.gitBlobHash,
+                        gitCommitSubject: entry.gitCommitSubject,
+                        gitCommitBody: entry.gitCommitBody,
+                      }
+                    : {}),
+                  ...(entry.status === "not_a_repo" || entry.status === "git_not_installed"
+                    ? { message: entry.message }
+                    : {}),
+                })),
+              ),
+            );
           }),
         ),
       ),
