@@ -285,4 +285,86 @@ describe("RuntimeGateService", () => {
       expect(String(exit.cause)).toContain("UnsupportedConditionKindError");
     }
   });
+
+  it("evaluates projected work-unit facts before a target work unit exists", async () => {
+    const program = Effect.gen(function* () {
+      const service = yield* RuntimeGateService;
+      return yield* service.evaluateStartGate({
+        projectId: "project-1",
+        conditionTree: {
+          mode: "all",
+          conditions: [
+            {
+              kind: "work_unit_fact",
+              factKey: "title",
+              factDefinitionId: "fact-title",
+              operator: "equals",
+              comparisonJson: { value: "Gate ready" },
+            },
+          ],
+          groups: [],
+        },
+        projectedWorkUnitFactsByDefinitionId: new Map([
+          [
+            "fact-title",
+            [
+              {
+                valueJson: "Gate ready",
+              },
+            ],
+          ],
+        ]),
+      });
+    }).pipe(
+      Effect.provide(
+        makeRuntimeGateLayer({
+          existingProjectFactDefinitionIds: [],
+          existingWorkUnitFactDefinitionIds: [],
+        }),
+      ),
+    );
+
+    const result = await Effect.runPromise(program);
+    expect(result.result).toBe("available");
+  });
+
+  it("evaluates projected artifact slots before a target work unit exists", async () => {
+    const program = Effect.gen(function* () {
+      const service = yield* RuntimeGateService;
+      return yield* service.evaluateStartGate({
+        projectId: "project-1",
+        conditionTree: {
+          mode: "all",
+          conditions: [
+            {
+              kind: "artifact",
+              slotKey: "brief",
+              slotDefinitionId: "slot-brief",
+              operator: "exists",
+            },
+          ],
+          groups: [],
+        },
+        projectedArtifactSlotsByDefinitionId: new Map([
+          [
+            "slot-brief",
+            {
+              exists: true,
+              freshness: "fresh",
+            },
+          ],
+        ]),
+      });
+    }).pipe(
+      Effect.provide(
+        makeRuntimeGateLayer({
+          existingProjectFactDefinitionIds: [],
+          existingWorkUnitFactDefinitionIds: [],
+        }),
+      ),
+    );
+
+    const result = await Effect.runPromise(program);
+    expect(result.result).toBe("available");
+  });
 });

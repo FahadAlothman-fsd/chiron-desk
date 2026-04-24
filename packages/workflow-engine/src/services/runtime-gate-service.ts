@@ -21,6 +21,24 @@ export interface RuntimeGateEvaluationInput {
   readonly projectId: string;
   readonly projectWorkUnitId?: string;
   readonly conditionTree: RuntimeConditionTree;
+  readonly projectedWorkUnitFactsByDefinitionId?: ReadonlyMap<
+    string,
+    readonly RuntimeGateProjectedWorkUnitFactValue[]
+  >;
+  readonly projectedArtifactSlotsByDefinitionId?: ReadonlyMap<
+    string,
+    RuntimeGateProjectedArtifactSlotValue
+  >;
+}
+
+export interface RuntimeGateProjectedWorkUnitFactValue {
+  readonly valueJson: unknown;
+  readonly referencedProjectWorkUnitId?: string | null;
+}
+
+export interface RuntimeGateProjectedArtifactSlotValue {
+  readonly exists: boolean;
+  readonly freshness?: "fresh" | "stale" | "unavailable";
 }
 
 export interface RuntimeGateEvaluationResult {
@@ -321,9 +339,17 @@ const extractFactValues = (
 ): readonly unknown[] => {
   if (!subFieldKey) {
     return rows.flatMap((row) =>
-      typeof row.valueJson === "undefined" || row.valueJson === null
-        ? []
-        : [unwrapScalarValueRecord(unwrapRuntimeBoundFactEnvelope(row.valueJson))],
+      typeof (row as { referencedProjectWorkUnitId?: string | null })
+        .referencedProjectWorkUnitId === "string"
+        ? [
+            {
+              projectWorkUnitId: (row as { referencedProjectWorkUnitId: string })
+                .referencedProjectWorkUnitId,
+            },
+          ]
+        : typeof row.valueJson === "undefined" || row.valueJson === null
+          ? []
+          : [unwrapScalarValueRecord(unwrapRuntimeBoundFactEnvelope(row.valueJson))],
     );
   }
 
@@ -404,6 +430,30 @@ export const RuntimeGateServiceLive = Layer.effect(
     const workUnitFactRepository = yield* WorkUnitFactRepository;
     const artifactRepository = yield* ArtifactRepository;
 
+    const toProjectedWorkUnitFactRows = (params: {
+      projectWorkUnitId?: string;
+      factDefinitionId: string;
+      values: readonly RuntimeGateProjectedWorkUnitFactValue[];
+    }): readonly WorkUnitFactInstanceRow[] =>
+      params.values.map((value, index) => ({
+        id: `projected-work-unit-fact-${params.factDefinitionId}-${index}`,
+        projectWorkUnitId: params.projectWorkUnitId ?? "__projected_work_unit__",
+        factDefinitionId: params.factDefinitionId,
+        valueJson: value.valueJson,
+        referencedProjectWorkUnitId: value.referencedProjectWorkUnitId ?? null,
+        status: "active",
+        supersededByFactInstanceId: null,
+        producedByTransitionExecutionId: null,
+        producedByWorkflowExecutionId: null,
+        authoredByUserId: null,
+        createdAt: new Date(0),
+      }));
+
+    const applyArtifactNegation =
+      (condition: Extract<RuntimeCondition, { kind: "artifact" }>) =>
+      (met: boolean): boolean =>
+        condition.isNegated ? !met : met;
+
     const evaluateSingleCondition = (
       context: RuntimeGateEvaluationInput,
       condition: RuntimeCondition,
@@ -432,18 +482,30 @@ export const RuntimeGateServiceLive = Layer.effect(
             } as const;
           }
           case "work_unit_fact": {
-            if (!context.projectWorkUnitId) {
+            const factDefinitionId = normalizeFactDefinitionId(condition);
+            const projectedRows = context.projectedWorkUnitFactsByDefinitionId?.has(
+              factDefinitionId,
+            )
+              ? toProjectedWorkUnitFactRows({
+                  projectWorkUnitId: context.projectWorkUnitId,
+                  factDefinitionId,
+                  values: context.projectedWorkUnitFactsByDefinitionId?.get(factDefinitionId) ?? [],
+                })
+              : null;
+
+            if (!context.projectWorkUnitId && projectedRows === null) {
               return {
                 met: false,
-                reason: "Work-unit fact condition requires projectWorkUnitId",
+                reason: `Work-unit fact '${condition.factKey}' is missing`,
               };
             }
 
-            const factDefinitionId = normalizeFactDefinitionId(condition);
-            const rows = yield* workUnitFactRepository.getCurrentValuesByDefinition({
-              projectWorkUnitId: context.projectWorkUnitId,
-              factDefinitionId,
-            });
+            const rows =
+              projectedRows ??
+              (yield* workUnitFactRepository.getCurrentValuesByDefinition({
+                projectWorkUnitId: context.projectWorkUnitId!,
+                factDefinitionId,
+              }));
 
             const met = evaluateFactValues({ rows, condition });
 
@@ -460,22 +522,27 @@ export const RuntimeGateServiceLive = Layer.effect(
             } as const;
           }
           case "artifact": {
-            if (!context.projectWorkUnitId) {
+            const slotDefinitionId = normalizeSlotDefinitionId(condition);
+            const projectedFreshness =
+              context.projectedArtifactSlotsByDefinitionId?.get(slotDefinitionId);
+
+            if (!context.projectWorkUnitId && !projectedFreshness) {
               return {
                 met: false,
-                reason: "Artifact condition requires projectWorkUnitId",
+                reason: `Artifact slot '${condition.slotKey}' has no current snapshot`,
               };
             }
 
-            const slotDefinitionId = normalizeSlotDefinitionId(condition);
-            const freshness = yield* artifactRepository.checkFreshness({
-              projectId: context.projectId,
-              projectWorkUnitId: context.projectWorkUnitId,
-              slotDefinitionId,
-            });
+            const freshness =
+              projectedFreshness ??
+              (yield* artifactRepository.checkFreshness({
+                projectId: context.projectId,
+                projectWorkUnitId: context.projectWorkUnitId!,
+                slotDefinitionId,
+              }));
 
             if (condition.operator === "exists") {
-              return freshness.exists
+              return applyArtifactNegation(condition)(freshness.exists)
                 ? ({ met: true } as const)
                 : ({
                     met: false,
@@ -484,7 +551,9 @@ export const RuntimeGateServiceLive = Layer.effect(
             }
 
             if (condition.operator === "fresh") {
-              return freshness.exists && freshness.freshness === "fresh"
+              return applyArtifactNegation(condition)(
+                freshness.exists && freshness.freshness === "fresh",
+              )
                 ? ({ met: true } as const)
                 : ({
                     met: false,
@@ -492,7 +561,9 @@ export const RuntimeGateServiceLive = Layer.effect(
                   } as const);
             }
 
-            return freshness.exists && freshness.freshness === "stale"
+            return applyArtifactNegation(condition)(
+              freshness.exists && freshness.freshness === "stale",
+            )
               ? ({ met: true } as const)
               : ({
                   met: false,

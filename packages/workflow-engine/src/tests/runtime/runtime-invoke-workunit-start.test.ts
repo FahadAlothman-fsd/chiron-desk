@@ -5,9 +5,13 @@ import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-
 import { ProjectContextRepository } from "@chiron/project-context";
 import { RepositoryError } from "../../errors";
 import {
+  ArtifactRepository,
   ExecutionReadRepository,
+  ProjectFactRepository,
+  RuntimeGateServiceLive,
+  WorkUnitFactRepository,
   type WorkflowExecutionDetailReadModel,
-} from "../../repositories/execution-read-repository";
+} from "../../index";
 import {
   InvokeExecutionRepository,
   type InvokeStepExecutionStateRow,
@@ -116,6 +120,14 @@ function createRuntime(options?: {
     projectId: string;
     workUnitTypeId: string;
     currentStateId: string | null;
+  }>;
+  invokeStartConditionSets?: ReadonlyArray<{
+    id: string;
+    key: string;
+    phase: string;
+    mode: string;
+    groupsJson: unknown;
+    guidanceJson: unknown;
   }>;
 }) {
   const invokeRoot: InvokeStepExecutionStateRow = {
@@ -305,7 +317,7 @@ function createRuntime(options?: {
             ])
           : [],
       ),
-    findTransitionConditionSets: () => Effect.succeed([]),
+    findTransitionConditionSets: () => Effect.succeed(options?.invokeStartConditionSets ?? []),
     findAgentTypes: () => Effect.succeed([]),
     findTransitionWorkflowBindings: () => Effect.succeed([]),
     saveLifecycleDefinition: () => Effect.die("unused"),
@@ -540,6 +552,34 @@ function createRuntime(options?: {
     updateActiveTransitionExecutionPointer: () => Effect.succeed(null),
   } as unknown as Context.Tag.Service<typeof ProjectWorkUnitRepository>);
 
+  const projectFactRepoLayer = Layer.succeed(ProjectFactRepository, {
+    createFactInstance: () => Effect.die("unused"),
+    getCurrentValuesByDefinition: () => Effect.succeed([]),
+    listFactsByProject: () => Effect.succeed([]),
+    supersedeFactInstance: () => Effect.void,
+  } as unknown as Context.Tag.Service<typeof ProjectFactRepository>);
+
+  const workUnitFactRepoLayer = Layer.succeed(WorkUnitFactRepository, {
+    createFactInstance: () => Effect.die("unused"),
+    getCurrentValuesByDefinition: () => Effect.succeed([]),
+    listFactsByWorkUnit: () => Effect.succeed([]),
+    supersedeFactInstance: () => Effect.void,
+  } as unknown as Context.Tag.Service<typeof WorkUnitFactRepository>);
+
+  const artifactRepoLayer = Layer.succeed(ArtifactRepository, {
+    createSnapshot: () => Effect.die("unused"),
+    addSnapshotFiles: () => Effect.die("unused"),
+    getCurrentSnapshotBySlot: () => Effect.succeed({ exists: false, snapshot: null, members: [] }),
+    listLineageHistory: () => Effect.succeed([]),
+    checkFreshness: () => Effect.succeed({ exists: false, freshness: "unavailable" as const }),
+  } as unknown as Context.Tag.Service<typeof ArtifactRepository>);
+
+  const runtimeGateLayer = RuntimeGateServiceLive.pipe(
+    Layer.provideMerge(projectFactRepoLayer),
+    Layer.provideMerge(workUnitFactRepoLayer),
+    Layer.provideMerge(artifactRepoLayer),
+  );
+
   const dependencies = Layer.mergeAll(
     stepRepoLayer,
     readRepoLayer,
@@ -548,6 +588,7 @@ function createRuntime(options?: {
     methodologyRepoLayer,
     invokeRepoLayer,
     projectWorkUnitRepoLayer,
+    runtimeGateLayer,
   );
 
   const layer = Layer.provide(InvokeWorkUnitExecutionServiceLive, dependencies);
@@ -703,6 +744,162 @@ describe("InvokeWorkUnitExecutionService", () => {
     expect(runtime.state.projectWorkUnits).toHaveLength(0);
     expect(runtime.state.factInstances).toHaveLength(0);
     expect(runtime.state.artifactSnapshots).toHaveLength(0);
+  });
+
+  it("blocks invoke start when the target transition start gate is not satisfied", async () => {
+    const runtime = createRuntime({
+      invokeStartConditionSets: [
+        {
+          id: "condition-set-1",
+          key: "start-gate",
+          phase: "start",
+          mode: "all",
+          groupsJson: [
+            {
+              mode: "all",
+              conditions: [
+                {
+                  kind: "work_unit_fact",
+                  required: true,
+                  config: {
+                    factKey: "title",
+                    factDefinitionId: "fact-1",
+                    operator: "exists",
+                  },
+                },
+              ],
+            },
+          ],
+          guidanceJson: null,
+        },
+      ],
+    });
+
+    await expectRepositoryErrorMessage(
+      Effect.gen(function* () {
+        const service = yield* InvokeWorkUnitExecutionService;
+        return yield* service.startInvokeWorkUnitTarget({
+          projectId: "project-1",
+          stepExecutionId: "step-exec-1",
+          invokeWorkUnitTargetExecutionId: "invoke-wu-target-1",
+          workflowDefinitionId: "wf-child-primary",
+        });
+      }),
+      runtime.layer,
+      "Work-unit fact 'title' is missing",
+    );
+
+    expect(runtime.state.projectWorkUnits).toHaveLength(0);
+    expect(runtime.state.transitionExecutions).toHaveLength(0);
+    expect(runtime.state.workflowExecutions).toHaveLength(0);
+  });
+
+  it("uses resolved invoke mappings when evaluating target transition start gates", async () => {
+    const runtime = createRuntime({
+      invokeBindings: [
+        {
+          destination: { kind: "work_unit_fact", workUnitFactDefinitionId: "fact-1" },
+          source: { kind: "context_fact", contextFactDefinitionId: "ctx-title" },
+        },
+        {
+          destination: { kind: "artifact_slot", artifactSlotDefinitionId: "slot-1" },
+          source: { kind: "runtime" },
+        },
+      ],
+      workflowEditorContextFacts: [
+        {
+          contextFactDefinitionId: "ctx-title",
+          key: "ctx_title",
+          kind: "plain_value_fact",
+          cardinality: "one",
+          valueType: "string",
+          label: "Context Title",
+        },
+      ],
+      workflowContextFactInstances: [
+        {
+          id: "ctx-title-instance-1",
+          workflowExecutionId: "wf-parent-exec-1",
+          contextFactDefinitionId: "ctx-title",
+          instanceOrder: 0,
+          valueJson: "Gate Title",
+          sourceStepExecutionId: null,
+          createdAt: new Date("2026-04-14T00:00:00.000Z"),
+          updatedAt: new Date("2026-04-14T00:00:00.000Z"),
+        },
+      ],
+      invokeStartConditionSets: [
+        {
+          id: "condition-set-1",
+          key: "start-gate",
+          phase: "start",
+          mode: "all",
+          groupsJson: [
+            {
+              mode: "all",
+              conditions: [
+                {
+                  kind: "work_unit_fact",
+                  required: true,
+                  config: {
+                    factKey: "title",
+                    factDefinitionId: "fact-1",
+                    operator: "equals",
+                    comparisonJson: { value: "Gate Title" },
+                  },
+                },
+                {
+                  kind: "artifact",
+                  required: true,
+                  config: {
+                    slotKey: "brief",
+                    slotDefinitionId: "slot-1",
+                    operator: "exists",
+                  },
+                },
+              ],
+            },
+          ],
+          guidanceJson: null,
+        },
+      ],
+    });
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* InvokeWorkUnitExecutionService;
+        return yield* service.startInvokeWorkUnitTarget({
+          projectId: "project-1",
+          stepExecutionId: "step-exec-1",
+          invokeWorkUnitTargetExecutionId: "invoke-wu-target-1",
+          workflowDefinitionId: "wf-child-primary",
+          runtimeArtifactValues: [
+            {
+              artifactSlotDefinitionId: "slot-1",
+              relativePath: "docs/brief.md",
+            },
+          ],
+        });
+      }).pipe(Effect.provide(runtime.layer)),
+    );
+
+    expect(result.result).toBe("started");
+    expect(runtime.state.factInstances).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          factDefinitionId: "fact-1",
+          valueJson: "Gate Title",
+        }),
+      ]),
+    );
+    expect(runtime.state.artifactSnapshotFiles).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          filePath: "docs/brief.md",
+          memberStatus: "present",
+        }),
+      ]),
+    );
   });
 
   it("rolls back all created entities on atomic failure", async () => {
