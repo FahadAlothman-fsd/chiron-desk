@@ -1,4 +1,5 @@
 import type {
+  SaveInvokeWorkUnitTargetDraftOutput,
   StartInvokeWorkUnitTargetOutput,
   StartInvokeWorkflowTargetOutput,
 } from "@chiron/contracts/runtime/executions";
@@ -120,6 +121,11 @@ export interface StartInvokeWorkUnitTargetAtomicallyParams {
   }>;
 }
 
+export interface SaveInvokeWorkUnitTargetDraftParams {
+  invokeWorkUnitTargetExecutionId: string;
+  frozenDraftTemplateJson?: unknown | null;
+}
+
 export interface CreateInvokeWorkUnitCreatedFactInstanceParams {
   invokeWorkUnitTargetExecutionId: string;
   factDefinitionId: string;
@@ -173,6 +179,9 @@ export class InvokeExecutionRepository extends Context.Tag(
     readonly startInvokeWorkUnitTargetAtomically: (
       params: StartInvokeWorkUnitTargetAtomicallyParams,
     ) => Effect.Effect<StartInvokeWorkUnitTargetOutput, RepositoryError>;
+    readonly saveInvokeWorkUnitTargetDraft: (
+      params: SaveInvokeWorkUnitTargetDraftParams,
+    ) => Effect.Effect<SaveInvokeWorkUnitTargetDraftOutput, RepositoryError>;
     readonly listInvokeWorkUnitCreatedFactInstances: (
       invokeWorkUnitTargetExecutionId: string,
     ) => Effect.Effect<readonly InvokeWorkUnitCreatedFactInstanceRow[], RepositoryError>;

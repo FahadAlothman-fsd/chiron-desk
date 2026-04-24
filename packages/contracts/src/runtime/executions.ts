@@ -790,6 +790,8 @@ export const RuntimeInvokeWorkUnitBindingPreview = Schema.Struct({
   sourceContextFactCardinality: Schema.optional(FactCardinality),
   sourceContextFactValueType: Schema.optional(Schema.String),
   sourceWarnings: Schema.optional(Schema.Array(Schema.String)),
+  authoredPrefillValueJson: Schema.optional(Schema.Unknown),
+  savedDraftValueJson: Schema.optional(Schema.Unknown),
   resolvedValueJson: Schema.optional(Schema.Unknown),
   requiresRuntimeValue: Schema.Boolean,
 });
@@ -816,6 +818,12 @@ export const RuntimeInvokeWorkUnitTargetRow = Schema.Struct({
   workflowDefinitionKey: Schema.optional(Schema.String),
   transitionExecutionId: Schema.optional(Schema.NonEmptyString),
   workflowExecutionId: Schema.optional(Schema.NonEmptyString),
+  startGate: Schema.Struct({
+    conditionTree: Schema.Unknown,
+    evaluationTree: Schema.optional(RuntimeConditionEvaluationTree),
+    firstBlockingReason: Schema.optional(Schema.String),
+    evaluatedAt: Schema.optional(Schema.String),
+  }),
   actions: Schema.Struct({
     start: Schema.optional(
       Schema.Struct({
@@ -1004,6 +1012,46 @@ export const StartInvokeWorkUnitTargetOutput = Schema.Struct({
   warnings: Schema.optional(Schema.Array(SingletonAutoAttachWarning)),
 });
 export type StartInvokeWorkUnitTargetOutput = typeof StartInvokeWorkUnitTargetOutput.Type;
+
+export const SaveInvokeWorkUnitTargetDraftInput = Schema.Struct({
+  projectId: Schema.NonEmptyString,
+  stepExecutionId: Schema.NonEmptyString,
+  invokeWorkUnitTargetExecutionId: Schema.NonEmptyString,
+  runtimeFactValues: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        workUnitFactDefinitionId: Schema.NonEmptyString,
+        valueJson: Schema.Unknown,
+      }),
+    ),
+  ),
+  runtimeArtifactValues: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        artifactSlotDefinitionId: Schema.NonEmptyString,
+        relativePath: Schema.optional(Schema.NonEmptyString),
+        sourceContextFactDefinitionId: Schema.optional(Schema.NonEmptyString),
+        clear: Schema.optional(Schema.Boolean),
+        files: Schema.optional(
+          Schema.Array(
+            Schema.Struct({
+              relativePath: Schema.optional(Schema.NonEmptyString),
+              sourceContextFactDefinitionId: Schema.optional(Schema.NonEmptyString),
+              clear: Schema.optional(Schema.Boolean),
+            }),
+          ),
+        ),
+      }),
+    ),
+  ),
+});
+export type SaveInvokeWorkUnitTargetDraftInput = typeof SaveInvokeWorkUnitTargetDraftInput.Type;
+
+export const SaveInvokeWorkUnitTargetDraftOutput = Schema.Struct({
+  invokeWorkUnitTargetExecutionId: Schema.NonEmptyString,
+  warnings: Schema.optional(Schema.Array(SingletonAutoAttachWarning)),
+});
+export type SaveInvokeWorkUnitTargetDraftOutput = typeof SaveInvokeWorkUnitTargetDraftOutput.Type;
 
 export const StartActionStepExecutionInput = Schema.Struct({
   projectId: Schema.NonEmptyString,

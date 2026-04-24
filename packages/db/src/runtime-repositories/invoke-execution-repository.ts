@@ -14,6 +14,7 @@ import {
   type InvokeWorkUnitCreatedFactInstanceRow,
   type InvokeWorkUnitTargetExecutionRow,
   type InvokeWorkflowTargetExecutionRow,
+  type SaveInvokeWorkUnitTargetDraftParams,
   type StartInvokeWorkUnitTargetAtomicallyParams,
   type StartInvokeWorkflowTargetAtomicallyParams,
   type UpdateInvokeWorkUnitTargetExecutionStartParams,
@@ -581,6 +582,24 @@ export function createInvokeExecutionRepoLayer(db: DB): Layer.Layer<InvokeExecut
             result: "started" as const,
           };
         });
+      }),
+
+    saveInvokeWorkUnitTargetDraft: (params: SaveInvokeWorkUnitTargetDraftParams) =>
+      dbEffect("invoke-execution.work-unit-target.saveDraft", async () => {
+        const rows = await db
+          .update(invokeWorkUnitTargetExecution)
+          .set({ frozenDraftTemplateJson: params.frozenDraftTemplateJson ?? null })
+          .where(eq(invokeWorkUnitTargetExecution.id, params.invokeWorkUnitTargetExecutionId))
+          .returning();
+
+        const row = rows[0];
+        if (!row) {
+          throw new Error("Invoke work-unit target execution not found");
+        }
+
+        return {
+          invokeWorkUnitTargetExecutionId: row.id,
+        };
       }),
 
     listInvokeWorkUnitCreatedFactInstances: (invokeWorkUnitTargetExecutionId: string) =>
