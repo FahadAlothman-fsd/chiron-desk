@@ -311,11 +311,60 @@ function formatBranchAvailabilitySummary(body: BranchBody): string {
 
 type InvokeWorkUnitBindingPreview = RuntimeInvokeWorkUnitTargetRow["bindingPreview"][number];
 
+type RepoFilePickerEntry = {
+  relativePath: string;
+  status: "committed" | "not_committed" | "missing" | "not_a_repo" | "git_not_installed";
+  tracked?: boolean;
+  untracked?: boolean;
+  staged?: boolean;
+  modified?: boolean;
+  deleted?: boolean;
+  gitCommitHash?: string | null;
+  gitBlobHash?: string | null;
+  gitCommitSubject?: string | null;
+  gitCommitBody?: string | null;
+  message?: string;
+};
+
 const isWorkUnitBinding = (binding: InvokeWorkUnitBindingPreview): boolean =>
   binding.destinationFactType === "work_unit" || typeof binding.editorWorkUnitTypeKey === "string";
 
 const isArtifactBinding = (binding: InvokeWorkUnitBindingPreview): boolean =>
   binding.destinationKind === "artifact_slot";
+
+function parseArtifactFilesetPaths(rawValue: string): string[] {
+  return rawValue
+    .split("\n")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+function normalizeFileSystemPath(value: string): string {
+  return value.replaceAll("\\", "/").replace(/\/+$/g, "");
+}
+
+function toProjectRelativePath(projectRootPath: string, selectedPath: string): string | null {
+  const normalizedRoot = normalizeFileSystemPath(projectRootPath).toLowerCase();
+  const normalizedSelected = normalizeFileSystemPath(selectedPath);
+  const normalizedSelectedLower = normalizedSelected.toLowerCase();
+
+  if (
+    normalizedSelectedLower === normalizedRoot ||
+    !normalizedSelectedLower.startsWith(`${normalizedRoot}/`)
+  ) {
+    return null;
+  }
+
+  return normalizedSelected.slice(normalizedRoot.length + 1);
+}
+
+function parseSelectedArtifactPaths(rawValue: string, cardinality: "one" | "many"): string[] {
+  return cardinality === "many"
+    ? parseArtifactFilesetPaths(rawValue)
+    : rawValue.trim().length > 0
+      ? [rawValue.trim()]
+      : [];
+}
 
 function serializeInvokeBindingDraftValue(
   binding: InvokeWorkUnitBindingPreview,
@@ -326,7 +375,45 @@ function serializeInvokeBindingDraftValue(
   }
 
   if (binding.destinationKind !== "work_unit_fact") {
-    return isArtifactBinding(binding) ? encodeOptionValue(value) : "";
+    if (!isArtifactBinding(binding)) {
+      return "";
+    }
+
+    if (binding.destinationCardinality === "many") {
+      if (Array.isArray(value)) {
+        return value
+          .flatMap((entry) => {
+            if (typeof entry === "string") {
+              return [entry];
+            }
+
+            if (
+              typeof entry === "object" &&
+              entry !== null &&
+              "relativePath" in entry &&
+              typeof entry.relativePath === "string"
+            ) {
+              return [entry.relativePath];
+            }
+
+            return [];
+          })
+          .join("\n");
+      }
+
+      if (
+        typeof value === "object" &&
+        value !== null &&
+        "relativePath" in value &&
+        typeof value.relativePath === "string"
+      ) {
+        return value.relativePath;
+      }
+
+      return typeof value === "string" ? value : "";
+    }
+
+    return encodeOptionValue(value);
   }
 
   if (isWorkUnitBinding(binding)) {
@@ -509,6 +596,57 @@ function getSelectedPrimaryWorkflowLabel(
   return matched ? formatPrimaryWorkflowOption(matched) : null;
 }
 
+function getRepoFileStatusTone(
+  entry: RepoFilePickerEntry,
+): Parameters<typeof ExecutionBadge>[0]["tone"] {
+  switch (entry.status) {
+    case "committed":
+      return "emerald";
+    case "not_committed":
+      return entry.untracked ? "amber" : entry.modified || entry.staged ? "violet" : "amber";
+    case "missing":
+      return "rose";
+    case "not_a_repo":
+    case "git_not_installed":
+    default:
+      return "slate";
+  }
+}
+
+function formatRepoFileStatus(entry: RepoFilePickerEntry): string {
+  if (entry.status === "committed") {
+    return "committed";
+  }
+  if (entry.status === "missing") {
+    return "missing";
+  }
+  if (entry.status === "not_a_repo") {
+    return "not a repo";
+  }
+  if (entry.status === "git_not_installed") {
+    return "git unavailable";
+  }
+
+  return [
+    entry.untracked ? "untracked" : null,
+    entry.staged ? "staged" : null,
+    entry.modified ? "modified" : null,
+    entry.deleted ? "deleted" : null,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(" · ");
+}
+
+function formatRepoFileMeta(entry: RepoFilePickerEntry): string | null {
+  if (entry.status === "committed") {
+    return entry.gitCommitSubject ?? entry.gitCommitHash ?? null;
+  }
+  if (entry.status === "not_a_repo" || entry.status === "git_not_installed") {
+    return entry.message ?? null;
+  }
+  return null;
+}
+
 function parseRuntimeBindingInputValue(params: {
   binding: InvokeWorkUnitBindingPreview;
   rawValue: string;
@@ -524,7 +662,36 @@ function parseRuntimeBindingInputValue(params: {
         };
       }
 
+      if (binding.destinationCardinality === "many") {
+        const relativePaths = rawValue
+          .split("\n")
+          .map((entry) => entry.trim())
+          .filter((entry) => entry.length > 0);
+        if (relativePaths.length === 0) {
+          return {
+            ok: false,
+            message: `Provide one or more artifact paths for '${binding.destinationLabel}'.`,
+          };
+        }
+
+        return {
+          ok: true,
+          valueJson: {
+            files: relativePaths.map((relativePath) => ({ relativePath })),
+          },
+        };
+      }
+
+      const trimmedRawValue = rawValue.trim();
       const decoded = decodeOptionValue(rawValue);
+      if (typeof decoded === "string") {
+        return {
+          ok: true,
+          valueJson: {
+            relativePath: trimmedRawValue,
+          },
+        };
+      }
       if (
         typeof decoded !== "object" ||
         decoded === null ||
@@ -4906,6 +5073,9 @@ function InvokeInteractionSurface(props: {
 }) {
   const { detail, projectId } = props;
   const { orpc, queryClient } = Route.useRouteContext();
+  const desktopBridge = typeof window === "undefined" ? undefined : window.desktop;
+  const selectDesktopFiles =
+    typeof desktopBridge?.selectFiles === "function" ? desktopBridge.selectFiles : undefined;
   const shell = detail.shell;
   const body = detail.body;
   const [selectedWorkflowsByRowId, setSelectedWorkflowsByRowId] = useState<Record<string, string>>(
@@ -4923,6 +5093,9 @@ function InvokeInteractionSurface(props: {
   const [runtimeBindingValidationError, setRuntimeBindingValidationError] = useState<string | null>(
     null,
   );
+  const [artifactPickerKey, setArtifactPickerKey] = useState<string | null>(null);
+  const [artifactPickerQuery, setArtifactPickerQuery] = useState("");
+  const [nativeArtifactPickerKey, setNativeArtifactPickerKey] = useState<string | null>(null);
 
   useEffect(() => {
     setSelectedWorkflowsByRowId(
@@ -4935,7 +5108,141 @@ function InvokeInteractionSurface(props: {
     );
     setRuntimeBindingInputsByRowId(createRuntimeBindingDraftState(body.workUnitTargets));
     setRuntimeBindingValidationError(null);
+    setArtifactPickerKey(null);
+    setArtifactPickerQuery("");
+    setNativeArtifactPickerKey(null);
   }, [body.workUnitTargets]);
+
+  const projectDetailsQuery = useQuery(
+    selectDesktopFiles
+      ? {
+          ...orpc.project.getProjectDetails.queryOptions({ input: { projectId } }),
+          enabled: true,
+        }
+      : {
+          queryKey: ["project-details", projectId, "invoke-artifact-picker-disabled"] as const,
+          queryFn: async () => null,
+          enabled: false,
+        },
+  );
+
+  const repoFilesQuery = useQuery({
+    ...orpc.project.listProjectRepoFiles.queryOptions({
+      input: {
+        projectId,
+        ...(artifactPickerQuery.trim().length > 0 ? { query: artifactPickerQuery.trim() } : {}),
+        limit: 200,
+      },
+    }),
+    enabled: artifactPickerKey !== null && typeof selectDesktopFiles !== "function",
+  });
+
+  const selectedArtifactRelativePaths = useMemo(() => {
+    const collected = new Set<string>();
+    for (const row of body.workUnitTargets) {
+      const rowRuntimeInputs =
+        runtimeBindingInputsByRowId[row.invokeWorkUnitTargetExecutionId] ?? {};
+      for (const binding of row.bindingPreview) {
+        if (binding.destinationKind !== "artifact_slot") {
+          continue;
+        }
+        const rawValue = rowRuntimeInputs[binding.destinationDefinitionId] ?? "";
+        for (const relativePath of parseSelectedArtifactPaths(
+          rawValue,
+          binding.destinationCardinality,
+        )) {
+          collected.add(relativePath);
+        }
+      }
+    }
+    return [...collected];
+  }, [body.workUnitTargets, runtimeBindingInputsByRowId]);
+
+  const selectedArtifactStatusesQuery = useQuery({
+    ...orpc.project.getProjectRepoFileStatuses.queryOptions({
+      input: {
+        projectId,
+        relativePaths: selectedArtifactRelativePaths,
+      },
+    }),
+    enabled: selectedArtifactRelativePaths.length > 0,
+  });
+
+  const selectedArtifactStatusMap = useMemo(
+    () =>
+      new Map(
+        (selectedArtifactStatusesQuery.data ?? []).map(
+          (entry) => [entry.relativePath, entry] as const,
+        ),
+      ),
+    [selectedArtifactStatusesQuery.data],
+  );
+
+  const chooseNativeArtifactFiles = useCallback(
+    async (params: {
+      rowId: string;
+      binding: InvokeWorkUnitBindingPreview;
+      artifactPickerId: string;
+    }) => {
+      if (!selectDesktopFiles) {
+        return;
+      }
+
+      const projectRootPath = projectDetailsQuery.data?.project.projectRootPath;
+      if (!projectRootPath) {
+        setRuntimeBindingValidationError(
+          "Desktop file selection requires a project root path for this project.",
+        );
+        return;
+      }
+
+      setNativeArtifactPickerKey(params.artifactPickerId);
+      try {
+        const selectedPaths = await selectDesktopFiles({
+          multiple: params.binding.destinationCardinality === "many",
+          title:
+            params.binding.destinationCardinality === "many"
+              ? `Select files for ${params.binding.destinationLabel}`
+              : `Select file for ${params.binding.destinationLabel}`,
+          buttonLabel:
+            params.binding.destinationCardinality === "many" ? "Select files" : "Select file",
+          defaultPath: projectRootPath,
+        });
+
+        if (!selectedPaths || selectedPaths.length === 0) {
+          return;
+        }
+
+        const relativePaths = selectedPaths.flatMap((selectedPath) => {
+          const relativePath = toProjectRelativePath(projectRootPath, selectedPath);
+          return relativePath ? [relativePath] : [];
+        });
+
+        if (relativePaths.length !== selectedPaths.length) {
+          setRuntimeBindingValidationError(
+            "Selected files must stay within the project root directory.",
+          );
+          return;
+        }
+
+        setRuntimeBindingValidationError(null);
+        setRuntimeBindingInputsByRowId((current) =>
+          updateRuntimeBindingDraftState({
+            current,
+            rowId: params.rowId,
+            destinationDefinitionId: params.binding.destinationDefinitionId,
+            value:
+              params.binding.destinationCardinality === "many"
+                ? relativePaths.join("\n")
+                : (relativePaths[0] ?? ""),
+          }),
+        );
+      } finally {
+        setNativeArtifactPickerKey(null);
+      }
+    },
+    [projectDetailsQuery.data?.project.projectRootPath, selectDesktopFiles],
+  );
 
   const invalidateStepDetail = async () => {
     await queryClient.invalidateQueries({
@@ -5479,6 +5786,24 @@ function InvokeInteractionSurface(props: {
                                     selectorOptions,
                                     runtimeRawValue,
                                   );
+                                  const usesRuntimeArtifactPicker =
+                                    binding.destinationKind === "artifact_slot" &&
+                                    binding.requiresRuntimeValue;
+                                  const usesDesktopArtifactPicker =
+                                    usesRuntimeArtifactPicker &&
+                                    typeof selectDesktopFiles === "function";
+                                  const filesetSelectedPaths =
+                                    usesRuntimeArtifactPicker &&
+                                    binding.destinationCardinality === "many"
+                                      ? parseArtifactFilesetPaths(runtimeRawValue)
+                                      : [];
+                                  const singleArtifactSelectedPath =
+                                    usesRuntimeArtifactPicker &&
+                                    binding.destinationCardinality !== "many"
+                                      ? runtimeRawValue.trim()
+                                      : "";
+                                  const filesetSelectedSet = new Set(filesetSelectedPaths);
+                                  const artifactPickerId = `${row.invokeWorkUnitTargetExecutionId}:${binding.destinationDefinitionId}`;
 
                                   return (
                                     <li
@@ -5548,45 +5873,287 @@ function InvokeInteractionSurface(props: {
                                       {binding.destinationKind === "artifact_slot" ? (
                                         <div className="space-y-2">
                                           <DetailLabel>Start-time value</DetailLabel>
-                                          <Select
-                                            value={runtimeRawValue}
-                                            disabled={
-                                              bindingsLocked || selectorOptions.length === 0
-                                            }
-                                            onValueChange={(value) => {
-                                              setRuntimeBindingValidationError(null);
-                                              setRuntimeBindingInputsByRowId((current) =>
-                                                updateRuntimeBindingDraftState({
-                                                  current,
-                                                  rowId: row.invokeWorkUnitTargetExecutionId,
-                                                  destinationDefinitionId:
-                                                    binding.destinationDefinitionId,
-                                                  value: value ?? "",
-                                                }),
-                                              );
-                                            }}
-                                          >
-                                            <SelectTrigger className="w-full border-amber-500/30 bg-amber-500/10 text-foreground">
-                                              <span className="truncate text-left">
-                                                {selectedBindingOptionLabel ??
-                                                  "Select an artifact source"}
-                                              </span>
-                                            </SelectTrigger>
-                                            <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
-                                              {selectorOptions.map((option) => (
-                                                <SelectItem
-                                                  key={`${binding.destinationDefinitionId}-${encodeOptionValue(option.value)}`}
-                                                  value={encodeOptionValue(option.value)}
+                                          {usesRuntimeArtifactPicker ? (
+                                            <div className="space-y-2">
+                                              {usesDesktopArtifactPicker ? (
+                                                <Button
+                                                  type="button"
+                                                  variant="outline"
+                                                  role="combobox"
+                                                  aria-label={`artifact-files-${artifactPickerId}`}
+                                                  className="h-8 w-full justify-between rounded-none border-amber-500/30 bg-amber-500/10 px-2.5 py-1 font-normal text-foreground"
+                                                  disabled={
+                                                    bindingsLocked ||
+                                                    nativeArtifactPickerKey === artifactPickerId
+                                                  }
+                                                  onClick={() => {
+                                                    void chooseNativeArtifactFiles({
+                                                      rowId: row.invokeWorkUnitTargetExecutionId,
+                                                      binding,
+                                                      artifactPickerId,
+                                                    });
+                                                  }}
                                                 >
-                                                  {option.label}
-                                                </SelectItem>
-                                              ))}
-                                            </SelectContent>
-                                          </Select>
+                                                  <span className="truncate text-left text-xs">
+                                                    {nativeArtifactPickerKey === artifactPickerId
+                                                      ? "Opening system file selector..."
+                                                      : binding.destinationCardinality === "many"
+                                                        ? filesetSelectedPaths.length === 0
+                                                          ? "Choose files"
+                                                          : `${filesetSelectedPaths.length} files selected`
+                                                        : singleArtifactSelectedPath.length > 0
+                                                          ? singleArtifactSelectedPath
+                                                          : "Choose file"}
+                                                  </span>
+                                                  <ChevronsUpDownIcon className="size-3.5 shrink-0 opacity-70" />
+                                                </Button>
+                                              ) : (
+                                                <Popover
+                                                  open={artifactPickerKey === artifactPickerId}
+                                                  onOpenChange={(nextOpen) => {
+                                                    setArtifactPickerKey(
+                                                      nextOpen ? artifactPickerId : null,
+                                                    );
+                                                    setArtifactPickerQuery("");
+                                                  }}
+                                                >
+                                                  <PopoverTrigger
+                                                    render={
+                                                      <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        role="combobox"
+                                                        aria-label={`artifact-files-${artifactPickerId}`}
+                                                        className="h-8 w-full justify-between rounded-none border-amber-500/30 bg-amber-500/10 px-2.5 py-1 font-normal text-foreground"
+                                                        disabled={bindingsLocked}
+                                                      />
+                                                    }
+                                                  >
+                                                    <span className="truncate text-left text-xs">
+                                                      {binding.destinationCardinality === "many"
+                                                        ? filesetSelectedPaths.length === 0
+                                                          ? "Browse project repo files"
+                                                          : `${filesetSelectedPaths.length} files selected`
+                                                        : singleArtifactSelectedPath.length > 0
+                                                          ? singleArtifactSelectedPath
+                                                          : "Browse project repo files"}
+                                                    </span>
+                                                    <ChevronsUpDownIcon className="size-3.5 shrink-0 opacity-70" />
+                                                  </PopoverTrigger>
+                                                  <PopoverContent
+                                                    className="w-[min(36rem,calc(100vw-3rem))] p-0"
+                                                    align="start"
+                                                    frame="cut-thin"
+                                                    tone="context"
+                                                    sideOffset={4}
+                                                  >
+                                                    <Command
+                                                      density="compact"
+                                                      frame="default"
+                                                      className="bg-[#0b0f12] text-foreground"
+                                                    >
+                                                      <CommandInput
+                                                        density="compact"
+                                                        placeholder="Search project repo files..."
+                                                        value={artifactPickerQuery}
+                                                        onValueChange={setArtifactPickerQuery}
+                                                      />
+                                                      <CommandList>
+                                                        <CommandEmpty>
+                                                          No repo files found.
+                                                        </CommandEmpty>
+                                                        <CommandGroup heading="Project repo files">
+                                                          {(repoFilesQuery.data ?? []).map(
+                                                            (entry) => {
+                                                              const selected =
+                                                                binding.destinationCardinality ===
+                                                                "many"
+                                                                  ? filesetSelectedSet.has(
+                                                                      entry.relativePath,
+                                                                    )
+                                                                  : singleArtifactSelectedPath ===
+                                                                    entry.relativePath;
+                                                              const meta =
+                                                                formatRepoFileMeta(entry);
+                                                              return (
+                                                                <CommandItem
+                                                                  key={`${artifactPickerId}-${entry.relativePath}`}
+                                                                  value={`${entry.relativePath} ${formatRepoFileStatus(entry)} ${meta ?? ""}`}
+                                                                  onSelect={() => {
+                                                                    setRuntimeBindingValidationError(
+                                                                      null,
+                                                                    );
+                                                                    setRuntimeBindingInputsByRowId(
+                                                                      (current) =>
+                                                                        updateRuntimeBindingDraftState(
+                                                                          {
+                                                                            current,
+                                                                            rowId:
+                                                                              row.invokeWorkUnitTargetExecutionId,
+                                                                            destinationDefinitionId:
+                                                                              binding.destinationDefinitionId,
+                                                                            value:
+                                                                              binding.destinationCardinality ===
+                                                                              "many"
+                                                                                ? (selected
+                                                                                    ? filesetSelectedPaths.filter(
+                                                                                        (value) =>
+                                                                                          value !==
+                                                                                          entry.relativePath,
+                                                                                      )
+                                                                                    : [
+                                                                                        ...filesetSelectedPaths,
+                                                                                        entry.relativePath,
+                                                                                      ]
+                                                                                  ).join("\n")
+                                                                                : selected
+                                                                                  ? ""
+                                                                                  : entry.relativePath,
+                                                                          },
+                                                                        ),
+                                                                    );
+                                                                    if (
+                                                                      binding.destinationCardinality !==
+                                                                      "many"
+                                                                    ) {
+                                                                      setArtifactPickerKey(null);
+                                                                      setArtifactPickerQuery("");
+                                                                    }
+                                                                  }}
+                                                                >
+                                                                  <Checkbox
+                                                                    checked={selected}
+                                                                    className="pointer-events-none"
+                                                                  />
+                                                                  <div className="grid min-w-0 flex-1 gap-0.5">
+                                                                    <span className="truncate font-medium">
+                                                                      {entry.relativePath}
+                                                                    </span>
+                                                                    <div className="flex flex-wrap gap-1">
+                                                                      <ExecutionBadge
+                                                                        label={formatRepoFileStatus(
+                                                                          entry,
+                                                                        )}
+                                                                        tone={getRepoFileStatusTone(
+                                                                          entry,
+                                                                        )}
+                                                                      />
+                                                                    </div>
+                                                                    {meta ? (
+                                                                      <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
+                                                                        {meta}
+                                                                      </span>
+                                                                    ) : null}
+                                                                  </div>
+                                                                </CommandItem>
+                                                              );
+                                                            },
+                                                          )}
+                                                        </CommandGroup>
+                                                      </CommandList>
+                                                    </Command>
+                                                  </PopoverContent>
+                                                </Popover>
+                                              )}
+                                              {(
+                                                binding.destinationCardinality === "many"
+                                                  ? filesetSelectedPaths.length > 0
+                                                  : singleArtifactSelectedPath.length > 0
+                                              ) ? (
+                                                <div className="space-y-1 border border-border/70 bg-background/40 p-2">
+                                                  {(binding.destinationCardinality === "many"
+                                                    ? filesetSelectedPaths
+                                                    : [singleArtifactSelectedPath]
+                                                  ).map((relativePath) => {
+                                                    const matched =
+                                                      selectedArtifactStatusMap.get(relativePath);
+                                                    return (
+                                                      <div
+                                                        key={`${artifactPickerId}-selected-${relativePath}`}
+                                                        className="flex flex-wrap items-center gap-2"
+                                                      >
+                                                        <DetailPrimary className="text-xs font-normal">
+                                                          {relativePath}
+                                                        </DetailPrimary>
+                                                        {matched ? (
+                                                          <ExecutionBadge
+                                                            label={formatRepoFileStatus(matched)}
+                                                            tone={getRepoFileStatusTone(matched)}
+                                                          />
+                                                        ) : null}
+                                                        {!matched &&
+                                                        selectedArtifactStatusesQuery.isFetching ? (
+                                                          <ExecutionBadge
+                                                            label="Checking git status"
+                                                            tone="amber"
+                                                          />
+                                                        ) : null}
+                                                        {matched ? (
+                                                          <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
+                                                            {formatRepoFileMeta(matched) ?? ""}
+                                                          </span>
+                                                        ) : null}
+                                                      </div>
+                                                    );
+                                                  })}
+                                                </div>
+                                              ) : null}
+                                            </div>
+                                          ) : (
+                                            <Select
+                                              value={runtimeRawValue}
+                                              disabled={
+                                                bindingsLocked || selectorOptions.length === 0
+                                              }
+                                              onValueChange={(value) => {
+                                                setRuntimeBindingValidationError(null);
+                                                setRuntimeBindingInputsByRowId((current) =>
+                                                  updateRuntimeBindingDraftState({
+                                                    current,
+                                                    rowId: row.invokeWorkUnitTargetExecutionId,
+                                                    destinationDefinitionId:
+                                                      binding.destinationDefinitionId,
+                                                    value: value ?? "",
+                                                  }),
+                                                );
+                                              }}
+                                            >
+                                              <SelectTrigger className="w-full border-amber-500/30 bg-amber-500/10 text-foreground">
+                                                <span className="truncate text-left">
+                                                  {selectedBindingOptionLabel ??
+                                                    "Select an artifact source"}
+                                                </span>
+                                              </SelectTrigger>
+                                              <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
+                                                {selectorOptions.map((option) => (
+                                                  <SelectItem
+                                                    key={`${binding.destinationDefinitionId}-${encodeOptionValue(option.value)}`}
+                                                    value={encodeOptionValue(option.value)}
+                                                  >
+                                                    {option.label}
+                                                  </SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                          )}
                                           {binding.editorEmptyState ? (
                                             <p className="text-xs text-muted-foreground">
                                               {binding.editorEmptyState}
                                             </p>
+                                          ) : null}
+                                          {binding.sourceWarnings?.length ? (
+                                            <div className="space-y-1 border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-100">
+                                              <DetailLabel>Mapping warnings</DetailLabel>
+                                              <ul className="space-y-1">
+                                                {binding.sourceWarnings.map((warning, index) => (
+                                                  <li
+                                                    key={`${binding.destinationDefinitionId}-warning-${index}`}
+                                                  >
+                                                    {warning}
+                                                  </li>
+                                                ))}
+                                              </ul>
+                                            </div>
                                           ) : null}
                                           <div>
                                             <DetailLabel>Resolved value</DetailLabel>
@@ -5832,6 +6399,16 @@ function InvokeInteractionSurface(props: {
                                     runtimeFactValues.push({
                                       workUnitFactDefinitionId: binding.destinationDefinitionId,
                                       valueJson: parsed.valueJson,
+                                    });
+                                  } else if (
+                                    typeof parsed.valueJson === "object" &&
+                                    parsed.valueJson !== null &&
+                                    "files" in parsed.valueJson &&
+                                    Array.isArray(parsed.valueJson.files)
+                                  ) {
+                                    runtimeArtifactValues.push({
+                                      artifactSlotDefinitionId: binding.destinationDefinitionId,
+                                      files: parsed.valueJson.files,
                                     });
                                   } else if (
                                     typeof parsed.valueJson === "object" &&

@@ -300,6 +300,34 @@ function buildDetail(): any {
               sourceKind: "runtime" as const,
               requiresRuntimeValue: true,
             },
+            {
+              destinationKind: "artifact_slot" as const,
+              destinationDefinitionId: "artifact-brainstorming-session",
+              destinationLabel: "Brainstorming Session",
+              destinationCardinality: "one" as const,
+              sourceKind: "runtime" as const,
+              requiresRuntimeValue: true,
+            },
+            {
+              destinationKind: "artifact_slot" as const,
+              destinationDefinitionId: "artifact-supporting-files",
+              destinationLabel: "Supporting Files",
+              destinationCardinality: "many" as const,
+              sourceKind: "runtime" as const,
+              requiresRuntimeValue: true,
+            },
+            {
+              destinationKind: "artifact_slot" as const,
+              destinationDefinitionId: "artifact-story-brief",
+              destinationLabel: "Story Brief",
+              sourceKind: "context_fact" as const,
+              sourceContextFactDefinitionId: "ctx-brief-path",
+              sourceContextFactKey: "brief_path",
+              sourceWarnings: [
+                "Brief Path: docs/missing.md will not be mapped (file is missing from the repo).",
+              ],
+              requiresRuntimeValue: false,
+            },
           ],
         },
         {
@@ -398,6 +426,50 @@ async function renderHarness(initialDetail = buildDetail()) {
   const getAgentStepExecutionDetailQueryOptionsMock = vi.fn(() => ({
     queryKey: ["runtime-agent-step-execution-detail", "project-1", "step-invoke-1"],
     queryFn: async () => ({ body: { stepType: "agent" as const } }),
+  }));
+  const getProjectDetailsQueryOptionsMock = vi.fn(() => ({
+    queryKey: ["project-details", "project-1"],
+    queryFn: async () => ({
+      project: {
+        projectId: "project-1",
+        displayName: "Project 1",
+        projectRootPath: "/tmp/project-1",
+      },
+      pin: {
+        methodologyVersionId: "mver_bmad_v1_active",
+      },
+    }),
+  }));
+  const getProjectRepoFileStatusesQueryOptionsMock = vi.fn(
+    (_input: { input: { projectId: string; relativePaths: string[] } }) => ({
+      queryKey: ["project-repo-file-statuses", "project-1", ..._input.input.relativePaths],
+      queryFn: async () =>
+        _input.input.relativePaths.map((relativePath) => ({
+          relativePath,
+          status: "committed" as const,
+          gitCommitHash: "commit-1",
+          gitBlobHash: "blob-1",
+          gitCommitSubject: `Add ${relativePath}`,
+          gitCommitBody: null,
+        })),
+    }),
+  );
+  const listProjectRepoFilesQueryOptionsMock = vi.fn(() => ({
+    queryKey: ["project-repo-files", "project-1"],
+    queryFn: async () => [
+      {
+        relativePath: "docs/brief.md",
+        status: "committed" as const,
+        gitCommitHash: "commit-1",
+        gitBlobHash: "blob-1",
+        gitCommitSubject: "Add brief",
+        gitCommitBody: null,
+      },
+      {
+        relativePath: "docs/missing.md",
+        status: "missing" as const,
+      },
+    ],
   }));
 
   const startInvokeWorkflowTargetMutationOptionsMock = vi.fn(
@@ -529,11 +601,20 @@ async function renderHarness(initialDetail = buildDetail()) {
 
   const orpc = {
     project: {
+      getProjectDetails: {
+        queryOptions: getProjectDetailsQueryOptionsMock,
+      },
+      getProjectRepoFileStatuses: {
+        queryOptions: getProjectRepoFileStatusesQueryOptionsMock,
+      },
       getRuntimeStepExecutionDetail: {
         queryOptions: getRuntimeStepExecutionDetailQueryOptionsMock,
       },
       getAgentStepExecutionDetail: {
         queryOptions: getAgentStepExecutionDetailQueryOptionsMock,
+      },
+      listProjectRepoFiles: {
+        queryOptions: listProjectRepoFilesQueryOptionsMock,
       },
       startInvokeWorkflowTarget: {
         mutationOptions: startInvokeWorkflowTargetMutationOptionsMock,
@@ -583,6 +664,9 @@ async function renderHarness(initialDetail = buildDetail()) {
     startWorkflowCalls,
     startWorkUnitCalls,
     completeCalls,
+    getProjectDetailsQueryOptionsMock,
+    getProjectRepoFileStatusesQueryOptionsMock,
+    listProjectRepoFilesQueryOptionsMock,
   };
 }
 
@@ -590,6 +674,7 @@ describe("runtime invoke step detail route", () => {
   beforeEach(() => {
     cleanup();
     vi.clearAllMocks();
+    delete window.desktop;
   });
 
   it("renders the agreed invoke shell, workflow/work-unit rows, and propagation preview", async () => {
@@ -629,8 +714,20 @@ describe("runtime invoke step detail route", () => {
     ).toBeGreaterThan(0);
     expect(screen.getAllByText(/prefill/i).length).toBeGreaterThan(0);
     expect(screen.getByText("Prefilled direction")).toBeTruthy();
+    expect(
+      screen.getByRole("combobox", {
+        name: /artifact-files-invoke-work-unit-row-2:artifact-brainstorming-session/i,
+      }),
+    ).toBeTruthy();
+    expect(screen.getAllByText("Browse project repo files").length).toBeGreaterThan(0);
+    expect(screen.getByText("Mapping warnings")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Brief Path: docs/missing.md will not be mapped (file is missing from the repo).",
+      ),
+    ).toBeTruthy();
 
-    expect(screen.getByRole("combobox")).toBeTruthy();
+    expect(screen.getAllByRole("combobox").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Start workflow" })).toBeTruthy();
     expect(screen.getAllByRole("button", { name: "Start work unit" }).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Complete Step" })).toBeTruthy();
@@ -664,7 +761,10 @@ describe("runtime invoke step detail route", () => {
     );
     await waitFor(() => expect(harness.detailQueryCalls()).toBeGreaterThan(1));
 
-    await user.selectOptions(screen.getByRole("combobox"), "workflow-primary-2");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "invoke-primary-workflow-invoke-work-unit-row-2" }),
+      "workflow-primary-2",
+    );
     const overrideInput = screen.getByDisplayValue("Prefilled direction");
     await user.clear(overrideInput);
     await user.type(overrideInput, "Operator override");
@@ -737,5 +837,76 @@ describe("runtime invoke step detail route", () => {
 
     expect(harness.startWorkUnitCalls).toHaveLength(0);
     expect(harness.completeCalls).toHaveLength(0);
+  });
+
+  it("prefers the Electron system file selector for runtime artifact bindings when the desktop bridge is available", async () => {
+    const user = userEvent.setup();
+    const selectFiles = vi
+      .fn()
+      .mockResolvedValueOnce(["/tmp/project-1/docs/brief.md"])
+      .mockResolvedValueOnce(["/tmp/project-1/docs/brief.md", "/tmp/project-1/docs/notes.md"]);
+    window.desktop = {
+      runtime: {},
+      getRuntimeStatus: vi.fn(),
+      recoverLocalServices: vi.fn(),
+      selectProjectRootDirectory: vi.fn(),
+      selectFiles,
+    };
+
+    const harness = await renderHarness();
+
+    expect(
+      screen.getByRole("combobox", {
+        name: /artifact-files-invoke-work-unit-row-2:artifact-brainstorming-session/i,
+      }),
+    ).toBeTruthy();
+    expect(screen.getByText("Choose file")).toBeTruthy();
+
+    await user.click(
+      screen.getByRole("combobox", {
+        name: /artifact-files-invoke-work-unit-row-2:artifact-brainstorming-session/i,
+      }),
+    );
+
+    await waitFor(() => expect(selectFiles).toHaveBeenCalledOnce());
+    expect(selectFiles).toHaveBeenNthCalledWith(1, {
+      multiple: false,
+      title: "Select file for Brainstorming Session",
+      buttonLabel: "Select file",
+      defaultPath: "/tmp/project-1",
+    });
+    expect(harness.getProjectDetailsQueryOptionsMock).toHaveBeenCalled();
+    await waitFor(() =>
+      expect(harness.getProjectRepoFileStatusesQueryOptionsMock).toHaveBeenCalledWith({
+        input: {
+          projectId: "project-1",
+          relativePaths: ["docs/brief.md"],
+        },
+      }),
+    );
+    expect(screen.getAllByText("docs/brief.md").length).toBeGreaterThan(0);
+
+    await user.click(
+      screen.getByRole("combobox", {
+        name: /artifact-files-invoke-work-unit-row-2:artifact-supporting-files/i,
+      }),
+    );
+
+    await waitFor(() => expect(selectFiles).toHaveBeenCalledTimes(2));
+    expect(selectFiles).toHaveBeenNthCalledWith(2, {
+      multiple: true,
+      title: "Select files for Supporting Files",
+      buttonLabel: "Select files",
+      defaultPath: "/tmp/project-1",
+    });
+    await waitFor(() =>
+      expect(harness.getProjectRepoFileStatusesQueryOptionsMock).toHaveBeenCalledWith({
+        input: {
+          projectId: "project-1",
+          relativePaths: ["docs/brief.md", "docs/notes.md"],
+        },
+      }),
+    );
+    expect(screen.getByText("docs/notes.md")).toBeTruthy();
   });
 });
