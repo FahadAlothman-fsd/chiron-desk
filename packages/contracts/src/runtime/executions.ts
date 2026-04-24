@@ -789,6 +789,7 @@ export const RuntimeInvokeWorkUnitBindingPreview = Schema.Struct({
   sourceContextFactKind: Schema.optional(WorkflowContextFactKind),
   sourceContextFactCardinality: Schema.optional(FactCardinality),
   sourceContextFactValueType: Schema.optional(Schema.String),
+  sourceWarnings: Schema.optional(Schema.Array(Schema.String)),
   resolvedValueJson: Schema.optional(Schema.Unknown),
   requiresRuntimeValue: Schema.Boolean,
 });
@@ -976,6 +977,15 @@ export const StartInvokeWorkUnitTargetInput = Schema.Struct({
         relativePath: Schema.optional(Schema.NonEmptyString),
         sourceContextFactDefinitionId: Schema.optional(Schema.NonEmptyString),
         clear: Schema.optional(Schema.Boolean),
+        files: Schema.optional(
+          Schema.Array(
+            Schema.Struct({
+              relativePath: Schema.optional(Schema.NonEmptyString),
+              sourceContextFactDefinitionId: Schema.optional(Schema.NonEmptyString),
+              clear: Schema.optional(Schema.Boolean),
+            }),
+          ),
+        ),
       }),
     ),
   ),
