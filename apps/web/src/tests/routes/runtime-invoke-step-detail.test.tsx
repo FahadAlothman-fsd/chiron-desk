@@ -235,6 +235,20 @@ function buildDetail(): any {
           transitionLabel: "Start QA",
           status: "blocked" as const,
           blockedReason: "No primary workflows are available for this transition.",
+          startGate: {
+            conditionTree: {
+              mode: "all" as const,
+              conditions: [],
+              groups: [],
+            },
+            evaluationTree: {
+              mode: "all" as const,
+              met: true,
+              conditions: [],
+              groups: [],
+            },
+            evaluatedAt: "2026-04-14T10:02:00.000Z",
+          },
           availablePrimaryWorkflows: [],
           invokeWorkUnitTargetExecutionId: "invoke-work-unit-row-1",
           workUnitDefinitionId: "work-unit-def-1",
@@ -273,6 +287,38 @@ function buildDetail(): any {
           workUnitDefinitionName: "Story",
           transitionDefinitionId: "transition-def-2",
           transitionDefinitionKey: "activation_to_in_progress",
+          startGate: {
+            conditionTree: {
+              mode: "all" as const,
+              conditions: [
+                {
+                  kind: "work_unit_fact" as const,
+                  factKey: "setup_work_unit",
+                  operator: "exists" as const,
+                },
+              ],
+              groups: [],
+            },
+            evaluationTree: {
+              mode: "all" as const,
+              met: false,
+              reason: "Work-unit fact 'setup_work_unit' is missing",
+              conditions: [
+                {
+                  condition: {
+                    kind: "work_unit_fact" as const,
+                    factKey: "setup_work_unit",
+                    operator: "exists" as const,
+                  },
+                  met: false,
+                  reason: "Work-unit fact 'setup_work_unit' is missing",
+                },
+              ],
+              groups: [],
+            },
+            firstBlockingReason: "Work-unit fact 'setup_work_unit' is missing",
+            evaluatedAt: "2026-04-14T10:03:00.000Z",
+          },
           actions: {
             start: {
               kind: "start_invoke_work_unit_target" as const,
@@ -287,8 +333,24 @@ function buildDetail(): any {
               destinationLabel: "Selected Direction",
               destinationFactType: "string" as const,
               destinationCardinality: "one" as const,
+              sourceKind: "context_fact" as const,
+              sourceContextFactDefinitionId: "ctx-selected-direction",
+              sourceContextFactKey: "selected_direction",
+              sourceContextFactLabel: "Selected Direction",
+              authoredPrefillValueJson: "Context direction",
+              savedDraftValueJson: "Saved direction",
+              resolvedValueJson: "Saved direction",
+              requiresRuntimeValue: false,
+            },
+            {
+              destinationKind: "work_unit_fact" as const,
+              destinationDefinitionId: "fact-story-outcome",
+              destinationLabel: "Desired Outcome",
+              destinationFactType: "string" as const,
+              destinationCardinality: "one" as const,
               sourceKind: "literal" as const,
-              resolvedValueJson: "Prefilled direction",
+              authoredPrefillValueJson: "Literal outcome",
+              resolvedValueJson: "Literal outcome",
               requiresRuntimeValue: false,
             },
             {
@@ -350,6 +412,20 @@ function buildDetail(): any {
           workflowDefinitionId: "workflow-primary-1",
           transitionExecutionId: "transition-exec-3",
           workflowExecutionId: "workflow-exec-3",
+          startGate: {
+            conditionTree: {
+              mode: "all" as const,
+              conditions: [],
+              groups: [],
+            },
+            evaluationTree: {
+              mode: "all" as const,
+              met: true,
+              conditions: [],
+              groups: [],
+            },
+            evaluatedAt: "2026-04-14T10:04:00.000Z",
+          },
           actions: {
             openWorkUnit: {
               kind: "open_work_unit" as const,
@@ -411,6 +487,7 @@ async function renderHarness(initialDetail = buildDetail()) {
 
   const startWorkflowCalls: Array<Record<string, unknown>> = [];
   const startWorkUnitCalls: Array<Record<string, unknown>> = [];
+  const saveDraftCalls: Array<Record<string, unknown>> = [];
   const completeCalls: Array<Record<string, unknown>> = [];
 
   const getRuntimeStepExecutionDetailQueryOptionsMock = vi.fn(
@@ -576,6 +653,60 @@ async function renderHarness(initialDetail = buildDetail()) {
     }),
   );
 
+  const saveInvokeWorkUnitTargetDraftMutationOptionsMock = vi.fn(
+    (options?: { onSuccess?: () => Promise<void> | void }) => ({
+      mutationFn: async (input: Record<string, any>) => {
+        saveDraftCalls.push(input);
+        currentDetail = {
+          ...currentDetail,
+          body: {
+            ...currentDetail.body,
+            workUnitTargets: currentDetail.body.workUnitTargets.map((row: any) =>
+              row.invokeWorkUnitTargetExecutionId === input.invokeWorkUnitTargetExecutionId
+                ? {
+                    ...row,
+                    blockedReason: undefined,
+                    startGate: {
+                      conditionTree: row.startGate.conditionTree,
+                      evaluationTree: {
+                        mode: "all",
+                        met: true,
+                        conditions: [
+                          {
+                            condition: {
+                              kind: "work_unit_fact",
+                              factKey: "setup_work_unit",
+                              operator: "exists",
+                            },
+                            met: true,
+                          },
+                        ],
+                        groups: [],
+                      },
+                      evaluatedAt: "2026-04-24T12:00:00.000Z",
+                    },
+                    bindingPreview: row.bindingPreview.map((binding: any) =>
+                      binding.destinationDefinitionId === "fact-story-owner"
+                        ? {
+                            ...binding,
+                            savedDraftValueJson: { projectWorkUnitId: "setup-work-unit-1" },
+                            resolvedValueJson: { projectWorkUnitId: "setup-work-unit-1" },
+                          }
+                        : binding,
+                    ),
+                  }
+                : row,
+            ),
+          },
+        };
+        await options?.onSuccess?.();
+        return {
+          invokeWorkUnitTargetExecutionId: input.invokeWorkUnitTargetExecutionId,
+        };
+      },
+    }),
+  );
+
   const completeStepExecutionMutationOptionsMock = vi.fn(
     (options?: { onSuccess?: () => Promise<void> | void }) => ({
       mutationFn: async (input: Record<string, any>) => {
@@ -622,6 +753,9 @@ async function renderHarness(initialDetail = buildDetail()) {
       startInvokeWorkUnitTarget: {
         mutationOptions: startInvokeWorkUnitTargetMutationOptionsMock,
       },
+      saveInvokeWorkUnitTargetDraft: {
+        mutationOptions: saveInvokeWorkUnitTargetDraftMutationOptionsMock,
+      },
       completeStepExecution: {
         mutationOptions: completeStepExecutionMutationOptionsMock,
       },
@@ -663,6 +797,7 @@ async function renderHarness(initialDetail = buildDetail()) {
     detailQueryCalls: () => detailQueryCalls,
     startWorkflowCalls,
     startWorkUnitCalls,
+    saveDraftCalls,
     completeCalls,
     getProjectDetailsQueryOptionsMock,
     getProjectRepoFileStatusesQueryOptionsMock,
@@ -713,7 +848,8 @@ describe("runtime invoke step detail route", () => {
       screen.getAllByText("No primary workflows are available for this transition.").length,
     ).toBeGreaterThan(0);
     expect(screen.getAllByText(/prefill/i).length).toBeGreaterThan(0);
-    expect(screen.getByText("Prefilled direction")).toBeTruthy();
+    expect(screen.getByText("Saved direction")).toBeTruthy();
+    expect(screen.getByText("Context direction")).toBeTruthy();
     expect(
       screen.getByRole("combobox", {
         name: /artifact-files-invoke-work-unit-row-2:artifact-brainstorming-session/i,
@@ -726,6 +862,11 @@ describe("runtime invoke step detail route", () => {
         "Brief Path: docs/missing.md will not be mapped (file is missing from the repo).",
       ),
     ).toBeTruthy();
+    expect(screen.getAllByText("Condition tree").length).toBeGreaterThan(0);
+    expect(screen.getByText("setup_work_unit must exist")).toBeTruthy();
+    expect(
+      screen.getAllByText("Work-unit fact 'setup_work_unit' is missing").length,
+    ).toBeGreaterThan(0);
 
     expect(screen.getAllByRole("combobox").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Start workflow" })).toBeTruthy();
@@ -765,7 +906,7 @@ describe("runtime invoke step detail route", () => {
       screen.getByRole("combobox", { name: "invoke-primary-workflow-invoke-work-unit-row-2" }),
       "workflow-primary-2",
     );
-    const overrideInput = screen.getByDisplayValue("Prefilled direction");
+    const overrideInput = screen.getByDisplayValue("Saved direction");
     await user.clear(overrideInput);
     await user.type(overrideInput, "Operator override");
     await user.click(screen.getAllByRole("button", { name: "Start work unit" }).at(1)!);
@@ -797,6 +938,91 @@ describe("runtime invoke step detail route", () => {
 
     await waitFor(() => expect(screen.queryByRole("button", { name: "Complete Step" })).toBeNull());
     expect(screen.getAllByText("Completed").length).toBeGreaterThan(0);
+  });
+
+  it("saves invoke mappings and rehydrates server-evaluated gate detail", async () => {
+    const user = userEvent.setup();
+    const harness = await renderHarness();
+
+    await user.click(screen.getAllByRole("button", { name: "Save mappings" })[0]!);
+
+    await waitFor(() => expect(harness.saveDraftCalls).toHaveLength(1));
+    expect(harness.saveDraftCalls[0]).toMatchObject({
+      projectId: "project-1",
+      stepExecutionId: "step-invoke-1",
+      invokeWorkUnitTargetExecutionId: "invoke-work-unit-row-1",
+    });
+    expect(harness.detailQueryCalls()).toBeGreaterThan(1);
+  });
+
+  it("shows saved mapping values separately from refill sources and reapplies authored prefills", async () => {
+    const user = userEvent.setup();
+    await renderHarness();
+
+    expect(screen.getAllByText("Saved mapping value").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Available refill value").length).toBeGreaterThan(0);
+    expect(screen.getByText("Saved direction")).toBeTruthy();
+    expect(screen.getByText("Context direction")).toBeTruthy();
+    expect(screen.getByText("Literal outcome")).toBeTruthy();
+
+    const directionInput = screen.getByDisplayValue("Saved direction");
+    await user.clear(directionInput);
+    await user.type(directionInput, "Manual direction");
+    await user.click(
+      screen.getByRole("button", {
+        name: "Refill from context fact for Selected Direction",
+      }),
+    );
+    expect(screen.getByDisplayValue("Context direction")).toBeTruthy();
+
+    const outcomeInput = screen.getByDisplayValue("Literal outcome");
+    await user.clear(outcomeInput);
+    await user.type(outcomeInput, "Manual outcome");
+    await user.click(
+      screen.getByRole("button", {
+        name: "Refill from literal for Desired Outcome",
+      }),
+    );
+    expect(screen.getByDisplayValue("Literal outcome")).toBeTruthy();
+  });
+
+  it("normalizes artifact values to repo-relative paths and offers full-path copy actions", async () => {
+    await renderHarness({
+      ...buildDetail(),
+      body: {
+        ...buildDetail().body,
+        workUnitTargets: buildDetail().body.workUnitTargets.map((row: any) =>
+          row.invokeWorkUnitTargetExecutionId === "invoke-work-unit-row-2"
+            ? {
+                ...row,
+                bindingPreview: row.bindingPreview.map((binding: any) =>
+                  binding.destinationDefinitionId === "artifact-brainstorming-session"
+                    ? {
+                        ...binding,
+                        savedDraftValueJson: {
+                          relativePath: "cf_setup_brainstorming_draft_spec.json",
+                        },
+                        resolvedValueJson: {
+                          relativePath: "cf_setup_brainstorming_draft_spec.json",
+                        },
+                      }
+                    : binding,
+                ),
+              }
+            : row,
+        ),
+      },
+    });
+
+    expect(screen.getAllByText("cf_setup_brainstorming_draft_spec.json").length).toBeGreaterThan(0);
+    expect(
+      screen.queryByText('{"relativePath":"cf_setup_brainstorming_draft_spec.json"}'),
+    ).toBeNull();
+    expect(
+      screen.getAllByRole("button", {
+        name: "Copy full path for cf_setup_brainstorming_draft_spec.json",
+      }).length,
+    ).toBeGreaterThan(0);
   });
 
   it("keeps blocked start and complete actions disabled while surfacing their reasons", async () => {

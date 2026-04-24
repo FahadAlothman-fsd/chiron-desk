@@ -7,6 +7,7 @@ import type {
 } from "@chiron/contracts/agent-step/runtime";
 import type { WorkflowContextFactKind } from "@chiron/contracts/methodology/workflow";
 import type {
+  RuntimeConditionTree,
   RuntimeConditionEvaluation,
   RuntimeConditionEvaluationTree,
 } from "@chiron/contracts/runtime/conditions";
@@ -339,8 +340,53 @@ function parseArtifactFilesetPaths(rawValue: string): string[] {
     .filter((entry) => entry.length > 0);
 }
 
+function hasArtifactRelativePath(value: unknown): value is { relativePath: string } {
+  return (
+    isPlainRecord(value) && typeof value.relativePath === "string" && value.relativePath.length > 0
+  );
+}
+
+function extractArtifactRelativePathsFromValue(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => extractArtifactRelativePathsFromValue(entry));
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      return [];
+    }
+
+    const decoded = decodeOptionValue(trimmed);
+    if (decoded !== value) {
+      return extractArtifactRelativePathsFromValue(decoded);
+    }
+
+    return [trimmed];
+  }
+
+  if (hasArtifactRelativePath(value)) {
+    return [value.relativePath];
+  }
+
+  if (isPlainRecord(value) && Array.isArray(value.files)) {
+    return value.files.flatMap((entry) => extractArtifactRelativePathsFromValue(entry));
+  }
+
+  return [];
+}
+
 function normalizeFileSystemPath(value: string): string {
   return value.replaceAll("\\", "/").replace(/\/+$/g, "");
+}
+
+function toAbsoluteProjectPath(projectRootPath: string | undefined, relativePath: string): string {
+  const normalizedRelativePath = relativePath.replace(/^\/+/, "");
+  if (!projectRootPath) {
+    return normalizedRelativePath;
+  }
+
+  return `${normalizeFileSystemPath(projectRootPath)}/${normalizedRelativePath}`;
 }
 
 function toProjectRelativePath(projectRootPath: string, selectedPath: string): string | null {
@@ -359,11 +405,11 @@ function toProjectRelativePath(projectRootPath: string, selectedPath: string): s
 }
 
 function parseSelectedArtifactPaths(rawValue: string, cardinality: "one" | "many"): string[] {
-  return cardinality === "many"
-    ? parseArtifactFilesetPaths(rawValue)
-    : rawValue.trim().length > 0
-      ? [rawValue.trim()]
-      : [];
+  if (cardinality === "many") {
+    return parseArtifactFilesetPaths(rawValue);
+  }
+
+  return extractArtifactRelativePathsFromValue(rawValue);
 }
 
 function serializeInvokeBindingDraftValue(
@@ -457,7 +503,10 @@ function createRuntimeBindingDraftState(
           )
           .map((binding) => [
             binding.destinationDefinitionId,
-            serializeInvokeBindingDraftValue(binding, binding.resolvedValueJson),
+            serializeInvokeBindingDraftValue(
+              binding,
+              binding.savedDraftValueJson ?? binding.resolvedValueJson,
+            ),
           ]),
       );
 
@@ -481,13 +530,49 @@ function updateRuntimeBindingDraftState(params: {
   };
 }
 
+function getInvokeAuthoredPrefillValue(binding: InvokeWorkUnitBindingPreview): unknown {
+  if (typeof binding.authoredPrefillValueJson !== "undefined") {
+    return binding.authoredPrefillValueJson;
+  }
+
+  if (
+    binding.sourceKind !== "runtime" &&
+    typeof binding.savedDraftValueJson === "undefined" &&
+    typeof binding.resolvedValueJson !== "undefined"
+  ) {
+    return binding.resolvedValueJson;
+  }
+
+  return undefined;
+}
+
+function getInvokeSavedDraftValue(binding: InvokeWorkUnitBindingPreview): unknown {
+  return binding.savedDraftValueJson;
+}
+
+function getInvokeSourceRefillLabel(binding: InvokeWorkUnitBindingPreview): string {
+  switch (binding.sourceKind) {
+    case "context_fact":
+      return "Refill from context fact";
+    case "literal":
+      return "Refill from literal";
+    case "runtime":
+    default:
+      return "Refill value";
+  }
+}
+
+function getInvokeSourceRefillAriaLabel(binding: InvokeWorkUnitBindingPreview): string {
+  return `${getInvokeSourceRefillLabel(binding)} for ${binding.destinationLabel}`;
+}
+
 function formatInvokeBindingSourceValue(binding: InvokeWorkUnitBindingPreview): string {
   if (binding.sourceKind === "runtime") {
     return "Provided at runtime";
   }
 
   if (binding.sourceKind === "literal") {
-    return `Literal: ${formatUnknown(binding.resolvedValueJson)}`;
+    return `Literal: ${formatUnknown(getInvokeAuthoredPrefillValue(binding))}`;
   }
 
   return binding.sourceContextFactKey
@@ -576,6 +661,26 @@ function getEncodedOptionLabel(
 ): string | null {
   const matched = options.find((option) => encodeOptionValue(option.value) === encodedValue);
   return matched?.label ?? null;
+}
+
+function getArtifactInputDisplayLabel(
+  rawValue: string,
+  cardinality: "one" | "many" | undefined,
+): string | null {
+  if (!cardinality) {
+    return null;
+  }
+
+  const relativePaths = parseSelectedArtifactPaths(rawValue, cardinality);
+  if (relativePaths.length === 0) {
+    return null;
+  }
+
+  return cardinality === "many"
+    ? relativePaths.length === 1
+      ? (relativePaths[0] ?? null)
+      : `${relativePaths.length} files selected`
+    : (relativePaths[0] ?? null);
 }
 
 function formatPrimaryWorkflowOption(
@@ -801,6 +906,102 @@ function parseRuntimeBindingInputValue(params: {
   return { ok: true, valueJson: rawValue };
 }
 
+function buildInvokeWorkUnitRuntimePayload(params: {
+  rowRuntimeInputs: Record<string, string>;
+  editableBindings: InvokeWorkUnitBindingPreview[];
+}):
+  | {
+      ok: true;
+      runtimeFactValues?: Array<{ workUnitFactDefinitionId: string; valueJson: unknown }>;
+      runtimeArtifactValues?: Array<{
+        artifactSlotDefinitionId: string;
+        relativePath?: string;
+        sourceContextFactDefinitionId?: string;
+        clear?: boolean;
+        files?: Array<{
+          relativePath?: string;
+          sourceContextFactDefinitionId?: string;
+          clear?: boolean;
+        }>;
+      }>;
+    }
+  | { ok: false; message: string } {
+  const runtimeFactValues: Array<{ workUnitFactDefinitionId: string; valueJson: unknown }> = [];
+  const runtimeArtifactValues: Array<{
+    artifactSlotDefinitionId: string;
+    relativePath?: string;
+    sourceContextFactDefinitionId?: string;
+    clear?: boolean;
+    files?: Array<{
+      relativePath?: string;
+      sourceContextFactDefinitionId?: string;
+      clear?: boolean;
+    }>;
+  }> = [];
+
+  for (const binding of params.editableBindings) {
+    const rawValue = params.rowRuntimeInputs[binding.destinationDefinitionId] ?? "";
+    if (rawValue.trim().length === 0) {
+      if (binding.destinationKind === "work_unit_fact") {
+        runtimeFactValues.push({
+          workUnitFactDefinitionId: binding.destinationDefinitionId,
+          valueJson: null,
+        });
+      } else {
+        runtimeArtifactValues.push({
+          artifactSlotDefinitionId: binding.destinationDefinitionId,
+          clear: true,
+        });
+      }
+      continue;
+    }
+
+    const parsed = parseRuntimeBindingInputValue({ binding, rawValue });
+    if (!parsed.ok) {
+      return parsed;
+    }
+
+    if (binding.destinationKind === "work_unit_fact") {
+      runtimeFactValues.push({
+        workUnitFactDefinitionId: binding.destinationDefinitionId,
+        valueJson: parsed.valueJson,
+      });
+    } else {
+      if (
+        typeof parsed.valueJson === "object" &&
+        parsed.valueJson !== null &&
+        "files" in parsed.valueJson &&
+        Array.isArray(parsed.valueJson.files)
+      ) {
+        runtimeArtifactValues.push({
+          artifactSlotDefinitionId: binding.destinationDefinitionId,
+          files: parsed.valueJson.files,
+        });
+      } else if (
+        typeof parsed.valueJson === "object" &&
+        parsed.valueJson !== null &&
+        "relativePath" in parsed.valueJson &&
+        typeof parsed.valueJson.relativePath === "string"
+      ) {
+        runtimeArtifactValues.push({
+          artifactSlotDefinitionId: binding.destinationDefinitionId,
+          relativePath: parsed.valueJson.relativePath,
+          ...("sourceContextFactDefinitionId" in parsed.valueJson &&
+          typeof parsed.valueJson.sourceContextFactDefinitionId === "string"
+            ? { sourceContextFactDefinitionId: parsed.valueJson.sourceContextFactDefinitionId }
+            : {}),
+        });
+      }
+    }
+  }
+
+  return {
+    ok: true,
+    ...(runtimeFactValues.length > 0 ? { runtimeFactValues } : {}),
+    ...(runtimeArtifactValues.length > 0 ? { runtimeArtifactValues } : {}),
+  };
+}
+
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -1020,6 +1221,190 @@ function BranchConditionEvaluationTreePanel({
             />
           ))}
         </div>
+      ) : null}
+    </div>
+  );
+}
+
+function isRuntimeConditionTree(value: unknown): value is RuntimeConditionTree {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "mode" in value &&
+    ((value as { mode?: unknown }).mode === "all" ||
+      (value as { mode?: unknown }).mode === "any") &&
+    "conditions" in value &&
+    Array.isArray((value as { conditions?: unknown }).conditions) &&
+    "groups" in value &&
+    Array.isArray((value as { groups?: unknown }).groups)
+  );
+}
+
+function getInvokeConditionTreeCounts(tree: RuntimeConditionTree): {
+  conditions: number;
+  groups: number;
+} {
+  return tree.groups.reduce(
+    (counts, group) => {
+      const nested = getInvokeConditionTreeCounts(group);
+      return {
+        conditions: counts.conditions + nested.conditions,
+        groups: counts.groups + 1 + nested.groups,
+      };
+    },
+    { conditions: tree.conditions.length, groups: 0 },
+  );
+}
+
+function describeInvokeRuntimeCondition(condition: RuntimeConditionTree["conditions"][number]): {
+  kindLabel: string;
+  operatorLabel: string;
+  summary: string;
+  detail: string;
+} {
+  const negationPrefix = condition.isNegated ? "not " : "";
+
+  switch (condition.kind) {
+    case "fact": {
+      const path = condition.subFieldKey
+        ? `${condition.factKey}.${condition.subFieldKey}`
+        : condition.factKey;
+      return {
+        kindLabel: "Project fact",
+        operatorLabel: condition.operator === "equals" ? "equals" : `${negationPrefix}exists`,
+        summary:
+          condition.operator === "equals"
+            ? `${path} ${negationPrefix}equals ${formatUnknown(unwrapComparisonValue(condition.comparisonJson))}`
+            : `${path} must ${negationPrefix}exist`,
+        detail:
+          condition.operator === "equals"
+            ? "Checks a project fact value against the required comparison value."
+            : "Checks whether the required project fact instance exists before launch.",
+      };
+    }
+    case "work_unit_fact": {
+      const path = condition.subFieldKey
+        ? `${condition.factKey}.${condition.subFieldKey}`
+        : condition.factKey;
+      return {
+        kindLabel: "Work-unit fact",
+        operatorLabel: condition.operator === "equals" ? "equals" : `${negationPrefix}exists`,
+        summary:
+          condition.operator === "equals"
+            ? `${path} ${negationPrefix}equals ${formatUnknown(unwrapComparisonValue(condition.comparisonJson))}`
+            : `${path} must ${negationPrefix}exist`,
+        detail:
+          condition.operator === "equals"
+            ? "Checks a work-unit fact value against the required comparison value."
+            : "Checks whether the required work-unit fact instance exists before launch.",
+      };
+    }
+    case "artifact":
+      return {
+        kindLabel: "Artifact",
+        operatorLabel: `${negationPrefix}${condition.operator}`,
+        summary: `Artifact slot ${condition.slotKey} must be ${negationPrefix}${condition.operator}`,
+        detail: "Checks artifact presence or freshness requirements before launch.",
+      };
+  }
+}
+
+function InvokeStartGateTreePanel({
+  tree,
+  evaluation,
+  depth = 0,
+}: {
+  tree: RuntimeConditionTree;
+  evaluation?: RuntimeConditionEvaluationTree;
+  depth?: number;
+}) {
+  const counts = getInvokeConditionTreeCounts(tree);
+
+  return (
+    <div className={cn("space-y-3", depth > 0 ? "border-l border-border/60 pl-4" : undefined)}>
+      <div className="space-y-2 border border-border/70 bg-background/40 p-3">
+        <div className="flex flex-wrap gap-2">
+          <ExecutionBadge
+            label={`${tree.mode} gate`}
+            tone={tree.mode === "all" ? "amber" : "sky"}
+          />
+          <ExecutionBadge label={`${counts.conditions} checks`} tone="slate" />
+          {counts.groups > 0 ? (
+            <ExecutionBadge label={`${counts.groups} groups`} tone="violet" />
+          ) : null}
+          {evaluation ? (
+            <ExecutionBadge
+              label={evaluation.met ? "passing" : "blocked"}
+              tone={evaluation.met ? "emerald" : "rose"}
+            />
+          ) : null}
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {tree.mode === "all"
+            ? "Every condition in this group must pass before the child work unit can launch."
+            : "Any branch in this group can pass for the child work unit to become launchable."}
+        </p>
+        {!evaluation?.met && evaluation?.reason ? (
+          <p className="text-xs text-rose-100/90">{evaluation.reason}</p>
+        ) : null}
+      </div>
+
+      {tree.conditions.length > 0 ? (
+        <div className="space-y-2">
+          {tree.conditions.map((condition, index) => {
+            const detail = describeInvokeRuntimeCondition(condition);
+            const conditionEvaluation = evaluation?.conditions[index];
+            return (
+              <div
+                key={`${condition.kind}-${detail.summary}-${index}`}
+                className="space-y-2 border border-border/70 bg-background/40 p-3"
+              >
+                <div className="flex flex-wrap gap-2">
+                  <ExecutionBadge label={detail.kindLabel} tone="violet" />
+                  <ExecutionBadge label={detail.operatorLabel} tone="slate" />
+                  {condition.isNegated ? <ExecutionBadge label="negated" tone="rose" /> : null}
+                  {conditionEvaluation ? (
+                    <ExecutionBadge
+                      label={conditionEvaluation.met ? "passed" : "blocked"}
+                      tone={conditionEvaluation.met ? "emerald" : "rose"}
+                    />
+                  ) : null}
+                </div>
+                <DetailPrimary>{detail.summary}</DetailPrimary>
+                <p className="text-sm text-muted-foreground">{detail.detail}</p>
+                {conditionEvaluation ? (
+                  <div className="space-y-1 border border-border/60 bg-background/60 px-3 py-2 text-xs">
+                    <p className="uppercase tracking-[0.12em] text-muted-foreground">Evaluation</p>
+                    <p className={conditionEvaluation.met ? "text-emerald-300" : "text-rose-300"}>
+                      {conditionEvaluation.met
+                        ? "This condition currently passes."
+                        : (conditionEvaluation.reason ?? "This condition currently blocks launch.")}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {tree.groups.length > 0 ? (
+        <div className="space-y-3">
+          {tree.groups.map((group, index) => (
+            <InvokeStartGateTreePanel
+              key={`${group.mode}-${index}`}
+              tree={group}
+              evaluation={evaluation?.groups[index]}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      ) : null}
+
+      {tree.conditions.length === 0 && tree.groups.length === 0 ? (
+        <p className="border border-border/70 bg-background/40 p-3 text-sm text-muted-foreground">
+          No conditions are configured in this gate group.
+        </p>
       ) : null}
     </div>
   );
@@ -1651,6 +2036,55 @@ function ArtifactFileCard(props: { file: Record<string, unknown>; index: number 
           copyLabel="commit hash"
         />
       ) : null}
+    </div>
+  );
+}
+
+function InvokeArtifactPathList(props: {
+  value: unknown;
+  cardinality: "one" | "many" | undefined;
+  projectRootPath?: string;
+  statusMap?: ReadonlyMap<string, RepoFilePickerEntry>;
+  showStatus?: boolean;
+}) {
+  const relativePaths = extractArtifactRelativePathsFromValue(props.value);
+
+  if (relativePaths.length === 0) {
+    return (
+      <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
+        {formatUnknown(props.value)}
+      </pre>
+    );
+  }
+
+  return (
+    <div className="space-y-1 border border-border/70 bg-background/40 p-2">
+      {relativePaths.map((relativePath) => {
+        const matched = props.statusMap?.get(relativePath);
+        return (
+          <div
+            key={`${relativePath}-${props.cardinality ?? "unknown"}`}
+            className="flex flex-wrap items-center gap-2"
+          >
+            <DetailPrimary className="text-xs font-normal">{relativePath}</DetailPrimary>
+            {props.showStatus && matched ? (
+              <ExecutionBadge
+                label={formatRepoFileStatus(matched)}
+                tone={getRepoFileStatusTone(matched)}
+              />
+            ) : null}
+            {props.showStatus && matched ? (
+              <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
+                {formatRepoFileMeta(matched) ?? ""}
+              </span>
+            ) : null}
+            <CopyValueButton
+              value={toAbsoluteProjectPath(props.projectRootPath, relativePath)}
+              label={`full path for ${relativePath}`}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -5113,18 +5547,11 @@ function InvokeInteractionSurface(props: {
     setNativeArtifactPickerKey(null);
   }, [body.workUnitTargets]);
 
-  const projectDetailsQuery = useQuery(
-    selectDesktopFiles
-      ? {
-          ...orpc.project.getProjectDetails.queryOptions({ input: { projectId } }),
-          enabled: true,
-        }
-      : {
-          queryKey: ["project-details", projectId, "invoke-artifact-picker-disabled"] as const,
-          queryFn: async () => null,
-          enabled: false,
-        },
-  );
+  const projectDetailsQuery = useQuery({
+    ...orpc.project.getProjectDetails.queryOptions({ input: { projectId } }),
+    enabled: true,
+  });
+  const projectRootPath = projectDetailsQuery.data?.project.projectRootPath;
 
   const repoFilesQuery = useQuery({
     ...orpc.project.listProjectRepoFiles.queryOptions({
@@ -5274,6 +5701,12 @@ function InvokeInteractionSurface(props: {
     }),
   );
 
+  const saveWorkUnitDraftMutation = useMutation(
+    orpc.project.saveInvokeWorkUnitTargetDraft.mutationOptions({
+      onSuccess: invalidateStepDetail,
+    }),
+  );
+
   const completeStepMutation = useMutation(
     orpc.project.completeStepExecution.mutationOptions({
       onSuccess: invalidateStepDetail,
@@ -5282,6 +5715,7 @@ function InvokeInteractionSurface(props: {
 
   const isBusy =
     startWorkflowMutation.isPending ||
+    saveWorkUnitDraftMutation.isPending ||
     startWorkUnitMutation.isPending ||
     completeStepMutation.isPending;
 
@@ -5297,7 +5731,10 @@ function InvokeInteractionSurface(props: {
   const workflowRowsVisible = body.targetKind === "workflow" || body.workflowTargets.length > 0;
   const workUnitRowsVisible = body.targetKind === "work_unit" || body.workUnitTargets.length > 0;
   const mutationError =
-    startWorkflowMutation.error ?? startWorkUnitMutation.error ?? completeStepMutation.error;
+    startWorkflowMutation.error ??
+    saveWorkUnitDraftMutation.error ??
+    startWorkUnitMutation.error ??
+    completeStepMutation.error;
   const surfacedError =
     runtimeBindingValidationError ?? (mutationError ? toErrorMessage(mutationError) : null);
 
@@ -5753,6 +6190,21 @@ function InvokeInteractionSurface(props: {
                             <p className="text-xs text-muted-foreground">{row.blockedReason}</p>
                           ) : null}
 
+                          {isRuntimeConditionTree(row.startGate.conditionTree) ? (
+                            <div className="space-y-2 border border-border/70 bg-background/50 p-3">
+                              <DetailLabel>Condition tree</DetailLabel>
+                              {row.startGate.evaluatedAt ? (
+                                <p className="text-xs text-muted-foreground">
+                                  Evaluated {formatTimestamp(row.startGate.evaluatedAt)}
+                                </p>
+                              ) : null}
+                              <InvokeStartGateTreePanel
+                                tree={row.startGate.conditionTree}
+                                evaluation={row.startGate.evaluationTree}
+                              />
+                            </div>
+                          ) : null}
+
                           {startAction && !startAction.enabled && startAction.reasonIfDisabled ? (
                             <p className="text-xs text-muted-foreground">
                               {startAction.reasonIfDisabled}
@@ -5777,6 +6229,12 @@ function InvokeInteractionSurface(props: {
                                 {row.bindingPreview.map((binding) => {
                                   const runtimeRawValue =
                                     rowRuntimeInputs[binding.destinationDefinitionId] ?? "";
+                                  const savedDraftValue = getInvokeSavedDraftValue(binding);
+                                  const authoredPrefillValue =
+                                    getInvokeAuthoredPrefillValue(binding);
+                                  const hasSavedDraftValue = typeof savedDraftValue !== "undefined";
+                                  const hasAuthoredPrefillValue =
+                                    typeof authoredPrefillValue !== "undefined";
                                   const manyOrJsonInput =
                                     binding.destinationCardinality === "many" ||
                                     binding.destinationFactType === "json";
@@ -5786,21 +6244,34 @@ function InvokeInteractionSurface(props: {
                                     selectorOptions,
                                     runtimeRawValue,
                                   );
+                                  const artifactInputDisplayLabel =
+                                    binding.destinationKind === "artifact_slot"
+                                      ? getArtifactInputDisplayLabel(
+                                          runtimeRawValue,
+                                          binding.destinationCardinality,
+                                        )
+                                      : null;
                                   const usesRuntimeArtifactPicker =
                                     binding.destinationKind === "artifact_slot" &&
                                     binding.requiresRuntimeValue;
                                   const usesDesktopArtifactPicker =
                                     usesRuntimeArtifactPicker &&
                                     typeof selectDesktopFiles === "function";
+                                  const parsedSelectedArtifactPaths = usesRuntimeArtifactPicker
+                                    ? parseSelectedArtifactPaths(
+                                        runtimeRawValue,
+                                        binding.destinationCardinality,
+                                      )
+                                    : [];
                                   const filesetSelectedPaths =
                                     usesRuntimeArtifactPicker &&
                                     binding.destinationCardinality === "many"
-                                      ? parseArtifactFilesetPaths(runtimeRawValue)
+                                      ? parsedSelectedArtifactPaths
                                       : [];
                                   const singleArtifactSelectedPath =
                                     usesRuntimeArtifactPicker &&
                                     binding.destinationCardinality !== "many"
-                                      ? runtimeRawValue.trim()
+                                      ? (parsedSelectedArtifactPaths[0] ?? "")
                                       : "";
                                   const filesetSelectedSet = new Set(filesetSelectedPaths);
                                   const artifactPickerId = `${row.invokeWorkUnitTargetExecutionId}:${binding.destinationDefinitionId}`;
@@ -5834,6 +6305,9 @@ function InvokeInteractionSurface(props: {
                                           }
                                           tone={binding.requiresRuntimeValue ? "amber" : "emerald"}
                                         />
+                                        {hasSavedDraftValue ? (
+                                          <ExecutionBadge label="saved mapping" tone="violet" />
+                                        ) : null}
                                       </div>
                                       <div className="grid gap-2 md:grid-cols-2">
                                         <div>
@@ -6060,43 +6534,17 @@ function InvokeInteractionSurface(props: {
                                                   ? filesetSelectedPaths.length > 0
                                                   : singleArtifactSelectedPath.length > 0
                                               ) ? (
-                                                <div className="space-y-1 border border-border/70 bg-background/40 p-2">
-                                                  {(binding.destinationCardinality === "many"
-                                                    ? filesetSelectedPaths
-                                                    : [singleArtifactSelectedPath]
-                                                  ).map((relativePath) => {
-                                                    const matched =
-                                                      selectedArtifactStatusMap.get(relativePath);
-                                                    return (
-                                                      <div
-                                                        key={`${artifactPickerId}-selected-${relativePath}`}
-                                                        className="flex flex-wrap items-center gap-2"
-                                                      >
-                                                        <DetailPrimary className="text-xs font-normal">
-                                                          {relativePath}
-                                                        </DetailPrimary>
-                                                        {matched ? (
-                                                          <ExecutionBadge
-                                                            label={formatRepoFileStatus(matched)}
-                                                            tone={getRepoFileStatusTone(matched)}
-                                                          />
-                                                        ) : null}
-                                                        {!matched &&
-                                                        selectedArtifactStatusesQuery.isFetching ? (
-                                                          <ExecutionBadge
-                                                            label="Checking git status"
-                                                            tone="amber"
-                                                          />
-                                                        ) : null}
-                                                        {matched ? (
-                                                          <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
-                                                            {formatRepoFileMeta(matched) ?? ""}
-                                                          </span>
-                                                        ) : null}
-                                                      </div>
-                                                    );
-                                                  })}
-                                                </div>
+                                                <InvokeArtifactPathList
+                                                  value={
+                                                    binding.destinationCardinality === "many"
+                                                      ? filesetSelectedPaths
+                                                      : singleArtifactSelectedPath
+                                                  }
+                                                  cardinality={binding.destinationCardinality}
+                                                  projectRootPath={projectRootPath}
+                                                  statusMap={selectedArtifactStatusMap}
+                                                  showStatus
+                                                />
                                               ) : null}
                                             </div>
                                           ) : (
@@ -6121,6 +6569,7 @@ function InvokeInteractionSurface(props: {
                                               <SelectTrigger className="w-full border-amber-500/30 bg-amber-500/10 text-foreground">
                                                 <span className="truncate text-left">
                                                   {selectedBindingOptionLabel ??
+                                                    artifactInputDisplayLabel ??
                                                     "Select an artifact source"}
                                                 </span>
                                               </SelectTrigger>
@@ -6155,24 +6604,9 @@ function InvokeInteractionSurface(props: {
                                               </ul>
                                             </div>
                                           ) : null}
-                                          <div>
-                                            <DetailLabel>Resolved value</DetailLabel>
-                                            <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
-                                              {binding.resolvedValueJson === undefined
-                                                ? "No artifact source resolved yet."
-                                                : formatUnknown(binding.resolvedValueJson)}
-                                            </pre>
-                                          </div>
                                         </div>
                                       ) : binding.destinationKind !== "work_unit_fact" ? (
-                                        <div>
-                                          <DetailLabel>Resolved value</DetailLabel>
-                                          <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
-                                            {binding.resolvedValueJson === undefined
-                                              ? "No runtime value resolved yet."
-                                              : formatUnknown(binding.resolvedValueJson)}
-                                          </pre>
-                                        </div>
+                                        <div />
                                       ) : (
                                         <div className="space-y-2">
                                           <DetailLabel>Start-time value</DetailLabel>
@@ -6303,21 +6737,89 @@ function InvokeInteractionSurface(props: {
                                               placeholder="Enter runtime value"
                                             />
                                           )}
-
-                                          <div>
-                                            <DetailLabel>
-                                              {binding.requiresRuntimeValue
-                                                ? "Current prefill"
-                                                : "Resolved prefill"}
-                                            </DetailLabel>
-                                            <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
-                                              {binding.resolvedValueJson === undefined
-                                                ? "No authored value resolved yet."
-                                                : formatUnknown(binding.resolvedValueJson)}
-                                            </pre>
-                                          </div>
                                         </div>
                                       )}
+
+                                      {hasSavedDraftValue ? (
+                                        <div className="space-y-2 border border-violet-500/30 bg-violet-500/10 p-2">
+                                          <div className="flex flex-wrap items-center gap-2">
+                                            <DetailLabel>Saved mapping value</DetailLabel>
+                                            <ExecutionBadge label="frozen draft" tone="violet" />
+                                          </div>
+                                          {binding.destinationKind === "artifact_slot" ? (
+                                            <InvokeArtifactPathList
+                                              value={savedDraftValue}
+                                              cardinality={binding.destinationCardinality}
+                                              projectRootPath={projectRootPath}
+                                            />
+                                          ) : (
+                                            <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
+                                              {formatUnknown(savedDraftValue)}
+                                            </pre>
+                                          )}
+                                        </div>
+                                      ) : null}
+
+                                      {binding.sourceKind !== "runtime" ? (
+                                        <div className="space-y-2 border border-sky-500/30 bg-sky-500/10 p-2">
+                                          <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <div className="space-y-1">
+                                              <DetailLabel>Available refill value</DetailLabel>
+                                              <p className="text-[11px] text-muted-foreground">
+                                                Re-apply the authored mapping source without
+                                                changing the saved draft until you save again.
+                                              </p>
+                                            </div>
+                                            {!bindingsLocked ? (
+                                              <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={!hasAuthoredPrefillValue}
+                                                aria-label={getInvokeSourceRefillAriaLabel(binding)}
+                                                onClick={() => {
+                                                  if (!hasAuthoredPrefillValue) {
+                                                    return;
+                                                  }
+
+                                                  setRuntimeBindingValidationError(null);
+                                                  setRuntimeBindingInputsByRowId((current) =>
+                                                    updateRuntimeBindingDraftState({
+                                                      current,
+                                                      rowId: row.invokeWorkUnitTargetExecutionId,
+                                                      destinationDefinitionId:
+                                                        binding.destinationDefinitionId,
+                                                      value: serializeInvokeBindingDraftValue(
+                                                        binding,
+                                                        authoredPrefillValue,
+                                                      ),
+                                                    }),
+                                                  );
+                                                }}
+                                              >
+                                                {getInvokeSourceRefillLabel(binding)}
+                                              </Button>
+                                            ) : null}
+                                          </div>
+                                          {hasAuthoredPrefillValue ? (
+                                            binding.destinationKind === "artifact_slot" ? (
+                                              <InvokeArtifactPathList
+                                                value={authoredPrefillValue}
+                                                cardinality={binding.destinationCardinality}
+                                                projectRootPath={projectRootPath}
+                                              />
+                                            ) : (
+                                              <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
+                                                {formatUnknown(authoredPrefillValue)}
+                                              </pre>
+                                            )
+                                          ) : (
+                                            <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
+                                              No source value is available to refill right now.
+                                            </pre>
+                                          )}
+                                        </div>
+                                      ) : null}
                                     </li>
                                   );
                                 })}
@@ -6350,85 +6852,13 @@ function InvokeInteractionSurface(props: {
                                   return;
                                 }
 
-                                const runtimeFactValues: Array<{
-                                  workUnitFactDefinitionId: string;
-                                  valueJson: unknown;
-                                }> = [];
-                                const runtimeArtifactValues: Array<
-                                  | {
-                                      artifactSlotDefinitionId: string;
-                                      relativePath: string;
-                                      sourceContextFactDefinitionId?: string;
-                                    }
-                                  | {
-                                      artifactSlotDefinitionId: string;
-                                      clear: true;
-                                    }
-                                > = [];
-
-                                for (const binding of editableBindings) {
-                                  const rawValue =
-                                    rowRuntimeInputs[binding.destinationDefinitionId] ?? "";
-
-                                  if (rawValue.trim().length === 0) {
-                                    if (binding.destinationKind === "work_unit_fact") {
-                                      runtimeFactValues.push({
-                                        workUnitFactDefinitionId: binding.destinationDefinitionId,
-                                        valueJson: null,
-                                      });
-                                    } else if (binding.destinationKind === "artifact_slot") {
-                                      runtimeArtifactValues.push({
-                                        artifactSlotDefinitionId: binding.destinationDefinitionId,
-                                        clear: true,
-                                      } as (typeof runtimeArtifactValues)[number]);
-                                    }
-                                    continue;
-                                  }
-
-                                  const parsed = parseRuntimeBindingInputValue({
-                                    binding,
-                                    rawValue,
-                                  });
-
-                                  if (!parsed.ok) {
-                                    setRuntimeBindingValidationError(parsed.message);
-                                    return;
-                                  }
-
-                                  if (binding.destinationKind === "work_unit_fact") {
-                                    runtimeFactValues.push({
-                                      workUnitFactDefinitionId: binding.destinationDefinitionId,
-                                      valueJson: parsed.valueJson,
-                                    });
-                                  } else if (
-                                    typeof parsed.valueJson === "object" &&
-                                    parsed.valueJson !== null &&
-                                    "files" in parsed.valueJson &&
-                                    Array.isArray(parsed.valueJson.files)
-                                  ) {
-                                    runtimeArtifactValues.push({
-                                      artifactSlotDefinitionId: binding.destinationDefinitionId,
-                                      files: parsed.valueJson.files,
-                                    });
-                                  } else if (
-                                    typeof parsed.valueJson === "object" &&
-                                    parsed.valueJson !== null &&
-                                    "relativePath" in parsed.valueJson &&
-                                    typeof parsed.valueJson.relativePath === "string"
-                                  ) {
-                                    runtimeArtifactValues.push({
-                                      artifactSlotDefinitionId: binding.destinationDefinitionId,
-                                      relativePath: parsed.valueJson.relativePath,
-                                      ...("sourceContextFactDefinitionId" in parsed.valueJson &&
-                                      typeof parsed.valueJson.sourceContextFactDefinitionId ===
-                                        "string"
-                                        ? {
-                                            sourceContextFactDefinitionId:
-                                              parsed.valueJson.sourceContextFactDefinitionId,
-                                          }
-                                        : {}),
-                                    });
-                                  }
+                                const payload = buildInvokeWorkUnitRuntimePayload({
+                                  rowRuntimeInputs,
+                                  editableBindings,
+                                });
+                                if (!payload.ok) {
+                                  setRuntimeBindingValidationError(payload.message);
+                                  return;
                                 }
 
                                 setRuntimeBindingValidationError(null);
@@ -6439,14 +6869,58 @@ function InvokeInteractionSurface(props: {
                                   invokeWorkUnitTargetExecutionId:
                                     startAction.invokeWorkUnitTargetExecutionId,
                                   workflowDefinitionId: selectedWorkflowId,
-                                  ...(runtimeFactValues.length > 0 ? { runtimeFactValues } : {}),
-                                  ...(runtimeArtifactValues.length > 0
-                                    ? { runtimeArtifactValues }
+                                  ...(payload.runtimeFactValues
+                                    ? { runtimeFactValues: payload.runtimeFactValues }
+                                    : {}),
+                                  ...(payload.runtimeArtifactValues
+                                    ? { runtimeArtifactValues: payload.runtimeArtifactValues }
                                     : {}),
                                 });
                               }}
                             >
                               Start work unit
+                            </Button>
+                          ) : null}
+
+                          {!bindingsLocked ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={isBusy || unsupportedRuntimeBindingsReason !== null}
+                              onClick={() => {
+                                if (unsupportedRuntimeBindingsReason) {
+                                  setRuntimeBindingValidationError(
+                                    unsupportedRuntimeBindingsReason,
+                                  );
+                                  return;
+                                }
+
+                                const payload = buildInvokeWorkUnitRuntimePayload({
+                                  rowRuntimeInputs,
+                                  editableBindings,
+                                });
+                                if (!payload.ok) {
+                                  setRuntimeBindingValidationError(payload.message);
+                                  return;
+                                }
+
+                                setRuntimeBindingValidationError(null);
+                                saveWorkUnitDraftMutation.mutate({
+                                  projectId,
+                                  stepExecutionId: shell.stepExecutionId,
+                                  invokeWorkUnitTargetExecutionId:
+                                    row.invokeWorkUnitTargetExecutionId,
+                                  ...(payload.runtimeFactValues
+                                    ? { runtimeFactValues: payload.runtimeFactValues }
+                                    : {}),
+                                  ...(payload.runtimeArtifactValues
+                                    ? { runtimeArtifactValues: payload.runtimeArtifactValues }
+                                    : {}),
+                                });
+                              }}
+                            >
+                              Save mappings
                             </Button>
                           ) : null}
 
