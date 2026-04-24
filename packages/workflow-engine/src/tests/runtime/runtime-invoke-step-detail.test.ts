@@ -16,6 +16,7 @@ import {
   type InvokeWorkflowTargetExecutionRow,
 } from "../../repositories/invoke-execution-repository";
 import { BranchStepRuntimeRepository } from "../../repositories/branch-step-runtime-repository";
+import { ArtifactRepository } from "../../repositories/artifact-repository";
 import { ProjectFactRepository } from "../../repositories/project-fact-repository";
 import { ProjectWorkUnitRepository } from "../../repositories/project-work-unit-repository";
 import {
@@ -34,6 +35,7 @@ import {
   type WorkflowExecutionRow,
 } from "../../repositories/workflow-execution-repository";
 import { InvokeCompletionServiceLive } from "../../services/invoke-completion-service";
+import { RuntimeGateServiceLive } from "../../services/runtime-gate-service";
 import { InvokeStepDetailServiceLive } from "../../services/invoke-step-detail-service";
 import { ActionStepDetailService } from "../../services/action-step-detail-service";
 import { StepProgressionServiceLive } from "../../services/step-progression-service";
@@ -129,6 +131,8 @@ function buildCommonLayers() {
   } as unknown as Context.Tag.Service<typeof ProjectContextRepository>);
 
   const projectFactLayer = Layer.succeed(ProjectFactRepository, {
+    createFactInstance: () => Effect.die("unused"),
+    getCurrentValuesByDefinition: () => Effect.succeed([]),
     listFactsByProject: () => Effect.succeed([]),
     listFactDefinitionsForProject: () => Effect.die("unused"),
     getFactDefinitionById: () => Effect.die("unused"),
@@ -139,6 +143,8 @@ function buildCommonLayers() {
   } as unknown as Context.Tag.Service<typeof ProjectFactRepository>);
 
   const workUnitFactLayer = Layer.succeed(WorkUnitFactRepository, {
+    createFactInstance: () => Effect.die("unused"),
+    getCurrentValuesByDefinition: () => Effect.succeed([]),
     listFactsByWorkUnit: () => Effect.succeed([]),
     listFactDefinitionsForWorkUnit: () => Effect.die("unused"),
     getFactDefinitionById: () => Effect.die("unused"),
@@ -158,6 +164,14 @@ function buildCommonLayers() {
     buildActionStepExecutionDetailBody: () => Effect.die("unused"),
   } as unknown as Context.Tag.Service<typeof ActionStepDetailService>);
 
+  const artifactLayer = Layer.succeed(ArtifactRepository, {
+    createSnapshot: () => Effect.die("unused"),
+    addSnapshotFiles: () => Effect.die("unused"),
+    getCurrentSnapshotBySlot: () => Effect.succeed({ exists: false, snapshot: null, members: [] }),
+    listLineageHistory: () => Effect.succeed([]),
+    checkFreshness: () => Effect.succeed({ exists: false, freshness: "unavailable" as const }),
+  } as unknown as Context.Tag.Service<typeof ArtifactRepository>);
+
   const sandboxGitLayer = Layer.succeed(SandboxGitService, {
     getAvailability: () => Effect.die("unused"),
     normalizeRepoRelativePath: (_rootPath: string, filePath: string) => Effect.succeed(filePath),
@@ -175,6 +189,12 @@ function buildCommonLayers() {
     compareRecordedArtifactReference: () => Effect.die("unused"),
   } as unknown as Context.Tag.Service<typeof SandboxGitService>);
 
+  const runtimeGateLayer = RuntimeGateServiceLive.pipe(
+    Layer.provideMerge(projectFactLayer),
+    Layer.provideMerge(workUnitFactLayer),
+    Layer.provideMerge(artifactLayer),
+  );
+
   return Layer.mergeAll(
     projectContextLayer,
     projectFactLayer,
@@ -182,6 +202,8 @@ function buildCommonLayers() {
     branchRuntimeLayer,
     actionDetailLayer,
     sandboxGitLayer,
+    artifactLayer,
+    runtimeGateLayer,
   );
 }
 
@@ -260,7 +282,7 @@ describe("runtime invoke step detail", () => {
               ]
             : [],
         ),
-      findTransitionConditionSets: () => Effect.die("unused"),
+      findTransitionConditionSets: () => Effect.succeed([]),
       findAgentTypes: () => Effect.die("unused"),
       findTransitionWorkflowBindings: () => Effect.die("unused"),
       saveLifecycleDefinition: () => Effect.die("unused"),
@@ -529,7 +551,7 @@ describe("runtime invoke step detail", () => {
               ]
             : [],
         ),
-      findTransitionConditionSets: () => Effect.die("unused"),
+      findTransitionConditionSets: () => Effect.succeed([]),
       findAgentTypes: () => Effect.die("unused"),
       findTransitionWorkflowBindings: () => Effect.die("unused"),
       saveLifecycleDefinition: () => Effect.die("unused"),
@@ -849,6 +871,17 @@ describe("runtime invoke step detail", () => {
         workflowDefinitionId: null,
         workflowExecutionId: null,
         resolutionOrder: 1,
+        frozenDraftTemplateJson: {
+          draftKey: "draft-story-ready",
+          workUnitDefinitionId: "wu-story",
+          factValues: [
+            {
+              workUnitFactDefinitionId: "fact-work-unit",
+              value: { projectWorkUnitId: "setup-work-unit-1" },
+            },
+          ],
+          artifactSlots: [],
+        },
         createdAt: new Date("2026-04-14T00:01:00.000Z"),
         updatedAt: new Date("2026-04-14T00:01:00.000Z"),
       },
@@ -949,7 +982,36 @@ describe("runtime invoke step detail", () => {
               ]
             : [],
         ),
-      findTransitionConditionSets: () => Effect.die("unused"),
+      findTransitionConditionSets: (_versionId: string, transitionId: string) =>
+        Effect.succeed(
+          transitionId === "transition-ready"
+            ? [
+                {
+                  id: "condition-set-ready",
+                  key: "start-gate-ready",
+                  phase: "start",
+                  mode: "all",
+                  groupsJson: [
+                    {
+                      mode: "all",
+                      conditions: [
+                        {
+                          kind: "work_unit_fact",
+                          required: true,
+                          config: {
+                            factKey: "setup_work_unit",
+                            factDefinitionId: "fact-work-unit",
+                            operator: "exists",
+                          },
+                        },
+                      ],
+                    },
+                  ],
+                  guidanceJson: null,
+                },
+              ]
+            : [],
+        ),
       findAgentTypes: () => Effect.die("unused"),
       findTransitionWorkflowBindings: () => Effect.die("unused"),
       saveLifecycleDefinition: () => Effect.die("unused"),
@@ -1151,7 +1213,26 @@ describe("runtime invoke step detail", () => {
 
     const workUnitFactLayer = Layer.succeed(WorkUnitFactRepository, {
       createFactInstance: () => Effect.die("unused"),
-      getCurrentValuesByDefinition: () => Effect.die("unused"),
+      getCurrentValuesByDefinition: ({ projectWorkUnitId, factDefinitionId }) =>
+        Effect.succeed(
+          projectWorkUnitId === "project-work-unit-story-1" && factDefinitionId === "fact-work-unit"
+            ? [
+                {
+                  id: "fact-instance-setup-link",
+                  projectWorkUnitId: "project-work-unit-story-1",
+                  factDefinitionId: "fact-work-unit",
+                  valueJson: null,
+                  referencedProjectWorkUnitId: "setup-work-unit-1",
+                  status: "active",
+                  supersededByFactInstanceId: null,
+                  producedByTransitionExecutionId: "transition-exec-story-1",
+                  producedByWorkflowExecutionId: "child-workflow-exec-1",
+                  authoredByUserId: null,
+                  createdAt: new Date(),
+                },
+              ]
+            : [],
+        ),
       listFactsByWorkUnit: ({ projectWorkUnitId }: { projectWorkUnitId: string }) =>
         Effect.succeed(
           projectWorkUnitId === "project-work-unit-story-1"
@@ -1254,6 +1335,10 @@ describe("runtime invoke step detail", () => {
         transitionLabel: "Blocked Path",
         status: "blocked",
         blockedReason: "No primary workflows are available for this transition.",
+        startGate: expect.objectContaining({
+          conditionTree: expect.objectContaining({ mode: "all" }),
+          evaluationTree: expect.objectContaining({ met: true }),
+        }),
         actions: expect.objectContaining({
           start: expect.objectContaining({
             enabled: false,
@@ -1265,12 +1350,18 @@ describe("runtime invoke step detail", () => {
         workUnitLabel: "Story Draft",
         transitionLabel: "Ready For Drafting",
         status: "not_started",
+        startGate: expect.objectContaining({
+          conditionTree: expect.objectContaining({ mode: "all" }),
+          evaluationTree: expect.objectContaining({ met: true }),
+        }),
         bindingPreview: [
           expect.objectContaining({
             destinationDefinitionId: "fact-work-unit",
             destinationFactType: "work_unit",
             requiresRuntimeValue: true,
             editorWorkUnitTypeKey: "WU.PARENT",
+            savedDraftValueJson: { projectWorkUnitId: "setup-work-unit-1" },
+            resolvedValueJson: { projectWorkUnitId: "setup-work-unit-1" },
             editorOptions: [
               expect.objectContaining({
                 value: { projectWorkUnitId: "parent-project-work-unit-1" },
@@ -1292,6 +1383,10 @@ describe("runtime invoke step detail", () => {
         workflowLabel: "Draft Story",
         currentWorkUnitStateLabel: "Drafting",
         status: "active",
+        startGate: expect.objectContaining({
+          conditionTree: expect.objectContaining({ mode: "all" }),
+          evaluationTree: expect.objectContaining({ met: true }),
+        }),
         bindingPreview: [
           expect.objectContaining({
             destinationDefinitionId: "fact-work-unit",

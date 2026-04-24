@@ -80,6 +80,22 @@ describe("l3 runtime invoke contracts", () => {
             workflowDefinitionKey: "create-story",
             transitionExecutionId: "transition-exec-1",
             workflowExecutionId: "workflow-exec-child-1",
+            startGate: {
+              conditionTree: {
+                mode: "all",
+                conditions: [],
+                groups: [],
+              },
+              evaluationTree: {
+                mode: "all",
+                met: false,
+                reason: "Work-unit fact 'story_ready' is missing",
+                conditions: [],
+                groups: [],
+              },
+              firstBlockingReason: "Work-unit fact 'story_ready' is missing",
+              evaluatedAt: "2026-04-14T00:00:00.000Z",
+            },
             actions: {
               start: {
                 kind: "start_invoke_work_unit_target",
@@ -112,7 +128,22 @@ describe("l3 runtime invoke contracts", () => {
                 },
               },
             },
-            bindingPreview: [],
+            bindingPreview: [
+              {
+                destinationKind: "work_unit_fact",
+                destinationDefinitionId: "fact-direction",
+                destinationLabel: "Selected Direction",
+                destinationFactType: "string",
+                destinationCardinality: "one",
+                sourceKind: "context_fact",
+                sourceContextFactDefinitionId: "ctx-direction",
+                sourceContextFactKey: "selected_direction",
+                authoredPrefillValueJson: "Context supplied direction",
+                savedDraftValueJson: "Saved frozen direction",
+                resolvedValueJson: "Saved frozen direction",
+                requiresRuntimeValue: false,
+              },
+            ],
           },
         ],
         completionSummary: {
@@ -133,6 +164,7 @@ describe("l3 runtime invoke contracts", () => {
             },
           ],
         },
+        lineage: {},
       },
     });
 
@@ -144,6 +176,9 @@ describe("l3 runtime invoke contracts", () => {
       expect(output.body.workUnitTargets[0]?.workUnitLabel).toBe("Story · Add invoke detail page");
       expect(output.body.workUnitTargets[0]?.invokeWorkUnitTargetExecutionId).toBe(
         "invoke-wu-target-1",
+      );
+      expect(output.body.workUnitTargets[0]?.bindingPreview[0]?.savedDraftValueJson).toBe(
+        "Saved frozen direction",
       );
       expect(output.body.propagationPreview.outputs[0]?.label).toBe("Created stories");
     }

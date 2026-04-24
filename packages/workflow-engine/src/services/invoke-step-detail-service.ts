@@ -1,4 +1,5 @@
 import type { FactCardinality, FactType } from "@chiron/contracts/methodology/fact";
+import type { RuntimeConditionTree } from "@chiron/contracts/runtime/conditions";
 import type {
   RuntimeFormFieldOption,
   RuntimeInvokeStepExecutionDetailBody,
@@ -26,12 +27,18 @@ import {
 import { TransitionExecutionRepository } from "../repositories/transition-execution-repository";
 import { WorkflowExecutionRepository } from "../repositories/workflow-execution-repository";
 import { InvokeCompletionService } from "./invoke-completion-service";
+import {
+  RuntimeGateService,
+  type RuntimeGateProjectedArtifactSlotValue,
+  type RuntimeGateProjectedWorkUnitFactValue,
+} from "./runtime-gate-service";
 import { parseArtifactSlotReferenceFactValue } from "./runtime/artifact-slot-reference-service";
 import {
   readRuntimeBoundFactEnvelope,
   toCanonicalRuntimeBoundFactEnvelope,
   unwrapRuntimeBoundFactEnvelope,
 } from "./runtime-bound-fact-value";
+import { toRuntimeConditionTree } from "./transition-gate-conditions";
 
 export interface BuildInvokeStepExecutionDetailBodyParams {
   projectId: string;
@@ -69,11 +76,33 @@ type TransitionSummary = {
 
 type WorkUnitInvokePayload = Extract<InvokeStepPayload, { targetKind: "work_unit" }>;
 
+type FrozenInvokeDraftTemplateLike = {
+  draftKey: string;
+  workUnitDefinitionId: string;
+  factValues: ReadonlyArray<{ workUnitFactDefinitionId: string; value: unknown }>;
+  artifactSlots: ReadonlyArray<{
+    artifactSlotDefinitionId: string;
+    files: ReadonlyArray<{
+      relativePath?: string;
+      sourceContextFactDefinitionId?: string;
+      clear: boolean;
+    }>;
+  }>;
+};
+
 const makeDetailError = (cause: string): RepositoryError =>
   new RepositoryError({
     operation: "invoke-step-detail",
     cause: new Error(cause),
   });
+
+const mapGateError = (error: unknown): RepositoryError =>
+  error instanceof RepositoryError
+    ? error
+    : new RepositoryError({
+        operation: "invoke-step-detail",
+        cause: error instanceof Error ? error : new Error(String(error)),
+      });
 
 const humanizeKey = (value: string): string =>
   value
@@ -198,6 +227,14 @@ const isFilePathPlainContextFact = (contextFact: WorkflowContextFactDto | undefi
 const asNonEmptyString = (value: unknown): string | null =>
   typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 
+const hasRelativePath = (value: unknown): value is { relativePath: string } =>
+  isPlainRecord(value) && typeof value.relativePath === "string" && value.relativePath.length > 0;
+
+const hasProjectWorkUnitId = (value: unknown): value is { projectWorkUnitId: string } =>
+  isPlainRecord(value) &&
+  typeof value.projectWorkUnitId === "string" &&
+  value.projectWorkUnitId.length > 0;
+
 const stableStringify = (value: unknown): string => {
   if (Array.isArray(value)) {
     return `[${value.map((item) => stableStringify(item)).join(",")}]`;
@@ -209,6 +246,126 @@ const stableStringify = (value: unknown): string => {
   }
 
   return JSON.stringify(value) ?? "null";
+};
+
+const normalizeFrozenDraftTemplate = (value: unknown): FrozenInvokeDraftTemplateLike | null => {
+  if (!isPlainRecord(value)) {
+    return null;
+  }
+
+  if (
+    typeof value.draftKey !== "string" ||
+    typeof value.workUnitDefinitionId !== "string" ||
+    !Array.isArray(value.factValues) ||
+    !Array.isArray(value.artifactSlots)
+  ) {
+    return null;
+  }
+
+  const factValues = value.factValues.flatMap((entry) =>
+    isPlainRecord(entry) && typeof entry.workUnitFactDefinitionId === "string" && "value" in entry
+      ? [{ workUnitFactDefinitionId: entry.workUnitFactDefinitionId, value: entry.value }]
+      : [],
+  );
+  const artifactSlots = value.artifactSlots.flatMap((entry) => {
+    if (!isPlainRecord(entry) || typeof entry.artifactSlotDefinitionId !== "string") {
+      return [];
+    }
+
+    const files = Array.isArray(entry.files)
+      ? entry.files.flatMap((file) =>
+          isPlainRecord(file)
+            ? [
+                {
+                  ...(typeof file.relativePath === "string"
+                    ? { relativePath: file.relativePath }
+                    : {}),
+                  ...(typeof file.sourceContextFactDefinitionId === "string"
+                    ? { sourceContextFactDefinitionId: file.sourceContextFactDefinitionId }
+                    : {}),
+                  clear: file.clear === true,
+                },
+              ]
+            : [],
+        )
+      : [];
+
+    return [{ artifactSlotDefinitionId: entry.artifactSlotDefinitionId, files }];
+  });
+
+  if (
+    factValues.length !== value.factValues.length ||
+    artifactSlots.length !== value.artifactSlots.length
+  ) {
+    return null;
+  }
+
+  return {
+    draftKey: value.draftKey,
+    workUnitDefinitionId: value.workUnitDefinitionId,
+    factValues,
+    artifactSlots,
+  };
+};
+
+const toProjectedArtifactSlotValue = (
+  value: unknown,
+): RuntimeGateProjectedArtifactSlotValue | null => {
+  if (isPlainRecord(value) && Array.isArray(value.files)) {
+    return toProjectedArtifactSlotValue(value.files);
+  }
+
+  if (Array.isArray(value)) {
+    const resolvedEntries = value.flatMap((entry) => {
+      if (typeof entry === "string") {
+        return entry.trim().length > 0 ? [entry.trim()] : [];
+      }
+
+      if (isPlainRecord(entry) && Array.isArray(entry.files)) {
+        return entry.files.flatMap((file) => {
+          if (typeof file === "string") {
+            return file.trim().length > 0 ? [file.trim()] : [];
+          }
+
+          return hasRelativePath(file) ? [file.relativePath] : [];
+        });
+      }
+
+      return hasRelativePath(entry) ? [entry.relativePath] : [];
+    });
+
+    return resolvedEntries.length > 0 ? { exists: true, freshness: "fresh" } : null;
+  }
+
+  if (typeof value === "string") {
+    return value.trim().length > 0 ? { exists: true, freshness: "fresh" } : null;
+  }
+
+  if (hasRelativePath(value)) {
+    return { exists: true, freshness: "fresh" };
+  }
+
+  return null;
+};
+
+const toProjectedWorkUnitFactValue = (
+  destinationFactType: FactType | undefined,
+  value: unknown,
+): RuntimeGateProjectedWorkUnitFactValue | null => {
+  if (typeof value === "undefined") {
+    return null;
+  }
+
+  if (destinationFactType === "work_unit") {
+    return hasProjectWorkUnitId(value)
+      ? {
+          valueJson: null,
+          referencedProjectWorkUnitId: value.projectWorkUnitId,
+        }
+      : null;
+  }
+
+  return { valueJson: value };
 };
 
 type ResolvedInvokeDraftTemplate = {
@@ -665,6 +822,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
     const transitionRepo = yield* TransitionExecutionRepository;
     const workflowRepo = yield* WorkflowExecutionRepository;
     const invokeCompletionService = yield* InvokeCompletionService;
+    const runtimeGate = yield* RuntimeGateService;
 
     const buildInvokeStepExecutionDetailBody = ({
       projectId,
@@ -798,6 +956,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
             : [];
 
         const transitionsById = new Map<string, TransitionSummary>();
+        const startGateTreesByTransitionId = new Map<string, RuntimeConditionTree>();
         const statesByWorkUnitTypeId = new Map<string, Map<string, string>>();
         const workUnitFactDefinitionsById = new Map<
           string,
@@ -840,6 +999,10 @@ export const InvokeStepDetailServiceLive = Layer.effect(
           );
 
           for (const transition of transitions) {
+            const conditionSets = yield* lifecycleRepo.findTransitionConditionSets(
+              projectPin.methodologyVersionId,
+              transition.id,
+            );
             transitionsById.set(transition.id, {
               transitionDefinitionId: transition.id,
               transitionDefinitionKey: transition.transitionKey,
@@ -853,6 +1016,14 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                   ? (stateLabels.get(transition.toStateId) ?? transition.toStateId)
                   : undefined,
             });
+            startGateTreesByTransitionId.set(
+              transition.id,
+              toRuntimeConditionTree(
+                conditionSets
+                  .filter((conditionSet) => conditionSet.phase !== "completion")
+                  .sort((left, right) => left.key.localeCompare(right.key)),
+              ),
+            );
           }
 
           statesByWorkUnitTypeId.set(workUnitTypeId, stateLabels);
@@ -941,7 +1112,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                     sourceContextFact,
                     sourceInstances,
                   });
-                  const resolvedValueJson =
+                  const authoredPrefillValueJson =
                     binding.source.kind === "literal"
                       ? binding.source.value
                       : binding.source.kind === "context_fact"
@@ -1001,7 +1172,12 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                     sourceContextFactKind: sourceContextFact?.kind,
                     sourceContextFactCardinality: sourceContextFact?.cardinality,
                     sourceContextFactValueType: getContextFactValueTypeLabel(sourceContextFact),
-                    resolvedValueJson,
+                    ...(typeof authoredPrefillValueJson !== "undefined"
+                      ? {
+                          authoredPrefillValueJson,
+                          resolvedValueJson: authoredPrefillValueJson,
+                        }
+                      : {}),
                     requiresRuntimeValue: binding.source.kind === "runtime",
                   };
                 }
@@ -1027,7 +1203,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                   sourceContextFact,
                   sourceInstances,
                 });
-                const resolvedValueJson =
+                const authoredPrefillValueJson =
                   binding.source.kind === "literal"
                     ? binding.source.value
                     : binding.source.kind === "context_fact"
@@ -1086,7 +1262,12 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                   ...(artifactEditorMetadata.sourceWarnings?.length
                     ? { sourceWarnings: artifactEditorMetadata.sourceWarnings }
                     : {}),
-                  resolvedValueJson,
+                  ...(typeof authoredPrefillValueJson !== "undefined"
+                    ? {
+                        authoredPrefillValueJson,
+                        resolvedValueJson: authoredPrefillValueJson,
+                      }
+                    : {}),
                   requiresRuntimeValue: binding.source.kind === "runtime",
                 };
               })
@@ -1305,182 +1486,303 @@ export const InvokeStepDetailServiceLive = Layer.effect(
             : [],
         );
 
-        const workUnitTargets = workUnitTargetRows.map((row) => {
-          const workUnitType = workUnitTypeById.get(row.workUnitDefinitionId);
-          const transition = transitionsById.get(row.transitionDefinitionId);
-          const availablePrimaryWorkflows =
-            workflowOptionsByTransitionId.get(row.transitionDefinitionId) ?? [];
-          const selectedWorkflow = row.workflowDefinitionId
-            ? workflowDefinitionsById.get(row.workflowDefinitionId)
-            : undefined;
-          const projectWorkUnit = row.projectWorkUnitId
-            ? projectWorkUnitsById.get(row.projectWorkUnitId)
-            : undefined;
-          const transitionExecution = row.transitionExecutionId
-            ? childTransitionsById.get(row.transitionExecutionId)
-            : undefined;
+        const buildWorkUnitTarget = (row: (typeof workUnitTargetRows)[number]) =>
+          Effect.gen(function* () {
+            const workUnitType = workUnitTypeById.get(row.workUnitDefinitionId);
+            const transition = transitionsById.get(row.transitionDefinitionId);
+            const availablePrimaryWorkflows =
+              workflowOptionsByTransitionId.get(row.transitionDefinitionId) ?? [];
+            const selectedWorkflow = row.workflowDefinitionId
+              ? workflowDefinitionsById.get(row.workflowDefinitionId)
+              : undefined;
+            const projectWorkUnit = row.projectWorkUnitId
+              ? projectWorkUnitsById.get(row.projectWorkUnitId)
+              : undefined;
+            const transitionExecution = row.transitionExecutionId
+              ? childTransitionsById.get(row.transitionExecutionId)
+              : undefined;
 
-          const partiallyStarted =
-            !!row.projectWorkUnitId ||
-            !!row.transitionExecutionId ||
-            !!row.workflowDefinitionId ||
-            !!row.workflowExecutionId;
-          const fullyStarted =
-            !!row.projectWorkUnitId &&
-            !!row.transitionExecutionId &&
-            !!row.workflowDefinitionId &&
-            !!row.workflowExecutionId;
+            const partiallyStarted =
+              !!row.projectWorkUnitId ||
+              !!row.transitionExecutionId ||
+              !!row.workflowDefinitionId ||
+              !!row.workflowExecutionId;
+            const fullyStarted =
+              !!row.projectWorkUnitId &&
+              !!row.transitionExecutionId &&
+              !!row.workflowDefinitionId &&
+              !!row.workflowExecutionId;
 
-          const blockedReason = !fullyStarted
-            ? availablePrimaryWorkflows.length === 0
-              ? "No primary workflows are available for this transition."
-              : partiallyStarted
-                ? "Invoke target is in a partially started state."
-                : undefined
-            : !transitionExecution
-              ? "Started transition execution could not be resolved."
-              : transitionExecution.status === "superseded"
-                ? "Started transition path was superseded before completion."
+            const currentWorkUnitStateLabel =
+              projectWorkUnit?.currentStateId && projectWorkUnit.workUnitTypeId
+                ? (statesByWorkUnitTypeId
+                    .get(projectWorkUnit.workUnitTypeId)
+                    ?.get(projectWorkUnit.currentStateId) ?? projectWorkUnit.currentStateId)
+                : undefined;
+            const startedFactInstancesByDefinitionId = new Map(
+              (row.projectWorkUnitId
+                ? (startedFactInstancesByWorkUnitId.get(row.projectWorkUnitId) ?? [])
+                : []
+              )
+                .filter((fact) => fact.status === "active")
+                .map((fact) => [fact.factDefinitionId, fact] as const),
+            );
+            const frozenDraftTemplate = normalizeFrozenDraftTemplate(row.frozenDraftTemplateJson);
+            const rowBindingPreview = invokeBindingPreview.map((binding) => {
+              if (!row.projectWorkUnitId && frozenDraftTemplate) {
+                if (binding.destinationKind === "work_unit_fact") {
+                  const savedFactValue = frozenDraftTemplate.factValues.find(
+                    (entry) => entry.workUnitFactDefinitionId === binding.destinationDefinitionId,
+                  );
+                  if (savedFactValue) {
+                    return {
+                      ...binding,
+                      savedDraftValueJson: savedFactValue.value,
+                      resolvedValueJson: savedFactValue.value,
+                    };
+                  }
+                } else {
+                  const savedArtifactSlot = frozenDraftTemplate.artifactSlots.find(
+                    (entry) => entry.artifactSlotDefinitionId === binding.destinationDefinitionId,
+                  );
+                  if (savedArtifactSlot) {
+                    const presentFiles = savedArtifactSlot.files.filter(
+                      (file) => file.clear !== true,
+                    );
+                    const resolvedValueJson =
+                      binding.destinationCardinality === "many"
+                        ? presentFiles.map((file) => ({
+                            ...(file.relativePath ? { relativePath: file.relativePath } : {}),
+                            ...(file.sourceContextFactDefinitionId
+                              ? {
+                                  sourceContextFactDefinitionId: file.sourceContextFactDefinitionId,
+                                }
+                              : {}),
+                          }))
+                        : presentFiles[0]?.relativePath
+                          ? {
+                              relativePath: presentFiles[0].relativePath,
+                              ...(presentFiles[0].sourceContextFactDefinitionId
+                                ? {
+                                    sourceContextFactDefinitionId:
+                                      presentFiles[0].sourceContextFactDefinitionId,
+                                  }
+                                : {}),
+                            }
+                          : undefined;
+                    return {
+                      ...binding,
+                      ...(typeof resolvedValueJson !== "undefined"
+                        ? { savedDraftValueJson: resolvedValueJson }
+                        : {}),
+                      ...(typeof resolvedValueJson !== "undefined" ? { resolvedValueJson } : {}),
+                    };
+                  }
+                }
+              }
+
+              if (binding.destinationKind !== "work_unit_fact") {
+                return binding;
+              }
+
+              const startedFactInstance = startedFactInstancesByDefinitionId.get(
+                binding.destinationDefinitionId,
+              );
+              if (!startedFactInstance) {
+                return binding;
+              }
+
+              const hydratedValue =
+                startedFactInstance.referencedProjectWorkUnitId !== null
+                  ? { projectWorkUnitId: startedFactInstance.referencedProjectWorkUnitId }
+                  : startedFactInstance.valueJson;
+
+              return {
+                ...binding,
+                resolvedValueJson: hydratedValue,
+              };
+            });
+
+            const projectedWorkUnitFactsByDefinitionId = new Map<
+              string,
+              RuntimeGateProjectedWorkUnitFactValue[]
+            >();
+            const projectedArtifactSlotsByDefinitionId = new Map<
+              string,
+              RuntimeGateProjectedArtifactSlotValue
+            >();
+            for (const binding of rowBindingPreview) {
+              if (binding.destinationKind === "work_unit_fact") {
+                const projectedValue = toProjectedWorkUnitFactValue(
+                  binding.destinationFactType,
+                  binding.resolvedValueJson,
+                );
+                if (!projectedValue) {
+                  continue;
+                }
+
+                const entries =
+                  projectedWorkUnitFactsByDefinitionId.get(binding.destinationDefinitionId) ?? [];
+                entries.push(projectedValue);
+                projectedWorkUnitFactsByDefinitionId.set(binding.destinationDefinitionId, entries);
+                continue;
+              }
+
+              const projectedArtifact = toProjectedArtifactSlotValue(binding.resolvedValueJson);
+              if (projectedArtifact) {
+                projectedArtifactSlotsByDefinitionId.set(
+                  binding.destinationDefinitionId,
+                  projectedArtifact,
+                );
+              }
+            }
+
+            const startGateConditionTree = startGateTreesByTransitionId.get(
+              row.transitionDefinitionId,
+            ) ?? {
+              mode: "all",
+              conditions: [],
+              groups: [],
+            };
+            const startGateEvaluation = yield* runtimeGate
+              .evaluateStartGateExhaustive({
+                projectId,
+                ...(row.projectWorkUnitId ? { projectWorkUnitId: row.projectWorkUnitId } : {}),
+                conditionTree: startGateConditionTree,
+                projectedWorkUnitFactsByDefinitionId,
+                projectedArtifactSlotsByDefinitionId,
+              })
+              .pipe(Effect.mapError(mapGateError));
+            const startGateBlockingReason =
+              startGateEvaluation.result !== "available"
+                ? (startGateEvaluation.firstReason ?? "Start gate failed.")
                 : undefined;
 
-          const status: RuntimeInvokeTargetStatus = !partiallyStarted
-            ? availablePrimaryWorkflows.length === 0
-              ? "blocked"
-              : "not_started"
-            : !fullyStarted
-              ? "failed"
-              : !transitionExecution || !projectWorkUnit
-                ? "unavailable"
-                : transitionExecution.status === "completed"
-                  ? "completed"
-                  : transitionExecution.status === "active"
-                    ? "active"
-                    : "failed";
+            const blockedReason = !fullyStarted
+              ? availablePrimaryWorkflows.length === 0
+                ? "No primary workflows are available for this transition."
+                : partiallyStarted
+                  ? "Invoke target is in a partially started state."
+                  : startGateBlockingReason
+                    ? startGateBlockingReason
+                    : undefined
+              : !transitionExecution
+                ? "Started transition execution could not be resolved."
+                : transitionExecution.status === "superseded"
+                  ? "Started transition path was superseded before completion."
+                  : undefined;
 
-          const currentWorkUnitStateLabel =
-            projectWorkUnit?.currentStateId && projectWorkUnit.workUnitTypeId
-              ? (statesByWorkUnitTypeId
-                  .get(projectWorkUnit.workUnitTypeId)
-                  ?.get(projectWorkUnit.currentStateId) ?? projectWorkUnit.currentStateId)
-              : undefined;
-          const startedFactInstancesByDefinitionId = new Map(
-            (row.projectWorkUnitId
-              ? (startedFactInstancesByWorkUnitId.get(row.projectWorkUnitId) ?? [])
-              : []
-            )
-              .filter((fact) => fact.status === "active")
-              .map((fact) => [fact.factDefinitionId, fact] as const),
-          );
-          const rowBindingPreview = invokeBindingPreview.map((binding) => {
-            if (binding.destinationKind !== "work_unit_fact") {
-              return binding;
-            }
-
-            const startedFactInstance = startedFactInstancesByDefinitionId.get(
-              binding.destinationDefinitionId,
-            );
-            if (!startedFactInstance) {
-              return binding;
-            }
-
-            const hydratedValue =
-              startedFactInstance.referencedProjectWorkUnitId !== null
-                ? { projectWorkUnitId: startedFactInstance.referencedProjectWorkUnitId }
-                : startedFactInstance.valueJson;
+            const status: RuntimeInvokeTargetStatus = !partiallyStarted
+              ? availablePrimaryWorkflows.length === 0
+                ? "blocked"
+                : startGateBlockingReason
+                  ? "blocked"
+                  : "not_started"
+              : !fullyStarted
+                ? "failed"
+                : !transitionExecution || !projectWorkUnit
+                  ? "unavailable"
+                  : transitionExecution.status === "completed"
+                    ? "completed"
+                    : transitionExecution.status === "active"
+                      ? "active"
+                      : "failed";
 
             return {
-              ...binding,
-              resolvedValueJson: hydratedValue,
-            };
+              workUnitLabel: formatWorkUnitLabel(
+                getWorkUnitTypeName(workUnitType, row.workUnitDefinitionId),
+                row.projectWorkUnitId ?? undefined,
+              ),
+              transitionLabel: getTransitionLabel(transition, row.transitionDefinitionId),
+              transitionFromStateLabel: transition?.transitionFromStateLabel,
+              transitionToStateLabel: transition?.transitionToStateLabel,
+              workflowLabel: row.workflowDefinitionId
+                ? getWorkflowDefinitionName(selectedWorkflow, row.workflowDefinitionId)
+                : undefined,
+              currentWorkUnitStateLabel,
+              status,
+              blockedReason,
+              availablePrimaryWorkflows,
+              invokeWorkUnitTargetExecutionId: row.id,
+              projectWorkUnitId: row.projectWorkUnitId ?? undefined,
+              workUnitDefinitionId: row.workUnitDefinitionId,
+              workUnitDefinitionKey: workUnitType?.key,
+              workUnitDefinitionName: workUnitType?.name,
+              transitionDefinitionId: row.transitionDefinitionId,
+              transitionDefinitionKey: transition?.transitionDefinitionKey,
+              workflowDefinitionId: row.workflowDefinitionId ?? undefined,
+              workflowDefinitionKey: selectedWorkflow?.workflowDefinitionKey,
+              transitionExecutionId: row.transitionExecutionId ?? undefined,
+              workflowExecutionId: row.workflowExecutionId ?? undefined,
+              startGate: {
+                conditionTree: startGateConditionTree,
+                evaluationTree: startGateEvaluation.evaluationTree,
+                firstBlockingReason: startGateEvaluation.firstReason,
+                evaluatedAt: startGateEvaluation.evaluatedAt,
+              },
+              actions: {
+                ...(!fullyStarted
+                  ? {
+                      start: {
+                        kind: "start_invoke_work_unit_target" as const,
+                        enabled:
+                          stepExecution.status === "active" &&
+                          status !== "blocked" &&
+                          availablePrimaryWorkflows.length > 0,
+                        reasonIfDisabled:
+                          stepExecution.status !== "active"
+                            ? "Only active invoke steps can start child work units."
+                            : status === "blocked"
+                              ? blockedReason
+                              : availablePrimaryWorkflows.length === 0
+                                ? "No primary workflows are available for this transition."
+                                : undefined,
+                        invokeWorkUnitTargetExecutionId: row.id,
+                      },
+                    }
+                  : {}),
+                ...(row.projectWorkUnitId
+                  ? {
+                      openWorkUnit: {
+                        kind: "open_work_unit" as const,
+                        projectWorkUnitId: row.projectWorkUnitId,
+                        target: {
+                          page: "work-unit-overview" as const,
+                          projectWorkUnitId: row.projectWorkUnitId,
+                        },
+                      },
+                    }
+                  : {}),
+                ...(row.transitionExecutionId
+                  ? {
+                      openTransition: {
+                        kind: "open_transition_execution" as const,
+                        transitionExecutionId: row.transitionExecutionId,
+                        target: {
+                          page: "transition-execution-detail" as const,
+                          transitionExecutionId: row.transitionExecutionId,
+                        },
+                      },
+                    }
+                  : {}),
+                ...(row.workflowExecutionId
+                  ? {
+                      openWorkflow: {
+                        kind: "open_workflow_execution" as const,
+                        workflowExecutionId: row.workflowExecutionId,
+                        target: {
+                          page: "workflow-execution-detail" as const,
+                          workflowExecutionId: row.workflowExecutionId,
+                        },
+                      },
+                    }
+                  : {}),
+              },
+              bindingPreview: rowBindingPreview,
+            } satisfies RuntimeInvokeStepExecutionDetailBody["workUnitTargets"][number];
           });
 
-          return {
-            workUnitLabel: formatWorkUnitLabel(
-              getWorkUnitTypeName(workUnitType, row.workUnitDefinitionId),
-              row.projectWorkUnitId ?? undefined,
-            ),
-            transitionLabel: getTransitionLabel(transition, row.transitionDefinitionId),
-            transitionFromStateLabel: transition?.transitionFromStateLabel,
-            transitionToStateLabel: transition?.transitionToStateLabel,
-            workflowLabel: row.workflowDefinitionId
-              ? getWorkflowDefinitionName(selectedWorkflow, row.workflowDefinitionId)
-              : undefined,
-            currentWorkUnitStateLabel,
-            status,
-            blockedReason,
-            availablePrimaryWorkflows,
-            invokeWorkUnitTargetExecutionId: row.id,
-            projectWorkUnitId: row.projectWorkUnitId ?? undefined,
-            workUnitDefinitionId: row.workUnitDefinitionId,
-            workUnitDefinitionKey: workUnitType?.key,
-            workUnitDefinitionName: workUnitType?.name,
-            transitionDefinitionId: row.transitionDefinitionId,
-            transitionDefinitionKey: transition?.transitionDefinitionKey,
-            workflowDefinitionId: row.workflowDefinitionId ?? undefined,
-            workflowDefinitionKey: selectedWorkflow?.workflowDefinitionKey,
-            transitionExecutionId: row.transitionExecutionId ?? undefined,
-            workflowExecutionId: row.workflowExecutionId ?? undefined,
-            actions: {
-              ...(!fullyStarted
-                ? {
-                    start: {
-                      kind: "start_invoke_work_unit_target" as const,
-                      enabled:
-                        stepExecution.status === "active" &&
-                        status !== "blocked" &&
-                        availablePrimaryWorkflows.length > 0,
-                      reasonIfDisabled:
-                        stepExecution.status !== "active"
-                          ? "Only active invoke steps can start child work units."
-                          : status === "blocked"
-                            ? blockedReason
-                            : availablePrimaryWorkflows.length === 0
-                              ? "No primary workflows are available for this transition."
-                              : undefined,
-                      invokeWorkUnitTargetExecutionId: row.id,
-                    },
-                  }
-                : {}),
-              ...(row.projectWorkUnitId
-                ? {
-                    openWorkUnit: {
-                      kind: "open_work_unit" as const,
-                      projectWorkUnitId: row.projectWorkUnitId,
-                      target: {
-                        page: "work-unit-overview" as const,
-                        projectWorkUnitId: row.projectWorkUnitId,
-                      },
-                    },
-                  }
-                : {}),
-              ...(row.transitionExecutionId
-                ? {
-                    openTransition: {
-                      kind: "open_transition_execution" as const,
-                      transitionExecutionId: row.transitionExecutionId,
-                      target: {
-                        page: "transition-execution-detail" as const,
-                        transitionExecutionId: row.transitionExecutionId,
-                      },
-                    },
-                  }
-                : {}),
-              ...(row.workflowExecutionId
-                ? {
-                    openWorkflow: {
-                      kind: "open_workflow_execution" as const,
-                      workflowExecutionId: row.workflowExecutionId,
-                      target: {
-                        page: "workflow-execution-detail" as const,
-                        workflowExecutionId: row.workflowExecutionId,
-                      },
-                    },
-                  }
-                : {}),
-            },
-            bindingPreview: rowBindingPreview,
-          } satisfies RuntimeInvokeStepExecutionDetailBody["workUnitTargets"][number];
-        });
+        const workUnitTargets = yield* Effect.forEach(workUnitTargetRows, buildWorkUnitTarget);
 
         const relevantTargets = invokeTargetKind === "workflow" ? workflowTargets : workUnitTargets;
         const completedTargets = relevantTargets.filter(
