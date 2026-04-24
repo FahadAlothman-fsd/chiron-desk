@@ -96,6 +96,8 @@ describe("setup invoke phase-1 fixture", () => {
     ).toEqual(
       expect.arrayContaining([
         "cf_setup_brainstorming_draft_spec",
+        "cf_setup_brainstorming_desired_outcome",
+        "cf_setup_brainstorming_selected_direction",
         "cf_setup_research_draft_spec",
         "cf_setup_branch_note",
         "cf_setup_followup_workflows",
@@ -106,6 +108,16 @@ describe("setup invoke phase-1 fixture", () => {
 
     expect(setupInvokePhase1FixtureSeedRows.methodologyWorkflowContextFactPlainValues).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({
+          contextFactDefinitionId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-brainstorming-desired-outcome",
+          type: "string",
+        }),
+        expect.objectContaining({
+          contextFactDefinitionId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-brainstorming-selected-direction",
+          type: "string",
+        }),
         expect.objectContaining({
           contextFactDefinitionId:
             "seed:l3-setup-invoke:brainstorming-support:mver_bmad_v1_active:ctx:cf-support-note",
@@ -194,7 +206,9 @@ describe("setup invoke phase-1 fixture", () => {
           invokeStepId:
             "seed:l3-setup-invoke:setup:mver_bmad_v1_active:step:invoke-brainstorming-fixed",
           destinationKey: "desired_outcome",
-          sourceKind: "literal",
+          sourceKind: "context_fact",
+          contextFactDefinitionId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-brainstorming-desired-outcome",
         }),
         expect.objectContaining({
           invokeStepId:
@@ -202,7 +216,14 @@ describe("setup invoke phase-1 fixture", () => {
           destinationKey: "selected_direction",
           sourceKind: "context_fact",
           contextFactDefinitionId:
-            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-brainstorming-draft-spec",
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-brainstorming-selected-direction",
+        }),
+        expect.objectContaining({
+          invokeStepId:
+            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:step:invoke-brainstorming-fixed",
+          destinationKey: "brainstorming_session",
+          destinationKind: "artifact_slot",
+          sourceKind: "runtime",
         }),
       ]),
     );
@@ -255,6 +276,14 @@ describe("setup invoke phase-1 fixture", () => {
           },
           {
             contextFactDefinitionId:
+              "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-brainstorming-desired-outcome",
+          },
+          {
+            contextFactDefinitionId:
+              "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-brainstorming-selected-direction",
+          },
+          {
+            contextFactDefinitionId:
               "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-followup-workflows",
           },
           {
@@ -278,6 +307,8 @@ describe("setup invoke phase-1 fixture", () => {
         "cf_setup_requires_brainstorming",
         "cf_setup_requires_research",
         "cf_setup_branch_note",
+        "cf_setup_brainstorming_desired_outcome",
+        "cf_setup_brainstorming_selected_direction",
         "cf_setup_followup_workflows",
         "cf_setup_brainstorming_draft_spec",
         "cf_setup_research_draft_spec",

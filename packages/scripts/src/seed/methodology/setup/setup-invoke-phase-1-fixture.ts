@@ -169,6 +169,8 @@ function buildSetupInvokePhase1FixtureSeedRows(
       requiresBrainstorming: `seed:l3-setup-invoke:setup:${methodologyVersionId}:ctx:cf-setup-requires-brainstorming`,
       requiresResearch: `seed:l3-setup-invoke:setup:${methodologyVersionId}:ctx:cf-setup-requires-research`,
       branchNote: `seed:l3-setup-invoke:setup:${methodologyVersionId}:ctx:cf-setup-branch-note`,
+      brainstormingDesiredOutcome: `seed:l3-setup-invoke:setup:${methodologyVersionId}:ctx:cf-setup-brainstorming-desired-outcome`,
+      brainstormingSelectedDirection: `seed:l3-setup-invoke:setup:${methodologyVersionId}:ctx:cf-setup-brainstorming-selected-direction`,
       followupWorkflows: `seed:l3-setup-invoke:setup:${methodologyVersionId}:ctx:cf-setup-followup-workflows`,
       projectOverviewArtifact: `seed:l3-setup-invoke:setup:${methodologyVersionId}:ctx:cf-project-overview-artifact`,
       brainstormingDraftSpec: `seed:l3-setup-invoke:setup:${methodologyVersionId}:ctx:cf-setup-brainstorming-draft-spec`,
@@ -199,6 +201,8 @@ function buildSetupInvokePhase1FixtureSeedRows(
     brainstormingDraftSpec: `seed:l3-setup-invoke:setup:${methodologyVersionId}:write-item:brainstorming-draft-spec`,
     researchDraftSpec: `seed:l3-setup-invoke:setup:${methodologyVersionId}:write-item:research-draft-spec`,
     branchNote: `seed:l3-setup-invoke:setup:${methodologyVersionId}:write-item:branch-note`,
+    brainstormingDesiredOutcome: `seed:l3-setup-invoke:setup:${methodologyVersionId}:write-item:brainstorming-desired-outcome`,
+    brainstormingSelectedDirection: `seed:l3-setup-invoke:setup:${methodologyVersionId}:write-item:brainstorming-selected-direction`,
     followupWorkflows: `seed:l3-setup-invoke:setup:${methodologyVersionId}:write-item:followup-workflows`,
   } as const;
 
@@ -397,6 +401,36 @@ function buildSetupInvokePhase1FixtureSeedRows(
         ),
       },
       {
+        id: contextFactId.setup.brainstormingDesiredOutcome,
+        workflowId: workflowId.setup,
+        factKey: "cf_setup_brainstorming_desired_outcome",
+        factKind: "plain_fact",
+        label: "Setup Brainstorming Desired Outcome",
+        descriptionJson: {
+          markdown:
+            "Setup-owned desired outcome text for the fixed brainstorming invoke so the spawned work unit starts with authored intent.",
+        },
+        cardinality: "one",
+        guidanceJson: guidanceJson(
+          "Write a short desired outcome the seeded brainstorming work unit should pursue.",
+        ),
+      },
+      {
+        id: contextFactId.setup.brainstormingSelectedDirection,
+        workflowId: workflowId.setup,
+        factKey: "cf_setup_brainstorming_selected_direction",
+        factKind: "plain_fact",
+        label: "Setup Brainstorming Selected Direction",
+        descriptionJson: {
+          markdown:
+            "Setup-owned selected direction text for the fixed brainstorming invoke so the spawned work unit starts with authored direction.",
+        },
+        cardinality: "one",
+        guidanceJson: guidanceJson(
+          "Write a short selected direction the seeded brainstorming work unit should start from.",
+        ),
+      },
+      {
         id: contextFactId.setup.followupWorkflows,
         workflowId: workflowId.setup,
         factKey: "cf_setup_followup_workflows",
@@ -522,6 +556,16 @@ function buildSetupInvokePhase1FixtureSeedRows(
       },
     ],
     methodologyWorkflowContextFactPlainValues: [
+      {
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:ctx-payload:cf-setup-brainstorming-desired-outcome`,
+        contextFactDefinitionId: contextFactId.setup.brainstormingDesiredOutcome,
+        type: "string",
+      },
+      {
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:ctx-payload:cf-setup-brainstorming-selected-direction`,
+        contextFactDefinitionId: contextFactId.setup.brainstormingSelectedDirection,
+        type: "string",
+      },
       {
         id: `seed:l3-setup-invoke:brainstorming-support:${methodologyVersionId}:ctx-payload:cf-support-note`,
         contextFactDefinitionId: contextFactId.brainstormingSupport.supportNote,
@@ -1016,15 +1060,17 @@ function buildSetupInvokePhase1FixtureSeedRows(
       {
         stepId: stepId.setup.synthesize,
         objective:
-          "Write the minimum setup-owned outputs needed by the phase-1 invoke runtime seed: a project overview artifact reference, both setup follow-up booleans, a branch note, follow-up workflow references, at least one brainstorming draft spec, and at least one research draft spec. Traverse the existing repository first so the generated setup context reflects the real project.",
+          "Write the minimum setup-owned outputs needed by the phase-1 invoke runtime seed: a project overview artifact reference, both setup follow-up booleans, a branch note, a brainstorming desired outcome, a brainstorming selected direction, follow-up workflow references, at least one brainstorming draft spec, and at least one research draft spec. Traverse the existing repository first so the generated setup context reflects the real project.",
         instructionsMarkdown:
-          "Create a lightweight PROJECT_OVERVIEW artifact reference in `cf_project_overview_artifact`. Write `cf_setup_requires_brainstorming`, `cf_setup_requires_research`, `cf_setup_branch_note`, and the explicit workflow references in `cf_setup_followup_workflows`. Author at least one brainstorming draft-spec item in `cf_setup_brainstorming_draft_spec` with prefilled `desired_outcome` and `selected_direction`. Author at least one research draft-spec item in `cf_setup_research_draft_spec` using only the selected draft-spec keys: prefill `research_topic`, optionally include `research_goals`, and do not include `setup_work_unit` because that binding is supplied by the invoke step at runtime. Traverse the existing repository before writing so the setup-owned context facts reflect the real project. Explicitly produce every write-set output this step owns: `cf_project_overview_artifact`, `cf_setup_requires_brainstorming`, `cf_setup_requires_research`, `cf_setup_branch_note`, `cf_setup_followup_workflows`, `cf_setup_brainstorming_draft_spec`, and `cf_setup_research_draft_spec`. Keep the flow lightweight and do not assume richer Plan-B-only payloads.",
+          "Create a lightweight PROJECT_OVERVIEW artifact reference in `cf_project_overview_artifact`. Write `cf_setup_requires_brainstorming`, `cf_setup_requires_research`, `cf_setup_branch_note`, `cf_setup_brainstorming_desired_outcome`, `cf_setup_brainstorming_selected_direction`, and the explicit workflow references in `cf_setup_followup_workflows`. Author at least one brainstorming draft-spec item in `cf_setup_brainstorming_draft_spec` with prefilled `desired_outcome` and `selected_direction`. Author at least one research draft-spec item in `cf_setup_research_draft_spec` using only the selected draft-spec keys: prefill `research_topic`, optionally include `research_goals`, and do not include `setup_work_unit` because that binding is supplied by the invoke step at runtime. Traverse the existing repository before writing so the setup-owned context facts reflect the real project. Explicitly produce every write-set output this step owns: `cf_project_overview_artifact`, `cf_setup_requires_brainstorming`, `cf_setup_requires_research`, `cf_setup_branch_note`, `cf_setup_brainstorming_desired_outcome`, `cf_setup_brainstorming_selected_direction`, `cf_setup_followup_workflows`, `cf_setup_brainstorming_draft_spec`, and `cf_setup_research_draft_spec`. Keep the flow lightweight and do not assume richer Plan-B-only payloads.",
         harness: "opencode",
         agentKey: "Atlas - Plan Executor",
         modelJson: { provider: "opencode", model: "kimi-2.5" },
         completionRequirementsJson: [
           { contextFactDefinitionId: contextFactId.setup.projectOverviewArtifact },
           { contextFactDefinitionId: contextFactId.setup.branchNote },
+          { contextFactDefinitionId: contextFactId.setup.brainstormingDesiredOutcome },
+          { contextFactDefinitionId: contextFactId.setup.brainstormingSelectedDirection },
           { contextFactDefinitionId: contextFactId.setup.followupWorkflows },
           { contextFactDefinitionId: contextFactId.setup.brainstormingDraftSpec },
           { contextFactDefinitionId: contextFactId.setup.researchDraftSpec },
@@ -1105,6 +1151,24 @@ function buildSetupInvokePhase1FixtureSeedRows(
         sortOrder: 350,
       },
       {
+        id: writeItemId.brainstormingDesiredOutcome,
+        agentStepId: stepId.setup.synthesize,
+        writeItemId: "cf_setup_brainstorming_desired_outcome",
+        contextFactDefinitionId: contextFactId.setup.brainstormingDesiredOutcome,
+        contextFactKind: "plain_fact",
+        label: "Setup Brainstorming Desired Outcome",
+        sortOrder: 360,
+      },
+      {
+        id: writeItemId.brainstormingSelectedDirection,
+        agentStepId: stepId.setup.synthesize,
+        writeItemId: "cf_setup_brainstorming_selected_direction",
+        contextFactDefinitionId: contextFactId.setup.brainstormingSelectedDirection,
+        contextFactKind: "plain_fact",
+        label: "Setup Brainstorming Selected Direction",
+        sortOrder: 370,
+      },
+      {
         id: writeItemId.followupWorkflows,
         agentStepId: stepId.setup.synthesize,
         writeItemId: "cf_setup_followup_workflows",
@@ -1147,6 +1211,14 @@ function buildSetupInvokePhase1FixtureSeedRows(
       },
       {
         writeItemRowId: writeItemId.branchNote,
+        contextFactDefinitionId: contextFactId.setup.projectKind,
+      },
+      {
+        writeItemRowId: writeItemId.brainstormingDesiredOutcome,
+        contextFactDefinitionId: contextFactId.setup.projectKind,
+      },
+      {
+        writeItemRowId: writeItemId.brainstormingSelectedDirection,
         contextFactDefinitionId: contextFactId.setup.projectKind,
       },
       {
@@ -1488,10 +1560,9 @@ function buildSetupInvokePhase1FixtureSeedRows(
         destinationKey: "desired_outcome",
         workUnitFactDefinitionId: workUnitFactId.brainstorming.desiredOutcome,
         artifactSlotDefinitionId: null,
-        sourceKind: "literal",
-        contextFactDefinitionId: null,
-        literalValueJson:
-          "Confirm the seeded brainstorm direction and keep the invoke path moving.",
+        sourceKind: "context_fact",
+        contextFactDefinitionId: contextFactId.setup.brainstormingDesiredOutcome,
+        literalValueJson: null,
         sortOrder: 1,
       },
       {
@@ -1502,9 +1573,21 @@ function buildSetupInvokePhase1FixtureSeedRows(
         workUnitFactDefinitionId: workUnitFactId.brainstorming.selectedDirection,
         artifactSlotDefinitionId: null,
         sourceKind: "context_fact",
-        contextFactDefinitionId: contextFactId.setup.brainstormingDraftSpec,
+        contextFactDefinitionId: contextFactId.setup.brainstormingSelectedDirection,
         literalValueJson: null,
         sortOrder: 2,
+      },
+      {
+        id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:invoke-binding:brainstorming:brainstorming-session`,
+        invokeStepId: stepId.setup.invokeBrainstorming,
+        destinationKind: "artifact_slot",
+        destinationKey: "brainstorming_session",
+        workUnitFactDefinitionId: null,
+        artifactSlotDefinitionId: artifactSlotId.brainstormingSession,
+        sourceKind: "runtime",
+        contextFactDefinitionId: null,
+        literalValueJson: null,
+        sortOrder: 3,
       },
       {
         id: `seed:l3-setup-invoke:setup:${methodologyVersionId}:invoke-binding:research:setup-work-unit`,
