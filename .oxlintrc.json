@@ -41,6 +41,8 @@
     "_bmad/**",
     "_bmad-output/**",
     "docs/**",
-    "academic_reports/**"
+    "academic_reports/**",
+    "apps/docs/.vitepress/cache/**",
+    "apps/docs/.vitepress/.temp/**"
   ]
 }

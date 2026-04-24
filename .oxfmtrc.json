@@ -6,6 +6,8 @@
     "_bmad-output/**",
     "docs/**",
     "academic_reports/**",
-    "apps/web/src/routeTree.gen.ts"
+    "apps/web/src/routeTree.gen.ts",
+    "apps/docs/.vitepress/cache/**",
+    "apps/docs/.vitepress/.temp/**"
   ]
 }

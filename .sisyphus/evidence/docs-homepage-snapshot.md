@@ -1,0 +1,111 @@
+- generic [ref=e3]:
+  - link "Skip to content" [ref=e4] [cursor=pointer]:
+    - /url: "#VPContent"
+  - banner:
+    - generic:
+      - generic:
+        - generic
+  - generic [ref=e38]:
+    - generic [ref=e41]:
+      - heading "Chiron Turn agentic delivery into something teams can inspect." [level=1] [ref=e42]:
+        - generic [ref=e43]: Chiron
+        - generic [ref=e44]: Turn agentic delivery into something teams can inspect.
+      - paragraph [ref=e45]: Public docs for methodology builders, operators, and evaluators who need the product mental model before they need the internal canon.
+      - generic [ref=e46]:
+        - link "Taskflow Example" [ref=e48] [cursor=pointer]:
+          - /url: /taskflow/
+        - link "Mental Model" [ref=e50] [cursor=pointer]:
+          - /url: /mental-model
+        - link "Getting Started" [ref=e52] [cursor=pointer]:
+          - /url: /getting-started
+    - generic [ref=e55]:
+      - article [ref=e58]:
+        - heading "Two tracks, one system" [level=2] [ref=e59]
+        - paragraph [ref=e60]: Design Time explains how a method is authored. Project Runtime shows what that method looks like while real work is moving.
+      - article [ref=e63]:
+        - heading "One running example" [level=2] [ref=e64]
+        - paragraph [ref=e65]: Taskflow is the single public example used to explain setup, delegation, review, rework, branching, and artifact production.
+      - article [ref=e68]:
+        - heading "Clear public language" [level=2] [ref=e69]
+        - paragraph [ref=e70]: Public docs use Methodology Layer, Work Unit Layer, Workflow Layer, and Step Layer. Legacy layer labels are kept in bridge pages only.
+    - generic [ref=e73]:
+      - heading "Shared intro Permalink to \"Shared intro\"" [level=2] [ref=e74]:
+        - text: Shared intro
+        - link "Permalink to \"Shared intro\"" [ref=e75] [cursor=pointer]:
+          - /url: "#shared-intro"
+      - paragraph [ref=e76]:
+        - text: Chiron is a methodology-first system for
+        - strong [ref=e77]: modeling and supervising agentic software delivery
+        - text: in a structured, inspectable way.
+      - paragraph [ref=e78]: "Instead of treating delivery as a loose chain of chats, Chiron gives teams durable objects for:"
+      - list [ref=e79]:
+        - listitem [ref=e80]: methodology versions
+        - listitem [ref=e81]: typed work units
+        - listitem [ref=e82]: explicit states and transitions
+        - listitem [ref=e83]: bound workflows
+        - listitem [ref=e84]: durable facts and artifact slots
+        - listitem [ref=e85]: human-in-the-loop runtime and review surfaces
+      - paragraph [ref=e86]: That means a team can ask simple questions and get durable answers.
+      - list [ref=e87]:
+        - listitem [ref=e88]: What kind of work is this?
+        - listitem [ref=e89]: What state is it in?
+        - listitem [ref=e90]: Which workflow is allowed to run here?
+        - listitem [ref=e91]: What evidence was produced?
+        - listitem [ref=e92]: Where did review happen?
+      - heading "Two tracks, one system Permalink to \"Two tracks, one system\"" [level=2] [ref=e93]:
+        - text: Two tracks, one system
+        - link "Permalink to \"Two tracks, one system\"" [ref=e94] [cursor=pointer]:
+          - /url: "#two-tracks-one-system"
+      - list [ref=e95]:
+        - listitem [ref=e96]
+        - listitem [ref=e98]
+      - paragraph [ref=e100]: You can think of Design Time as defining the method, and Project Runtime as watching that method run.
+      - heading "Taskflow, the running example Permalink to \"Taskflow, the running example\"" [level=2] [ref=e101]:
+        - text: Taskflow, the running example
+        - link "Permalink to \"Taskflow, the running example\"" [ref=e102] [cursor=pointer]:
+          - /url: "#taskflow-the-running-example"
+      - paragraph [ref=e103]:
+        - text: These docs use
+        - strong [ref=e104]: Taskflow
+        - text: as one consistent example. Taskflow is not a hardcoded product requirement. It is a representative delivery method that makes the mental model easier to see.
+      - paragraph [ref=e105]: "Taskflow appears in three scenario slices:"
+      - heading "1. Setup and onboarding Permalink to \"1. Setup and onboarding\"" [level=3] [ref=e106]:
+        - text: 1. Setup and onboarding
+        - link "Permalink to \"1. Setup and onboarding\"" [ref=e107] [cursor=pointer]:
+          - /url: "#_1-setup-and-onboarding"
+      - paragraph [ref=e108]: A team starts by shaping the method at Design Time. They define the work-unit catalog, the facts each kind of work owns, the artifact slots that should hold durable outputs, and the workflows that can move work forward.
+      - paragraph [ref=e109]: Then a real project picks up that method at Project Runtime. The team can see what work exists, what still needs input, and which onboarding artifacts are already present.
+      - heading "2. Fan-out and delegation Permalink to \"2. Fan-out and delegation\"" [level=3] [ref=e110]:
+        - text: 2. Fan-out and delegation
+        - link "Permalink to \"2. Fan-out and delegation\"" [ref=e111] [cursor=pointer]:
+          - /url: "#_2-fan-out-and-delegation"
+      - paragraph [ref=e112]: Once the project is in motion, a parent work unit can branch into child work. Taskflow uses that slice to show how one piece of work can fan out into several delegated paths without losing structure.
+      - paragraph [ref=e113]: That is where workflows, branching, and artifact production become concrete. Delegation is not just “go do more work.” It stays tied to a work unit, a workflow, and expected outputs.
+      - heading "3. Review and rework Permalink to \"3. Review and rework\"" [level=3] [ref=e114]:
+        - text: 3. Review and rework
+        - link "Permalink to \"3. Review and rework\"" [ref=e115] [cursor=pointer]:
+          - /url: "#_3-review-and-rework"
+      - paragraph [ref=e116]: Work does not end when an agent produces a draft. Taskflow also shows how review, evidence, approval, rejection, and rework loops fit into the same model.
+      - paragraph [ref=e117]: The result is a system where artifacts, transitions, and review decisions stay visible instead of disappearing into chat history.
+      - heading "Read next Permalink to \"Read next\"" [level=2] [ref=e118]:
+        - text: Read next
+        - link "Permalink to \"Read next\"" [ref=e119] [cursor=pointer]:
+          - /url: "#read-next"
+      - list [ref=e120]:
+        - listitem [ref=e121]
+        - listitem [ref=e123]
+        - listitem [ref=e125]
+        - listitem [ref=e127]
+      - heading "Public docs and internal canon Permalink to \"Public docs and internal canon\"" [level=2] [ref=e129]:
+        - text: Public docs and internal canon
+        - link "Permalink to \"Public docs and internal canon\"" [ref=e130] [cursor=pointer]:
+          - /url: "#public-docs-and-internal-canon"
+      - paragraph [ref=e131]: Use these docs when you want the public product story.
+      - paragraph [ref=e132]:
+        - text: Jump into
+        - code [ref=e133]: docs/**
+        - text: only when you need the deeper internal architecture and planning canon.
+  - contentinfo [ref=e134]:
+    - generic [ref=e135]:
+      - paragraph [ref=e136]: Public docs explain the product mental model; internal canon stays in docs/**.
+      - paragraph [ref=e137]: Chiron

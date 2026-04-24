@@ -63,6 +63,9 @@ tests/.auth
 .cache
 tmp
 temp
+apps/docs/.vitepress/cache/
+apps/docs/.vitepress/.temp/
+apps/docs/.turbo/
 
 # db
 *.db

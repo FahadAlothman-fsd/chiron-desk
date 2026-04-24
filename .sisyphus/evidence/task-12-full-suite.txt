@@ -1,0 +1,31 @@
+Docs verification suite evidence
+================================
+
+Executed checks:
+
+1. `bun run build:docs`
+   - Result: PASS
+
+2. `bun run test:docs`
+   - Result: PASS
+   - Notes: runs `playwright test -c playwright.docs.config.ts` headlessly
+
+3. `bun run preview:docs`
+   - Result: STARTED successfully
+   - Observed output: `Built site served at http://localhost:4304/`
+
+4. `curl -I http://127.0.0.1:4304/favicon.svg`
+   - Result: PASS
+   - Observed status: `HTTP/1.1 200 OK`
+
+5. LSP diagnostics on changed TypeScript files
+   - `apps/docs/.vitepress/config.ts`: clean
+   - `playwright.docs.config.ts`: clean
+   - `tests/docs/smoke.spec.ts`: clean
+
+Artifacts:
+
+- Happy path screenshot: `.sisyphus/evidence/task-12-happy-path.png`
+- Boundary summary: `.sisyphus/evidence/task-12-boundary.txt`
+
+Result: the docs-specific build, smoke, preview, favicon, and changed-file diagnostics checks pass.
