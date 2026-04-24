@@ -48,6 +48,9 @@ const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
 const asNonEmptyString = (value: unknown): string | null =>
   typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 
+const isManyProjectCardinality = (value: string | null | undefined): boolean =>
+  value === "many" || value === "many_per_project";
+
 const normalizeToItems = (value: unknown): readonly unknown[] => {
   if (value === null || value === undefined) {
     return [];
@@ -562,6 +565,20 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
           return yield* makeCommandError("target work-unit type not found");
         }
 
+        const existingTargetWorkUnits = Option.isSome(projectWorkUnitRepo)
+          ? yield* projectWorkUnitRepo.value.listProjectWorkUnitsByProject(input.projectId)
+          : [];
+        if (
+          !isManyProjectCardinality(targetWorkUnitType.cardinality) &&
+          existingTargetWorkUnits.some(
+            (workUnit) => workUnit.workUnitTypeId === invokeWorkUnitTarget.workUnitDefinitionId,
+          )
+        ) {
+          return yield* makeCommandError(
+            `${targetWorkUnitType.displayName ?? targetWorkUnitType.key} already exists for this project`,
+          );
+        }
+
         const parentWorkflowEditor = yield* methodologyRepo.getWorkflowEditorDefinition({
           versionId: projectPin.methodologyVersionId,
           workUnitTypeKey: parentWorkUnitType.key,
@@ -902,9 +919,7 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
               workUnitTypeKey: targetWorkUnitType.key,
             }),
             lifecycleRepo.findWorkUnitTypes(projectPin.methodologyVersionId),
-            Option.isSome(projectWorkUnitRepo)
-              ? projectWorkUnitRepo.value.listProjectWorkUnitsByProject(input.projectId)
-              : Effect.succeed([]),
+            Effect.succeed(existingTargetWorkUnits),
           ]);
 
         const targetFactDefinitionIds = new Set(factSchemas.map((factSchema) => factSchema.id));
@@ -1667,6 +1682,45 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
               startedWorkflowExecutionId: started.workflowExecutionId,
             }),
           );
+        }
+
+        if (isManyProjectCardinality(targetWorkUnitType.cardinality)) {
+          const existingTargets = yield* invokeRepo.listInvokeWorkUnitTargetExecutions(
+            invokeWorkUnitTarget.invokeStepExecutionStateId,
+          );
+          const isSameFamily = (target: (typeof existingTargets)[number]) =>
+            target.workUnitDefinitionId === invokeWorkUnitTarget.workUnitDefinitionId &&
+            target.transitionDefinitionId === invokeWorkUnitTarget.transitionDefinitionId;
+          const hasDraftSibling = existingTargets.some(
+            (target) =>
+              target.id !== invokeWorkUnitTarget.id &&
+              isSameFamily(target) &&
+              !target.projectWorkUnitId &&
+              !target.transitionExecutionId &&
+              !target.workflowDefinitionId &&
+              !target.workflowExecutionId,
+          );
+
+          if (!hasDraftSibling) {
+            const resolutionStride = Math.max(uniqueActivationTransitions.length, 1);
+            const familyOrders = existingTargets
+              .filter(isSameFamily)
+              .flatMap((target) =>
+                typeof target.resolutionOrder === "number" ? [target.resolutionOrder] : [],
+              );
+            const nextResolutionOrder =
+              familyOrders.length > 0
+                ? Math.max(...familyOrders) + resolutionStride
+                : (invokeWorkUnitTarget.resolutionOrder ?? 0) + resolutionStride;
+
+            yield* invokeRepo.createInvokeWorkUnitTargetExecution({
+              invokeStepExecutionStateId: invokeWorkUnitTarget.invokeStepExecutionStateId,
+              workUnitDefinitionId: invokeWorkUnitTarget.workUnitDefinitionId,
+              transitionDefinitionId: invokeWorkUnitTarget.transitionDefinitionId,
+              resolutionOrder: nextResolutionOrder,
+              frozenDraftTemplateJson,
+            });
+          }
         }
 
         return warnings.length > 0 ? { ...started, warnings } : started;

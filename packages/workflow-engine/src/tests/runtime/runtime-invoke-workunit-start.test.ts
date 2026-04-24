@@ -72,6 +72,7 @@ type TestState = {
   factMappings: InvokeWorkUnitCreatedFactInstanceRow[];
   artifactMappings: InvokeWorkUnitCreatedArtifactSnapshotRow[];
   invokeTarget: InvokeWorkUnitTargetExecutionRow;
+  extraInvokeTargets: InvokeWorkUnitTargetExecutionRow[];
 };
 
 function createRuntime(options?: {
@@ -147,6 +148,7 @@ function createRuntime(options?: {
     workflowExecutions: [],
     factMappings: [],
     artifactMappings: [],
+    extraInvokeTargets: [],
     invokeTarget: {
       id: "invoke-wu-target-1",
       invokeStepExecutionStateId: invokeRoot.id,
@@ -379,12 +381,45 @@ function createRuntime(options?: {
     getInvokeWorkflowTargetExecutionById: () => Effect.succeed(null),
     createInvokeWorkflowTargetExecution: () => Effect.die("unused"),
     markInvokeWorkflowTargetExecutionStarted: () => Effect.die("unused"),
-    listInvokeWorkUnitTargetExecutions: () => Effect.succeed([state.invokeTarget]),
+    listInvokeWorkUnitTargetExecutions: () =>
+      Effect.succeed([state.invokeTarget, ...state.extraInvokeTargets]),
     getInvokeWorkUnitTargetExecutionById: (invokeWorkUnitTargetExecutionId: string) =>
       Effect.succeed(
-        invokeWorkUnitTargetExecutionId === state.invokeTarget.id ? state.invokeTarget : null,
+        [state.invokeTarget, ...state.extraInvokeTargets].find(
+          (target) => target.id === invokeWorkUnitTargetExecutionId,
+        ) ?? null,
       ),
-    createInvokeWorkUnitTargetExecution: () => Effect.die("unused"),
+    createInvokeWorkUnitTargetExecution: (params: {
+      invokeStepExecutionStateId: string;
+      projectWorkUnitId?: string | null;
+      workUnitDefinitionId: string;
+      transitionDefinitionId: string;
+      transitionExecutionId?: string | null;
+      workflowDefinitionId?: string | null;
+      workflowExecutionId?: string | null;
+      resolutionOrder?: number | null;
+      frozenDraftTemplateJson?: unknown | null;
+    }) =>
+      Effect.succeed(
+        (() => {
+          const row: InvokeWorkUnitTargetExecutionRow = {
+            id: `invoke-wu-target-extra-${state.extraInvokeTargets.length + 1}`,
+            invokeStepExecutionStateId: params.invokeStepExecutionStateId,
+            projectWorkUnitId: params.projectWorkUnitId ?? null,
+            workUnitDefinitionId: params.workUnitDefinitionId,
+            transitionDefinitionId: params.transitionDefinitionId,
+            transitionExecutionId: params.transitionExecutionId ?? null,
+            workflowDefinitionId: params.workflowDefinitionId ?? null,
+            workflowExecutionId: params.workflowExecutionId ?? null,
+            resolutionOrder: params.resolutionOrder ?? null,
+            frozenDraftTemplateJson: params.frozenDraftTemplateJson ?? null,
+            createdAt: new Date("2026-04-14T00:02:00.000Z"),
+            updatedAt: new Date("2026-04-14T00:02:00.000Z"),
+          };
+          state.extraInvokeTargets.push(row);
+          return row;
+        })(),
+      ),
     markInvokeWorkUnitTargetExecutionStarted: () => Effect.die("unused"),
     listInvokeWorkUnitCreatedFactInstances: () => Effect.succeed(state.factMappings),
     createInvokeWorkUnitCreatedFactInstance: () => Effect.die("unused"),
@@ -418,6 +453,7 @@ function createRuntime(options?: {
             factMappings: [...state.factMappings],
             artifactMappings: [...state.artifactMappings],
             invokeTarget: { ...state.invokeTarget },
+            extraInvokeTargets: [...state.extraInvokeTargets],
           };
 
           try {
@@ -529,6 +565,7 @@ function createRuntime(options?: {
             state.factMappings = snapshot.factMappings;
             state.artifactMappings = snapshot.artifactMappings;
             state.invokeTarget = snapshot.invokeTarget;
+            state.extraInvokeTargets = snapshot.extraInvokeTargets;
             throw error;
           }
         },
@@ -666,6 +703,15 @@ describe("InvokeWorkUnitExecutionService", () => {
     expect(runtime.state.invokeTarget.transitionExecutionId).toBe(result.transitionExecutionId);
     expect(runtime.state.invokeTarget.workflowExecutionId).toBe(result.workflowExecutionId);
     expect(runtime.state.invokeTarget.workflowDefinitionId).toBe("wf-child-primary");
+    expect(runtime.state.extraInvokeTargets).toEqual([
+      expect.objectContaining({
+        projectWorkUnitId: null,
+        workUnitDefinitionId: "wu-child",
+        transitionDefinitionId: "transition-ready",
+        workflowDefinitionId: null,
+        workflowExecutionId: null,
+      }),
+    ]);
   });
 
   it("returns already_started without duplicating entities", async () => {

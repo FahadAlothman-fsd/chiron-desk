@@ -57,6 +57,8 @@ describe("l3 runtime invoke contracts", () => {
         workUnitTargets: [
           {
             workUnitLabel: "Story · Add invoke detail page",
+            targetFamilyKey: "wu-def-1:transition-def-1",
+            workUnitCardinality: "many_per_project",
             transitionLabel: "Move to In Progress",
             workflowLabel: "Create story",
             currentWorkUnitStateLabel: "In Progress",
@@ -80,6 +82,15 @@ describe("l3 runtime invoke contracts", () => {
             workflowDefinitionKey: "create-story",
             transitionExecutionId: "transition-exec-1",
             workflowExecutionId: "workflow-exec-child-1",
+            childSummary: {
+              projectWorkUnitId: "project-wu-1",
+              label: "Story #1",
+              currentStateLabel: "In Progress",
+              transitionExecutionId: "transition-exec-1",
+              transitionStatus: "active",
+              workflowExecutionId: "workflow-exec-child-1",
+              workflowStatus: "active",
+            },
             startGate: {
               conditionTree: {
                 mode: "all",
@@ -140,6 +151,7 @@ describe("l3 runtime invoke contracts", () => {
                 sourceContextFactKey: "selected_direction",
                 authoredPrefillValueJson: "Context supplied direction",
                 savedDraftValueJson: "Saved frozen direction",
+                actualChildValueJson: "Actual child direction",
                 resolvedValueJson: "Saved frozen direction",
                 requiresRuntimeValue: false,
               },
@@ -179,6 +191,9 @@ describe("l3 runtime invoke contracts", () => {
       );
       expect(output.body.workUnitTargets[0]?.bindingPreview[0]?.savedDraftValueJson).toBe(
         "Saved frozen direction",
+      );
+      expect(output.body.workUnitTargets[0]?.bindingPreview[0]?.actualChildValueJson).toBe(
+        "Actual child direction",
       );
       expect(output.body.propagationPreview.outputs[0]?.label).toBe("Created stories");
     }

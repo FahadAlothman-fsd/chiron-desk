@@ -13,8 +13,10 @@ import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-
 import { ProjectContextRepository } from "@chiron/project-context";
 import { SandboxGitService } from "@chiron/sandbox-engine";
 import { Context, Effect, Layer } from "effect";
+import type { ArtifactCurrentState } from "../repositories/artifact-repository";
 
 import { RepositoryError } from "../errors";
+import { ArtifactRepository } from "../repositories/artifact-repository";
 import { type WorkflowExecutionDetailReadModel } from "../repositories/execution-read-repository";
 import { InvokeExecutionRepository } from "../repositories/invoke-execution-repository";
 import { ProjectWorkUnitRepository } from "../repositories/project-work-unit-repository";
@@ -227,6 +229,9 @@ const isFilePathPlainContextFact = (contextFact: WorkflowContextFactDto | undefi
 const asNonEmptyString = (value: unknown): string | null =>
   typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 
+const isManyProjectCardinality = (value: string | null | undefined): boolean =>
+  value === "many" || value === "many_per_project";
+
 const hasRelativePath = (value: unknown): value is { relativePath: string } =>
   isPlainRecord(value) && typeof value.relativePath === "string" && value.relativePath.length > 0;
 
@@ -366,6 +371,43 @@ const toProjectedWorkUnitFactValue = (
   }
 
   return { valueJson: value };
+};
+
+const toChildFactDisplayValue = (params: {
+  destinationFactType: FactType | undefined;
+  destinationCardinality: FactCardinality | undefined;
+  factInstances: readonly {
+    referencedProjectWorkUnitId: string | null;
+    valueJson: unknown;
+  }[];
+}): unknown => {
+  const values = params.factInstances.map((factInstance) =>
+    params.destinationFactType === "work_unit"
+      ? factInstance.referencedProjectWorkUnitId !== null
+        ? { projectWorkUnitId: factInstance.referencedProjectWorkUnitId }
+        : null
+      : factInstance.valueJson,
+  );
+
+  if (params.destinationCardinality === "many") {
+    return values.filter((value) => value !== null);
+  }
+
+  return values.find((value) => value !== null);
+};
+
+const toChildArtifactDisplayValue = (params: {
+  destinationCardinality: FactCardinality | undefined;
+  artifactState: ArtifactCurrentState;
+}): unknown => {
+  const presentMembers = params.artifactState.members.filter(
+    (member) => member.memberStatus === "present",
+  );
+  if (params.destinationCardinality === "many") {
+    return presentMembers.map((member) => ({ relativePath: member.filePath }));
+  }
+
+  return presentMembers[0]?.filePath ? { relativePath: presentMembers[0].filePath } : undefined;
 };
 
 type ResolvedInvokeDraftTemplate = {
@@ -817,6 +859,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
     const methodologyRepo = yield* MethodologyRepository;
     const invokeRepo = yield* InvokeExecutionRepository;
     const projectWorkUnitRepo = yield* ProjectWorkUnitRepository;
+    const artifactRepo = yield* ArtifactRepository;
     const workUnitFactRepo = yield* WorkUnitFactRepository;
     const stepRepo = yield* StepExecutionRepository;
     const transitionRepo = yield* TransitionExecutionRepository;
@@ -909,6 +952,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                   id: workUnitType.id,
                   key: workUnitType.key,
                   name: workUnitType.displayName ?? humanizeKey(workUnitType.key),
+                  cardinality: workUnitType.cardinality,
                 } satisfies WorkUnitTypeSummary,
               ] as const,
           ),
@@ -957,6 +1001,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
 
         const transitionsById = new Map<string, TransitionSummary>();
         const startGateTreesByTransitionId = new Map<string, RuntimeConditionTree>();
+        const completionGateTreesByTransitionId = new Map<string, RuntimeConditionTree>();
         const statesByWorkUnitTypeId = new Map<string, Map<string, string>>();
         const workUnitFactDefinitionsById = new Map<
           string,
@@ -1021,6 +1066,14 @@ export const InvokeStepDetailServiceLive = Layer.effect(
               toRuntimeConditionTree(
                 conditionSets
                   .filter((conditionSet) => conditionSet.phase !== "completion")
+                  .sort((left, right) => left.key.localeCompare(right.key)),
+              ),
+            );
+            completionGateTreesByTransitionId.set(
+              transition.id,
+              toRuntimeConditionTree(
+                conditionSets
+                  .filter((conditionSet) => conditionSet.phase === "completion")
                   .sort((left, right) => left.key.localeCompare(right.key)),
               ),
             );
@@ -1519,14 +1572,45 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                     .get(projectWorkUnit.workUnitTypeId)
                     ?.get(projectWorkUnit.currentStateId) ?? projectWorkUnit.currentStateId)
                 : undefined;
-            const startedFactInstancesByDefinitionId = new Map(
-              (row.projectWorkUnitId
-                ? (startedFactInstancesByWorkUnitId.get(row.projectWorkUnitId) ?? [])
-                : []
-              )
-                .filter((fact) => fact.status === "active")
-                .map((fact) => [fact.factDefinitionId, fact] as const),
-            );
+            const startedFactInstancesByDefinitionId = new Map<
+              string,
+              (typeof startedProjectWorkUnitFacts)[number]
+            >();
+            for (const fact of row.projectWorkUnitId
+              ? (startedFactInstancesByWorkUnitId.get(row.projectWorkUnitId) ?? [])
+              : []) {
+              if (fact.status !== "active") {
+                continue;
+              }
+
+              const entries = startedFactInstancesByDefinitionId.get(fact.factDefinitionId) ?? [];
+              entries.push(fact);
+              startedFactInstancesByDefinitionId.set(fact.factDefinitionId, entries);
+            }
+            const actualArtifactStatesByDefinitionId = new Map<string, ArtifactCurrentState>();
+            if (row.projectWorkUnitId) {
+              const artifactBindings = invokeBindingPreview.filter(
+                (
+                  binding,
+                ): binding is Extract<typeof binding, { destinationKind: "artifact_slot" }> =>
+                  binding.destinationKind === "artifact_slot",
+              );
+              const artifactStates = yield* Effect.forEach(artifactBindings, (binding) =>
+                artifactRepo.getCurrentSnapshotBySlot({
+                  projectWorkUnitId: row.projectWorkUnitId!,
+                  slotDefinitionId: binding.destinationDefinitionId,
+                }),
+              );
+              for (const [index, binding] of artifactBindings.entries()) {
+                const state = artifactStates[index];
+                if (state) {
+                  actualArtifactStatesByDefinitionId.set(binding.destinationDefinitionId, state);
+                }
+              }
+            }
+            const childWorkflow = row.workflowExecutionId
+              ? childWorkflowsById.get(row.workflowExecutionId)
+              : undefined;
             const frozenDraftTemplate = normalizeFrozenDraftTemplate(row.frozenDraftTemplateJson);
             const rowBindingPreview = invokeBindingPreview.map((binding) => {
               if (!row.projectWorkUnitId && frozenDraftTemplate) {
@@ -1582,24 +1666,46 @@ export const InvokeStepDetailServiceLive = Layer.effect(
               }
 
               if (binding.destinationKind !== "work_unit_fact") {
-                return binding;
+                const artifactState = actualArtifactStatesByDefinitionId.get(
+                  binding.destinationDefinitionId,
+                );
+                if (!artifactState) {
+                  return binding;
+                }
+
+                const actualChildValueJson = toChildArtifactDisplayValue({
+                  destinationCardinality: binding.destinationCardinality,
+                  artifactState,
+                });
+
+                return {
+                  ...binding,
+                  ...(typeof actualChildValueJson !== "undefined" ? { actualChildValueJson } : {}),
+                  ...(typeof actualChildValueJson !== "undefined"
+                    ? { resolvedValueJson: actualChildValueJson }
+                    : {}),
+                };
               }
 
-              const startedFactInstance = startedFactInstancesByDefinitionId.get(
+              const startedFactInstances = startedFactInstancesByDefinitionId.get(
                 binding.destinationDefinitionId,
               );
-              if (!startedFactInstance) {
+              if (!startedFactInstances || startedFactInstances.length === 0) {
                 return binding;
               }
 
-              const hydratedValue =
-                startedFactInstance.referencedProjectWorkUnitId !== null
-                  ? { projectWorkUnitId: startedFactInstance.referencedProjectWorkUnitId }
-                  : startedFactInstance.valueJson;
+              const actualChildValueJson = toChildFactDisplayValue({
+                destinationFactType: binding.destinationFactType,
+                destinationCardinality: binding.destinationCardinality,
+                factInstances: startedFactInstances,
+              });
 
               return {
                 ...binding,
-                resolvedValueJson: hydratedValue,
+                ...(typeof actualChildValueJson !== "undefined" ? { actualChildValueJson } : {}),
+                ...(typeof actualChildValueJson !== "undefined"
+                  ? { resolvedValueJson: actualChildValueJson }
+                  : {}),
               };
             });
 
@@ -1653,9 +1759,50 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                 projectedArtifactSlotsByDefinitionId,
               })
               .pipe(Effect.mapError(mapGateError));
+            const completionGateConditionTree = completionGateTreesByTransitionId.get(
+              row.transitionDefinitionId,
+            ) ?? {
+              mode: "all",
+              conditions: [],
+              groups: [],
+            };
+            const completionGateEvaluation =
+              row.projectWorkUnitId &&
+              transitionExecution &&
+              transitionExecution.status === "active"
+                ? yield* runtimeGate
+                    .evaluateCompletionGateExhaustive({
+                      projectId,
+                      projectWorkUnitId: row.projectWorkUnitId,
+                      conditionTree: completionGateConditionTree,
+                    })
+                    .pipe(Effect.mapError(mapGateError))
+                : null;
             const startGateBlockingReason =
               startGateEvaluation.result !== "available"
                 ? (startGateEvaluation.firstReason ?? "Start gate failed.")
+                : undefined;
+            const completionGate =
+              row.projectWorkUnitId && transitionExecution?.status === "active"
+                ? childWorkflow?.status === "active"
+                  ? {
+                      panelState: "workflow_running" as const,
+                      evaluatedAt: completionGateEvaluation?.evaluatedAt,
+                    }
+                  : completionGateEvaluation?.result === "available"
+                    ? {
+                        panelState: "passing" as const,
+                        conditionTree: completionGateConditionTree,
+                        evaluationTree: completionGateEvaluation.evaluationTree,
+                        evaluatedAt: completionGateEvaluation.evaluatedAt,
+                      }
+                    : {
+                        panelState: "failing" as const,
+                        conditionTree: completionGateConditionTree,
+                        evaluationTree: completionGateEvaluation?.evaluationTree,
+                        firstBlockingReason: completionGateEvaluation?.firstReason,
+                        evaluatedAt: completionGateEvaluation?.evaluatedAt,
+                      }
                 : undefined;
 
             const blockedReason = !fullyStarted
@@ -1693,6 +1840,10 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                 getWorkUnitTypeName(workUnitType, row.workUnitDefinitionId),
                 row.projectWorkUnitId ?? undefined,
               ),
+              targetFamilyKey: `${row.workUnitDefinitionId}:${row.transitionDefinitionId}`,
+              workUnitCardinality: isManyProjectCardinality(workUnitType?.cardinality)
+                ? "many_per_project"
+                : "one_per_project",
               transitionLabel: getTransitionLabel(transition, row.transitionDefinitionId),
               transitionFromStateLabel: transition?.transitionFromStateLabel,
               transitionToStateLabel: transition?.transitionToStateLabel,
@@ -1714,12 +1865,31 @@ export const InvokeStepDetailServiceLive = Layer.effect(
               workflowDefinitionKey: selectedWorkflow?.workflowDefinitionKey,
               transitionExecutionId: row.transitionExecutionId ?? undefined,
               workflowExecutionId: row.workflowExecutionId ?? undefined,
+              childSummary:
+                projectWorkUnit && currentWorkUnitStateLabel
+                  ? {
+                      projectWorkUnitId: projectWorkUnit.id,
+                      label:
+                        typeof projectWorkUnit.displayName === "string" &&
+                        projectWorkUnit.displayName.trim().length > 0
+                          ? projectWorkUnit.displayName.trim()
+                          : isManyProjectCardinality(workUnitType?.cardinality)
+                            ? `${workUnitType?.key ?? row.workUnitDefinitionId}:${shortId(projectWorkUnit.id)}`
+                            : getWorkUnitTypeName(workUnitType, row.workUnitDefinitionId),
+                      currentStateLabel: currentWorkUnitStateLabel,
+                      transitionExecutionId: row.transitionExecutionId ?? undefined,
+                      transitionStatus: transitionExecution?.status,
+                      workflowExecutionId: row.workflowExecutionId ?? undefined,
+                      workflowStatus: childWorkflow?.status,
+                    }
+                  : undefined,
               startGate: {
                 conditionTree: startGateConditionTree,
                 evaluationTree: startGateEvaluation.evaluationTree,
                 firstBlockingReason: startGateEvaluation.firstReason,
                 evaluatedAt: startGateEvaluation.evaluatedAt,
               },
+              completionGate,
               actions: {
                 ...(!fullyStarted
                   ? {

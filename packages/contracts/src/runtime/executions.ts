@@ -792,13 +792,36 @@ export const RuntimeInvokeWorkUnitBindingPreview = Schema.Struct({
   sourceWarnings: Schema.optional(Schema.Array(Schema.String)),
   authoredPrefillValueJson: Schema.optional(Schema.Unknown),
   savedDraftValueJson: Schema.optional(Schema.Unknown),
+  actualChildValueJson: Schema.optional(Schema.Unknown),
   resolvedValueJson: Schema.optional(Schema.Unknown),
   requiresRuntimeValue: Schema.Boolean,
 });
 export type RuntimeInvokeWorkUnitBindingPreview = typeof RuntimeInvokeWorkUnitBindingPreview.Type;
 
+export const RuntimeInvokeWorkUnitChildSummary = Schema.Struct({
+  projectWorkUnitId: Schema.NonEmptyString,
+  label: Schema.String,
+  currentStateLabel: Schema.String,
+  transitionExecutionId: Schema.optional(Schema.NonEmptyString),
+  transitionStatus: Schema.optional(TransitionExecutionStatus),
+  workflowExecutionId: Schema.optional(Schema.NonEmptyString),
+  workflowStatus: Schema.optional(WorkflowExecutionStatus),
+});
+export type RuntimeInvokeWorkUnitChildSummary = typeof RuntimeInvokeWorkUnitChildSummary.Type;
+
+export const RuntimeInvokeWorkUnitGateSummary = Schema.Struct({
+  panelState: Schema.Literal("passing", "failing", "workflow_running"),
+  conditionTree: Schema.optional(Schema.Unknown),
+  evaluationTree: Schema.optional(RuntimeConditionEvaluationTree),
+  firstBlockingReason: Schema.optional(Schema.String),
+  evaluatedAt: Schema.optional(Schema.String),
+});
+export type RuntimeInvokeWorkUnitGateSummary = typeof RuntimeInvokeWorkUnitGateSummary.Type;
+
 export const RuntimeInvokeWorkUnitTargetRow = Schema.Struct({
   workUnitLabel: Schema.String,
+  targetFamilyKey: Schema.NonEmptyString,
+  workUnitCardinality: Schema.Literal("one_per_project", "many_per_project"),
   transitionLabel: Schema.String,
   transitionFromStateLabel: Schema.optional(Schema.String),
   transitionToStateLabel: Schema.optional(Schema.String),
@@ -818,12 +841,14 @@ export const RuntimeInvokeWorkUnitTargetRow = Schema.Struct({
   workflowDefinitionKey: Schema.optional(Schema.String),
   transitionExecutionId: Schema.optional(Schema.NonEmptyString),
   workflowExecutionId: Schema.optional(Schema.NonEmptyString),
+  childSummary: Schema.optional(RuntimeInvokeWorkUnitChildSummary),
   startGate: Schema.Struct({
     conditionTree: Schema.Unknown,
     evaluationTree: Schema.optional(RuntimeConditionEvaluationTree),
     firstBlockingReason: Schema.optional(Schema.String),
     evaluatedAt: Schema.optional(Schema.String),
   }),
+  completionGate: Schema.optional(RuntimeInvokeWorkUnitGateSummary),
   actions: Schema.Struct({
     start: Schema.optional(
       Schema.Struct({
