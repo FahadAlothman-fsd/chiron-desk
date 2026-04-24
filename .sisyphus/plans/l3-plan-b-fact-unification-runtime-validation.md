@@ -1,5 +1,27 @@
 # L3 Plan B — Fact Unification + Runtime Validation
 
+> **STATUS: COMPLETED** — Plan B is implemented and verified in the current `feat/effect-migration` branch. This file remains the authoritative closure record for the fact/runtime unification wave.
+
+## Closure Update (2026-04-24)
+- Plan B remains complete, and the branch now also includes the follow-up invoke/runtime refinements that landed on top of the original Plan B wave.
+- Additional stabilized work included along the way:
+  - invoke runtime save-draft behavior and saved-vs-prefill-vs-live child state separation
+  - invoke many-instance runtime handling with explicit fresh-draft/new-instance targeting
+  - invoke work-unit start/completion gate detail branching in runtime surfaces
+  - collapsible invoke binding preview and condition-tree panels in the runtime UI
+  - setup completion-gate seed repair so setup facts like `initiative_name` and `project_kind` resolve by the correct seeded fact-definition ids
+- The setup completion-gate issue was confirmed as a **seed-definition mismatch**, not persisted completion-gate evaluation. Transition completion gates are still evaluated live at runtime.
+- Recent targeted verification covering the latest follow-up fixes passed:
+  - `bunx vitest run packages/scripts/src/tests/seeding/methodology-seed-integrity.test.ts packages/scripts/src/tests/seeding/setup-invoke-phase-1-fixture.test.ts packages/contracts/src/tests/l3-runtime-invoke-contracts.test.ts packages/workflow-engine/src/tests/runtime/runtime-invoke-step-detail.test.ts packages/workflow-engine/src/tests/runtime/runtime-invoke-workunit-start.test.ts apps/web/src/tests/routes/runtime-invoke-step-detail.test.tsx`
+- Related post-plan closure commits:
+  - `487a16fa49` `fix(seed): align setup completion gate fact ids`
+  - `53b7d4b02b` `fix(runtime): support invoke row gate states and multi-instance drafts`
+  - `cc3863f5d6` `fix(runtime-ui): refine invoke condition tree behavior`
+- Adjacent future tracks remain separate from Plan B closure:
+  - `.sisyphus/plans/chiron-documentation-site.md`
+  - `.sisyphus/plans/chiron-thesis-survey-experiment.md`
+  These should be treated as post-merge follow-up work, not reopened inside Plan B.
+
 ## TL;DR
 > **Summary**: Implement the canonical fact/runtime model locked after Plan A, then route every approved fact read/write surface through it: manual runtime CRUD, workflow-context mutation, invoke materialization, and agent/MCP boundaries. This plan also adds the missing manual runtime CRUD home for workflow-context facts and replaces raw/legacy fact handling with runtime-enforced canonical validation.
 > **Deliverables**:
