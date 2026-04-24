@@ -701,6 +701,76 @@ function getSelectedPrimaryWorkflowLabel(
   return matched ? formatPrimaryWorkflowOption(matched) : null;
 }
 
+function getInvokeRowTemplateState(row: RuntimeInvokeWorkUnitTargetRow): {
+  label: "prefilled" | "frozen" | "active" | "completed";
+  tone: Parameters<typeof ExecutionBadge>[0]["tone"];
+} {
+  if (
+    row.childSummary?.transitionStatus === "active" ||
+    row.childSummary?.workflowStatus === "active"
+  ) {
+    return { label: "active", tone: "amber" };
+  }
+
+  if (row.status === "completed" || row.childSummary?.transitionStatus === "completed") {
+    return { label: "completed", tone: "emerald" };
+  }
+
+  const hasFrozenDraft = row.bindingPreview.some(
+    (binding) => typeof binding.savedDraftValueJson !== "undefined",
+  );
+  if (hasFrozenDraft) {
+    return { label: "frozen", tone: "violet" };
+  }
+
+  return { label: "prefilled", tone: "sky" };
+}
+
+function getInvokeWorkUnitTabLabel(row: RuntimeInvokeWorkUnitTargetRow): string {
+  if (!row.projectWorkUnitId) {
+    return row.workUnitCardinality === "many_per_project" ? "New instance" : "Draft";
+  }
+
+  return row.childSummary?.label ?? row.workUnitLabel;
+}
+
+function getInvokeConditionTreeHeader(row: RuntimeInvokeWorkUnitTargetRow): {
+  label: string;
+  tone: Parameters<typeof ExecutionBadge>[0]["tone"];
+  tree: RuntimeConditionTree | null;
+  evaluation?: RuntimeConditionEvaluationTree;
+  evaluatedAt?: string;
+} | null {
+  if (row.status === "active" && row.completionGate) {
+    return {
+      label:
+        row.completionGate.panelState === "passing"
+          ? "passing"
+          : row.completionGate.panelState === "failing"
+            ? "blocked"
+            : "running",
+      tone: getGateStateTone(row.completionGate.panelState),
+      tree: isRuntimeConditionTree(row.completionGate.conditionTree)
+        ? row.completionGate.conditionTree
+        : null,
+      evaluation: row.completionGate.evaluationTree,
+      evaluatedAt: row.completionGate.evaluatedAt,
+    };
+  }
+
+  if (row.status === "completed") {
+    return null;
+  }
+
+  return {
+    label: row.startGate.firstBlockingReason ? "blocked" : "passing",
+    tone: getGateStateTone(row.startGate.firstBlockingReason ? "blocked" : "passing"),
+    tree: isRuntimeConditionTree(row.startGate.conditionTree) ? row.startGate.conditionTree : null,
+    evaluation: row.startGate.evaluationTree,
+    evaluatedAt: row.startGate.evaluatedAt,
+  };
+}
+
 function getRepoFileStatusTone(
   entry: RepoFilePickerEntry,
 ): Parameters<typeof ExecutionBadge>[0]["tone"] {
@@ -5530,6 +5600,15 @@ function InvokeInteractionSurface(props: {
   const [artifactPickerKey, setArtifactPickerKey] = useState<string | null>(null);
   const [artifactPickerQuery, setArtifactPickerQuery] = useState("");
   const [nativeArtifactPickerKey, setNativeArtifactPickerKey] = useState<string | null>(null);
+  const [selectedWorkUnitTargetTabByFamilyKey, setSelectedWorkUnitTargetTabByFamilyKey] = useState<
+    Record<string, string>
+  >({});
+  const [bindingPreviewOpenByRowId, setBindingPreviewOpenByRowId] = useState<
+    Record<string, boolean>
+  >({});
+  const [conditionTreeOpenByRowId, setConditionTreeOpenByRowId] = useState<Record<string, boolean>>(
+    {},
+  );
 
   useEffect(() => {
     setSelectedWorkflowsByRowId(
@@ -5545,6 +5624,32 @@ function InvokeInteractionSurface(props: {
     setArtifactPickerKey(null);
     setArtifactPickerQuery("");
     setNativeArtifactPickerKey(null);
+  }, [body.workUnitTargets]);
+
+  useEffect(() => {
+    setBindingPreviewOpenByRowId((current) => {
+      const next = { ...current };
+      for (const row of body.workUnitTargets) {
+        if (!(row.invokeWorkUnitTargetExecutionId in next)) {
+          next[row.invokeWorkUnitTargetExecutionId] = false;
+        }
+      }
+
+      return next;
+    });
+  }, [body.workUnitTargets]);
+
+  useEffect(() => {
+    setConditionTreeOpenByRowId((current) => {
+      const next = { ...current };
+      for (const row of body.workUnitTargets) {
+        if (!(row.invokeWorkUnitTargetExecutionId in next)) {
+          next[row.invokeWorkUnitTargetExecutionId] = false;
+        }
+      }
+
+      return next;
+    });
   }, [body.workUnitTargets]);
 
   const projectDetailsQuery = useQuery({
@@ -5604,6 +5709,56 @@ function InvokeInteractionSurface(props: {
       ),
     [selectedArtifactStatusesQuery.data],
   );
+
+  const workUnitTargetGroups = useMemo(() => {
+    const groups = new Map<
+      string,
+      {
+        familyKey: string;
+        workUnitCardinality: RuntimeInvokeWorkUnitTargetRow["workUnitCardinality"];
+        rows: RuntimeInvokeWorkUnitTargetRow[];
+      }
+    >();
+
+    for (const row of body.workUnitTargets) {
+      const existing = groups.get(row.targetFamilyKey);
+      if (existing) {
+        existing.rows.push(row);
+        continue;
+      }
+
+      groups.set(row.targetFamilyKey, {
+        familyKey: row.targetFamilyKey,
+        workUnitCardinality: row.workUnitCardinality,
+        rows: [row],
+      });
+    }
+
+    return [...groups.values()];
+  }, [body.workUnitTargets]);
+
+  useEffect(() => {
+    setSelectedWorkUnitTargetTabByFamilyKey((current) => {
+      const next: Record<string, string> = {};
+      for (const group of workUnitTargetGroups) {
+        const existingSelection = current[group.familyKey];
+        if (
+          existingSelection &&
+          group.rows.some((row) => row.invokeWorkUnitTargetExecutionId === existingSelection)
+        ) {
+          next[group.familyKey] = existingSelection;
+          continue;
+        }
+
+        next[group.familyKey] =
+          group.rows.find((row) => !row.projectWorkUnitId)?.invokeWorkUnitTargetExecutionId ??
+          group.rows[0]?.invokeWorkUnitTargetExecutionId ??
+          "";
+      }
+
+      return next;
+    });
+  }, [workUnitTargetGroups]);
 
   const chooseNativeArtifactFiles = useCallback(
     async (params: {
@@ -6025,7 +6180,24 @@ function InvokeInteractionSurface(props: {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {body.workUnitTargets.map((row) => {
+                  {workUnitTargetGroups.map((group) => {
+                    const draftRow =
+                      group.rows.find(
+                        (candidate) =>
+                          !candidate.projectWorkUnitId &&
+                          !candidate.transitionExecutionId &&
+                          !candidate.workflowExecutionId,
+                      ) ?? null;
+                    const row =
+                      group.rows.find(
+                        (candidate) =>
+                          candidate.invokeWorkUnitTargetExecutionId ===
+                          selectedWorkUnitTargetTabByFamilyKey[group.familyKey],
+                      ) ?? group.rows[0]!;
+                    const bindingPreviewOpen =
+                      bindingPreviewOpenByRowId[row.invokeWorkUnitTargetExecutionId] ?? false;
+                    const showInstanceTabs =
+                      group.workUnitCardinality === "many_per_project" && group.rows.length > 1;
                     const selectedWorkflowId =
                       selectedWorkflowsByRowId[row.invokeWorkUnitTargetExecutionId] ??
                       getInitialPrimaryWorkflowSelection(row);
@@ -6050,6 +6222,9 @@ function InvokeInteractionSurface(props: {
                         : null;
                     const rowRuntimeInputs =
                       runtimeBindingInputsByRowId[row.invokeWorkUnitTargetExecutionId] ?? {};
+                    const conditionTreeHeader = getInvokeConditionTreeHeader(row);
+                    const conditionTreeOpen =
+                      conditionTreeOpenByRowId[row.invokeWorkUnitTargetExecutionId] ?? false;
                     const selectedPrimaryWorkflowLabel = getSelectedPrimaryWorkflowLabel(
                       row,
                       selectedWorkflowId,
@@ -6057,7 +6232,7 @@ function InvokeInteractionSurface(props: {
 
                     return (
                       <Card
-                        key={row.invokeWorkUnitTargetExecutionId}
+                        key={group.familyKey}
                         frame="flat"
                         tone="runtime"
                         className="border-border/70 bg-background/40"
@@ -6084,14 +6259,59 @@ function InvokeInteractionSurface(props: {
                                     row.availablePrimaryWorkflows.length > 0 ? "violet" : "amber"
                                   }
                                 />
+                                {row.workUnitCardinality === "many_per_project" ? (
+                                  <ExecutionBadge label="many per project" tone="sky" />
+                                ) : (
+                                  <ExecutionBadge label="one per project" tone="slate" />
+                                )}
                               </div>
                             </div>
 
                             <div className="flex flex-wrap gap-2">
+                              {group.workUnitCardinality === "many_per_project" ? (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={!draftRow}
+                                  onClick={() => {
+                                    if (!draftRow) {
+                                      return;
+                                    }
+
+                                    setSelectedWorkUnitTargetTabByFamilyKey((current) => ({
+                                      ...current,
+                                      [group.familyKey]: draftRow.invokeWorkUnitTargetExecutionId,
+                                    }));
+                                  }}
+                                >
+                                  {draftRow
+                                    ? draftRow.invokeWorkUnitTargetExecutionId ===
+                                      row.invokeWorkUnitTargetExecutionId
+                                      ? "Editing new instance target"
+                                      : "Open new instance target"
+                                    : "New instance available after start"}
+                                </Button>
+                              ) : null}
+                              {row.childSummary ? (
+                                <ExecutionBadge label="work unit exists" tone="emerald" />
+                              ) : null}
                               <ExecutionBadge
                                 label={formatInvokeStatusLabel(row.status)}
                                 tone={getInvokeStatusTone(row.status)}
                               />
+                              {row.childSummary?.transitionStatus ? (
+                                <ExecutionBadge
+                                  label={`transition ${row.childSummary.transitionStatus}`}
+                                  tone={getExecutionStatusTone(row.childSummary.transitionStatus)}
+                                />
+                              ) : null}
+                              {row.childSummary?.workflowStatus ? (
+                                <ExecutionBadge
+                                  label={`workflow ${row.childSummary.workflowStatus}`}
+                                  tone={getExecutionStatusTone(row.childSummary.workflowStatus)}
+                                />
+                              ) : null}
                               {row.currentWorkUnitStateLabel ? (
                                 <ExecutionBadge
                                   label={row.currentWorkUnitStateLabel}
@@ -6100,6 +6320,38 @@ function InvokeInteractionSurface(props: {
                               ) : null}
                             </div>
                           </div>
+                          {showInstanceTabs ? (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {group.rows.map((candidate) => {
+                                const templateState = getInvokeRowTemplateState(candidate);
+                                const selected =
+                                  candidate.invokeWorkUnitTargetExecutionId ===
+                                  row.invokeWorkUnitTargetExecutionId;
+                                return (
+                                  <Button
+                                    key={candidate.invokeWorkUnitTargetExecutionId}
+                                    type="button"
+                                    variant={selected ? "default" : "outline"}
+                                    size="sm"
+                                    className="h-auto min-h-8 gap-2 px-2 py-1"
+                                    onClick={() =>
+                                      setSelectedWorkUnitTargetTabByFamilyKey((current) => ({
+                                        ...current,
+                                        [group.familyKey]:
+                                          candidate.invokeWorkUnitTargetExecutionId,
+                                      }))
+                                    }
+                                  >
+                                    <span>{getInvokeWorkUnitTabLabel(candidate)}</span>
+                                    <ExecutionBadge
+                                      label={templateState.label}
+                                      tone={templateState.tone}
+                                    />
+                                  </Button>
+                                );
+                              })}
+                            </div>
+                          ) : null}
                         </CardHeader>
 
                         <CardContent className="space-y-3 pt-4 text-xs text-muted-foreground">
@@ -6186,23 +6438,103 @@ function InvokeInteractionSurface(props: {
                             </div>
                           </div>
 
+                          {row.childSummary ? (
+                            <div className="space-y-2 border border-emerald-500/30 bg-emerald-500/10 p-3">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <DetailLabel>Current child instance</DetailLabel>
+                                <ExecutionBadge label="exists" tone="emerald" />
+                              </div>
+                              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                                <div>
+                                  <DetailLabel>Child work unit</DetailLabel>
+                                  <DetailPrimary>{row.childSummary.label}</DetailPrimary>
+                                  <DetailCode>{row.childSummary.projectWorkUnitId}</DetailCode>
+                                </div>
+                                <div>
+                                  <DetailLabel>Current state</DetailLabel>
+                                  <DetailPrimary>
+                                    {row.childSummary.currentStateLabel}
+                                  </DetailPrimary>
+                                </div>
+                                <div>
+                                  <DetailLabel>Transition execution</DetailLabel>
+                                  <DetailPrimary>
+                                    {row.childSummary.transitionStatus ?? "No active transition"}
+                                  </DetailPrimary>
+                                  {row.childSummary.transitionExecutionId ? (
+                                    <DetailCode>
+                                      {row.childSummary.transitionExecutionId}
+                                    </DetailCode>
+                                  ) : null}
+                                </div>
+                                <div>
+                                  <DetailLabel>Workflow execution</DetailLabel>
+                                  <DetailPrimary>
+                                    {row.childSummary.workflowStatus ?? "No workflow linked"}
+                                  </DetailPrimary>
+                                  {row.childSummary.workflowExecutionId ? (
+                                    <DetailCode>{row.childSummary.workflowExecutionId}</DetailCode>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
+
                           {row.blockedReason ? (
                             <p className="text-xs text-muted-foreground">{row.blockedReason}</p>
                           ) : null}
 
-                          {isRuntimeConditionTree(row.startGate.conditionTree) ? (
-                            <div className="space-y-2 border border-border/70 bg-background/50 p-3">
-                              <DetailLabel>Condition tree</DetailLabel>
-                              {row.startGate.evaluatedAt ? (
-                                <p className="text-xs text-muted-foreground">
-                                  Evaluated {formatTimestamp(row.startGate.evaluatedAt)}
-                                </p>
-                              ) : null}
-                              <InvokeStartGateTreePanel
-                                tree={row.startGate.conditionTree}
-                                evaluation={row.startGate.evaluationTree}
-                              />
-                            </div>
+                          {conditionTreeHeader ? (
+                            <Collapsible
+                              open={conditionTreeOpen}
+                              onOpenChange={(open) =>
+                                setConditionTreeOpenByRowId((current) => ({
+                                  ...current,
+                                  [row.invokeWorkUnitTargetExecutionId]: open,
+                                }))
+                              }
+                            >
+                              <div className="border border-border/70 bg-background/50">
+                                <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground transition hover:bg-background/80">
+                                  <span className="inline-flex items-center gap-2">
+                                    <span>Condition tree</span>
+                                    <ExecutionBadge
+                                      label={conditionTreeHeader.label}
+                                      tone={conditionTreeHeader.tone}
+                                    />
+                                  </span>
+                                  <span className="inline-flex items-center gap-1">
+                                    <ChevronRight
+                                      className={cn(
+                                        "size-3.5 transition-transform",
+                                        conditionTreeOpen ? "rotate-90" : "",
+                                      )}
+                                    />
+                                    {conditionTreeOpen ? "Collapse" : "Expand"}
+                                  </span>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent>
+                                  <div className="space-y-2 border-t border-border/70 p-3">
+                                    {conditionTreeHeader.evaluatedAt ? (
+                                      <p className="text-xs text-muted-foreground">
+                                        Evaluated {formatTimestamp(conditionTreeHeader.evaluatedAt)}
+                                      </p>
+                                    ) : null}
+                                    {conditionTreeHeader.tree ? (
+                                      <InvokeStartGateTreePanel
+                                        tree={conditionTreeHeader.tree}
+                                        evaluation={conditionTreeHeader.evaluation}
+                                      />
+                                    ) : (
+                                      <p className="text-xs text-muted-foreground">
+                                        Completion requirements will evaluate after the active
+                                        workflow finishes.
+                                      </p>
+                                    )}
+                                  </div>
+                                </CollapsibleContent>
+                              </div>
+                            </Collapsible>
                           ) : null}
 
                           {startAction && !startAction.enabled && startAction.reasonIfDisabled ? (
@@ -6218,613 +6550,708 @@ function InvokeInteractionSurface(props: {
                           ) : null}
 
                           {row.bindingPreview.length > 0 ? (
-                            <div className="space-y-2 border border-border/70 bg-background/50 p-3">
-                              <DetailLabel>Binding preview</DetailLabel>
-                              <p className="text-xs text-muted-foreground">
-                                These are the invoke bindings that will initialize the child
-                                work-unit when started.
-                              </p>
-
-                              <ul className="space-y-2">
-                                {row.bindingPreview.map((binding) => {
-                                  const runtimeRawValue =
-                                    rowRuntimeInputs[binding.destinationDefinitionId] ?? "";
-                                  const savedDraftValue = getInvokeSavedDraftValue(binding);
-                                  const authoredPrefillValue =
-                                    getInvokeAuthoredPrefillValue(binding);
-                                  const hasSavedDraftValue = typeof savedDraftValue !== "undefined";
-                                  const hasAuthoredPrefillValue =
-                                    typeof authoredPrefillValue !== "undefined";
-                                  const manyOrJsonInput =
-                                    binding.destinationCardinality === "many" ||
-                                    binding.destinationFactType === "json";
-                                  const isWorkUnitSelector = isWorkUnitBinding(binding);
-                                  const selectorOptions = binding.editorOptions ?? [];
-                                  const selectedBindingOptionLabel = getEncodedOptionLabel(
-                                    selectorOptions,
-                                    runtimeRawValue,
-                                  );
-                                  const artifactInputDisplayLabel =
-                                    binding.destinationKind === "artifact_slot"
-                                      ? getArtifactInputDisplayLabel(
-                                          runtimeRawValue,
-                                          binding.destinationCardinality,
-                                        )
-                                      : null;
-                                  const usesRuntimeArtifactPicker =
-                                    binding.destinationKind === "artifact_slot" &&
-                                    binding.requiresRuntimeValue;
-                                  const usesDesktopArtifactPicker =
-                                    usesRuntimeArtifactPicker &&
-                                    typeof selectDesktopFiles === "function";
-                                  const parsedSelectedArtifactPaths = usesRuntimeArtifactPicker
-                                    ? parseSelectedArtifactPaths(
-                                        runtimeRawValue,
-                                        binding.destinationCardinality,
-                                      )
-                                    : [];
-                                  const filesetSelectedPaths =
-                                    usesRuntimeArtifactPicker &&
-                                    binding.destinationCardinality === "many"
-                                      ? parsedSelectedArtifactPaths
-                                      : [];
-                                  const singleArtifactSelectedPath =
-                                    usesRuntimeArtifactPicker &&
-                                    binding.destinationCardinality !== "many"
-                                      ? (parsedSelectedArtifactPaths[0] ?? "")
-                                      : "";
-                                  const filesetSelectedSet = new Set(filesetSelectedPaths);
-                                  const artifactPickerId = `${row.invokeWorkUnitTargetExecutionId}:${binding.destinationDefinitionId}`;
-
-                                  return (
-                                    <li
-                                      key={`${row.invokeWorkUnitTargetExecutionId}-${binding.destinationDefinitionId}`}
+                            <Collapsible
+                              open={bindingPreviewOpen}
+                              onOpenChange={(open) =>
+                                setBindingPreviewOpenByRowId((current) => ({
+                                  ...current,
+                                  [row.invokeWorkUnitTargetExecutionId]: open,
+                                }))
+                              }
+                            >
+                              <div className="border border-border/70 bg-background/50">
+                                <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground transition hover:bg-background/80">
+                                  <span>Binding preview</span>
+                                  <span className="inline-flex items-center gap-1">
+                                    <ChevronRight
                                       className={cn(
-                                        "space-y-3 border p-3",
-                                        getInvokeBindingContainerTone(binding),
+                                        "size-3.5 transition-transform",
+                                        bindingPreviewOpen ? "rotate-90" : "",
                                       )}
-                                    >
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <ExecutionBadge
-                                          label={
-                                            binding.destinationKind === "artifact_slot"
-                                              ? "artifact destination"
-                                              : "fact destination"
-                                          }
-                                          tone={getInvokeDestinationTone(binding)}
-                                        />
-                                        <ExecutionBadge
-                                          label={binding.sourceKind.replaceAll("_", " ")}
-                                          tone={getInvokeSourceTone(binding.sourceKind)}
-                                        />
-                                        <ExecutionBadge
-                                          label={
-                                            binding.requiresRuntimeValue
-                                              ? "runtime required"
-                                              : "prefilled"
-                                          }
-                                          tone={binding.requiresRuntimeValue ? "amber" : "emerald"}
-                                        />
-                                        {hasSavedDraftValue ? (
-                                          <ExecutionBadge label="saved mapping" tone="violet" />
-                                        ) : null}
-                                      </div>
-                                      <div className="grid gap-2 md:grid-cols-2">
-                                        <div>
-                                          <DetailLabel>Destination</DetailLabel>
-                                          <DetailPrimary>{binding.destinationLabel}</DetailPrimary>
-                                          <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                                            {formatInvokeDestinationMetadata(binding)}
-                                          </p>
-                                          <DetailCode>{binding.destinationDefinitionId}</DetailCode>
-                                        </div>
-                                        <div>
-                                          <DetailLabel>Source</DetailLabel>
-                                          <DetailPrimary>
-                                            {formatInvokeBindingSourceValue(binding)}
-                                          </DetailPrimary>
-                                          {formatInvokeSourceMetadata({
-                                            kind: binding.sourceContextFactKind,
-                                            cardinality: binding.sourceContextFactCardinality,
-                                            valueType: binding.sourceContextFactValueType,
-                                          }) ? (
-                                            <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                                              {formatInvokeSourceMetadata({
-                                                kind: binding.sourceContextFactKind,
-                                                cardinality: binding.sourceContextFactCardinality,
-                                                valueType: binding.sourceContextFactValueType,
-                                              })}
-                                            </p>
-                                          ) : null}
-                                          {binding.sourceContextFactDefinitionId ? (
-                                            <DetailCode>
-                                              {binding.sourceContextFactDefinitionId}
-                                            </DetailCode>
-                                          ) : null}
-                                        </div>
-                                      </div>
+                                    />
+                                    {bindingPreviewOpen ? "Collapse" : "Expand"}
+                                  </span>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent>
+                                  <div className="space-y-2 border-t border-border/70 p-3">
+                                    <p className="text-xs text-muted-foreground">
+                                      These are the invoke bindings that will initialize the child
+                                      work-unit when started.
+                                    </p>
 
-                                      {binding.destinationKind === "artifact_slot" ? (
-                                        <div className="space-y-2">
-                                          <DetailLabel>Start-time value</DetailLabel>
-                                          {usesRuntimeArtifactPicker ? (
-                                            <div className="space-y-2">
-                                              {usesDesktopArtifactPicker ? (
-                                                <Button
-                                                  type="button"
-                                                  variant="outline"
-                                                  role="combobox"
-                                                  aria-label={`artifact-files-${artifactPickerId}`}
-                                                  className="h-8 w-full justify-between rounded-none border-amber-500/30 bg-amber-500/10 px-2.5 py-1 font-normal text-foreground"
-                                                  disabled={
-                                                    bindingsLocked ||
-                                                    nativeArtifactPickerKey === artifactPickerId
-                                                  }
-                                                  onClick={() => {
-                                                    void chooseNativeArtifactFiles({
-                                                      rowId: row.invokeWorkUnitTargetExecutionId,
-                                                      binding,
-                                                      artifactPickerId,
-                                                    });
-                                                  }}
-                                                >
-                                                  <span className="truncate text-left text-xs">
-                                                    {nativeArtifactPickerKey === artifactPickerId
-                                                      ? "Opening system file selector..."
-                                                      : binding.destinationCardinality === "many"
-                                                        ? filesetSelectedPaths.length === 0
-                                                          ? "Choose files"
-                                                          : `${filesetSelectedPaths.length} files selected`
-                                                        : singleArtifactSelectedPath.length > 0
-                                                          ? singleArtifactSelectedPath
-                                                          : "Choose file"}
-                                                  </span>
-                                                  <ChevronsUpDownIcon className="size-3.5 shrink-0 opacity-70" />
-                                                </Button>
-                                              ) : (
-                                                <Popover
-                                                  open={artifactPickerKey === artifactPickerId}
-                                                  onOpenChange={(nextOpen) => {
-                                                    setArtifactPickerKey(
-                                                      nextOpen ? artifactPickerId : null,
-                                                    );
-                                                    setArtifactPickerQuery("");
-                                                  }}
-                                                >
-                                                  <PopoverTrigger
-                                                    render={
+                                    <ul className="space-y-2">
+                                      {row.bindingPreview.map((binding) => {
+                                        const runtimeRawValue =
+                                          rowRuntimeInputs[binding.destinationDefinitionId] ?? "";
+                                        const savedDraftValue = getInvokeSavedDraftValue(binding);
+                                        const authoredPrefillValue =
+                                          getInvokeAuthoredPrefillValue(binding);
+                                        const actualChildValue = binding.actualChildValueJson;
+                                        const hasSavedDraftValue =
+                                          typeof savedDraftValue !== "undefined";
+                                        const hasAuthoredPrefillValue =
+                                          typeof authoredPrefillValue !== "undefined";
+                                        const hasActualChildValue =
+                                          typeof actualChildValue !== "undefined";
+                                        const manyOrJsonInput =
+                                          binding.destinationCardinality === "many" ||
+                                          binding.destinationFactType === "json";
+                                        const isWorkUnitSelector = isWorkUnitBinding(binding);
+                                        const selectorOptions = binding.editorOptions ?? [];
+                                        const selectedBindingOptionLabel = getEncodedOptionLabel(
+                                          selectorOptions,
+                                          runtimeRawValue,
+                                        );
+                                        const artifactInputDisplayLabel =
+                                          binding.destinationKind === "artifact_slot"
+                                            ? getArtifactInputDisplayLabel(
+                                                runtimeRawValue,
+                                                binding.destinationCardinality,
+                                              )
+                                            : null;
+                                        const usesRuntimeArtifactPicker =
+                                          binding.destinationKind === "artifact_slot" &&
+                                          binding.requiresRuntimeValue;
+                                        const usesDesktopArtifactPicker =
+                                          usesRuntimeArtifactPicker &&
+                                          typeof selectDesktopFiles === "function";
+                                        const parsedSelectedArtifactPaths =
+                                          usesRuntimeArtifactPicker
+                                            ? parseSelectedArtifactPaths(
+                                                runtimeRawValue,
+                                                binding.destinationCardinality,
+                                              )
+                                            : [];
+                                        const filesetSelectedPaths =
+                                          usesRuntimeArtifactPicker &&
+                                          binding.destinationCardinality === "many"
+                                            ? parsedSelectedArtifactPaths
+                                            : [];
+                                        const singleArtifactSelectedPath =
+                                          usesRuntimeArtifactPicker &&
+                                          binding.destinationCardinality !== "many"
+                                            ? (parsedSelectedArtifactPaths[0] ?? "")
+                                            : "";
+                                        const filesetSelectedSet = new Set(filesetSelectedPaths);
+                                        const artifactPickerId = `${row.invokeWorkUnitTargetExecutionId}:${binding.destinationDefinitionId}`;
+
+                                        return (
+                                          <li
+                                            key={`${row.invokeWorkUnitTargetExecutionId}-${binding.destinationDefinitionId}`}
+                                            className={cn(
+                                              "space-y-3 border p-3",
+                                              getInvokeBindingContainerTone(binding),
+                                            )}
+                                          >
+                                            <div className="flex flex-wrap items-center gap-2">
+                                              <ExecutionBadge
+                                                label={
+                                                  binding.destinationKind === "artifact_slot"
+                                                    ? "artifact destination"
+                                                    : "fact destination"
+                                                }
+                                                tone={getInvokeDestinationTone(binding)}
+                                              />
+                                              <ExecutionBadge
+                                                label={binding.sourceKind.replaceAll("_", " ")}
+                                                tone={getInvokeSourceTone(binding.sourceKind)}
+                                              />
+                                              <ExecutionBadge
+                                                label={
+                                                  binding.requiresRuntimeValue
+                                                    ? "runtime required"
+                                                    : "prefilled"
+                                                }
+                                                tone={
+                                                  binding.requiresRuntimeValue ? "amber" : "emerald"
+                                                }
+                                              />
+                                              {hasSavedDraftValue ? (
+                                                <ExecutionBadge
+                                                  label="saved mapping"
+                                                  tone="violet"
+                                                />
+                                              ) : null}
+                                            </div>
+                                            <div className="grid gap-2 md:grid-cols-2">
+                                              <div>
+                                                <DetailLabel>Destination</DetailLabel>
+                                                <DetailPrimary>
+                                                  {binding.destinationLabel}
+                                                </DetailPrimary>
+                                                <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                                                  {formatInvokeDestinationMetadata(binding)}
+                                                </p>
+                                                <DetailCode>
+                                                  {binding.destinationDefinitionId}
+                                                </DetailCode>
+                                              </div>
+                                              <div>
+                                                <DetailLabel>Source</DetailLabel>
+                                                <DetailPrimary>
+                                                  {formatInvokeBindingSourceValue(binding)}
+                                                </DetailPrimary>
+                                                {formatInvokeSourceMetadata({
+                                                  kind: binding.sourceContextFactKind,
+                                                  cardinality: binding.sourceContextFactCardinality,
+                                                  valueType: binding.sourceContextFactValueType,
+                                                }) ? (
+                                                  <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                                                    {formatInvokeSourceMetadata({
+                                                      kind: binding.sourceContextFactKind,
+                                                      cardinality:
+                                                        binding.sourceContextFactCardinality,
+                                                      valueType: binding.sourceContextFactValueType,
+                                                    })}
+                                                  </p>
+                                                ) : null}
+                                                {binding.sourceContextFactDefinitionId ? (
+                                                  <DetailCode>
+                                                    {binding.sourceContextFactDefinitionId}
+                                                  </DetailCode>
+                                                ) : null}
+                                              </div>
+                                            </div>
+
+                                            {binding.destinationKind === "artifact_slot" ? (
+                                              <div className="space-y-2">
+                                                <DetailLabel>Start-time value</DetailLabel>
+                                                {usesRuntimeArtifactPicker ? (
+                                                  <div className="space-y-2">
+                                                    {usesDesktopArtifactPicker ? (
                                                       <Button
                                                         type="button"
                                                         variant="outline"
                                                         role="combobox"
                                                         aria-label={`artifact-files-${artifactPickerId}`}
                                                         className="h-8 w-full justify-between rounded-none border-amber-500/30 bg-amber-500/10 px-2.5 py-1 font-normal text-foreground"
-                                                        disabled={bindingsLocked}
-                                                      />
-                                                    }
-                                                  >
-                                                    <span className="truncate text-left text-xs">
-                                                      {binding.destinationCardinality === "many"
-                                                        ? filesetSelectedPaths.length === 0
-                                                          ? "Browse project repo files"
-                                                          : `${filesetSelectedPaths.length} files selected`
-                                                        : singleArtifactSelectedPath.length > 0
-                                                          ? singleArtifactSelectedPath
-                                                          : "Browse project repo files"}
-                                                    </span>
-                                                    <ChevronsUpDownIcon className="size-3.5 shrink-0 opacity-70" />
-                                                  </PopoverTrigger>
-                                                  <PopoverContent
-                                                    className="w-[min(36rem,calc(100vw-3rem))] p-0"
-                                                    align="start"
-                                                    frame="cut-thin"
-                                                    tone="context"
-                                                    sideOffset={4}
-                                                  >
-                                                    <Command
-                                                      density="compact"
-                                                      frame="default"
-                                                      className="bg-[#0b0f12] text-foreground"
-                                                    >
-                                                      <CommandInput
-                                                        density="compact"
-                                                        placeholder="Search project repo files..."
-                                                        value={artifactPickerQuery}
-                                                        onValueChange={setArtifactPickerQuery}
-                                                      />
-                                                      <CommandList>
-                                                        <CommandEmpty>
-                                                          No repo files found.
-                                                        </CommandEmpty>
-                                                        <CommandGroup heading="Project repo files">
-                                                          {(repoFilesQuery.data ?? []).map(
-                                                            (entry) => {
-                                                              const selected =
-                                                                binding.destinationCardinality ===
+                                                        disabled={
+                                                          bindingsLocked ||
+                                                          nativeArtifactPickerKey ===
+                                                            artifactPickerId
+                                                        }
+                                                        onClick={() => {
+                                                          void chooseNativeArtifactFiles({
+                                                            rowId:
+                                                              row.invokeWorkUnitTargetExecutionId,
+                                                            binding,
+                                                            artifactPickerId,
+                                                          });
+                                                        }}
+                                                      >
+                                                        <span className="truncate text-left text-xs">
+                                                          {nativeArtifactPickerKey ===
+                                                          artifactPickerId
+                                                            ? "Opening system file selector..."
+                                                            : binding.destinationCardinality ===
                                                                 "many"
-                                                                  ? filesetSelectedSet.has(
-                                                                      entry.relativePath,
-                                                                    )
-                                                                  : singleArtifactSelectedPath ===
-                                                                    entry.relativePath;
-                                                              const meta =
-                                                                formatRepoFileMeta(entry);
-                                                              return (
-                                                                <CommandItem
-                                                                  key={`${artifactPickerId}-${entry.relativePath}`}
-                                                                  value={`${entry.relativePath} ${formatRepoFileStatus(entry)} ${meta ?? ""}`}
-                                                                  onSelect={() => {
-                                                                    setRuntimeBindingValidationError(
-                                                                      null,
-                                                                    );
-                                                                    setRuntimeBindingInputsByRowId(
-                                                                      (current) =>
-                                                                        updateRuntimeBindingDraftState(
-                                                                          {
-                                                                            current,
-                                                                            rowId:
-                                                                              row.invokeWorkUnitTargetExecutionId,
-                                                                            destinationDefinitionId:
-                                                                              binding.destinationDefinitionId,
-                                                                            value:
-                                                                              binding.destinationCardinality ===
-                                                                              "many"
-                                                                                ? (selected
-                                                                                    ? filesetSelectedPaths.filter(
-                                                                                        (value) =>
-                                                                                          value !==
-                                                                                          entry.relativePath,
-                                                                                      )
-                                                                                    : [
-                                                                                        ...filesetSelectedPaths,
-                                                                                        entry.relativePath,
-                                                                                      ]
-                                                                                  ).join("\n")
-                                                                                : selected
-                                                                                  ? ""
-                                                                                  : entry.relativePath,
-                                                                          },
-                                                                        ),
-                                                                    );
-                                                                    if (
-                                                                      binding.destinationCardinality !==
+                                                              ? filesetSelectedPaths.length === 0
+                                                                ? "Choose files"
+                                                                : `${filesetSelectedPaths.length} files selected`
+                                                              : singleArtifactSelectedPath.length >
+                                                                  0
+                                                                ? singleArtifactSelectedPath
+                                                                : "Choose file"}
+                                                        </span>
+                                                        <ChevronsUpDownIcon className="size-3.5 shrink-0 opacity-70" />
+                                                      </Button>
+                                                    ) : (
+                                                      <Popover
+                                                        open={
+                                                          artifactPickerKey === artifactPickerId
+                                                        }
+                                                        onOpenChange={(nextOpen) => {
+                                                          setArtifactPickerKey(
+                                                            nextOpen ? artifactPickerId : null,
+                                                          );
+                                                          setArtifactPickerQuery("");
+                                                        }}
+                                                      >
+                                                        <PopoverTrigger
+                                                          render={
+                                                            <Button
+                                                              type="button"
+                                                              variant="outline"
+                                                              role="combobox"
+                                                              aria-label={`artifact-files-${artifactPickerId}`}
+                                                              className="h-8 w-full justify-between rounded-none border-amber-500/30 bg-amber-500/10 px-2.5 py-1 font-normal text-foreground"
+                                                              disabled={bindingsLocked}
+                                                            />
+                                                          }
+                                                        >
+                                                          <span className="truncate text-left text-xs">
+                                                            {binding.destinationCardinality ===
+                                                            "many"
+                                                              ? filesetSelectedPaths.length === 0
+                                                                ? "Browse project repo files"
+                                                                : `${filesetSelectedPaths.length} files selected`
+                                                              : singleArtifactSelectedPath.length >
+                                                                  0
+                                                                ? singleArtifactSelectedPath
+                                                                : "Browse project repo files"}
+                                                          </span>
+                                                          <ChevronsUpDownIcon className="size-3.5 shrink-0 opacity-70" />
+                                                        </PopoverTrigger>
+                                                        <PopoverContent
+                                                          className="w-[min(36rem,calc(100vw-3rem))] p-0"
+                                                          align="start"
+                                                          frame="cut-thin"
+                                                          tone="context"
+                                                          sideOffset={4}
+                                                        >
+                                                          <Command
+                                                            density="compact"
+                                                            frame="default"
+                                                            className="bg-[#0b0f12] text-foreground"
+                                                          >
+                                                            <CommandInput
+                                                              density="compact"
+                                                              placeholder="Search project repo files..."
+                                                              value={artifactPickerQuery}
+                                                              onValueChange={setArtifactPickerQuery}
+                                                            />
+                                                            <CommandList>
+                                                              <CommandEmpty>
+                                                                No repo files found.
+                                                              </CommandEmpty>
+                                                              <CommandGroup heading="Project repo files">
+                                                                {(repoFilesQuery.data ?? []).map(
+                                                                  (entry) => {
+                                                                    const selected =
+                                                                      binding.destinationCardinality ===
                                                                       "many"
-                                                                    ) {
-                                                                      setArtifactPickerKey(null);
-                                                                      setArtifactPickerQuery("");
-                                                                    }
-                                                                  }}
-                                                                >
-                                                                  <Checkbox
-                                                                    checked={selected}
-                                                                    className="pointer-events-none"
-                                                                  />
-                                                                  <div className="grid min-w-0 flex-1 gap-0.5">
-                                                                    <span className="truncate font-medium">
-                                                                      {entry.relativePath}
-                                                                    </span>
-                                                                    <div className="flex flex-wrap gap-1">
-                                                                      <ExecutionBadge
-                                                                        label={formatRepoFileStatus(
-                                                                          entry,
-                                                                        )}
-                                                                        tone={getRepoFileStatusTone(
-                                                                          entry,
-                                                                        )}
-                                                                      />
-                                                                    </div>
-                                                                    {meta ? (
-                                                                      <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
-                                                                        {meta}
-                                                                      </span>
-                                                                    ) : null}
-                                                                  </div>
-                                                                </CommandItem>
-                                                              );
-                                                            },
-                                                          )}
-                                                        </CommandGroup>
-                                                      </CommandList>
-                                                    </Command>
-                                                  </PopoverContent>
-                                                </Popover>
-                                              )}
-                                              {(
-                                                binding.destinationCardinality === "many"
-                                                  ? filesetSelectedPaths.length > 0
-                                                  : singleArtifactSelectedPath.length > 0
-                                              ) ? (
-                                                <InvokeArtifactPathList
-                                                  value={
-                                                    binding.destinationCardinality === "many"
-                                                      ? filesetSelectedPaths
-                                                      : singleArtifactSelectedPath
-                                                  }
-                                                  cardinality={binding.destinationCardinality}
-                                                  projectRootPath={projectRootPath}
-                                                  statusMap={selectedArtifactStatusMap}
-                                                  showStatus
-                                                />
-                                              ) : null}
-                                            </div>
-                                          ) : (
-                                            <Select
-                                              value={runtimeRawValue}
-                                              disabled={
-                                                bindingsLocked || selectorOptions.length === 0
-                                              }
-                                              onValueChange={(value) => {
-                                                setRuntimeBindingValidationError(null);
-                                                setRuntimeBindingInputsByRowId((current) =>
-                                                  updateRuntimeBindingDraftState({
-                                                    current,
-                                                    rowId: row.invokeWorkUnitTargetExecutionId,
-                                                    destinationDefinitionId:
-                                                      binding.destinationDefinitionId,
-                                                    value: value ?? "",
-                                                  }),
-                                                );
-                                              }}
-                                            >
-                                              <SelectTrigger className="w-full border-amber-500/30 bg-amber-500/10 text-foreground">
-                                                <span className="truncate text-left">
-                                                  {selectedBindingOptionLabel ??
-                                                    artifactInputDisplayLabel ??
-                                                    "Select an artifact source"}
-                                                </span>
-                                              </SelectTrigger>
-                                              <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
-                                                {selectorOptions.map((option) => (
-                                                  <SelectItem
-                                                    key={`${binding.destinationDefinitionId}-${encodeOptionValue(option.value)}`}
-                                                    value={encodeOptionValue(option.value)}
+                                                                        ? filesetSelectedSet.has(
+                                                                            entry.relativePath,
+                                                                          )
+                                                                        : singleArtifactSelectedPath ===
+                                                                          entry.relativePath;
+                                                                    const meta =
+                                                                      formatRepoFileMeta(entry);
+                                                                    return (
+                                                                      <CommandItem
+                                                                        key={`${artifactPickerId}-${entry.relativePath}`}
+                                                                        value={`${entry.relativePath} ${formatRepoFileStatus(entry)} ${meta ?? ""}`}
+                                                                        onSelect={() => {
+                                                                          setRuntimeBindingValidationError(
+                                                                            null,
+                                                                          );
+                                                                          setRuntimeBindingInputsByRowId(
+                                                                            (current) =>
+                                                                              updateRuntimeBindingDraftState(
+                                                                                {
+                                                                                  current,
+                                                                                  rowId:
+                                                                                    row.invokeWorkUnitTargetExecutionId,
+                                                                                  destinationDefinitionId:
+                                                                                    binding.destinationDefinitionId,
+                                                                                  value:
+                                                                                    binding.destinationCardinality ===
+                                                                                    "many"
+                                                                                      ? (selected
+                                                                                          ? filesetSelectedPaths.filter(
+                                                                                              (
+                                                                                                value,
+                                                                                              ) =>
+                                                                                                value !==
+                                                                                                entry.relativePath,
+                                                                                            )
+                                                                                          : [
+                                                                                              ...filesetSelectedPaths,
+                                                                                              entry.relativePath,
+                                                                                            ]
+                                                                                        ).join("\n")
+                                                                                      : selected
+                                                                                        ? ""
+                                                                                        : entry.relativePath,
+                                                                                },
+                                                                              ),
+                                                                          );
+                                                                          if (
+                                                                            binding.destinationCardinality !==
+                                                                            "many"
+                                                                          ) {
+                                                                            setArtifactPickerKey(
+                                                                              null,
+                                                                            );
+                                                                            setArtifactPickerQuery(
+                                                                              "",
+                                                                            );
+                                                                          }
+                                                                        }}
+                                                                      >
+                                                                        <Checkbox
+                                                                          checked={selected}
+                                                                          className="pointer-events-none"
+                                                                        />
+                                                                        <div className="grid min-w-0 flex-1 gap-0.5">
+                                                                          <span className="truncate font-medium">
+                                                                            {entry.relativePath}
+                                                                          </span>
+                                                                          <div className="flex flex-wrap gap-1">
+                                                                            <ExecutionBadge
+                                                                              label={formatRepoFileStatus(
+                                                                                entry,
+                                                                              )}
+                                                                              tone={getRepoFileStatusTone(
+                                                                                entry,
+                                                                              )}
+                                                                            />
+                                                                          </div>
+                                                                          {meta ? (
+                                                                            <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
+                                                                              {meta}
+                                                                            </span>
+                                                                          ) : null}
+                                                                        </div>
+                                                                      </CommandItem>
+                                                                    );
+                                                                  },
+                                                                )}
+                                                              </CommandGroup>
+                                                            </CommandList>
+                                                          </Command>
+                                                        </PopoverContent>
+                                                      </Popover>
+                                                    )}
+                                                    {(
+                                                      binding.destinationCardinality === "many"
+                                                        ? filesetSelectedPaths.length > 0
+                                                        : singleArtifactSelectedPath.length > 0
+                                                    ) ? (
+                                                      <InvokeArtifactPathList
+                                                        value={
+                                                          binding.destinationCardinality === "many"
+                                                            ? filesetSelectedPaths
+                                                            : singleArtifactSelectedPath
+                                                        }
+                                                        cardinality={binding.destinationCardinality}
+                                                        projectRootPath={projectRootPath}
+                                                        statusMap={selectedArtifactStatusMap}
+                                                        showStatus
+                                                      />
+                                                    ) : null}
+                                                  </div>
+                                                ) : (
+                                                  <Select
+                                                    value={runtimeRawValue}
+                                                    disabled={
+                                                      bindingsLocked || selectorOptions.length === 0
+                                                    }
+                                                    onValueChange={(value) => {
+                                                      setRuntimeBindingValidationError(null);
+                                                      setRuntimeBindingInputsByRowId((current) =>
+                                                        updateRuntimeBindingDraftState({
+                                                          current,
+                                                          rowId:
+                                                            row.invokeWorkUnitTargetExecutionId,
+                                                          destinationDefinitionId:
+                                                            binding.destinationDefinitionId,
+                                                          value: value ?? "",
+                                                        }),
+                                                      );
+                                                    }}
                                                   >
-                                                    {option.label}
-                                                  </SelectItem>
-                                                ))}
-                                              </SelectContent>
-                                            </Select>
-                                          )}
-                                          {binding.editorEmptyState ? (
-                                            <p className="text-xs text-muted-foreground">
-                                              {binding.editorEmptyState}
-                                            </p>
-                                          ) : null}
-                                          {binding.sourceWarnings?.length ? (
-                                            <div className="space-y-1 border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-100">
-                                              <DetailLabel>Mapping warnings</DetailLabel>
-                                              <ul className="space-y-1">
-                                                {binding.sourceWarnings.map((warning, index) => (
-                                                  <li
-                                                    key={`${binding.destinationDefinitionId}-warning-${index}`}
-                                                  >
-                                                    {warning}
-                                                  </li>
-                                                ))}
-                                              </ul>
-                                            </div>
-                                          ) : null}
-                                        </div>
-                                      ) : binding.destinationKind !== "work_unit_fact" ? (
-                                        <div />
-                                      ) : (
-                                        <div className="space-y-2">
-                                          <DetailLabel>Start-time value</DetailLabel>
-                                          {isWorkUnitSelector || selectorOptions.length > 0 ? (
-                                            <>
-                                              <Select
-                                                value={runtimeRawValue}
-                                                disabled={
-                                                  bindingsLocked ||
-                                                  (isWorkUnitSelector &&
-                                                    selectorOptions.length === 0)
-                                                }
-                                                onValueChange={(value) => {
-                                                  setRuntimeBindingValidationError(null);
-                                                  setRuntimeBindingInputsByRowId((current) =>
-                                                    updateRuntimeBindingDraftState({
-                                                      current,
-                                                      rowId: row.invokeWorkUnitTargetExecutionId,
-                                                      destinationDefinitionId:
-                                                        binding.destinationDefinitionId,
-                                                      value: value ?? "",
-                                                    }),
-                                                  );
-                                                }}
-                                              >
-                                                <SelectTrigger className="w-full border-sky-500/30 bg-sky-500/10 text-foreground">
-                                                  <span className="truncate text-left">
-                                                    {selectedBindingOptionLabel ??
-                                                      (isWorkUnitSelector
-                                                        ? "Select a work unit"
-                                                        : `Select ${binding.destinationLabel}`)}
-                                                  </span>
-                                                </SelectTrigger>
-                                                <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
-                                                  {selectorOptions.map((option) => (
-                                                    <SelectItem
-                                                      key={`${binding.destinationDefinitionId}-${encodeOptionValue(option.value)}`}
-                                                      value={encodeOptionValue(option.value)}
-                                                    >
-                                                      {option.label}
-                                                    </SelectItem>
-                                                  ))}
-                                                </SelectContent>
-                                              </Select>
-                                              {binding.editorEmptyState ||
-                                              (isWorkUnitSelector &&
-                                                selectorOptions.length === 0) ? (
-                                                <p className="text-xs text-muted-foreground">
-                                                  {binding.editorEmptyState ??
-                                                    "No eligible work units are available yet."}
-                                                </p>
-                                              ) : null}
-                                            </>
-                                          ) : binding.destinationFactType === "boolean" &&
-                                            binding.destinationCardinality === "one" ? (
-                                            <Select
-                                              value={runtimeRawValue}
-                                              disabled={bindingsLocked}
-                                              onValueChange={(value) => {
-                                                setRuntimeBindingValidationError(null);
-                                                setRuntimeBindingInputsByRowId((current) =>
-                                                  updateRuntimeBindingDraftState({
-                                                    current,
-                                                    rowId: row.invokeWorkUnitTargetExecutionId,
-                                                    destinationDefinitionId:
-                                                      binding.destinationDefinitionId,
-                                                    value: value ?? "",
-                                                  }),
-                                                );
-                                              }}
-                                            >
-                                              <SelectTrigger className="w-full border-violet-500/30 bg-violet-500/10 text-foreground">
-                                                <span className="truncate text-left">
-                                                  {runtimeRawValue.length > 0
-                                                    ? runtimeRawValue
-                                                    : "Select true or false"}
-                                                </span>
-                                              </SelectTrigger>
-                                              <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
-                                                <SelectItem value="true">true</SelectItem>
-                                                <SelectItem value="false">false</SelectItem>
-                                              </SelectContent>
-                                            </Select>
-                                          ) : manyOrJsonInput ? (
-                                            <Textarea
-                                              value={runtimeRawValue}
-                                              disabled={bindingsLocked}
-                                              onChange={(event) => {
-                                                setRuntimeBindingValidationError(null);
-                                                setRuntimeBindingInputsByRowId((current) =>
-                                                  updateRuntimeBindingDraftState({
-                                                    current,
-                                                    rowId: row.invokeWorkUnitTargetExecutionId,
-                                                    destinationDefinitionId:
-                                                      binding.destinationDefinitionId,
-                                                    value: event.target.value,
-                                                  }),
-                                                );
-                                              }}
-                                              rows={3}
-                                              placeholder={
-                                                binding.destinationCardinality === "many"
-                                                  ? '["value-1", "value-2"]'
-                                                  : '{"key":"value"}'
-                                              }
-                                            />
-                                          ) : (
-                                            <Input
-                                              type={
-                                                binding.destinationFactType === "number"
-                                                  ? "number"
-                                                  : "text"
-                                              }
-                                              value={runtimeRawValue}
-                                              disabled={bindingsLocked}
-                                              onChange={(event) => {
-                                                setRuntimeBindingValidationError(null);
-                                                setRuntimeBindingInputsByRowId((current) =>
-                                                  updateRuntimeBindingDraftState({
-                                                    current,
-                                                    rowId: row.invokeWorkUnitTargetExecutionId,
-                                                    destinationDefinitionId:
-                                                      binding.destinationDefinitionId,
-                                                    value: event.target.value,
-                                                  }),
-                                                );
-                                              }}
-                                              placeholder="Enter runtime value"
-                                            />
-                                          )}
-                                        </div>
-                                      )}
-
-                                      {hasSavedDraftValue ? (
-                                        <div className="space-y-2 border border-violet-500/30 bg-violet-500/10 p-2">
-                                          <div className="flex flex-wrap items-center gap-2">
-                                            <DetailLabel>Saved mapping value</DetailLabel>
-                                            <ExecutionBadge label="frozen draft" tone="violet" />
-                                          </div>
-                                          {binding.destinationKind === "artifact_slot" ? (
-                                            <InvokeArtifactPathList
-                                              value={savedDraftValue}
-                                              cardinality={binding.destinationCardinality}
-                                              projectRootPath={projectRootPath}
-                                            />
-                                          ) : (
-                                            <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
-                                              {formatUnknown(savedDraftValue)}
-                                            </pre>
-                                          )}
-                                        </div>
-                                      ) : null}
-
-                                      {binding.sourceKind !== "runtime" ? (
-                                        <div className="space-y-2 border border-sky-500/30 bg-sky-500/10 p-2">
-                                          <div className="flex flex-wrap items-center justify-between gap-2">
-                                            <div className="space-y-1">
-                                              <DetailLabel>Available refill value</DetailLabel>
-                                              <p className="text-[11px] text-muted-foreground">
-                                                Re-apply the authored mapping source without
-                                                changing the saved draft until you save again.
-                                              </p>
-                                            </div>
-                                            {!bindingsLocked ? (
-                                              <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                disabled={!hasAuthoredPrefillValue}
-                                                aria-label={getInvokeSourceRefillAriaLabel(binding)}
-                                                onClick={() => {
-                                                  if (!hasAuthoredPrefillValue) {
-                                                    return;
-                                                  }
-
-                                                  setRuntimeBindingValidationError(null);
-                                                  setRuntimeBindingInputsByRowId((current) =>
-                                                    updateRuntimeBindingDraftState({
-                                                      current,
-                                                      rowId: row.invokeWorkUnitTargetExecutionId,
-                                                      destinationDefinitionId:
-                                                        binding.destinationDefinitionId,
-                                                      value: serializeInvokeBindingDraftValue(
-                                                        binding,
-                                                        authoredPrefillValue,
-                                                      ),
-                                                    }),
-                                                  );
-                                                }}
-                                              >
-                                                {getInvokeSourceRefillLabel(binding)}
-                                              </Button>
-                                            ) : null}
-                                          </div>
-                                          {hasAuthoredPrefillValue ? (
-                                            binding.destinationKind === "artifact_slot" ? (
-                                              <InvokeArtifactPathList
-                                                value={authoredPrefillValue}
-                                                cardinality={binding.destinationCardinality}
-                                                projectRootPath={projectRootPath}
-                                              />
+                                                    <SelectTrigger className="w-full border-amber-500/30 bg-amber-500/10 text-foreground">
+                                                      <span className="truncate text-left">
+                                                        {selectedBindingOptionLabel ??
+                                                          artifactInputDisplayLabel ??
+                                                          "Select an artifact source"}
+                                                      </span>
+                                                    </SelectTrigger>
+                                                    <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
+                                                      {selectorOptions.map((option) => (
+                                                        <SelectItem
+                                                          key={`${binding.destinationDefinitionId}-${encodeOptionValue(option.value)}`}
+                                                          value={encodeOptionValue(option.value)}
+                                                        >
+                                                          {option.label}
+                                                        </SelectItem>
+                                                      ))}
+                                                    </SelectContent>
+                                                  </Select>
+                                                )}
+                                                {binding.editorEmptyState ? (
+                                                  <p className="text-xs text-muted-foreground">
+                                                    {binding.editorEmptyState}
+                                                  </p>
+                                                ) : null}
+                                                {binding.sourceWarnings?.length ? (
+                                                  <div className="space-y-1 border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-100">
+                                                    <DetailLabel>Mapping warnings</DetailLabel>
+                                                    <ul className="space-y-1">
+                                                      {binding.sourceWarnings.map(
+                                                        (warning, index) => (
+                                                          <li
+                                                            key={`${binding.destinationDefinitionId}-warning-${index}`}
+                                                          >
+                                                            {warning}
+                                                          </li>
+                                                        ),
+                                                      )}
+                                                    </ul>
+                                                  </div>
+                                                ) : null}
+                                              </div>
+                                            ) : binding.destinationKind !== "work_unit_fact" ? (
+                                              <div />
                                             ) : (
-                                              <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
-                                                {formatUnknown(authoredPrefillValue)}
-                                              </pre>
-                                            )
-                                          ) : (
-                                            <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
-                                              No source value is available to refill right now.
-                                            </pre>
-                                          )}
-                                        </div>
-                                      ) : null}
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            </div>
+                                              <div className="space-y-2">
+                                                <DetailLabel>Start-time value</DetailLabel>
+                                                {isWorkUnitSelector ||
+                                                selectorOptions.length > 0 ? (
+                                                  <>
+                                                    <Select
+                                                      value={runtimeRawValue}
+                                                      disabled={
+                                                        bindingsLocked ||
+                                                        (isWorkUnitSelector &&
+                                                          selectorOptions.length === 0)
+                                                      }
+                                                      onValueChange={(value) => {
+                                                        setRuntimeBindingValidationError(null);
+                                                        setRuntimeBindingInputsByRowId((current) =>
+                                                          updateRuntimeBindingDraftState({
+                                                            current,
+                                                            rowId:
+                                                              row.invokeWorkUnitTargetExecutionId,
+                                                            destinationDefinitionId:
+                                                              binding.destinationDefinitionId,
+                                                            value: value ?? "",
+                                                          }),
+                                                        );
+                                                      }}
+                                                    >
+                                                      <SelectTrigger className="w-full border-sky-500/30 bg-sky-500/10 text-foreground">
+                                                        <span className="truncate text-left">
+                                                          {selectedBindingOptionLabel ??
+                                                            (isWorkUnitSelector
+                                                              ? "Select a work unit"
+                                                              : `Select ${binding.destinationLabel}`)}
+                                                        </span>
+                                                      </SelectTrigger>
+                                                      <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
+                                                        {selectorOptions.map((option) => (
+                                                          <SelectItem
+                                                            key={`${binding.destinationDefinitionId}-${encodeOptionValue(option.value)}`}
+                                                            value={encodeOptionValue(option.value)}
+                                                          >
+                                                            {option.label}
+                                                          </SelectItem>
+                                                        ))}
+                                                      </SelectContent>
+                                                    </Select>
+                                                    {binding.editorEmptyState ||
+                                                    (isWorkUnitSelector &&
+                                                      selectorOptions.length === 0) ? (
+                                                      <p className="text-xs text-muted-foreground">
+                                                        {binding.editorEmptyState ??
+                                                          "No eligible work units are available yet."}
+                                                      </p>
+                                                    ) : null}
+                                                  </>
+                                                ) : binding.destinationFactType === "boolean" &&
+                                                  binding.destinationCardinality === "one" ? (
+                                                  <Select
+                                                    value={runtimeRawValue}
+                                                    disabled={bindingsLocked}
+                                                    onValueChange={(value) => {
+                                                      setRuntimeBindingValidationError(null);
+                                                      setRuntimeBindingInputsByRowId((current) =>
+                                                        updateRuntimeBindingDraftState({
+                                                          current,
+                                                          rowId:
+                                                            row.invokeWorkUnitTargetExecutionId,
+                                                          destinationDefinitionId:
+                                                            binding.destinationDefinitionId,
+                                                          value: value ?? "",
+                                                        }),
+                                                      );
+                                                    }}
+                                                  >
+                                                    <SelectTrigger className="w-full border-violet-500/30 bg-violet-500/10 text-foreground">
+                                                      <span className="truncate text-left">
+                                                        {runtimeRawValue.length > 0
+                                                          ? runtimeRawValue
+                                                          : "Select true or false"}
+                                                      </span>
+                                                    </SelectTrigger>
+                                                    <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
+                                                      <SelectItem value="true">true</SelectItem>
+                                                      <SelectItem value="false">false</SelectItem>
+                                                    </SelectContent>
+                                                  </Select>
+                                                ) : manyOrJsonInput ? (
+                                                  <Textarea
+                                                    value={runtimeRawValue}
+                                                    disabled={bindingsLocked}
+                                                    onChange={(event) => {
+                                                      setRuntimeBindingValidationError(null);
+                                                      setRuntimeBindingInputsByRowId((current) =>
+                                                        updateRuntimeBindingDraftState({
+                                                          current,
+                                                          rowId:
+                                                            row.invokeWorkUnitTargetExecutionId,
+                                                          destinationDefinitionId:
+                                                            binding.destinationDefinitionId,
+                                                          value: event.target.value,
+                                                        }),
+                                                      );
+                                                    }}
+                                                    rows={3}
+                                                    placeholder={
+                                                      binding.destinationCardinality === "many"
+                                                        ? '["value-1", "value-2"]'
+                                                        : '{"key":"value"}'
+                                                    }
+                                                  />
+                                                ) : (
+                                                  <Input
+                                                    type={
+                                                      binding.destinationFactType === "number"
+                                                        ? "number"
+                                                        : "text"
+                                                    }
+                                                    value={runtimeRawValue}
+                                                    disabled={bindingsLocked}
+                                                    onChange={(event) => {
+                                                      setRuntimeBindingValidationError(null);
+                                                      setRuntimeBindingInputsByRowId((current) =>
+                                                        updateRuntimeBindingDraftState({
+                                                          current,
+                                                          rowId:
+                                                            row.invokeWorkUnitTargetExecutionId,
+                                                          destinationDefinitionId:
+                                                            binding.destinationDefinitionId,
+                                                          value: event.target.value,
+                                                        }),
+                                                      );
+                                                    }}
+                                                    placeholder="Enter runtime value"
+                                                  />
+                                                )}
+                                              </div>
+                                            )}
+
+                                            {hasSavedDraftValue ? (
+                                              <div className="space-y-2 border border-violet-500/30 bg-violet-500/10 p-2">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                  <DetailLabel>Saved mapping value</DetailLabel>
+                                                  <ExecutionBadge
+                                                    label="frozen draft"
+                                                    tone="violet"
+                                                  />
+                                                </div>
+                                                {binding.destinationKind === "artifact_slot" ? (
+                                                  <InvokeArtifactPathList
+                                                    value={savedDraftValue}
+                                                    cardinality={binding.destinationCardinality}
+                                                    projectRootPath={projectRootPath}
+                                                  />
+                                                ) : (
+                                                  <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
+                                                    {formatUnknown(savedDraftValue)}
+                                                  </pre>
+                                                )}
+                                              </div>
+                                            ) : null}
+
+                                            {hasActualChildValue ? (
+                                              <div className="space-y-2 border border-emerald-500/30 bg-emerald-500/10 p-2">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                  <DetailLabel>Current child value</DetailLabel>
+                                                  <ExecutionBadge
+                                                    label="live child"
+                                                    tone="emerald"
+                                                  />
+                                                </div>
+                                                {binding.destinationKind === "artifact_slot" ? (
+                                                  <InvokeArtifactPathList
+                                                    value={actualChildValue}
+                                                    cardinality={binding.destinationCardinality}
+                                                    projectRootPath={projectRootPath}
+                                                  />
+                                                ) : (
+                                                  <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
+                                                    {formatUnknown(actualChildValue)}
+                                                  </pre>
+                                                )}
+                                              </div>
+                                            ) : null}
+
+                                            {binding.sourceKind !== "runtime" ? (
+                                              <div className="space-y-2 border border-sky-500/30 bg-sky-500/10 p-2">
+                                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                                  <div className="space-y-1">
+                                                    <DetailLabel>
+                                                      Available refill value
+                                                    </DetailLabel>
+                                                    <p className="text-[11px] text-muted-foreground">
+                                                      Re-apply the authored mapping source without
+                                                      changing the saved draft until you save again.
+                                                    </p>
+                                                  </div>
+                                                  {!bindingsLocked ? (
+                                                    <Button
+                                                      type="button"
+                                                      variant="outline"
+                                                      size="sm"
+                                                      disabled={!hasAuthoredPrefillValue}
+                                                      aria-label={getInvokeSourceRefillAriaLabel(
+                                                        binding,
+                                                      )}
+                                                      onClick={() => {
+                                                        if (!hasAuthoredPrefillValue) {
+                                                          return;
+                                                        }
+
+                                                        setRuntimeBindingValidationError(null);
+                                                        setRuntimeBindingInputsByRowId((current) =>
+                                                          updateRuntimeBindingDraftState({
+                                                            current,
+                                                            rowId:
+                                                              row.invokeWorkUnitTargetExecutionId,
+                                                            destinationDefinitionId:
+                                                              binding.destinationDefinitionId,
+                                                            value: serializeInvokeBindingDraftValue(
+                                                              binding,
+                                                              authoredPrefillValue,
+                                                            ),
+                                                          }),
+                                                        );
+                                                      }}
+                                                    >
+                                                      {getInvokeSourceRefillLabel(binding)}
+                                                    </Button>
+                                                  ) : null}
+                                                </div>
+                                                {hasAuthoredPrefillValue ? (
+                                                  binding.destinationKind === "artifact_slot" ? (
+                                                    <InvokeArtifactPathList
+                                                      value={authoredPrefillValue}
+                                                      cardinality={binding.destinationCardinality}
+                                                      projectRootPath={projectRootPath}
+                                                    />
+                                                  ) : (
+                                                    <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
+                                                      {formatUnknown(authoredPrefillValue)}
+                                                    </pre>
+                                                  )
+                                                ) : (
+                                                  <pre className="whitespace-pre-wrap break-words text-xs text-foreground">
+                                                    No source value is available to refill right
+                                                    now.
+                                                  </pre>
+                                                )}
+                                              </div>
+                                            ) : null}
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
+                                  </div>
+                                </CollapsibleContent>
+                              </div>
+                            </Collapsible>
                           ) : null}
                         </CardContent>
 

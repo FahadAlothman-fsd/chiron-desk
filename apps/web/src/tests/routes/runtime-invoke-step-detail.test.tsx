@@ -232,6 +232,8 @@ function buildDetail(): any {
       workUnitTargets: [
         {
           workUnitLabel: "QA Review",
+          targetFamilyKey: "work-unit-def-1:transition-def-1",
+          workUnitCardinality: "one_per_project" as const,
           transitionLabel: "Start QA",
           status: "blocked" as const,
           blockedReason: "No primary workflows are available for this transition.",
@@ -265,6 +267,8 @@ function buildDetail(): any {
         },
         {
           workUnitLabel: "Story: Payments",
+          targetFamilyKey: "work-unit-def-2:transition-def-2",
+          workUnitCardinality: "many_per_project" as const,
           transitionLabel: "Start implementation",
           transitionFromStateLabel: "Activation",
           transitionToStateLabel: "In Progress",
@@ -394,6 +398,8 @@ function buildDetail(): any {
         },
         {
           workUnitLabel: "Story: Search",
+          targetFamilyKey: "work-unit-def-3:transition-def-3",
+          workUnitCardinality: "many_per_project" as const,
           transitionLabel: "Start implementation",
           workflowLabel: "Implement story",
           currentWorkUnitStateLabel: "Done",
@@ -412,6 +418,15 @@ function buildDetail(): any {
           workflowDefinitionId: "workflow-primary-1",
           transitionExecutionId: "transition-exec-3",
           workflowExecutionId: "workflow-exec-3",
+          childSummary: {
+            projectWorkUnitId: "project-work-unit-3",
+            label: "Story Search",
+            currentStateLabel: "Done",
+            transitionExecutionId: "transition-exec-3",
+            transitionStatus: "completed" as const,
+            workflowExecutionId: "workflow-exec-3",
+            workflowStatus: "completed" as const,
+          },
           startGate: {
             conditionTree: {
               mode: "all" as const,
@@ -453,6 +468,106 @@ function buildDetail(): any {
             },
           },
           bindingPreview: [],
+        },
+        {
+          workUnitLabel: "Story: Payments",
+          targetFamilyKey: "work-unit-def-2:transition-def-2",
+          workUnitCardinality: "many_per_project" as const,
+          transitionLabel: "Start implementation",
+          transitionFromStateLabel: "Activation",
+          transitionToStateLabel: "In Progress",
+          workflowLabel: "Spike first",
+          currentWorkUnitStateLabel: "Drafting",
+          status: "active" as const,
+          availablePrimaryWorkflows: [
+            {
+              workflowDefinitionName: "Implement story",
+              workflowDefinitionId: "workflow-primary-1",
+              workflowDefinitionKey: "WF.IMPLEMENT",
+            },
+            {
+              workflowDefinitionName: "Spike first",
+              workflowDefinitionId: "workflow-primary-2",
+              workflowDefinitionKey: "WF.SPIKE",
+            },
+          ],
+          invokeWorkUnitTargetExecutionId: "invoke-work-unit-row-4",
+          projectWorkUnitId: "project-work-unit-4",
+          workUnitDefinitionId: "work-unit-def-2",
+          workUnitDefinitionKey: "WU.STORY",
+          workUnitDefinitionName: "Story",
+          transitionDefinitionId: "transition-def-2",
+          transitionDefinitionKey: "activation_to_in_progress",
+          workflowDefinitionId: "workflow-primary-2",
+          workflowExecutionId: "workflow-exec-4",
+          transitionExecutionId: "transition-exec-4",
+          childSummary: {
+            projectWorkUnitId: "project-work-unit-4",
+            label: "Story Payments 2",
+            currentStateLabel: "Drafting",
+            transitionExecutionId: "transition-exec-4",
+            transitionStatus: "active" as const,
+            workflowExecutionId: "workflow-exec-4",
+            workflowStatus: "active" as const,
+          },
+          startGate: {
+            conditionTree: {
+              mode: "all" as const,
+              conditions: [],
+              groups: [],
+            },
+            evaluationTree: {
+              mode: "all" as const,
+              met: true,
+              conditions: [],
+              groups: [],
+            },
+            evaluatedAt: "2026-04-14T10:05:00.000Z",
+          },
+          actions: {
+            openWorkUnit: {
+              kind: "open_work_unit" as const,
+              projectWorkUnitId: "project-work-unit-4",
+              target: {
+                page: "work-unit-overview" as const,
+                projectWorkUnitId: "project-work-unit-4",
+              },
+            },
+            openTransition: {
+              kind: "open_transition_execution" as const,
+              transitionExecutionId: "transition-exec-4",
+              target: {
+                page: "transition-execution-detail" as const,
+                transitionExecutionId: "transition-exec-4",
+              },
+            },
+            openWorkflow: {
+              kind: "open_workflow_execution" as const,
+              workflowExecutionId: "workflow-exec-4",
+              target: {
+                page: "workflow-execution-detail" as const,
+                workflowExecutionId: "workflow-exec-4",
+              },
+            },
+          },
+          bindingPreview: [
+            {
+              destinationKind: "work_unit_fact" as const,
+              destinationDefinitionId: "fact-story-direction",
+              destinationLabel: "Selected Direction",
+              destinationFactType: "string" as const,
+              destinationCardinality: "one" as const,
+              sourceKind: "context_fact" as const,
+              sourceContextFactDefinitionId: "ctx-selected-direction",
+              sourceContextFactKey: "selected_direction",
+              sourceContextFactLabel: "Selected Direction",
+              authoredPrefillValueJson: "Context direction",
+              savedDraftValueJson: "Saved direction",
+              actualChildValueJson: "Actual child direction",
+              resolvedValueJson: "Actual child direction",
+              requiresRuntimeValue: false,
+            },
+          ],
         },
       ],
       completionSummary: {
@@ -813,7 +928,15 @@ describe("runtime invoke step detail route", () => {
   });
 
   it("renders the agreed invoke shell, workflow/work-unit rows, and propagation preview", async () => {
+    const user = userEvent.setup();
     await renderHarness();
+
+    expect(screen.queryByText("Saved direction")).toBeNull();
+    for (const expandButton of screen.getAllByRole("button", {
+      name: /Binding preview.*Expand/i,
+    })) {
+      await user.click(expandButton);
+    }
 
     expect(screen.getByText("Step execution detail")).toBeTruthy();
     expect(screen.getByText("Invoke targets, completion rule & propagation preview")).toBeTruthy();
@@ -844,6 +967,8 @@ describe("runtime invoke step detail route", () => {
     expect(screen.getAllByText("Activation → In Progress").length).toBeGreaterThan(0);
     expect(screen.getAllByText("WU.STORY").length).toBeGreaterThan(0);
     expect(screen.getAllByText("activation_to_in_progress").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /Editing new instance target/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Story Payments 2/i })).toBeTruthy();
     expect(
       screen.getAllByText("No primary workflows are available for this transition.").length,
     ).toBeGreaterThan(0);
@@ -863,6 +988,7 @@ describe("runtime invoke step detail route", () => {
       ),
     ).toBeTruthy();
     expect(screen.getAllByText("Condition tree").length).toBeGreaterThan(0);
+    await user.click(screen.getByRole("button", { name: /Condition tree blocked Expand/i }));
     expect(screen.getByText("setup_work_unit must exist")).toBeTruthy();
     expect(
       screen.getAllByText("Work-unit fact 'setup_work_unit' is missing").length,
@@ -880,6 +1006,23 @@ describe("runtime invoke step detail route", () => {
     expect(screen.getByText("Story draft specs")).toBeTruthy();
     expect(screen.getByText("story_draft_specs")).toBeTruthy();
     expect(screen.getByText("Story workflow references")).toBeTruthy();
+  });
+
+  it("shows live child summaries and current child values on started invoke instances", async () => {
+    const user = userEvent.setup();
+    await renderHarness();
+
+    await user.click(screen.getByRole("button", { name: /Story Payments 2/i }));
+    for (const expandButton of screen.getAllByRole("button", { name: /Expand/i })) {
+      await user.click(expandButton);
+    }
+
+    expect(screen.getAllByText("Current child instance").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Story Payments 2").length).toBeGreaterThan(0);
+    expect(screen.getByText("transition active")).toBeTruthy();
+    expect(screen.getByText("workflow active")).toBeTruthy();
+    expect(screen.getByText("Current child value")).toBeTruthy();
+    expect(screen.getByText("Actual child direction")).toBeTruthy();
   });
 
   it("starts workflow/work-unit targets, refetches detail, and completes the invoke step", async () => {
@@ -906,6 +1049,7 @@ describe("runtime invoke step detail route", () => {
       screen.getByRole("combobox", { name: "invoke-primary-workflow-invoke-work-unit-row-2" }),
       "workflow-primary-2",
     );
+    await user.click(screen.getByRole("button", { name: /Binding preview.*Expand/i }));
     const overrideInput = screen.getByDisplayValue("Saved direction");
     await user.clear(overrideInput);
     await user.type(overrideInput, "Operator override");
@@ -959,6 +1103,8 @@ describe("runtime invoke step detail route", () => {
     const user = userEvent.setup();
     await renderHarness();
 
+    await user.click(screen.getByRole("button", { name: /Binding preview.*Expand/i }));
+
     expect(screen.getAllByText("Saved mapping value").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Available refill value").length).toBeGreaterThan(0);
     expect(screen.getByText("Saved direction")).toBeTruthy();
@@ -987,6 +1133,7 @@ describe("runtime invoke step detail route", () => {
   });
 
   it("normalizes artifact values to repo-relative paths and offers full-path copy actions", async () => {
+    const user = userEvent.setup();
     await renderHarness({
       ...buildDetail(),
       body: {
@@ -1013,6 +1160,8 @@ describe("runtime invoke step detail route", () => {
         ),
       },
     });
+
+    await user.click(screen.getByRole("button", { name: /Binding preview.*Expand/i }));
 
     expect(screen.getAllByText("cf_setup_brainstorming_draft_spec.json").length).toBeGreaterThan(0);
     expect(
@@ -1080,6 +1229,8 @@ describe("runtime invoke step detail route", () => {
     };
 
     const harness = await renderHarness();
+
+    await user.click(screen.getByRole("button", { name: /Binding preview.*Expand/i }));
 
     expect(
       screen.getByRole("combobox", {
