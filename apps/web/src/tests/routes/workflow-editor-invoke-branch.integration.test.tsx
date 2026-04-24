@@ -1035,7 +1035,7 @@ describe("workflow editor invoke route", () => {
     fireEvent.change(screen.getByLabelText("Step Title"), {
       target: { value: "Invoke Story Work Updated" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /Guidance/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: /Guidance/i })[0]!);
     fireEvent.change(screen.getByLabelText("Human Guidance"), {
       target: { value: "Review the updated invoke path." },
     });
@@ -1049,7 +1049,7 @@ describe("workflow editor invoke route", () => {
       fireEvent.click(workflowsCombobox);
       fireEvent.click((await screen.findAllByText("Implementation Child Workflow")).at(-1)!);
     }
-    fireEvent.click(screen.getByRole("button", { name: /Guidance/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: /Guidance/i })[0]!);
 
     await waitFor(() => {
       expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(

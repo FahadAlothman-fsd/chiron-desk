@@ -109,18 +109,40 @@ const isContextFactCompatibleWithWorkUnitFact = (
     return sourceFact.valueType === destination.factType;
   }
 
+  if (sourceFact.kind === "work_unit_reference_fact") {
+    return destination.factType === "work_unit";
+  }
+
   if (sourceFact.kind === "bound_fact" && typeof sourceFact.valueType === "string") {
     return sourceFact.valueType === destination.factType;
   }
 
-  if (sourceFact.kind === "work_unit_draft_spec_fact") {
-    return (
-      sourceFact.workUnitDefinitionId === destination.workUnitTypeId &&
-      sourceFact.selectedWorkUnitFactDefinitionIds.includes(destination.id)
-    );
-  }
-
   return false;
+};
+
+const isFilePathContextFact = (sourceFact: WorkflowContextFactDto): boolean => {
+  const valueType =
+    sourceFact.kind === "plain_fact"
+      ? sourceFact.type
+      : sourceFact.kind === "plain_value_fact" || sourceFact.kind === "bound_fact"
+        ? sourceFact.valueType
+        : null;
+
+  return (
+    (sourceFact.kind === "plain_fact" ||
+      sourceFact.kind === "plain_value_fact" ||
+      sourceFact.kind === "bound_fact") &&
+    valueType === "string" &&
+    typeof sourceFact.validationJson === "object" &&
+    sourceFact.validationJson !== null &&
+    "kind" in sourceFact.validationJson &&
+    sourceFact.validationJson.kind === "path" &&
+    "path" in sourceFact.validationJson &&
+    typeof sourceFact.validationJson.path === "object" &&
+    sourceFact.validationJson.path !== null &&
+    "pathKind" in sourceFact.validationJson.path &&
+    sourceFact.validationJson.path.pathKind === "file"
+  );
 };
 
 const isContextFactCompatibleWithArtifactSlot = (
@@ -135,11 +157,7 @@ const isContextFactCompatibleWithArtifactSlot = (
     return true;
   }
 
-  return (
-    sourceFact.kind === "work_unit_draft_spec_fact" &&
-    sourceFact.workUnitDefinitionId === destination.workUnitTypeId &&
-    sourceFact.selectedArtifactSlotDefinitionIds.includes(destination.id)
-  );
+  return isFilePathContextFact(sourceFact);
 };
 
 const validateBindingSet = (

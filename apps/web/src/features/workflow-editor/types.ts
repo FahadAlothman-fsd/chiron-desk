@@ -296,7 +296,10 @@ export type WorkflowEditorPickerBadge = {
     | "validation-path"
     | "validation-allowed-values"
     | "validation-number"
-    | "work-unit-definition";
+    | "work-unit-definition"
+    | "transition-from"
+    | "transition-to"
+    | "guidance";
 };
 
 export type WorkflowEditorFieldDraft = FormStepFieldPayload & {

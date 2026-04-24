@@ -2437,6 +2437,11 @@ function toWorkflowOptions(rawWorkflows: unknown, rawWorkUnits: unknown) {
       ? getWorkUnitTypeLabel(rawWorkUnits, normalizedWorkUnitTypeKey)
       : null;
 
+    const workflowGuidance =
+      readMarkdown(workflow.guidanceJson) ||
+      readMarkdown(workflow.descriptionJson) ||
+      readMarkdown(workflow.description);
+
     return [
       {
         value,
@@ -2447,16 +2452,19 @@ function toWorkflowOptions(rawWorkflows: unknown, rawWorkUnits: unknown) {
         ...(typeof workflow.key === "string" && workflow.key.trim().length > 0
           ? { secondaryLabel: workflow.key }
           : {}),
-        description:
-          readMarkdown(workflow.descriptionJson) ||
-          readMarkdown(workflow.description) ||
-          readMarkdown(workflow.guidanceJson) ||
-          "Workflow",
+        description: workflowGuidance || "Workflow",
         ...(workUnitTypeLabel
           ? {
-              badges: [{ label: workUnitTypeLabel, tone: "work-unit-definition" as const }],
+              badges: [
+                { label: workUnitTypeLabel, tone: "work-unit-definition" as const },
+                ...(workflowGuidance.length > 0
+                  ? [{ label: "guidance", tone: "guidance" as const }]
+                  : []),
+              ],
             }
-          : {}),
+          : workflowGuidance.length > 0
+            ? { badges: [{ label: "guidance", tone: "guidance" as const }] }
+            : {}),
         ...(normalizedWorkUnitTypeKey
           ? {
               workUnitDefinitionId: normalizedWorkUnitTypeKey,
@@ -2528,6 +2536,26 @@ function toTransitionOptions(rawTransitions: unknown) {
           ? transition.transitionKey
           : transitionIdentifier;
 
+    const fromStateLabel =
+      typeof transition.fromState === "string" && transition.fromState.trim().length > 0
+        ? transition.fromState.trim()
+        : typeof transition.fromStateKey === "string" && transition.fromStateKey.trim().length > 0
+          ? transition.fromStateKey.trim()
+          : "Activation";
+    const toStateLabel =
+      typeof transition.toState === "string" && transition.toState.trim().length > 0
+        ? transition.toState.trim()
+        : typeof transition.toStateKey === "string" && transition.toStateKey.trim().length > 0
+          ? transition.toStateKey.trim()
+          : typeof transition.transitionName === "string" &&
+              transition.transitionName.trim().length > 0
+            ? transition.transitionName.trim()
+            : label;
+    const guidance =
+      readMarkdown(transition.guidanceJson) ||
+      readMarkdown(transition.descriptionJson) ||
+      readMarkdown(transition.description);
+
     return [
       {
         value: transitionIdentifier,
@@ -2535,10 +2563,14 @@ function toTransitionOptions(rawTransitions: unknown) {
         ...(typeof transition.transitionKey === "string"
           ? { secondaryLabel: transition.transitionKey }
           : {}),
-        description:
-          typeof transition.transitionKey === "string" && transition.transitionKey.trim().length > 0
-            ? transition.transitionKey
-            : "Lifecycle transition",
+        description: [`${fromStateLabel} → ${toStateLabel}`, guidance.length > 0 ? guidance : null]
+          .filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+          .join(" · "),
+        badges: [
+          { label: `from ${fromStateLabel}`, tone: "transition-from" as const },
+          { label: `to ${toStateLabel}`, tone: "transition-to" as const },
+          ...(guidance.length > 0 ? [{ label: "guidance", tone: "guidance" as const }] : []),
+        ],
       },
     ];
   });

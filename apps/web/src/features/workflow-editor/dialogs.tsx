@@ -1217,7 +1217,8 @@ function SearchableCombobox(props: {
                             </span>
                           ))}
                         </div>
-                      ) : option.description ? (
+                      ) : null}
+                      {option.description ? (
                         <span className="truncate text-[0.68rem] uppercase tracking-[0.08em] text-muted-foreground">
                           {option.description}
                         </span>
@@ -1273,7 +1274,13 @@ export function getPickerBadgeClassName(badge: WorkflowEditorPickerBadge) {
                               ? "border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-200"
                               : badge.tone === "validation-number"
                                 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200"
-                                : "border-border/70 bg-background/70 text-muted-foreground",
+                                : badge.tone === "transition-from"
+                                  ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-200"
+                                  : badge.tone === "transition-to"
+                                    ? "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-200"
+                                    : badge.tone === "guidance"
+                                      ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200"
+                                      : "border-border/70 bg-background/70 text-muted-foreground",
   );
 }
 
@@ -1472,7 +1479,7 @@ const INVOKE_BINDING_SOURCE_OPTIONS = [
   {
     value: "context_fact",
     label: "Context Fact",
-    description: "Prefill from a compatible workflow context fact or draft-spec selection.",
+    description: "Prefill from a compatible workflow context fact.",
   },
   {
     value: "literal",
@@ -1518,15 +1525,35 @@ function getContextFactValueType(
   fact: WorkflowContextFactDefinitionItem,
 ): WorkflowInvokeWorkUnitFactDefinition["valueType"] | "artifact_snapshot" | null {
   switch (fact.kind) {
+    case "plain_fact":
+      return fact.valueType ?? fact.type ?? null;
     case "plain_value_fact":
       return fact.valueType ?? "string";
     case "bound_fact":
       return fact.valueType ?? null;
-    case "artifact_slot_reference_fact":
-      return "artifact_snapshot";
+    case "work_unit_reference_fact":
+      return "work_unit";
     default:
       return null;
   }
+}
+
+function isFilePathContextFact(fact: WorkflowContextFactDefinitionItem): boolean {
+  return (
+    (fact.kind === "plain_fact" ||
+      fact.kind === "plain_value_fact" ||
+      fact.kind === "bound_fact") &&
+    getContextFactValueType(fact) === "string" &&
+    typeof fact.validationJson === "object" &&
+    fact.validationJson !== null &&
+    "kind" in fact.validationJson &&
+    fact.validationJson.kind === "path" &&
+    "path" in fact.validationJson &&
+    typeof fact.validationJson.path === "object" &&
+    fact.validationJson.path !== null &&
+    "pathKind" in fact.validationJson.path &&
+    fact.validationJson.path.pathKind === "file"
+  );
 }
 
 function isContextFactCompatibleWithDestination(
@@ -1538,15 +1565,7 @@ function isContextFactCompatibleWithDestination(
   }
 
   if (destination.kind === "artifact_slot") {
-    if (fact.kind === "work_unit_draft_spec_fact") {
-      return fact.selectedArtifactSlotDefinitionIds.includes(destination.definitionId);
-    }
-
-    return fact.kind === "artifact_slot_reference_fact";
-  }
-
-  if (fact.kind === "work_unit_draft_spec_fact") {
-    return fact.selectedWorkUnitFactDefinitionIds.includes(destination.definitionId);
+    return fact.kind === "artifact_slot_reference_fact" || isFilePathContextFact(fact);
   }
 
   return getContextFactValueType(fact) === (destination.valueType ?? null);
@@ -2488,9 +2507,15 @@ export function InvokeStepDialog({
               ) : null}
 
               {!canSave ? (
-                <p className="mb-4 border border-border/70 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                  {validationErrors[0]}
-                </p>
+                <div
+                  role="alert"
+                  className="mb-4 border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200"
+                >
+                  <p className="font-medium uppercase tracking-[0.12em] text-amber-100">
+                    Invoke configuration warning
+                  </p>
+                  <p className="mt-1">{validationErrors[0]}</p>
+                </div>
               ) : null}
 
               {activeTab === "contract" ? (
