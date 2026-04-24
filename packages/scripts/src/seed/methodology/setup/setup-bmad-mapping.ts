@@ -336,7 +336,7 @@ function buildCanonicalSetupConditionSets(methodologyVersionId: CanonicalMethodo
               required: true,
               config: {
                 factKey: "initiative_name",
-                factDefinitionId: `seed:work-unit-fact:setup:initiative-name:${methodologyVersionId}`,
+                factDefinitionId: `seed:work-unit-fact:initiative-name:${methodologyVersionId}`,
                 operator: "exists",
               },
             },
@@ -345,7 +345,7 @@ function buildCanonicalSetupConditionSets(methodologyVersionId: CanonicalMethodo
               required: true,
               config: {
                 factKey: "project_kind",
-                factDefinitionId: `seed:work-unit-fact:setup:project-kind:${methodologyVersionId}`,
+                factDefinitionId: `seed:work-unit-fact:project-kind:${methodologyVersionId}`,
                 operator: "exists",
               },
             },
@@ -368,7 +368,7 @@ function buildCanonicalSetupConditionSets(methodologyVersionId: CanonicalMethodo
               required: true,
               config: {
                 factKey: "requires_brainstorming",
-                factDefinitionId: `seed:work-unit-fact:setup:requires-brainstorming:${methodologyVersionId}`,
+                factDefinitionId: `seed:work-unit-fact:requires-brainstorming:${methodologyVersionId}`,
                 operator: "exists",
               },
             },
@@ -377,7 +377,7 @@ function buildCanonicalSetupConditionSets(methodologyVersionId: CanonicalMethodo
               required: true,
               config: {
                 factKey: "requires_research",
-                factDefinitionId: `seed:work-unit-fact:setup:requires-research:${methodologyVersionId}`,
+                factDefinitionId: `seed:work-unit-fact:requires-research:${methodologyVersionId}`,
                 operator: "exists",
               },
             },
