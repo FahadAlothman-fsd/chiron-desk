@@ -1,4 +1,6 @@
 import type {
+  SaveInvokeWorkUnitTargetDraftInput,
+  SaveInvokeWorkUnitTargetDraftOutput,
   SingletonAutoAttachWarning,
   StartInvokeWorkUnitTargetInput,
   StartInvokeWorkUnitTargetOutput,
@@ -17,7 +19,13 @@ import {
   type RuntimeWorkflowExecutionContextFactRow,
 } from "../repositories/step-execution-repository";
 import { resolveAutoAttachedProjectWorkUnit } from "./runtime-auto-attach";
+import {
+  RuntimeGateService,
+  type RuntimeGateProjectedArtifactSlotValue,
+  type RuntimeGateProjectedWorkUnitFactValue,
+} from "./runtime-gate-service";
 import { unwrapRuntimeBoundFactEnvelope } from "./runtime-bound-fact-value";
+import { toRuntimeConditionTree } from "./transition-gate-conditions";
 import { WorkflowContextExternalPrefillService } from "./workflow-context-external-prefill-service";
 
 const makeCommandError = (cause: string): RepositoryError =>
@@ -25,6 +33,14 @@ const makeCommandError = (cause: string): RepositoryError =>
     operation: "invoke-work-unit-execution.startInvokeWorkUnitTarget",
     cause: new Error(cause),
   });
+
+const mapGateError = (error: unknown): RepositoryError =>
+  error instanceof RepositoryError
+    ? error
+    : new RepositoryError({
+        operation: "invoke-work-unit-execution.startInvokeWorkUnitTarget",
+        cause: error instanceof Error ? error : new Error(String(error)),
+      });
 
 const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -411,6 +427,9 @@ export class InvokeWorkUnitExecutionService extends Context.Tag(
     readonly startInvokeWorkUnitTarget: (
       input: StartInvokeWorkUnitTargetInput,
     ) => Effect.Effect<StartInvokeWorkUnitTargetOutput, RepositoryError>;
+    readonly saveInvokeWorkUnitTargetDraft: (
+      input: SaveInvokeWorkUnitTargetDraftInput,
+    ) => Effect.Effect<SaveInvokeWorkUnitTargetDraftOutput, RepositoryError>;
   }
 >() {}
 
@@ -424,9 +443,573 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
     const readRepo = yield* ExecutionReadRepository;
     const invokeRepo = yield* InvokeExecutionRepository;
     const projectWorkUnitRepo = yield* Effect.serviceOption(ProjectWorkUnitRepository);
+    const runtimeGate = yield* RuntimeGateService;
     const contextExternalPrefillService = yield* Effect.serviceOption(
       WorkflowContextExternalPrefillService,
     );
+
+    const prepareInvokeWorkUnitTargetDraft = (
+      input: Pick<
+        SaveInvokeWorkUnitTargetDraftInput,
+        | "projectId"
+        | "stepExecutionId"
+        | "invokeWorkUnitTargetExecutionId"
+        | "runtimeFactValues"
+        | "runtimeArtifactValues"
+      > & { workflowDefinitionId?: string },
+    ) =>
+      Effect.gen(function* () {
+        const baseLogContext = {
+          service: "invoke-work-unit-execution",
+          projectId: input.projectId,
+          stepExecutionId: input.stepExecutionId,
+          invokeWorkUnitTargetExecutionId: input.invokeWorkUnitTargetExecutionId,
+          selectedWorkflowDefinitionId: input.workflowDefinitionId,
+        } as const;
+
+        const stepExecution = yield* stepRepo.getStepExecutionById(input.stepExecutionId);
+        if (!stepExecution) {
+          return yield* makeCommandError("step execution not found");
+        }
+
+        const workflowDetail = yield* readRepo.getWorkflowExecutionDetail(
+          stepExecution.workflowExecutionId,
+        );
+        if (!workflowDetail || workflowDetail.projectId !== input.projectId) {
+          return yield* makeCommandError("step execution does not belong to project");
+        }
+        if (stepExecution.status !== "active") {
+          return yield* makeCommandError("step execution is not active");
+        }
+
+        const projectPin = yield* projectContextRepo.findProjectPin(input.projectId);
+        if (!projectPin) {
+          return yield* makeCommandError("project methodology pin missing");
+        }
+
+        const invokeStepExecutionState =
+          yield* invokeRepo.getInvokeStepExecutionStateByStepExecutionId(input.stepExecutionId);
+        if (!invokeStepExecutionState) {
+          return yield* makeCommandError("invoke step execution state not found");
+        }
+
+        const invokeWorkUnitTarget = yield* invokeRepo.getInvokeWorkUnitTargetExecutionById(
+          input.invokeWorkUnitTargetExecutionId,
+        );
+        if (!invokeWorkUnitTarget) {
+          return yield* makeCommandError("invoke work-unit target execution not found");
+        }
+        if (invokeWorkUnitTarget.invokeStepExecutionStateId !== invokeStepExecutionState.id) {
+          return yield* makeCommandError(
+            "invoke work-unit target execution does not belong to step execution",
+          );
+        }
+
+        if (
+          invokeWorkUnitTarget.projectWorkUnitId &&
+          invokeWorkUnitTarget.transitionExecutionId &&
+          invokeWorkUnitTarget.workflowDefinitionId &&
+          invokeWorkUnitTarget.workflowExecutionId
+        ) {
+          return yield* makeCommandError("invoke work-unit target execution already started");
+        }
+
+        if (
+          invokeWorkUnitTarget.projectWorkUnitId ||
+          invokeWorkUnitTarget.transitionExecutionId ||
+          invokeWorkUnitTarget.workflowDefinitionId ||
+          invokeWorkUnitTarget.workflowExecutionId
+        ) {
+          return yield* makeCommandError("invoke work-unit target execution is partially started");
+        }
+
+        const workUnitTypes = yield* lifecycleRepo.findWorkUnitTypes(
+          projectPin.methodologyVersionId,
+        );
+        const parentWorkUnitType = workUnitTypes.find(
+          (candidate) => candidate.id === workflowDetail.workUnitTypeId,
+        );
+        if (!parentWorkUnitType) {
+          return yield* makeCommandError("parent work-unit type not found");
+        }
+
+        const invokeDefinition = yield* methodologyRepo.getInvokeStepDefinition({
+          versionId: projectPin.methodologyVersionId,
+          workflowDefinitionId: workflowDetail.workflowExecution.workflowId,
+          stepId: stepExecution.stepDefinitionId,
+        });
+        if (!invokeDefinition || invokeDefinition.payload.targetKind !== "work_unit") {
+          return yield* makeCommandError("step execution is not a work-unit invoke step");
+        }
+
+        const transitionConfig = invokeDefinition.payload.activationTransitions.find(
+          (candidate) => candidate.transitionId === invokeWorkUnitTarget.transitionDefinitionId,
+        );
+        if (!transitionConfig) {
+          return yield* makeCommandError("invoke work-unit target transition is blocked");
+        }
+        if (
+          typeof input.workflowDefinitionId === "string" &&
+          !transitionConfig.workflowDefinitionIds.includes(input.workflowDefinitionId)
+        ) {
+          return yield* makeCommandError("selected workflow definition is not valid for target");
+        }
+
+        const targetWorkUnitType = workUnitTypes.find(
+          (candidate) => candidate.id === invokeWorkUnitTarget.workUnitDefinitionId,
+        );
+        if (!targetWorkUnitType) {
+          return yield* makeCommandError("target work-unit type not found");
+        }
+
+        const parentWorkflowEditor = yield* methodologyRepo.getWorkflowEditorDefinition({
+          versionId: projectPin.methodologyVersionId,
+          workUnitTypeKey: parentWorkUnitType.key,
+          workflowDefinitionId: workflowDetail.workflowExecution.workflowId,
+        });
+
+        const workflowContextFacts = yield* stepRepo.listWorkflowExecutionContextFacts(
+          stepExecution.workflowExecutionId,
+        );
+
+        const overrideFactValuesByDefinitionId = new Map<string, unknown>();
+        for (const runtimeValue of input.runtimeFactValues ?? []) {
+          if (overrideFactValuesByDefinitionId.has(runtimeValue.workUnitFactDefinitionId)) {
+            return yield* makeCommandError(
+              `duplicate runtime value provided for work-unit fact '${runtimeValue.workUnitFactDefinitionId}'`,
+            );
+          }
+
+          overrideFactValuesByDefinitionId.set(
+            runtimeValue.workUnitFactDefinitionId,
+            runtimeValue.valueJson,
+          );
+        }
+
+        const overrideArtifactValuesByDefinitionId = new Map<
+          string,
+          RuntimeArtifactOverrideFile[] | null
+        >();
+        for (const runtimeValue of input.runtimeArtifactValues ?? []) {
+          if (overrideArtifactValuesByDefinitionId.has(runtimeValue.artifactSlotDefinitionId)) {
+            return yield* makeCommandError(
+              `duplicate runtime value provided for artifact slot '${runtimeValue.artifactSlotDefinitionId}'`,
+            );
+          }
+
+          overrideArtifactValuesByDefinitionId.set(
+            runtimeValue.artifactSlotDefinitionId,
+            normalizeRuntimeArtifactOverrideFiles(runtimeValue),
+          );
+        }
+
+        const contextFactsByDefinitionId = new Map(
+          parentWorkflowEditor.contextFacts.flatMap((fact) =>
+            typeof fact.contextFactDefinitionId === "string"
+              ? [[fact.contextFactDefinitionId, fact] as const]
+              : [],
+          ),
+        );
+        const workflowContextFactInstancesByDefinitionId = new Map<
+          string,
+          RuntimeWorkflowExecutionContextFactRow[]
+        >();
+        for (const factInstance of workflowContextFacts) {
+          const entries =
+            workflowContextFactInstancesByDefinitionId.get(factInstance.contextFactDefinitionId) ??
+            [];
+          entries.push(factInstance);
+          workflowContextFactInstancesByDefinitionId.set(
+            factInstance.contextFactDefinitionId,
+            entries,
+          );
+        }
+        for (const [definitionId, instances] of workflowContextFactInstancesByDefinitionId) {
+          workflowContextFactInstancesByDefinitionId.set(
+            definitionId,
+            [...instances].sort((left, right) => left.instanceOrder - right.instanceOrder),
+          );
+        }
+
+        const uniqueActivationTransitions = uniqueTransitionDefinitions(
+          invokeDefinition.payload.activationTransitions,
+        );
+
+        const resolveSourceDraftTemplate = (contextFactDefinitionId: string) => {
+          const contextFact = contextFactsByDefinitionId.get(contextFactDefinitionId);
+          if (!contextFact || contextFact.kind !== "work_unit_draft_spec_fact") {
+            return undefined;
+          }
+
+          const sourceDraftTemplates = dedupeByCanonicalKey(
+            (workflowContextFactInstancesByDefinitionId.get(contextFactDefinitionId) ?? [])
+              .flatMap((fact) => normalizeToItems(fact.valueJson))
+              .flatMap((value) => {
+                const normalized = normalizeSourceDraftTemplate(
+                  value,
+                  invokeWorkUnitTarget.workUnitDefinitionId,
+                );
+                return normalized ? [normalized] : [];
+              }),
+          );
+
+          if (sourceDraftTemplates.length === 0) {
+            return undefined;
+          }
+
+          if (
+            uniqueActivationTransitions.length > 0 &&
+            typeof invokeWorkUnitTarget.resolutionOrder === "number"
+          ) {
+            return sourceDraftTemplates[
+              Math.floor(invokeWorkUnitTarget.resolutionOrder / uniqueActivationTransitions.length)
+            ];
+          }
+
+          return sourceDraftTemplates[0];
+        };
+
+        const invokeBindings = invokeDefinition.payload.bindings;
+        const workUnitFactDestinationIds = new Set(
+          invokeBindings.flatMap((binding) =>
+            binding.destination.kind === "work_unit_fact"
+              ? [binding.destination.workUnitFactDefinitionId]
+              : [],
+          ),
+        );
+        for (const workUnitFactDefinitionId of overrideFactValuesByDefinitionId.keys()) {
+          if (!workUnitFactDestinationIds.has(workUnitFactDefinitionId)) {
+            return yield* makeCommandError(
+              `runtime value provided for unknown binding destination '${workUnitFactDefinitionId}'`,
+            );
+          }
+        }
+
+        const artifactSlotDestinationIds = new Set(
+          invokeBindings.flatMap((binding) =>
+            binding.destination.kind === "artifact_slot"
+              ? [binding.destination.artifactSlotDefinitionId]
+              : [],
+          ),
+        );
+        for (const artifactSlotDefinitionId of overrideArtifactValuesByDefinitionId.keys()) {
+          if (!artifactSlotDestinationIds.has(artifactSlotDefinitionId)) {
+            return yield* makeCommandError(
+              `runtime value provided for unknown artifact binding destination '${artifactSlotDefinitionId}'`,
+            );
+          }
+        }
+
+        const resolvedWorkUnitFactValuesByDefinitionId = new Map<string, unknown>();
+        const resolvedArtifactValuesByDefinitionId = new Map<
+          string,
+          RuntimeArtifactOverrideFile[]
+        >();
+        for (const binding of invokeBindings) {
+          if (binding.destination.kind === "artifact_slot") {
+            const destinationArtifactSlotDefinitionId =
+              binding.destination.artifactSlotDefinitionId;
+
+            if (overrideArtifactValuesByDefinitionId.has(destinationArtifactSlotDefinitionId)) {
+              const overrideArtifactValue = overrideArtifactValuesByDefinitionId.get(
+                destinationArtifactSlotDefinitionId,
+              );
+              if (overrideArtifactValue && overrideArtifactValue.length > 0) {
+                resolvedArtifactValuesByDefinitionId.set(
+                  destinationArtifactSlotDefinitionId,
+                  overrideArtifactValue,
+                );
+              }
+              continue;
+            }
+
+            if (binding.source.kind === "literal") {
+              return yield* makeCommandError(
+                `artifact-slot binding '${destinationArtifactSlotDefinitionId}' does not support literal values`,
+              );
+            }
+
+            if (binding.source.kind === "runtime") {
+              return yield* makeCommandError(
+                `missing runtime value for artifact slot '${destinationArtifactSlotDefinitionId}'`,
+              );
+            }
+
+            const sourceContextFact = contextFactsByDefinitionId.get(
+              binding.source.contextFactDefinitionId,
+            );
+            if (!sourceContextFact) {
+              return yield* makeCommandError(
+                `invoke binding references unknown context fact '${binding.source.contextFactDefinitionId}'`,
+              );
+            }
+
+            const sourceInstances =
+              workflowContextFactInstancesByDefinitionId.get(
+                binding.source.contextFactDefinitionId,
+              ) ?? [];
+            if (sourceInstances.length === 0) {
+              return yield* makeCommandError(
+                `no runtime context value found for context fact '${binding.source.contextFactDefinitionId}'`,
+              );
+            }
+
+            if (
+              sourceContextFact.kind === "artifact_slot_reference_fact" &&
+              sourceContextFact.slotDefinitionId === destinationArtifactSlotDefinitionId
+            ) {
+              const sourceValue = sourceInstances[0]?.valueJson;
+              if (!hasRelativePath(sourceValue)) {
+                return yield* makeCommandError(
+                  `artifact source for '${destinationArtifactSlotDefinitionId}' must contain a relativePath`,
+                );
+              }
+
+              const resolvedFiles =
+                sourceContextFact.cardinality === "many"
+                  ? sourceInstances.flatMap((instance) =>
+                      hasRelativePath(instance.valueJson)
+                        ? [
+                            {
+                              relativePath: instance.valueJson.relativePath,
+                              sourceContextFactDefinitionId: binding.source.contextFactDefinitionId,
+                            } satisfies RuntimeArtifactOverrideFile,
+                          ]
+                        : [],
+                    )
+                  : [
+                      {
+                        relativePath: sourceValue.relativePath,
+                        sourceContextFactDefinitionId: binding.source.contextFactDefinitionId,
+                      } satisfies RuntimeArtifactOverrideFile,
+                    ];
+
+              resolvedArtifactValuesByDefinitionId.set(
+                destinationArtifactSlotDefinitionId,
+                resolvedFiles,
+              );
+              continue;
+            }
+
+            if (isFilePathPlainContextFact(sourceContextFact)) {
+              const resolvedFiles = sourceInstances.flatMap((instance) =>
+                typeof instance.valueJson === "string" && instance.valueJson.trim().length > 0
+                  ? [
+                      {
+                        relativePath: instance.valueJson.trim(),
+                        sourceContextFactDefinitionId: binding.source.contextFactDefinitionId,
+                      } satisfies RuntimeArtifactOverrideFile,
+                    ]
+                  : [],
+              );
+              if (resolvedFiles.length === 0) {
+                return yield* makeCommandError(
+                  `plain file-path context fact '${binding.source.contextFactDefinitionId}' must contain a non-empty string`,
+                );
+              }
+
+              resolvedArtifactValuesByDefinitionId.set(
+                destinationArtifactSlotDefinitionId,
+                resolvedFiles,
+              );
+              continue;
+            }
+
+            return yield* makeCommandError(
+              `context fact '${binding.source.contextFactDefinitionId}' is not a supported artifact source`,
+            );
+          }
+
+          const destinationFactDefinitionId = binding.destination.workUnitFactDefinitionId;
+          if (overrideFactValuesByDefinitionId.has(destinationFactDefinitionId)) {
+            resolvedWorkUnitFactValuesByDefinitionId.set(
+              destinationFactDefinitionId,
+              overrideFactValuesByDefinitionId.get(destinationFactDefinitionId),
+            );
+            continue;
+          }
+
+          if (binding.source.kind === "literal") {
+            resolvedWorkUnitFactValuesByDefinitionId.set(
+              destinationFactDefinitionId,
+              binding.source.value,
+            );
+            continue;
+          }
+
+          if (binding.source.kind === "runtime") {
+            return yield* makeCommandError(
+              `missing runtime value for work-unit fact '${destinationFactDefinitionId}'`,
+            );
+          }
+
+          const sourceContextFact = contextFactsByDefinitionId.get(
+            binding.source.contextFactDefinitionId,
+          );
+          if (!sourceContextFact) {
+            return yield* makeCommandError(
+              `invoke binding references unknown context fact '${binding.source.contextFactDefinitionId}'`,
+            );
+          }
+
+          if (sourceContextFact.kind === "work_unit_draft_spec_fact") {
+            const sourceDraftTemplate = resolveSourceDraftTemplate(
+              binding.source.contextFactDefinitionId,
+            );
+            const factValue = sourceDraftTemplate?.factValues.find(
+              (entry) => entry.workUnitFactDefinitionId === destinationFactDefinitionId,
+            );
+            if (factValue) {
+              resolvedWorkUnitFactValuesByDefinitionId.set(
+                destinationFactDefinitionId,
+                factValue.value,
+              );
+            }
+            continue;
+          }
+
+          const sourceInstances =
+            workflowContextFactInstancesByDefinitionId.get(
+              binding.source.contextFactDefinitionId,
+            ) ?? [];
+          if (sourceInstances.length === 0) {
+            return yield* makeCommandError(
+              `no runtime context value found for context fact '${binding.source.contextFactDefinitionId}'`,
+            );
+          }
+
+          const resolvedValue =
+            sourceContextFact.cardinality === "many"
+              ? sourceInstances.map((instance) =>
+                  sourceContextFact.kind === "bound_fact"
+                    ? unwrapRuntimeBoundFactEnvelope(instance.valueJson)
+                    : instance.valueJson,
+                )
+              : sourceContextFact.kind === "bound_fact"
+                ? unwrapRuntimeBoundFactEnvelope(sourceInstances[0]?.valueJson)
+                : sourceInstances[0]?.valueJson;
+          resolvedWorkUnitFactValuesByDefinitionId.set(destinationFactDefinitionId, resolvedValue);
+        }
+
+        const [factSchemas, artifactSlots, availableWorkUnitTypes, projectWorkUnits] =
+          yield* Effect.all([
+            lifecycleRepo.findFactSchemas(
+              projectPin.methodologyVersionId,
+              invokeWorkUnitTarget.workUnitDefinitionId,
+            ),
+            methodologyRepo.findArtifactSlotsByWorkUnitType({
+              versionId: projectPin.methodologyVersionId,
+              workUnitTypeKey: targetWorkUnitType.key,
+            }),
+            lifecycleRepo.findWorkUnitTypes(projectPin.methodologyVersionId),
+            Option.isSome(projectWorkUnitRepo)
+              ? projectWorkUnitRepo.value.listProjectWorkUnitsByProject(input.projectId)
+              : Effect.succeed([]),
+          ]);
+
+        const targetFactDefinitionIds = new Set(factSchemas.map((factSchema) => factSchema.id));
+        for (const factDefinitionId of resolvedWorkUnitFactValuesByDefinitionId.keys()) {
+          if (!targetFactDefinitionIds.has(factDefinitionId)) {
+            return yield* makeCommandError(
+              `invoke binding destination fact '${factDefinitionId}' is not available on target work unit`,
+            );
+          }
+        }
+
+        const targetArtifactSlotDefinitionIds = new Set(artifactSlots.map((slot) => slot.id));
+        for (const artifactSlotDefinitionId of resolvedArtifactValuesByDefinitionId.keys()) {
+          if (!targetArtifactSlotDefinitionIds.has(artifactSlotDefinitionId)) {
+            return yield* makeCommandError(
+              `invoke binding destination artifact slot '${artifactSlotDefinitionId}' is not available on target work unit`,
+            );
+          }
+        }
+
+        const frozenSourceDraft =
+          isContextBackedSourceMode(invokeDefinition.payload.sourceMode) &&
+          "contextFactDefinitionId" in invokeDefinition.payload
+            ? resolveSourceDraftTemplate(invokeDefinition.payload.contextFactDefinitionId)
+            : undefined;
+
+        const initialFactDefinitions: Array<{
+          factDefinitionId: string;
+          initialValueJson?: unknown;
+          initialReferencedProjectWorkUnitId?: string | null;
+        }> = [];
+        const warnings: SingletonAutoAttachWarning[] = [];
+        for (const factSchema of factSchemas) {
+          if (resolvedWorkUnitFactValuesByDefinitionId.has(factSchema.id)) {
+            const initialFactDefinition = toInitialFactDefinition({
+              factDefinitionId: factSchema.id,
+              factType: factSchema.factType,
+              value: resolvedWorkUnitFactValuesByDefinitionId.get(factSchema.id),
+            });
+
+            if (!initialFactDefinition && factSchema.factType === "work_unit") {
+              return yield* makeCommandError(
+                `work-unit fact '${factSchema.id}' requires a { projectWorkUnitId: string } value`,
+              );
+            }
+
+            if (initialFactDefinition) {
+              initialFactDefinitions.push(initialFactDefinition);
+            }
+            continue;
+          }
+
+          if (factSchema.factType === "work_unit" && factSchema.cardinality === "one") {
+            const resolution = resolveAutoAttachedProjectWorkUnit({
+              targetWorkUnitDefinitionId: factSchema.targetWorkUnitDefinitionId ?? undefined,
+              projectWorkUnits,
+              workUnitTypes: availableWorkUnitTypes,
+              factDefinitionId: factSchema.id,
+            });
+
+            if (resolution.warning) {
+              warnings.push(resolution.warning);
+            }
+
+            if (resolution.projectWorkUnitId) {
+              initialFactDefinitions.push({
+                factDefinitionId: factSchema.id,
+                initialReferencedProjectWorkUnitId: resolution.projectWorkUnitId,
+              });
+            }
+          }
+        }
+
+        const initialArtifactSlotDefinitions = artifactSlots.flatMap((slot) =>
+          resolvedArtifactValuesByDefinitionId.has(slot.id)
+            ? [
+                {
+                  artifactSlotDefinitionId: slot.id,
+                  files: resolvedArtifactValuesByDefinitionId.get(slot.id)!.map((file) => ({
+                    filePath: file.relativePath,
+                    memberStatus: "present" as const,
+                  })),
+                },
+              ]
+            : [],
+        );
+
+        const frozenDraftTemplateJson = buildFrozenDraftTemplate({
+          draftKey:
+            frozenSourceDraft?.draftKey ??
+            `${invokeWorkUnitTarget.workUnitDefinitionId}:${invokeWorkUnitTarget.transitionDefinitionId}:${invokeWorkUnitTarget.resolutionOrder ?? 0}`,
+          workUnitDefinitionId: invokeWorkUnitTarget.workUnitDefinitionId,
+          initialFactDefinitions,
+          initialArtifactSlotDefinitions,
+        });
+
+        return {
+          baseLogContext,
+          invokeWorkUnitTarget,
+          initialFactDefinitions,
+          initialArtifactSlotDefinitions,
+          frozenDraftTemplateJson,
+          warnings,
+        };
+      });
 
     const startInvokeWorkUnitTarget = (input: StartInvokeWorkUnitTargetInput) =>
       Effect.gen(function* () {
@@ -982,6 +1565,53 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
             : [],
         );
 
+        const transitionConditionSets = yield* lifecycleRepo.findTransitionConditionSets(
+          projectPin.methodologyVersionId,
+          invokeWorkUnitTarget.transitionDefinitionId,
+        );
+        const startGateConditionTree = toRuntimeConditionTree(
+          transitionConditionSets
+            .filter((conditionSet) => conditionSet.phase !== "completion")
+            .sort((left, right) => left.key.localeCompare(right.key)),
+        );
+        const projectedWorkUnitFactsByDefinitionId = new Map<
+          string,
+          RuntimeGateProjectedWorkUnitFactValue[]
+        >();
+        for (const definition of initialFactDefinitions) {
+          const entries =
+            projectedWorkUnitFactsByDefinitionId.get(definition.factDefinitionId) ?? [];
+          entries.push({
+            valueJson: definition.initialValueJson ?? null,
+            referencedProjectWorkUnitId: definition.initialReferencedProjectWorkUnitId ?? null,
+          });
+          projectedWorkUnitFactsByDefinitionId.set(definition.factDefinitionId, entries);
+        }
+
+        const projectedArtifactSlotsByDefinitionId = new Map<
+          string,
+          RuntimeGateProjectedArtifactSlotValue
+        >();
+        for (const definition of initialArtifactSlotDefinitions) {
+          projectedArtifactSlotsByDefinitionId.set(definition.artifactSlotDefinitionId, {
+            exists: (definition.files?.length ?? 0) > 0,
+            freshness: (definition.files?.length ?? 0) > 0 ? "fresh" : "unavailable",
+          });
+        }
+
+        const gate = yield* runtimeGate
+          .evaluateStartGate({
+            projectId: input.projectId,
+            conditionTree: startGateConditionTree,
+            projectedWorkUnitFactsByDefinitionId,
+            projectedArtifactSlotsByDefinitionId,
+          })
+          .pipe(Effect.mapError(mapGateError));
+
+        if (gate.result !== "available") {
+          return yield* makeCommandError(gate.firstReason ?? "invoke target start gate failed");
+        }
+
         const frozenDraftTemplateJson = buildFrozenDraftTemplate({
           draftKey:
             frozenSourceDraft?.draftKey ??
@@ -1042,8 +1672,21 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
         return warnings.length > 0 ? { ...started, warnings } : started;
       });
 
+    const saveInvokeWorkUnitTargetDraft = (input: SaveInvokeWorkUnitTargetDraftInput) =>
+      Effect.gen(function* () {
+        const prepared = yield* prepareInvokeWorkUnitTargetDraft(input);
+
+        const saved = yield* invokeRepo.saveInvokeWorkUnitTargetDraft({
+          invokeWorkUnitTargetExecutionId: prepared.invokeWorkUnitTarget.id,
+          frozenDraftTemplateJson: prepared.frozenDraftTemplateJson,
+        });
+
+        return prepared.warnings.length > 0 ? { ...saved, warnings: prepared.warnings } : saved;
+      });
+
     return InvokeWorkUnitExecutionService.of({
       startInvokeWorkUnitTarget,
+      saveInvokeWorkUnitTargetDraft,
     });
   }),
 );

@@ -37,7 +37,7 @@ const AUTHENTICATED_CTX = {
 };
 
 function makeServiceLayer() {
-  const calls = { workflow: 0, workUnit: 0 };
+  const calls = { workflow: 0, workUnit: 0, saveDraft: 0 };
 
   return {
     calls,
@@ -63,6 +63,12 @@ function makeServiceLayer() {
             result: "started" as const,
           });
         },
+        saveInvokeWorkUnitTargetDraft: () => {
+          calls.saveDraft += 1;
+          return Effect.succeed({
+            invokeWorkUnitTargetExecutionId: "invoke-wu-target-1",
+          });
+        },
       }),
     ),
     failureLayer: Layer.mergeAll(
@@ -81,6 +87,13 @@ function makeServiceLayer() {
             new RepositoryError({
               operation: "invoke-work-unit-execution.startInvokeWorkUnitTarget",
               cause: new Error("selected workflow definition is not valid for target"),
+            }),
+          ),
+        saveInvokeWorkUnitTargetDraft: () =>
+          Effect.fail(
+            new RepositoryError({
+              operation: "invoke-work-unit-execution.saveInvokeWorkUnitTargetDraft",
+              cause: new Error("invoke work-unit target execution not found"),
             }),
           ),
       }),
@@ -112,10 +125,26 @@ describe("project runtime invoke router", () => {
       },
       AUTHENTICATED_CTX,
     );
+    const savedDraft = await call(
+      router.saveInvokeWorkUnitTargetDraft,
+      {
+        projectId: "project-1",
+        stepExecutionId: "step-exec-1",
+        invokeWorkUnitTargetExecutionId: "invoke-wu-target-1",
+        runtimeFactValues: [
+          {
+            workUnitFactDefinitionId: "fact-1",
+            valueJson: "saved",
+          },
+        ],
+      },
+      AUTHENTICATED_CTX,
+    );
 
-    expect(testLayer.calls).toEqual({ workflow: 1, workUnit: 1 });
+    expect(testLayer.calls).toEqual({ workflow: 1, workUnit: 1, saveDraft: 1 });
     expect(workflow.result).toBe("started");
     expect(workUnit.result).toBe("started");
+    expect(savedDraft.invokeWorkUnitTargetExecutionId).toBe("invoke-wu-target-1");
   });
 
   it("maps invoke-specific repository failures through router error handling", async () => {
@@ -145,6 +174,21 @@ describe("project runtime invoke router", () => {
           stepExecutionId: "step-exec-1",
           invokeWorkUnitTargetExecutionId: "invoke-wu-target-1",
           workflowDefinitionId: "workflow-def-1",
+        },
+        AUTHENTICATED_CTX,
+      ),
+    ).rejects.toMatchObject({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Repository operation failed: ",
+    });
+
+    await expect(
+      call(
+        router.saveInvokeWorkUnitTargetDraft,
+        {
+          projectId: "project-1",
+          stepExecutionId: "step-exec-1",
+          invokeWorkUnitTargetExecutionId: "invoke-wu-target-1",
         },
         AUTHENTICATED_CTX,
       ),

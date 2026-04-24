@@ -139,7 +139,11 @@ const WorkflowEngineRuntimeStepCommandLayer = Layer.provide(
 
 const WorkflowEngineRuntimeInvokeStepDetailLayer = Layer.provide(
   InvokeStepDetailServiceLive,
-  Layer.mergeAll(WorkflowEngineRuntimeInvokeCompletionLayer, SandboxGitServiceLive),
+  Layer.mergeAll(
+    WorkflowEngineRuntimeInvokeCompletionLayer,
+    WorkflowEngineRuntimeBaseLayer,
+    SandboxGitServiceLive,
+  ),
 );
 
 const WorkflowEngineRuntimeActionStepDetailLayer = Layer.provide(
@@ -205,6 +209,7 @@ const WorkflowEngineRuntimeActionStepEventStreamLayer = Layer.provide(
 export const WorkflowEngineRuntimeNonAgentStepServicesLive = Layer.mergeAll(
   SandboxGitServiceLive,
   RuntimeManualFactCrudServiceLive,
+  WorkflowEngineRuntimeBaseLayer,
   WorkflowEngineRuntimeStepCoreLayer,
   WorkflowEngineRuntimeStepLifecycleLayer,
   WorkflowEngineRuntimeActionStepLayer,
@@ -220,6 +225,7 @@ export const WorkflowEngineRuntimeNonAgentStepServicesLive = Layer.mergeAll(
   WorkflowEngineRuntimeStepDetailLayer,
   InvokeWorkflowExecutionServiceLive,
   InvokeWorkUnitExecutionServiceLive.pipe(
+    Layer.provideMerge(WorkflowEngineRuntimeBaseLayer),
     Layer.provideMerge(WorkflowEngineRuntimeExternalPrefillLayer),
   ),
   WorkflowEngineRuntimeActionStepEventStreamLayer,
@@ -287,6 +293,7 @@ export const WorkflowEngineRuntimeAgentStepRouterServicesLive = Layer.mergeAll(
 );
 
 export const WorkflowEngineRuntimeStepServicesLive = Layer.mergeAll(
+  WorkflowEngineRuntimeBaseLayer,
   WorkflowEngineRuntimeStepCoreLayer,
   WorkflowEngineRuntimeStepLifecycleLayer,
   WorkflowEngineRuntimeActionStepLayer,
@@ -302,6 +309,7 @@ export const WorkflowEngineRuntimeStepServicesLive = Layer.mergeAll(
   WorkflowEngineRuntimeStepDetailLayer,
   InvokeWorkflowExecutionServiceLive,
   InvokeWorkUnitExecutionServiceLive.pipe(
+    Layer.provideMerge(WorkflowEngineRuntimeBaseLayer),
     Layer.provideMerge(WorkflowEngineRuntimeExternalPrefillLayer),
   ),
   WorkflowEngineRuntimeActionStepEventStreamLayer,

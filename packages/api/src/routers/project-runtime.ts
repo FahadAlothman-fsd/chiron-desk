@@ -13,6 +13,7 @@ import type {
   GetWorkflowExecutionDetailInput,
   RetryActionStepActionsInput,
   RunActionStepActionsInput,
+  SaveInvokeWorkUnitTargetDraftInput,
   SaveBranchStepSelectionInput,
   RetrySameWorkflowExecutionInput,
   StartActionStepExecutionInput,
@@ -372,6 +373,39 @@ const startInvokeWorkUnitTargetInput: z.ZodType<StartInvokeWorkUnitTargetInput> 
   stepExecutionId: z.string().min(1),
   invokeWorkUnitTargetExecutionId: z.string().min(1),
   workflowDefinitionId: z.string().min(1),
+  runtimeFactValues: z
+    .array(
+      z.object({
+        workUnitFactDefinitionId: z.string().min(1),
+        valueJson: z.unknown(),
+      }),
+    )
+    .optional(),
+  runtimeArtifactValues: z
+    .array(
+      z.object({
+        artifactSlotDefinitionId: z.string().min(1),
+        relativePath: z.string().min(1).optional(),
+        sourceContextFactDefinitionId: z.string().min(1).optional(),
+        clear: z.boolean().optional(),
+        files: z
+          .array(
+            z.object({
+              relativePath: z.string().min(1).optional(),
+              sourceContextFactDefinitionId: z.string().min(1).optional(),
+              clear: z.boolean().optional(),
+            }),
+          )
+          .optional(),
+      }),
+    )
+    .optional(),
+});
+
+const saveInvokeWorkUnitTargetDraftInput: z.ZodType<SaveInvokeWorkUnitTargetDraftInput> = z.object({
+  projectId: z.string().min(1),
+  stepExecutionId: z.string().min(1),
+  invokeWorkUnitTargetExecutionId: z.string().min(1),
   runtimeFactValues: z
     .array(
       z.object({
@@ -1241,6 +1275,18 @@ export function createProjectRuntimeRouter(
           Effect.gen(function* () {
             const invokeWorkUnitExecutionService = yield* InvokeWorkUnitExecutionService;
             return yield* invokeWorkUnitExecutionService.startInvokeWorkUnitTarget(input);
+          }),
+        ),
+      ),
+
+    saveInvokeWorkUnitTargetDraft: protectedProcedure
+      .input(saveInvokeWorkUnitTargetDraftInput)
+      .handler(async ({ input }) =>
+        runEffect(
+          stepServiceLayer,
+          Effect.gen(function* () {
+            const invokeWorkUnitExecutionService = yield* InvokeWorkUnitExecutionService;
+            return yield* invokeWorkUnitExecutionService.saveInvokeWorkUnitTargetDraft(input);
           }),
         ),
       ),
