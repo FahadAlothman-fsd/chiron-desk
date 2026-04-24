@@ -133,6 +133,7 @@ describe("l3 runtime invoke contracts", () => {
             },
           ],
         },
+        lineage: {},
       },
     });
 

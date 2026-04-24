@@ -257,6 +257,7 @@ export const ActionStepDetailServiceLive = Layer.effect(
           duplicateRetryPolicy: "idempotent_noop",
           completionSummary,
           actions,
+          lineage: {},
         } satisfies RuntimeActionStepExecutionDetailBody;
       });
 
