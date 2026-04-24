@@ -300,6 +300,65 @@ const hasRelativePath = (
   typeof value.relativePath === "string" &&
   value.relativePath.trim().length > 0;
 
+type RuntimeArtifactOverrideFile = {
+  relativePath: string;
+  sourceContextFactDefinitionId?: string;
+};
+
+const normalizeRuntimeArtifactOverrideFiles = (value: {
+  relativePath?: string;
+  sourceContextFactDefinitionId?: string;
+  clear?: boolean;
+  files?: ReadonlyArray<{
+    relativePath?: string;
+    sourceContextFactDefinitionId?: string;
+    clear?: boolean;
+  }>;
+}): RuntimeArtifactOverrideFile[] | null => {
+  if (value.clear === true) {
+    return null;
+  }
+
+  const files = Array.isArray(value.files)
+    ? value.files.flatMap((file) => {
+        if (!file || file.clear === true || typeof file.relativePath !== "string") {
+          return [];
+        }
+
+        const relativePath = file.relativePath.trim();
+        if (relativePath.length === 0) {
+          return [];
+        }
+
+        return [
+          {
+            relativePath,
+            ...(typeof file.sourceContextFactDefinitionId === "string"
+              ? { sourceContextFactDefinitionId: file.sourceContextFactDefinitionId }
+              : {}),
+          } satisfies RuntimeArtifactOverrideFile,
+        ];
+      })
+    : [];
+
+  if (files.length > 0) {
+    return files;
+  }
+
+  if (typeof value.relativePath === "string" && value.relativePath.trim().length > 0) {
+    return [
+      {
+        relativePath: value.relativePath.trim(),
+        ...(typeof value.sourceContextFactDefinitionId === "string"
+          ? { sourceContextFactDefinitionId: value.sourceContextFactDefinitionId }
+          : {}),
+      } satisfies RuntimeArtifactOverrideFile,
+    ];
+  }
+
+  return null;
+};
+
 const isFilePathPlainContextFact = (contextFact: {
   kind: string;
   valueType?: string | undefined;
@@ -308,7 +367,7 @@ const isFilePathPlainContextFact = (contextFact: {
 }): boolean =>
   contextFact.kind === "plain_value_fact" &&
   contextFact.valueType === "string" &&
-  contextFact.cardinality === "one" &&
+  (contextFact.cardinality === "one" || contextFact.cardinality === "many") &&
   isPlainRecord(contextFact.validationJson) &&
   contextFact.validationJson.kind === "path" &&
   isPlainRecord(contextFact.validationJson.path) &&
@@ -516,7 +575,7 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
 
         const overrideArtifactValuesByDefinitionId = new Map<
           string,
-          { relativePath: string; sourceContextFactDefinitionId?: string } | null
+          RuntimeArtifactOverrideFile[] | null
         >();
         for (const runtimeValue of input.runtimeArtifactValues ?? []) {
           if (overrideArtifactValuesByDefinitionId.has(runtimeValue.artifactSlotDefinitionId)) {
@@ -525,17 +584,10 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
             );
           }
 
-          if (runtimeValue.clear === true || !runtimeValue.relativePath) {
-            overrideArtifactValuesByDefinitionId.set(runtimeValue.artifactSlotDefinitionId, null);
-            continue;
-          }
-
-          overrideArtifactValuesByDefinitionId.set(runtimeValue.artifactSlotDefinitionId, {
-            relativePath: runtimeValue.relativePath,
-            ...(typeof runtimeValue.sourceContextFactDefinitionId === "string"
-              ? { sourceContextFactDefinitionId: runtimeValue.sourceContextFactDefinitionId }
-              : {}),
-          });
+          overrideArtifactValuesByDefinitionId.set(
+            runtimeValue.artifactSlotDefinitionId,
+            normalizeRuntimeArtifactOverrideFiles(runtimeValue),
+          );
         }
 
         const contextFactsByDefinitionId = new Map(
@@ -639,7 +691,7 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
         const resolvedWorkUnitFactValuesByDefinitionId = new Map<string, unknown>();
         const resolvedArtifactValuesByDefinitionId = new Map<
           string,
-          { relativePath: string; sourceContextFactDefinitionId?: string }
+          RuntimeArtifactOverrideFile[]
         >();
         for (const binding of invokeBindings) {
           if (binding.destination.kind === "artifact_slot") {
@@ -650,7 +702,7 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
               const overrideArtifactValue = overrideArtifactValuesByDefinitionId.get(
                 destinationArtifactSlotDefinitionId,
               );
-              if (overrideArtifactValue) {
+              if (overrideArtifactValue && overrideArtifactValue.length > 0) {
                 resolvedArtifactValuesByDefinitionId.set(
                   destinationArtifactSlotDefinitionId,
                   overrideArtifactValue,
@@ -701,50 +753,53 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
                 );
               }
 
-              resolvedArtifactValuesByDefinitionId.set(destinationArtifactSlotDefinitionId, {
-                relativePath: sourceValue.relativePath,
-                sourceContextFactDefinitionId: binding.source.contextFactDefinitionId,
-              });
+              const resolvedFiles =
+                sourceContextFact.cardinality === "many"
+                  ? sourceInstances.flatMap((instance) =>
+                      hasRelativePath(instance.valueJson)
+                        ? [
+                            {
+                              relativePath: instance.valueJson.relativePath,
+                              sourceContextFactDefinitionId: binding.source.contextFactDefinitionId,
+                            } satisfies RuntimeArtifactOverrideFile,
+                          ]
+                        : [],
+                    )
+                  : [
+                      {
+                        relativePath: sourceValue.relativePath,
+                        sourceContextFactDefinitionId: binding.source.contextFactDefinitionId,
+                      } satisfies RuntimeArtifactOverrideFile,
+                    ];
+
+              resolvedArtifactValuesByDefinitionId.set(
+                destinationArtifactSlotDefinitionId,
+                resolvedFiles,
+              );
               continue;
             }
 
             if (isFilePathPlainContextFact(sourceContextFact)) {
-              const sourceValue = sourceInstances[0]?.valueJson;
-              if (typeof sourceValue !== "string" || sourceValue.trim().length === 0) {
+              const resolvedFiles = sourceInstances.flatMap((instance) =>
+                typeof instance.valueJson === "string" && instance.valueJson.trim().length > 0
+                  ? [
+                      {
+                        relativePath: instance.valueJson.trim(),
+                        sourceContextFactDefinitionId: binding.source.contextFactDefinitionId,
+                      } satisfies RuntimeArtifactOverrideFile,
+                    ]
+                  : [],
+              );
+              if (resolvedFiles.length === 0) {
                 return yield* makeCommandError(
                   `plain file-path context fact '${binding.source.contextFactDefinitionId}' must contain a non-empty string`,
                 );
               }
 
-              resolvedArtifactValuesByDefinitionId.set(destinationArtifactSlotDefinitionId, {
-                relativePath: sourceValue.trim(),
-                sourceContextFactDefinitionId: binding.source.contextFactDefinitionId,
-              });
-              continue;
-            }
-
-            if (sourceContextFact.kind === "work_unit_draft_spec_fact") {
-              const sourceDraftTemplate = resolveSourceDraftTemplate(
-                binding.source.contextFactDefinitionId,
+              resolvedArtifactValuesByDefinitionId.set(
+                destinationArtifactSlotDefinitionId,
+                resolvedFiles,
               );
-              const artifactSlot = sourceDraftTemplate?.artifactSlots.find(
-                (slot) => slot.artifactSlotDefinitionId === destinationArtifactSlotDefinitionId,
-              );
-              const firstPresentFile = artifactSlot?.files.find(
-                (file) => file.clear !== true && typeof file.relativePath === "string",
-              );
-              if (!firstPresentFile?.relativePath) {
-                continue;
-              }
-
-              resolvedArtifactValuesByDefinitionId.set(destinationArtifactSlotDefinitionId, {
-                relativePath: firstPresentFile.relativePath,
-                ...(typeof firstPresentFile.sourceContextFactDefinitionId === "string"
-                  ? {
-                      sourceContextFactDefinitionId: firstPresentFile.sourceContextFactDefinitionId,
-                    }
-                  : {}),
-              });
               continue;
             }
 
@@ -918,12 +973,10 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
             ? [
                 {
                   artifactSlotDefinitionId: slot.id,
-                  files: [
-                    {
-                      filePath: resolvedArtifactValuesByDefinitionId.get(slot.id)!.relativePath,
-                      memberStatus: "present" as const,
-                    },
-                  ],
+                  files: resolvedArtifactValuesByDefinitionId.get(slot.id)!.map((file) => ({
+                    filePath: file.relativePath,
+                    memberStatus: "present" as const,
+                  })),
                 },
               ]
             : [],

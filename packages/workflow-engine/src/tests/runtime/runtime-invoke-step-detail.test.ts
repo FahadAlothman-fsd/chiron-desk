@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-engine";
 import { ProjectContextRepository } from "@chiron/project-context";
+import { SandboxGitService } from "@chiron/sandbox-engine";
 
 import {
   ExecutionReadRepository,
@@ -113,7 +114,18 @@ function buildCommonLayers() {
   const projectContextLayer = Layer.succeed(ProjectContextRepository, {
     findProjectPin: (projectId: string) =>
       Effect.succeed(projectId === projectPin.projectId ? projectPin : null),
-    getProjectById: () => Effect.die("unused"),
+    getProjectById: ({ projectId }: { projectId: string }) =>
+      Effect.succeed(
+        projectId === projectPin.projectId
+          ? {
+              projectId,
+              name: "Project 1",
+              projectRootPath: "/repo",
+              createdAt: new Date("2026-04-14T00:00:00.000Z"),
+              updatedAt: new Date("2026-04-14T00:00:00.000Z"),
+            }
+          : null,
+      ),
   } as unknown as Context.Tag.Service<typeof ProjectContextRepository>);
 
   const projectFactLayer = Layer.succeed(ProjectFactRepository, {
@@ -146,12 +158,30 @@ function buildCommonLayers() {
     buildActionStepExecutionDetailBody: () => Effect.die("unused"),
   } as unknown as Context.Tag.Service<typeof ActionStepDetailService>);
 
+  const sandboxGitLayer = Layer.succeed(SandboxGitService, {
+    getAvailability: () => Effect.die("unused"),
+    normalizeRepoRelativePath: (_rootPath: string, filePath: string) => Effect.succeed(filePath),
+    resolveArtifactReference: ({ filePath }: { rootPath: string; filePath: string }) =>
+      filePath === "docs/missing.md"
+        ? Effect.succeed({ status: "missing" as const, relativePath: filePath })
+        : Effect.succeed({
+            status: "committed" as const,
+            relativePath: filePath,
+            gitCommitHash: "commit-hash-1",
+            gitBlobHash: "blob-hash-1",
+            gitCommitSubject: "Add artifact",
+            gitCommitBody: null,
+          }),
+    compareRecordedArtifactReference: () => Effect.die("unused"),
+  } as unknown as Context.Tag.Service<typeof SandboxGitService>);
+
   return Layer.mergeAll(
     projectContextLayer,
     projectFactLayer,
     workUnitFactLayer,
     branchRuntimeLayer,
     actionDetailLayer,
+    sandboxGitLayer,
   );
 }
 

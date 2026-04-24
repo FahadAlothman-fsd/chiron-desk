@@ -10,6 +10,7 @@ import type {
 } from "@chiron/contracts/methodology/workflow";
 import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-engine";
 import { ProjectContextRepository } from "@chiron/project-context";
+import { SandboxGitService } from "@chiron/sandbox-engine";
 import { Context, Effect, Layer } from "effect";
 
 import { RepositoryError } from "../errors";
@@ -25,6 +26,7 @@ import {
 import { TransitionExecutionRepository } from "../repositories/transition-execution-repository";
 import { WorkflowExecutionRepository } from "../repositories/workflow-execution-repository";
 import { InvokeCompletionService } from "./invoke-completion-service";
+import { parseArtifactSlotReferenceFactValue } from "./runtime/artifact-slot-reference-service";
 import {
   readRuntimeBoundFactEnvelope,
   toCanonicalRuntimeBoundFactEnvelope,
@@ -417,13 +419,23 @@ const toRelativePathOptionValue = (params: {
   sourceContextFactDefinitionId: params.sourceContextFactDefinitionId,
 });
 
+const formatArtifactResolutionWarning = (params: {
+  contextFactLabel: string;
+  relativePath: string;
+  reason: string;
+}): string =>
+  `${params.contextFactLabel}: ${params.relativePath} will not be mapped (${params.reason}).`;
+
 const artifactOptionsFromContextFacts = (params: {
   destinationArtifactSlotDefinitionId: string;
   workflowContextFacts: readonly RuntimeWorkflowExecutionContextFactRow[];
   workflowEditorContextFacts: readonly WorkflowContextFactDto[];
+  projectRootPath?: string;
+  sandboxGit: SandboxGitService["Type"];
 }): {
   editorOptions?: RuntimeFormFieldOption[];
   editorEmptyState?: string;
+  sourceWarnings?: string[];
 } => {
   const contextFactsByDefinitionId = new Map(
     params.workflowEditorContextFacts.flatMap((contextFact) =>
@@ -433,11 +445,65 @@ const artifactOptionsFromContextFacts = (params: {
     ),
   );
 
+  const warnings: string[] = [];
   const options = params.workflowContextFacts.flatMap((instance) => {
     const contextFact = contextFactsByDefinitionId.get(instance.contextFactDefinitionId);
     if (!contextFact || typeof contextFact.contextFactDefinitionId !== "string") {
       return [];
     }
+
+    const contextFactLabel = getContextFactLabel(contextFact);
+
+    const resolveRelativePath = (relativePath: string) => {
+      if (!params.projectRootPath) {
+        warnings.push(
+          formatArtifactResolutionWarning({
+            contextFactLabel,
+            relativePath,
+            reason: "project root path is unavailable",
+          }),
+        );
+        return null;
+      }
+
+      return Effect.runSyncExit(
+        params.sandboxGit.resolveArtifactReference({
+          rootPath: params.projectRootPath,
+          filePath: relativePath,
+        }),
+      );
+    };
+
+    const toMappedOption = (relativePath: string) => {
+      const resolution = resolveRelativePath(relativePath);
+      if (!resolution || resolution._tag !== "Success") {
+        return [];
+      }
+
+      const value = resolution.value;
+      if (value.status !== "committed") {
+        const reason =
+          value.status === "missing"
+            ? "file is missing from the repo"
+            : value.status === "not_committed"
+              ? "file is not committed in git"
+              : value.status === "git_not_installed" || value.status === "not_a_repo"
+                ? value.message
+                : "file could not be resolved";
+        warnings.push(formatArtifactResolutionWarning({ contextFactLabel, relativePath, reason }));
+        return [];
+      }
+
+      return [
+        {
+          value: toRelativePathOptionValue({
+            relativePath: value.relativePath,
+            sourceContextFactDefinitionId: contextFact.contextFactDefinitionId,
+          }),
+          label: `${contextFactLabel}: ${value.relativePath}`,
+        } satisfies RuntimeFormFieldOption,
+      ];
+    };
 
     if (
       contextFact.kind === "artifact_slot_reference_fact" &&
@@ -446,15 +512,7 @@ const artifactOptionsFromContextFacts = (params: {
       typeof instance.valueJson.relativePath === "string" &&
       instance.valueJson.relativePath.trim().length > 0
     ) {
-      return [
-        {
-          value: toRelativePathOptionValue({
-            relativePath: instance.valueJson.relativePath,
-            sourceContextFactDefinitionId: contextFact.contextFactDefinitionId,
-          }),
-          label: `${getContextFactLabel(contextFact)}: ${instance.valueJson.relativePath}`,
-        } satisfies RuntimeFormFieldOption,
-      ];
+      return toMappedOption(instance.valueJson.relativePath.trim());
     }
 
     if (isFilePathPlainContextFact(contextFact) && typeof instance.valueJson === "string") {
@@ -463,25 +521,18 @@ const artifactOptionsFromContextFacts = (params: {
         return [];
       }
 
-      return [
-        {
-          value: toRelativePathOptionValue({
-            relativePath,
-            sourceContextFactDefinitionId: contextFact.contextFactDefinitionId,
-          }),
-          label: `${getContextFactLabel(contextFact)}: ${relativePath}`,
-        } satisfies RuntimeFormFieldOption,
-      ];
+      return toMappedOption(relativePath);
     }
 
     return [];
   });
 
   return options.length > 0
-    ? { editorOptions: options }
+    ? { editorOptions: options, ...(warnings.length > 0 ? { sourceWarnings: warnings } : {}) }
     : {
         editorEmptyState:
           "No eligible artifact sources are available yet. Use a matching artifact-reference fact or a file-path plain fact.",
+        ...(warnings.length > 0 ? { sourceWarnings: warnings } : {}),
       };
 };
 
@@ -604,6 +655,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
   InvokeStepDetailService,
   Effect.gen(function* () {
     const projectContextRepo = yield* ProjectContextRepository;
+    const sandboxGit = yield* SandboxGitService;
     const lifecycleRepo = yield* LifecycleRepository;
     const methodologyRepo = yield* MethodologyRepository;
     const invokeRepo = yield* InvokeExecutionRepository;
@@ -624,6 +676,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
         if (!projectPin) {
           return yield* makeDetailError("project methodology pin missing for invoke step detail");
         }
+        const project = yield* projectContextRepo.getProjectById({ projectId });
 
         const workUnitTypes = yield* lifecycleRepo.findWorkUnitTypes(
           projectPin.methodologyVersionId,
@@ -823,6 +876,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                 id: slot.id,
                 key: slot.key,
                 label: slot.displayName ?? humanizeKey(slot.key),
+                cardinality: slot.cardinality === "fileset" ? "many" : "one",
               });
             }
           }
@@ -1004,6 +1058,8 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                   destinationArtifactSlotDefinitionId: binding.destination.artifactSlotDefinitionId,
                   workflowContextFacts,
                   workflowEditorContextFacts: workflowEditor.contextFacts,
+                  projectRootPath: project?.projectRootPath ?? undefined,
+                  sandboxGit,
                 });
 
                 return {
@@ -1011,6 +1067,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                   destinationDefinitionId: binding.destination.artifactSlotDefinitionId,
                   destinationLabel:
                     destination?.label ?? humanizeKey(binding.destination.artifactSlotDefinitionId),
+                  destinationCardinality: destination?.cardinality,
                   ...(artifactEditorMetadata.editorOptions
                     ? { editorOptions: artifactEditorMetadata.editorOptions }
                     : {}),
@@ -1026,6 +1083,9 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                   sourceContextFactKind: sourceContextFact?.kind,
                   sourceContextFactCardinality: sourceContextFact?.cardinality,
                   sourceContextFactValueType: getContextFactValueTypeLabel(sourceContextFact),
+                  ...(artifactEditorMetadata.sourceWarnings?.length
+                    ? { sourceWarnings: artifactEditorMetadata.sourceWarnings }
+                    : {}),
                   resolvedValueJson,
                   requiresRuntimeValue: binding.source.kind === "runtime",
                 };

@@ -963,6 +963,65 @@ describe("InvokeWorkUnitExecutionService", () => {
     ]);
   });
 
+  it("creates fileset artifact snapshots from multi-file runtime artifact binding selections", async () => {
+    const runtime = createRuntime({
+      artifactSlots: [
+        {
+          id: "slot-1",
+          key: "brief",
+          displayName: "Brief",
+          descriptionJson: null,
+          guidanceJson: null,
+          cardinality: "fileset",
+          rulesJson: null,
+          templates: [],
+        },
+      ],
+      invokeBindings: [
+        {
+          destination: { kind: "artifact_slot", artifactSlotDefinitionId: "slot-1" },
+          source: { kind: "runtime" },
+        },
+      ],
+    });
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* InvokeWorkUnitExecutionService;
+        return yield* service.startInvokeWorkUnitTarget({
+          projectId: "project-1",
+          stepExecutionId: "step-exec-1",
+          invokeWorkUnitTargetExecutionId: "invoke-wu-target-1",
+          workflowDefinitionId: "wf-child-primary",
+          runtimeArtifactValues: [
+            {
+              artifactSlotDefinitionId: "slot-1",
+              files: [
+                { relativePath: "research/brief.md" },
+                { relativePath: "research/appendix.md" },
+              ],
+            },
+          ],
+        });
+      }).pipe(Effect.provide(runtime.layer)),
+    );
+
+    expect(result.result).toBe("started");
+    expect(runtime.state.artifactSnapshots).toHaveLength(1);
+    expect(runtime.state.artifactSnapshotFiles).toEqual([
+      {
+        artifactSnapshotId: runtime.state.artifactSnapshots[0]!.id,
+        filePath: "research/brief.md",
+        memberStatus: "present",
+      },
+      {
+        artifactSnapshotId: runtime.state.artifactSnapshots[0]!.id,
+        filePath: "research/appendix.md",
+        memberStatus: "present",
+      },
+    ]);
+  });
+
   it("stores work-unit binding overrides as referenced work units", async () => {
     const runtime = createRuntime({
       invokeBindings: [
