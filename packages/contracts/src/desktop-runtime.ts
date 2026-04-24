@@ -14,6 +14,12 @@ export type DesktopApi = {
   getRuntimeStatus: () => Promise<DesktopRuntimeStatus>;
   recoverLocalServices: () => Promise<void>;
   selectProjectRootDirectory: () => Promise<string | null>;
+  selectFiles?: (options?: {
+    multiple?: boolean;
+    title?: string;
+    buttonLabel?: string;
+    defaultPath?: string;
+  }) => Promise<string[] | null>;
   selectFolder?: () => Promise<string | null>;
 };
 

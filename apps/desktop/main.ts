@@ -66,6 +66,12 @@ type DesktopIpcHandlers = {
   getRuntimeStatus: () => DesktopRuntimeStatus;
   recoverLocalServices: () => Promise<void>;
   selectProjectRootDirectory: () => Promise<string | null>;
+  selectFiles: (options?: {
+    multiple?: boolean;
+    title?: string;
+    buttonLabel?: string;
+    defaultPath?: string;
+  }) => Promise<string[] | null>;
 };
 
 type DesktopApp = {
@@ -94,6 +100,12 @@ type StartDesktopAppOptions = {
   getRuntimeStatus: () => DesktopRuntimeStatus;
   recoverLocalServices: () => Promise<void>;
   selectProjectRootDirectory: () => Promise<string | null>;
+  selectFiles: (options?: {
+    multiple?: boolean;
+    title?: string;
+    buttonLabel?: string;
+    defaultPath?: string;
+  }) => Promise<string[] | null>;
   onStartupError: (error: Error) => Promise<void> | void;
 };
 
@@ -443,6 +455,13 @@ export function registerDesktopHandlers(
   ipcMain.handle("desktop:select-project-root-directory", async () =>
     handlers.selectProjectRootDirectory(),
   );
+  ipcMain.handle("desktop:select-files", async (...args) => {
+    const options =
+      args.length > 1 && typeof args[1] === "object" && args[1] !== null
+        ? (args[1] as Parameters<DesktopIpcHandlers["selectFiles"]>[0])
+        : undefined;
+    return handlers.selectFiles(options);
+  });
 }
 
 export async function startDesktopApp(
@@ -454,6 +473,7 @@ export async function startDesktopApp(
     getRuntimeStatus: options.getRuntimeStatus,
     recoverLocalServices: options.recoverLocalServices,
     selectProjectRootDirectory: options.selectProjectRootDirectory,
+    selectFiles: options.selectFiles,
   });
 
   const startupResult = await Result.tryPromise({
@@ -779,6 +799,22 @@ export async function runDesktopApp(options: RunDesktopAppOptions = {}): Promise
       }
 
       return result.filePaths[0] ?? null;
+    },
+    selectFiles: async (options) => {
+      const dialogOptions: OpenDialogOptions = {
+        title: options?.title ?? "Select file",
+        buttonLabel: options?.buttonLabel ?? "Select file",
+        properties: options?.multiple ? ["openFile", "multiSelections"] : ["openFile"],
+        ...(options?.defaultPath ? { defaultPath: options.defaultPath } : {}),
+      };
+
+      const result = await electron.dialog.showOpenDialog(dialogOptions);
+
+      if (result.canceled) {
+        return null;
+      }
+
+      return result.filePaths;
     },
     onStartupError: async (error) => {
       electron.dialog.showErrorBox(

@@ -13,6 +13,7 @@ describe("preload bridge contract", () => {
       "getRuntimeStatus",
       "recoverLocalServices",
       "selectProjectRootDirectory",
+      "selectFiles",
     ]);
   });
 

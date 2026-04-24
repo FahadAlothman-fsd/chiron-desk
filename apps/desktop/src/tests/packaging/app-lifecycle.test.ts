@@ -38,11 +38,12 @@ describe("desktop app lifecycle", () => {
       getRuntimeStatus: () => ({ backend: "attached" }),
       recoverLocalServices: vi.fn().mockResolvedValue(undefined),
       selectProjectRootDirectory: vi.fn().mockResolvedValue(null),
+      selectFiles: vi.fn().mockResolvedValue(null),
       onStartupError: vi.fn(),
     });
 
     expect(whenReady).toHaveBeenCalledOnce();
-    expect(handle).toHaveBeenCalledTimes(3);
+    expect(handle).toHaveBeenCalledTimes(4);
     expect(probe).toHaveBeenCalledOnce();
     expect(createBrowserWindow).toHaveBeenCalledOnce();
     expect(browserWindow.loadURL).toHaveBeenCalledWith("http://localhost:3001");
@@ -71,6 +72,7 @@ describe("desktop app lifecycle", () => {
         getRuntimeStatus: () => ({ backend: "attached" }),
         recoverLocalServices: vi.fn().mockResolvedValue(undefined),
         selectProjectRootDirectory: vi.fn().mockResolvedValue(null),
+        selectFiles: vi.fn().mockResolvedValue(null),
         onStartupError,
       }),
     ).rejects.toThrow(/Failed to start required local service/);
@@ -101,6 +103,7 @@ describe("desktop app lifecycle", () => {
       getRuntimeStatus: () => ({ backend: "attached" }),
       recoverLocalServices: vi.fn().mockResolvedValue(undefined),
       selectProjectRootDirectory: vi.fn().mockResolvedValue(null),
+      selectFiles: vi.fn().mockResolvedValue(null),
       onStartupError: vi.fn(),
     });
 

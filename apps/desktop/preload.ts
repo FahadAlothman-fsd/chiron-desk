@@ -9,6 +9,7 @@ export const desktopApiKeys = [
   "getRuntimeStatus",
   "recoverLocalServices",
   "selectProjectRootDirectory",
+  "selectFiles",
 ] as const;
 
 export const desktopApi: DesktopApi = {
@@ -16,6 +17,7 @@ export const desktopApi: DesktopApi = {
   getRuntimeStatus: () => ipcRenderer.invoke("desktop:get-runtime-status"),
   recoverLocalServices: () => ipcRenderer.invoke("desktop:recover-local-services"),
   selectProjectRootDirectory: () => ipcRenderer.invoke("desktop:select-project-root-directory"),
+  selectFiles: (options) => ipcRenderer.invoke("desktop:select-files", options),
 };
 
 type DesktopBridgeGlobal = typeof globalThis & {
