@@ -1995,6 +1995,7 @@ export const InvokeStepDetailServiceLive = Layer.effect(
             targetKind: invokeTargetKind,
             outputs: propagationOutputs,
           }),
+          lineage: {},
         } satisfies RuntimeInvokeStepExecutionDetailBody;
       });
 

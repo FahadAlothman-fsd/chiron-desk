@@ -1,0 +1,17 @@
+Docs boundary evidence
+======================
+
+Manual/browser verification on `http://127.0.0.1:4304/getting-started` produced:
+
+- `navInternalDocs = 0`
+- `sidebarInternalDocs = 1`
+- `navDocsPaths = []`
+- `sidebarDocsPaths = []`
+
+Interpretation:
+
+- The public site exposes one public reference page named `Internal Docs` in the sidebar.
+- The top navigation does not expose internal docs directly.
+- Neither the top navigation nor the sidebar links directly into `docs/**` paths.
+
+Result: the public/internal boundary is preserved while still exposing the new public `/reference/internal-docs` page.

@@ -1,0 +1,43 @@
+/* Dark theme overrides for Starlight */
+:root,
+:root[data-theme="light"],
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --sl-color-white: #dddddd;
+  --sl-color-gray-1: #cdc9b9;
+  --sl-color-gray-2: #a7a597;
+  --sl-color-gray-3: #797872;
+  --sl-color-gray-4: #5c6057;
+  --sl-color-gray-5: #474741;
+  --sl-color-gray-6: #2a2c29;
+  --sl-color-gray-7: #272925;
+  --sl-color-black: #101010;
+  --sl-color-accent: #c4ff58;
+  --sl-color-accent-high: #c4ff58;
+  --sl-color-accent-low: #5d6c6a;
+  --sl-font: "Commit Mono", "IBM Plex Mono", "SFMono-Regular", ui-monospace, monospace;
+}
+
+:root {
+  --sl-font-system: var(--sl-font);
+}
+
+html {
+  background: var(--sl-color-black);
+}
+
+body {
+  font-family: var(--sl-font);
+}
+
+.hero {
+  border-bottom: 1px solid var(--sl-color-gray-6);
+}
+
+.card {
+  border-color: var(--sl-color-gray-5);
+}
+
+.site-title {
+  letter-spacing: 0.06em;
+}

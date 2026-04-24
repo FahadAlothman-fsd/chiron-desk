@@ -1,0 +1,10 @@
+Vercel auto-deploy evidence
+===========================
+
+Observed in `apps/docs/README.md`:
+
+- Preview deployments are created for pull requests and other non-`main` branch pushes.
+- Production deploys come from merges/pushes to `main`.
+- The docs site is intended to deploy through Vercel native Git integration as its own monorepo project.
+
+Result: Git-triggered preview and production deployment behavior is documented for the docs app.

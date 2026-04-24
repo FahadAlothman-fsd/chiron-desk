@@ -950,10 +950,18 @@ export const MethodologyVersionServiceLive = Layer.effect(
           versionId: input.versionId,
           workUnitType: {
             key: input.workUnitType.key,
-            displayName: input.workUnitType.displayName,
-            description: input.workUnitType.description,
-            guidance: input.workUnitType.guidance,
-            cardinality: input.workUnitType.cardinality,
+            ...(input.workUnitType.displayName !== undefined
+              ? { displayName: input.workUnitType.displayName }
+              : {}),
+            ...(input.workUnitType.description !== undefined
+              ? { description: input.workUnitType.description }
+              : {}),
+            ...(input.workUnitType.guidance !== undefined
+              ? { guidance: input.workUnitType.guidance }
+              : {}),
+            ...(input.workUnitType.cardinality !== undefined
+              ? { cardinality: input.workUnitType.cardinality }
+              : {}),
           },
         });
 
@@ -1068,10 +1076,18 @@ export const MethodologyVersionServiceLive = Layer.effect(
           workUnitTypeKey: input.workUnitKey,
           workUnitType: {
             key: input.workUnitType.key,
-            displayName: input.workUnitType.displayName,
-            description: input.workUnitType.description,
-            guidance: input.workUnitType.guidance,
-            cardinality: input.workUnitType.cardinality,
+            ...(input.workUnitType.displayName !== undefined
+              ? { displayName: input.workUnitType.displayName }
+              : {}),
+            ...(input.workUnitType.description !== undefined
+              ? { description: input.workUnitType.description }
+              : {}),
+            ...(input.workUnitType.guidance !== undefined
+              ? { guidance: input.workUnitType.guidance }
+              : {}),
+            ...(input.workUnitType.cardinality !== undefined
+              ? { cardinality: input.workUnitType.cardinality }
+              : {}),
           },
         });
 

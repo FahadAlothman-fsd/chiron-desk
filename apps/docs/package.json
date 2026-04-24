@@ -1,0 +1,24 @@
+{
+  "name": "docs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev --host 0.0.0.0 --port 4303 --strictPort",
+    "build": "astro build",
+    "build:docs": "bun run build",
+    "preview": "ASTRO_LOCAL_PREVIEW=1 node ./node_modules/astro/astro.js build && ASTRO_LOCAL_PREVIEW=1 node ./node_modules/astro/astro.js preview --host 0.0.0.0 --port 4304 --strictPort",
+    "preview:test": "ASTRO_LOCAL_PREVIEW=1 node ./node_modules/astro/astro.js build && ASTRO_LOCAL_PREVIEW=1 node ./node_modules/astro/astro.js preview --host 127.0.0.1 --port 4173 --strictPort",
+    "test": "astro check && astro build"
+  },
+  "dependencies": {
+    "@astrojs/node": "9.4.2",
+    "@astrojs/starlight": "0.35.0",
+    "@astrojs/starlight-tailwind": "4.0.2",
+    "@astrojs/vercel": "8.2.8",
+    "@tailwindcss/vite": "^4.2.4",
+    "astro": "5.7.9",
+    "tailwindcss": "^4.2.4",
+    "zod": "^3.24.2"
+  }
+}

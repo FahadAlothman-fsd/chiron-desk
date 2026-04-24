@@ -1,0 +1,97 @@
+---
+export const prerender = true;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Survey | Chiron Docs</title>
+    <link rel="icon" href="/chiron-icon.svg" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #101010;
+        --panel: #2a2c29;
+        --panel-border: #474741;
+        --text: #dddddd;
+        --muted: #a7a597;
+        --accent: #c4ff58;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Commit Mono", "IBM Plex Mono", "SFMono-Regular", ui-monospace, monospace;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      main {
+        width: min(48rem, calc(100vw - 2rem));
+        margin: 0 auto;
+        padding: 4rem 0 5rem;
+      }
+
+      .eyebrow {
+        margin: 0 0 1rem;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-size: 0.8rem;
+      }
+
+      h1,
+      h2 {
+        line-height: 1.2;
+      }
+
+      .card {
+        margin-top: 2rem;
+        padding: 1.5rem;
+        border: 1px solid var(--panel-border);
+        background: var(--panel);
+        border-radius: 1rem;
+      }
+
+      code {
+        color: var(--accent);
+      }
+
+      a {
+        color: var(--accent);
+      }
+
+      li + li {
+        margin-top: 0.5rem;
+      }
+
+      p,
+      li {
+        color: var(--muted);
+        line-height: 1.7;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">Survey integration scaffold</p>
+      <h1>Survey</h1>
+      <p>This route exists so the docs site can host the future survey launch flow in the same Astro deployment.</p>
+      <div class="card">
+        <h2>Future integration</h2>
+        <p>The UI, token exchange, provider handoff, and response persistence are intentionally not implemented yet.</p>
+        <ul>
+          <li><code>POST /api/survey/launch</code> is reserved for launch orchestration.</li>
+          <li><code>POST /api/survey/webhook</code> is reserved for provider callbacks.</li>
+          <li>Authentication, signature checks, and ingestion logic are left as explicit TODOs.</li>
+        </ul>
+        <p><a href="/">Back to docs</a></p>
+      </div>
+    </main>
+  </body>
+</html>

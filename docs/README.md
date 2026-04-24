@@ -1,44 +1,89 @@
-# Chiron Documentation
+# Chiron Internal Documentation Index
 
-**Last Updated:** 2026-03-19  
-**Status:** Active canonical index
+**Last Updated:** 2026-04-23  
+**Status:** Active internal index
 
-## Source Of Truth
+## Boundary Rule
 
-Use these files for current architecture and planning decisions.
+`docs/**` is the internal documentation tree.
 
-- `docs/architecture/epic-3-authority.md` - Epic 3 routing authority, promotion status, stale-doc handling, and precedence rules
-- `docs/architecture/chiron-module-structure.md` - Module boundaries and execution model
-- `docs/architecture/modules/README.md` - Detailed module design docs for scaffold-only and underdesigned packages
-- `docs/plans/2026-03-19-methodology-design-runtime-boundary-refactor-plan.md` - Implemented L1/L2/L3 methodology boundary refactor record and verification evidence
-- `_bmad-output/planning-artifacts/ux-design-specification.md` - Canonical UX implementation contract and visual direction
-- `_bmad-output/planning-artifacts/reset-baseline-checklist.md` - Canonical reset/setup decisions before sprint planning
-- `_bmad-output/planning-artifacts/epics.md` - Current epic planning status, sequencing, and story-level acceptance criteria, not surface-level contract authority
+- Public docs live in `apps/docs`.
+- Public docs may link into `docs/**` as advanced resources for contributors and evaluators.
+- Internal docs do not get mirrored wholesale into public-site navigation.
+- Root `README.md` may link a small set of internal advanced resources, but those links stay outside public-site navigation.
 
-For Epic 3 work, start with `docs/architecture/epic-3-authority.md`, then follow the stable `docs/architecture/...` path it lists for the surface you are changing. Use dated plans only when that authority doc says a surface has not been promoted yet.
+Use this index to decide three things fast:
 
-Methodology-engine update (2026-03-19): the lifecycle/legacy compatibility seam was removed, API routing is boundary-first through L1 services, and version CRUD keeps archive-not-delete behavior for version/catalog flows.
+1. which internal docs are current canon
+2. which docs are internal advanced resources that may be linked from public docs or the root `README.md`
+3. which docs are archive-only or contextual history
 
-## Active Supporting Docs
+## How To Route Work
 
-- Current methodology design-time page docs under `docs/architecture/methodology-pages/`, especially `docs/architecture/methodology-pages/versions.md`, `docs/architecture/methodology-pages/work-units/`, and `docs/architecture/methodology-pages/workflow-editor/`; use `docs/architecture/epic-3-authority.md` to resolve which docs are canonical, contextual-only, or stale for a given surface
-- Technical/runtime-only workflow-engine docs remain under `docs/architecture/workflow-engine/`
-- `docs/architecture/module-implementation-workflow.md` - Module implementation process
-- `docs/architecture/module-observability-contract.md` - Observability requirements
-- `docs/architecture/workflow-engine-parity-checklist.md` - Drift-control checklist for standalone runtime parity and API cutover
-- `docs/architecture/contracts-effect-migration-checklist.md` - Drift-control checklist for contracts schema migration
-- `docs/architecture/tooling-engine-permission-parity-checklist.md` - Drift-control checklist for permission model parity and integration
-- `docs/architecture/workflow-versioning.md` - Workflow definition versioning vs execution revision model
-- `docs/architecture/git-context-variables.md` - First-class git context variable model
-- `docs/architecture/branching-strategy.md` - Branching strategy baseline and constraints
-- `docs/architecture/frontend-better-result-guidelines.md` - Frontend error-handling conventions using better-result
-- `docs/architecture/workflow-diagram-ui-react-flow.md` - Diagram UI direction using React Flow
-- `docs/architecture/pm-workflow-artifact-bridge-consideration.md` - Consideration document for linking PM entities, workflows, and evidence
-- `docs/architecture/bmad-e2e-workflow-notes.md` - Session reference with integrated corrections for BMAD-style end-to-end workflow configs
+Start here, then narrow down:
 
-## Archived And Historical Paths
+1. `docs/architecture/epic-3-authority.md` for routing, promotion status, and precedence
+2. `docs/architecture/chiron-module-structure.md` for system boundaries and layer model
+3. `docs/architecture/methodology-pages/**` for promoted design-time surface behavior
+4. code and contracts for exact shipped behavior when docs and implementation need reconciliation
 
-These are preserved for history and thesis traceability. Do not use them as implementation truth.
+## Canonical Internal Docs
+
+These stay in `docs/**` as the canonical in-repo source. They are discoverable from this index. Public docs may link to them as advanced resources, but they should not become first-class public navigation pages.
+
+| Path                                                                         | Status       | Public surfacing rule                                                                                  | Notes                                                                     |
+| ---------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| `docs/architecture/epic-3-authority.md`                                      | Canon        | Linkable advanced resource from public docs and root `README.md`                                       | Routing authority for promoted Epic 3 surfaces.                           |
+| `docs/architecture/chiron-module-structure.md`                               | Canon        | Linkable advanced resource from public docs and root `README.md`                                       | Best internal entry for module boundaries and layer ownership.            |
+| `docs/architecture/methodology-canonical-authority.md`                       | Canon        | Linkable advanced resource from public docs when authority details matter                              | Canonical storage and methodology definition ownership.                   |
+| `docs/architecture/methodology-pages/**`                                     | Canon        | Link from relevant public design-time pages as advanced resources, exclude from nav mirroring          | Promoted design-time page specs.                                          |
+| `docs/architecture/modules/README.md`                                        | Canon        | Linkable advanced resource from root `README.md`, exclude from public nav                              | Index for module design docs.                                             |
+| `docs/architecture/modules/*.md`                                             | Canon        | Link from `docs/architecture/modules/README.md` or targeted public pages only, exclude from public nav | Detailed module docs, often ahead of repo reality in scaffold-only areas. |
+| `docs/architecture/system-pages/**`                                          | Canon        | Link from relevant advanced pages only, exclude from public nav                                        | Durable internal specs for system-owned surfaces.                         |
+| `docs/architecture/ux-patterns/*.md`                                         | Canon        | Internal-only by default, link only when a contributor needs the exact pattern spec                    | Shared UI behavior rules, not primary public teaching content.            |
+| `docs/plans/2026-03-19-methodology-design-runtime-boundary-refactor-plan.md` | Canon record | Link from internal references only, not public nav                                                     | Implemented boundary refactor record and verification evidence.           |
+
+## Internal Advanced Resources, Linkable But Not Public Navigation
+
+These are valid to reference from public docs, the root `README.md`, or the public docs plan as advanced resources. They stay internal and do not become mirrored public pages.
+
+- `docs/architecture/epic-3-authority.md`
+- `docs/architecture/chiron-module-structure.md`
+- `docs/architecture/methodology-canonical-authority.md`
+- `docs/architecture/methodology-pages/**`
+- `docs/architecture/modules/README.md`
+- `docs/architecture/modules/*.md`
+- `docs/architecture/system-pages/**`
+
+When a public page needs to go deeper, link to these as advanced resources with plain framing such as "Internal architecture reference" or "Advanced contributor reference".
+
+## Contextual Internal Docs
+
+These stay in the repo and may still help contributors, but they are not the first routing target for public docs.
+
+- `docs/architecture/workflow-engine/workflow-paths.md`
+- `docs/architecture/workflow-engine/effectful-design.md`
+- `docs/architecture/module-inventory.md`
+- `docs/architecture/module-implementation-workflow.md`
+- `docs/architecture/module-observability-contract.md`
+- `docs/architecture/workflow-engine-parity-checklist.md`
+- `docs/architecture/contracts-effect-migration-checklist.md`
+- `docs/architecture/tooling-engine-permission-parity-checklist.md`
+- `docs/architecture/workflow-versioning.md`
+- `docs/architecture/git-context-variables.md`
+- `docs/architecture/branching-strategy.md`
+- `docs/architecture/frontend-better-result-guidelines.md`
+- `docs/architecture/workflow-diagram-ui-react-flow.md`
+- `docs/architecture/pm-workflow-artifact-bridge-consideration.md`
+- `docs/architecture/bmad-e2e-workflow-notes.md`
+
+Use these as internal support material. Link them from public docs only when a contributor needs deeper implementation context.
+
+## Archive-Only And Historical Material
+
+These are preserved for lineage, thesis traceability, or historical context. Do not use them as current implementation truth.
+
+### Archived paths
 
 - `docs/archive/pre-epic-1-restart/`
 - `docs/archive/phase-1-discovery/`
@@ -47,21 +92,32 @@ These are preserved for history and thesis traceability. Do not use them as impl
 - `docs/archive/epics-v1-mastra-era/`
 - `docs/archive/story-1-6-handoffs/`
 
-## Superseded Docs Still In Active Path
+### Historical or superseded docs still in active paths
 
-The following files are intentionally kept in place for historical context but are no longer canonical.
+- `docs/schema-design.md`
+- `docs/migration-plan.md`
+- `docs/tech-specs/artifact-system.md`
+- `docs/architecture/workflow-engine/invoke-cross-work-unit-pattern.md`
+- `docs/architecture/workflow-engine/agent-continuation-contract.md`
+- `docs/architecture/project-context-only-bmad-mapping-draft.md`
+- `docs/architecture/bmad-e2e-rigorous-example.md`
 
-- `docs/schema-design.md` - Superseded by current implementation in `packages/db/src/schema/` and canonical architecture docs
-- `docs/migration-plan.md` - Migration-era plan document, not current execution plan
-- `docs/tech-specs/artifact-system.md` - Legacy technical spec; not the current implementation source of truth
-- `docs/architecture/workflow-engine/invoke-cross-work-unit-pattern.md` - Historical pre-lock invoke pattern; superseded by `docs/architecture/methodology-pages/workflow-editor/invoke-step.md` and `docs/plans/2026-03-12-invoke-facts-artifact-slots-design.md`
-- `docs/architecture/workflow-engine/agent-continuation-contract.md` - Contextual continuation draft; not current implementation authority until reconciled with promoted `agent.v1` and `invoke.v1`
-- `docs/architecture/project-context-only-bmad-mapping-draft.md` - BMAD-source-only draft with outdated step shapes; not canonical Epic 3 authority
-- `docs/architecture/bmad-e2e-rigorous-example.md` - Historical walkthrough with pre-lock invoke/output examples; use only as contextual lineage, not as current step-contract authority
+## README Link Set, Excluded From Public Navigation
+
+If the root `README.md` needs a short internal-docs section, keep it to this set:
+
+- `docs/README.md`
+- `docs/architecture/epic-3-authority.md`
+- `docs/architecture/chiron-module-structure.md`
+- `docs/architecture/methodology-canonical-authority.md`
+- `docs/architecture/modules/README.md`
+
+That keeps internal docs discoverable without turning the public docs site into a mirror of the repo docs tree.
 
 ## Alignment Rules
 
-- Prefer stable `docs/architecture/...` docs for planned behavior, and prefer code plus package-local docs for implementation reality
-- Treat `_bmad-output/planning-artifacts/ux-design-specification.md` and `_bmad-output/planning-artifacts/reset-baseline-checklist.md` as authoritative for frontend UX decisions
-- Keep new planning artifacts under `_bmad-output/planning-artifacts/`
-- Archive, do not delete, obsolete docs
+- Public docs summarize concepts and operator-facing behavior, then link to internal docs as advanced resources when deeper detail helps.
+- Internal docs remain canonical in `docs/**`.
+- Code and contracts win when describing exact shipped behavior.
+- Archive obsolete docs, do not delete them.
+- Do not publish `docs/architecture/**` wholesale into public navigation.

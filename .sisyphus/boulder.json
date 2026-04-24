@@ -1,121 +1,89 @@
 {
-  "active_plan": "/home/gondilf/Desktop/projects/masters/chiron/.sisyphus/plans/l3-plan-b-fact-unification-runtime-validation.md",
-  "started_at": "2026-04-18T21:10:54.219Z",
+  "active_plan": "/home/gondilf/.local/share/opencode/worktree/e8cd5ce0af4b06d1493ee2b664244e58197cbfe9/crisp-eagle/.sisyphus/plans/chiron-documentation-site.md",
+  "started_at": "2026-04-23T20:35:01.629Z",
   "session_ids": [
-    "ses_25d915855ffe3LkI5xYIcc7izl",
-    "ses_259d13b61ffexLicyHjAjYWNa6",
-    "ses_259d139bdffegoDsnfarCdvveb",
-    "ses_259b9f9f1ffeIgHwEdt25hMUq3",
-    "ses_259b9f7fcffe4f2LbaWKHzjKwz",
-    "ses_259b3b4d9ffeaqH2c4Q4i0P5rl",
-    "ses_259b3b18bffeQxOK4ZTPYbt9zg",
-    "ses_259b3b183ffetijlnTUIs2y1Z4",
-    "ses_259ab0d62ffewOqlAaC16GYcNQ",
-    "ses_259ab0ad8ffeWEfmRVRodH1561",
-    "ses_259745d12ffe74MW11PG3LhaX5",
-    "ses_259745b52ffeLVpfdoYjxsrd8g",
-    "ses_258e35f1cffeSiRcW5e2bO52I5",
-    "ses_258e35ce7ffe2REI7H5lPR17hB"
+    "ses_243f264ecffe1CB3Z8II7mcp5E",
+    "ses_24371ad22ffelfQd2tYhvlDp5F",
+    "ses_243719e00ffeMfPI0nLzYsYGfI",
+    "ses_2430493beffeLGXkDd8v13YQPP",
+    "ses_243049187ffeM1a340U9W3l8Lm",
+    "ses_243049176ffetSFscWPZNhxzaS",
+    "ses_2408090d2ffeJVFElY6xzoS7gE"
   ],
-  "plan_name": "l3-plan-b-fact-unification-runtime-validation",
+  "plan_name": "chiron-documentation-site",
   "worktree_path": null,
   "session_origins": {
-    "ses_25d915855ffe3LkI5xYIcc7izl": "direct",
-    "ses_259d13b61ffexLicyHjAjYWNa6": "appended",
-    "ses_259d139bdffegoDsnfarCdvveb": "appended",
-    "ses_259b9f9f1ffeIgHwEdt25hMUq3": "appended",
-    "ses_259b9f7fcffe4f2LbaWKHzjKwz": "appended",
-    "ses_259b3b4d9ffeaqH2c4Q4i0P5rl": "appended",
-    "ses_259b3b18bffeQxOK4ZTPYbt9zg": "appended",
-    "ses_259b3b183ffetijlnTUIs2y1Z4": "appended",
-    "ses_259ab0d62ffewOqlAaC16GYcNQ": "appended",
-    "ses_259ab0ad8ffeWEfmRVRodH1561": "appended",
-    "ses_259745d12ffe74MW11PG3LhaX5": "appended",
-    "ses_259745b52ffeLVpfdoYjxsrd8g": "appended",
-    "ses_258e35f1cffeSiRcW5e2bO52I5": "appended",
-    "ses_258e35ce7ffe2REI7H5lPR17hB": "appended"
+    "ses_243f264ecffe1CB3Z8II7mcp5E": "direct",
+    "ses_24371ad22ffelfQd2tYhvlDp5F": "appended",
+    "ses_243719e00ffeMfPI0nLzYsYGfI": "appended",
+    "ses_2430493beffeLGXkDd8v13YQPP": "appended",
+    "ses_243049187ffeM1a340U9W3l8Lm": "appended",
+    "ses_243049176ffetSFscWPZNhxzaS": "appended",
+    "ses_2408090d2ffeJVFElY6xzoS7gE": "appended"
   },
   "task_sessions": {
     "todo:1": {
       "task_key": "todo:1",
       "task_label": "1",
-      "task_title": "Lock canonical contracts, schemas, and runtime payload shapes",
-      "session_id": "ses_25d910cacffeG7JT63AXwrqjE9",
+      "task_title": "Establish authority matrix and public page inventory",
+      "session_id": "ses_243f1a05bffeB0SVayxaaCkh7U",
       "agent": "Sisyphus-Junior",
       "category": "deep",
-      "updated_at": "2026-04-18T21:20:57.325Z"
+      "updated_at": "2026-04-23T20:44:35.609Z"
     },
     "todo:2": {
       "task_key": "todo:2",
       "task_label": "2",
-      "task_title": "Add runtime schema and repository foundation for workflow-context CRUD and work-unit identity",
-      "session_id": "ses_25d853668ffelL828rY1xBRqrv",
+      "task_title": "Separate public docs from internal repo docs",
+      "session_id": "ses_243e95d42ffeLiqZibs2BiF2R2",
       "agent": "Sisyphus-Junior",
-      "category": "deep",
-      "updated_at": "2026-04-18T21:38:03.823Z"
+      "category": "writing",
+      "updated_at": "2026-04-23T20:51:51.776Z"
     },
-    "todo:3": {
-      "task_key": "todo:3",
-      "task_label": "3",
-      "task_title": "Implement shared runtime manual fact CRUD orchestration and error model",
-      "session_id": "ses_25d77b0bfffe1IUyNRLhzDxCBa",
+    "todo:5": {
+      "task_key": "todo:5",
+      "task_label": "5",
+      "task_title": "Draft the shared intro, hierarchy, glossary, and Taskflow scenario spine",
+      "session_id": "ses_243d342baffenKo0DGrtTOntmg",
       "agent": "Sisyphus-Junior",
-      "category": "deep",
-      "updated_at": "2026-04-18T21:57:28.489Z"
-    },
-    "todo:4": {
-      "task_key": "todo:4",
-      "task_label": "4",
-      "task_title": "Implement artifact snapshot semantics and shared path validation",
-      "session_id": "ses_25d667b71ffeS3koXDvaTg1y9c",
-      "agent": "Sisyphus-Junior",
-      "category": "deep",
-      "updated_at": "2026-04-18T22:17:04.313Z"
-    },
-    "todo:6": {
-      "task_key": "todo:6",
-      "task_label": "6",
-      "task_title": "Migrate project and work-unit manual runtime CRUD procedures to CRUD verbs over shared service",
-      "session_id": "ses_25d526000ffeZamKn9q0jwyI1a",
-      "agent": "Sisyphus-Junior",
-      "category": "deep",
-      "updated_at": "2026-04-18T22:39:01.613Z"
+      "category": "writing",
+      "updated_at": "2026-04-23T21:19:00.900Z"
     },
     "todo:8": {
       "task_key": "todo:8",
       "task_label": "8",
-      "task_title": "Redefine invoke template/state handling around template-only draft specs",
-      "session_id": "ses_25d407212ffeZwYgtsqA2YIUHV",
+      "task_title": "Write Project Runtime overview and deep dives with back-links",
+      "session_id": "ses_243c37b75ffe4KQKO80B7dyJXU",
       "agent": "Sisyphus-Junior",
-      "category": "deep",
-      "updated_at": "2026-04-18T22:51:16.049Z"
+      "category": "writing",
+      "updated_at": "2026-04-23T21:39:55.706Z"
     },
     "todo:10": {
       "task_key": "todo:10",
       "task_label": "10",
-      "task_title": "Implement manual runtime CRUD dialogs and page flows on existing runtime surfaces",
-      "session_id": "ses_25d3511e5ffe7OtP1wvqGwAdxN",
+      "task_title": "Reposition root README as GitHub-facing gateway",
+      "session_id": "ses_243b69367ffehESsa1ke4HD6Q5",
       "agent": "Sisyphus-Junior",
-      "category": "visual-engineering",
-      "updated_at": "2026-04-18T23:21:42.713Z"
+      "category": "writing",
+      "updated_at": "2026-04-23T21:45:23.896Z"
     },
-    "todo:11": {
-      "task_key": "todo:11",
-      "task_label": "11",
-      "task_title": "Run no-bypass audit, regression, and Plan A compatibility proof",
-      "session_id": "ses_25d195b43ffecW5yhdw1NBH7gV",
+    "todo:12": {
+      "task_key": "todo:12",
+      "task_label": "12",
+      "task_title": "Add docs smoke tests and run full repository verification",
+      "session_id": "ses_243ac84b4ffeOE7eiutdG2VisB",
       "agent": "Sisyphus-Junior",
       "category": "unspecified-high",
-      "updated_at": "2026-04-18T23:26:22.826Z"
+      "updated_at": "2026-04-23T22:10:18.237Z"
     },
     "final-wave:f1": {
       "task_key": "final-wave:f1",
       "task_label": "F1",
       "task_title": "Plan Compliance Audit — oracle",
-      "session_id": "ses_25d152e0effeEimjB8QvYXDgkS",
+      "session_id": "ses_24393d477ffeJhYYJ9fRtyPTCo",
       "agent": "Sisyphus-Junior",
       "category": "unspecified-high",
-      "updated_at": "2026-04-18T23:30:31.453Z"
+      "updated_at": "2026-04-23T22:31:50.709Z"
     }
   }
 }

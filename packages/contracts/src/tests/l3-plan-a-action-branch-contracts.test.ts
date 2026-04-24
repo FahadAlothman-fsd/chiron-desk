@@ -416,8 +416,10 @@ describe("l3 plan a action/branch contracts", () => {
                 itemKey: "repo-target",
                 sortOrder: 10,
                 targetContextFactDefinitionId: "fact-repo",
+                targetContextFactKind: "bound_fact",
                 status: "not_started",
                 affectedTargets: [],
+                propagationMappings: [],
                 skipAction: {
                   kind: "skip_action_step_action_items",
                   enabled: true,
@@ -444,6 +446,7 @@ describe("l3 plan a action/branch contracts", () => {
             },
           },
         ],
+        lineage: {},
       },
     });
 
@@ -627,6 +630,7 @@ describe("l3 plan a action/branch contracts", () => {
           eligible: false,
           reasonIfIneligible: "Persisted selection is required.",
         },
+        lineage: {},
       },
     });
 

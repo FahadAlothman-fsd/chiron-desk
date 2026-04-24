@@ -1,0 +1,18 @@
+Vercel settings evidence
+========================
+
+Observed in `apps/docs/vercel.json`:
+
+- Framework: `vitepress`
+- Install Command: `bun install`
+- Build Command: `bun run build:docs`
+- Output Directory: `.vitepress/dist`
+
+Observed in `apps/docs/README.md`:
+
+- Root Directory: `apps/docs`
+- Install Command: `bun install`
+- Build Command: `bun run build:docs`
+- Output Directory: `.vitepress/dist`
+
+Result: the docs app has explicit monorepo deployment settings for one Vercel project rooted at `apps/docs`.
