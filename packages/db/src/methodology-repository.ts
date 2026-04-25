@@ -6611,7 +6611,10 @@ export function createMethodologyRepoLayer(db: DB): Layer.Layer<MethodologyRepos
               stepType,
               stepKey: step.key,
               mode: "deferred",
-              defaultMessage: DEFERRED_STEP_MESSAGE,
+              defaultMessage:
+                extractMarkdown(
+                  isRecord(step.configJson) ? step.configJson.descriptionJson : undefined,
+                ) ?? DEFERRED_STEP_MESSAGE,
             };
           }),
         );

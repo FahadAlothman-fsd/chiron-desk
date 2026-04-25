@@ -2526,6 +2526,53 @@ function decodeOptionValue(value: string): unknown {
   return decoded.isOk() ? decoded.value : value;
 }
 
+function nestedFieldOptions(
+  nestedField: RuntimeFormNestedField,
+): Array<{ value: unknown; label: string }> {
+  if (Array.isArray(nestedField.options) && nestedField.options.length > 0) {
+    return nestedField.options.map((option) => ({ value: option.value, label: option.label }));
+  }
+
+  if (!isPlainRecord(nestedField.validation)) {
+    return [];
+  }
+
+  if (
+    nestedField.validation.kind === "allowed-values" &&
+    Array.isArray(nestedField.validation.values)
+  ) {
+    return nestedField.validation.values.map((entry) => ({
+      value: entry,
+      label: typeof entry === "string" ? entry : String(entry),
+    }));
+  }
+
+  if (
+    nestedField.validation.kind === "json-schema" &&
+    isPlainRecord(nestedField.validation.schema) &&
+    Array.isArray(nestedField.validation.schema.enum)
+  ) {
+    return nestedField.validation.schema.enum.map((entry) => ({
+      value: entry,
+      label: typeof entry === "string" ? entry : String(entry),
+    }));
+  }
+
+  return [];
+}
+
+function createEmptyValueForNestedField(nestedField: RuntimeFormNestedField): unknown {
+  if (nestedField.factType === "json") {
+    return {};
+  }
+
+  if (nestedField.factType === "boolean") {
+    return false;
+  }
+
+  return null;
+}
+
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -3184,6 +3231,55 @@ function NestedFieldEditor(props: {
   disabled: boolean;
 }) {
   const { nestedField, value, onChange, disabled } = props;
+  const options = nestedFieldOptions(nestedField);
+
+  if (nestedField.cardinality === "many") {
+    const items = Array.isArray(value) ? value : [];
+    const singleField = { ...nestedField, cardinality: "one" as const };
+
+    return (
+      <Field className="space-y-3 border border-border/70 bg-background/40 p-3">
+        <div className="space-y-1">
+          <NestedFieldHeader nestedField={nestedField} />
+          {nestedField.description ? (
+            <FieldDescription>{nestedField.description}</FieldDescription>
+          ) : null}
+        </div>
+
+        <div className="space-y-3">
+          {items.map((entry, index) => (
+            <div key={`${nestedField.key}-${index}`} className="space-y-2">
+              <NestedFieldEditor
+                nestedField={singleField}
+                value={entry}
+                onChange={(nextValue) => onChange(updateArrayValue(items, index, nextValue))}
+                disabled={disabled}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={disabled}
+                onClick={() => onChange(removeArrayValue(items, index))}
+              >
+                Remove row
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            disabled={disabled}
+            onClick={() =>
+              onChange(addArrayValue(items, createEmptyValueForNestedField(singleField)))
+            }
+          >
+            Add row
+          </Button>
+        </div>
+      </Field>
+    );
+  }
+
   const nestedJsonFields = (() => {
     if (!isPlainRecord(nestedField.validation) || nestedField.validation.kind !== "json-schema") {
       return [];
@@ -3333,6 +3429,38 @@ function NestedFieldEditor(props: {
     );
   }
 
+  if (options.length > 0) {
+    return (
+      <Field>
+        <NestedFieldHeader nestedField={nestedField} />
+        <Select
+          disabled={disabled}
+          value={value == null ? "" : encodeOptionValue(value)}
+          onValueChange={(nextValue) =>
+            onChange(nextValue && nextValue.length > 0 ? decodeOptionValue(nextValue) : null)
+          }
+        >
+          <SelectTrigger
+            aria-label={nestedField.label}
+            className="w-full bg-background/80 text-foreground"
+          >
+            <SelectValue placeholder="Select an option" />
+          </SelectTrigger>
+          <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
+            {options.map((option) => (
+              <SelectItem
+                key={`${nestedField.key}-${encodeOptionValue(option.value)}`}
+                value={encodeOptionValue(option.value)}
+              >
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+    );
+  }
+
   if (nestedField.factType === "json") {
     if (nestedJsonFields.length > 0) {
       const current = isPlainRecord(value) ? value : {};
@@ -3402,6 +3530,11 @@ function NestedFieldEditor(props: {
         disabled={disabled}
         aria-label={nestedField.label}
         value={inputValue}
+        placeholder={
+          isPlainRecord(nestedField.validation) && nestedField.validation.kind === "path"
+            ? "repo-relative path"
+            : undefined
+        }
         onChange={(event) => {
           if (nestedField.factType === "work_unit") {
             onChange(
