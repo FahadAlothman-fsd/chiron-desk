@@ -85,7 +85,6 @@ describe("methodology command palette helpers", () => {
         METHODOLOGY_COMMAND_IDS.CREATE_WORK_UNIT,
         METHODOLOGY_COMMAND_IDS.CREATE_LINK_TYPE,
         METHODOLOGY_COMMAND_IDS.OPEN_DRAFT,
-        METHODOLOGY_COMMAND_IDS.SYS_RUNTIME_DEFERRED,
       ],
     );
 
@@ -108,7 +107,7 @@ describe("methodology command palette helpers", () => {
     assert.equal(createFactCommand?.disabledReason, "Open a methodology version context first");
   });
 
-  it("promotes open commands in ranking order and hides system command unless requested", () => {
+  it("promotes open commands in ranking order", () => {
     const commands = buildMethodologyCommands({
       selectedMethodologyKey: "equity-core",
       selectedVersionId: "v-draft",
@@ -117,17 +116,7 @@ describe("methodology command palette helpers", () => {
     });
 
     const rankedDefault = rankAndLimitMethodologyCommands(commands, "");
-    assert.equal(
-      rankedDefault.some((command) => command.id === METHODOLOGY_COMMAND_IDS.SYS_RUNTIME_DEFERRED),
-      false,
-    );
     assert.equal(rankedDefault[0]?.group, "Open");
-
-    const rankedSystem = rankAndLimitMethodologyCommands(commands, "runtime");
-    assert.equal(
-      rankedSystem.some((command) => command.id === METHODOLOGY_COMMAND_IDS.SYS_RUNTIME_DEFERRED),
-      true,
-    );
   });
 
   it("prioritizes context-exact commands over recently-used and alphabetical order", () => {

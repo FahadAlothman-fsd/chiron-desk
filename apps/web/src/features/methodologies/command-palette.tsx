@@ -490,7 +490,6 @@ export function MethodologyCommandPalette({
                                 );
                                 return;
                               }
-                              case METHODOLOGY_COMMAND_IDS.SYS_RUNTIME_DEFERRED:
                               default:
                                 return;
                             }

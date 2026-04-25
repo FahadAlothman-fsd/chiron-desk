@@ -137,13 +137,7 @@ describe("methodology version workspace baseline", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Show Context" }));
 
-    expect(
-      screen.getAllByText("Workflow runtime execution unlocks in Epic 3+").length,
-    ).toBeGreaterThan(0);
-    const runtimeButton = screen.getByRole("button", {
-      name: "Runtime Execution (Epic 3+)",
-    }) as HTMLButtonElement;
-    expect(runtimeButton.disabled).toBe(true);
+    expect(screen.queryByText("Runtime")).toBeNull();
   });
 
   it("keeps legend hidden until toggled from graph command rail", () => {

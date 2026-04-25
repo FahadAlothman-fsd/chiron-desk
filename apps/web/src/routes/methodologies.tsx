@@ -9,7 +9,6 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  RUNTIME_DEFERRED_RATIONALE,
   getDeterministicState,
   sortCatalogDeterministically,
   type MethodologyCatalogItem,
@@ -305,16 +304,6 @@ export function MethodologiesRoute() {
               ))}
             </ul>
           ) : null}
-        </div>
-      </section>
-
-      <section className="border border-border/80 bg-background p-4">
-        <p className="text-[0.68rem] uppercase tracking-[0.18em] text-muted-foreground">Runtime</p>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <Button aria-disabled="true" disabled variant="outline" className="rounded-none">
-            Runtime Execution (Epic 3+)
-          </Button>
-          <p className="text-xs text-muted-foreground">{RUNTIME_DEFERRED_RATIONALE}</p>
         </div>
       </section>
     </MethodologyWorkspaceShell>

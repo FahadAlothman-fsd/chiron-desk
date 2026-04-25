@@ -1,5 +1,3 @@
-export const RUNTIME_DEFERRED_RATIONALE = "Workflow runtime execution unlocks in Epic 3+";
-
 export type DeterministicState = "normal" | "loading" | "blocked" | "failed" | "success";
 
 export type MethodologyCatalogItem = {
