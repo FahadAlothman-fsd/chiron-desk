@@ -1,37 +1,34 @@
 # BMAD Methodology Seed Implementation
 
 ## TL;DR
-> **Summary**: Implement the 12-hour MVP BMAD seeded methodology by first adding the product seed entrypoint and required platform condition/read-model enablers, then rolling out BMAD seed sections with TaskFlow verification gates.
+> **Summary**: Implement the active BMAD seeded methodology branch by first adding the product seed entrypoint and required platform condition/read-model enablers, then rolling out Section A through Architecture with TaskFlow verification while explicitly deferring Backlog/Story and later runtime loops.
 > **Deliverables**:
 > - Idempotent in-app BMAD methodology seed button/action on the Methodologies list page
 > - Project-level work-unit instance condition operators across gates/branches/guidance/UI
 > - Narrow referenced-work-unit MCP/read packages for explicitly bound refs
-> - Updated existing Setup/Brainstorming/Research seed rows plus new Product Brief, PRD, UX, Architecture, Backlog, Story, Retrospective, Course Correction seed rows
-> - Section-based TaskFlow verification path
+> - Updated existing Setup/Brainstorming/Research seed rows plus new Product Brief, PRD, UX, and Architecture seed rows
+> - Section A TaskFlow verification path through Architecture
+> - Explicit defer-later contract for Backlog, Story, Retrospective, and Course Correction seed work
 > **Effort**: XL
-> **Parallel**: YES - 5 waves
-> **Critical Path**: Enablers → Section A seed → TaskFlow A verification → Section B seed → Story loop verification → Section C seed → Course Correction verification
+> **Parallel**: YES - 3 waves
+> **Critical Path**: Enablers → Section A seed → TaskFlow A verification → final regression and cleanup
 
 ## Context
 
 ### Original Request
-Implement the agreed BMAD seeded methodology, including modifying existing seed definitions, adding a seed button, adding work-unit existence operators, and rolling out the seed in reviewable sections using TaskFlow.
+Implement the agreed BMAD seeded methodology for this branch, including modifying existing seed definitions, adding a seed button, adding work-unit existence operators, and rolling out the seed through Section A using TaskFlow, while deferring later sections to follow-on work.
 
 ### Interview Summary
-- Backlog absorbs Epic structured data, Sprint Planning/status, and Implementation Readiness readiness gate for the 12-hour MVP.
-- Story work units are created only for selected Backlog working-set story keys via Story activation transition `activation_to_ready_for_dev` / `create_story`.
-- `selected_story_draft_specs_ctx` is workflow-local and must be prepared inside `start_selected_stories` immediately before invoke.
-- Story artifacts are `STORY_DOCUMENT`, `CODE_CHANGE_FILESET`, `TEST_DOCUMENT`, and optional `DEFERRED_WORK`.
-- Retrospective is standalone and selects many done Story refs in its first workflow steps.
-- Course Correction is standalone: it writes `SPRINT_CHANGE_PROPOSAL`, applies/commits approved artifact edits, and affected work units detect stale artifact commits with `is_fresh` and run their own refinement transitions.
-- Seed rollout is section-based with manual/agent review gates after Section A, B, and C.
+- Current tested reality in this branch is `setup` only; broader Section A work remains planned and should not be described as already proven.
+- The active branch stops at Architecture and does not seed Backlog/Story execution loops yet.
+- Backlog, Story, Retrospective, and Course Correction remain valid follow-on seed targets, but they are deferred for later.
+- Seed rollout for this branch is Section-A-only with verification at the Architecture boundary.
 
 ### Metis Review (gaps addressed)
-- Added durable `working_set_history` requirement for Backlog.
 - Added single-writer rule for Backlog `sprint_status` / `SPRINT_STATUS`.
 - Required new condition operators to be implemented across contracts, gate execution, branch evaluation, project availability/guidance, UI display, and tests.
 - Locked Product Brief/PRD/UX/Architecture/Backlog narrow referenced-work-unit read-package scope.
-- Locked Course Correction write authority: Course Correction may edit/commit affected artifacts but does not force affected work-unit state changes.
+- Locked later-stage seed work as deferred so current implementation can stop truthfully at Architecture.
 - Locked seed button semantics: idempotent global seed/update, not reset/reseed.
 
 ### Oracle Review (architecture guardrails)
@@ -44,7 +41,7 @@ Implement the agreed BMAD seeded methodology, including modifying existing seed 
 ## Work Objectives
 
 ### Core Objective
-Make BMAD available as a seeded methodology from the app and verify a TaskFlow path through planning, Backlog/Story execution loops, Retrospective, and Course Correction.
+Make BMAD available as a seeded methodology from the app and verify a TaskFlow path through Setup, Brainstorming, Research, Product Brief, PRD, optional UX, and Architecture.
 
 ### Deliverables
 - Seed button/action on the Methodologies list page and server mutation.
@@ -52,30 +49,28 @@ Make BMAD available as a seeded methodology from the app and verify a TaskFlow p
   - `work_unit_instance_exists`
   - `work_unit_instance_exists_in_state`
 - Narrow referenced-work-unit read packages.
-- Updated seed definitions for existing and new BMAD work units/workflows.
-- Sectioned verification suite and TaskFlow walkthrough checks.
+- Updated seed definitions for existing and new pre-implementation BMAD work units/workflows.
+- Section-A verification suite and TaskFlow walkthrough checks.
 
 ### Definition of Done
 - `bun run check-types` passes.
 - Seed button is idempotent: repeated clicks create no duplicate BMAD methodology/version rows and do not reset unrelated project/user data.
 - New operators work in transition gates, branch routes, guidance/availability, project-context evaluation, and UI reason rendering.
 - Section A TaskFlow path reaches Architecture with expected required artifacts.
-- Section B TaskFlow Backlog creates only selected Story work units and loops to second working set correctly.
-- Section C Retrospective availability and Course Correction stale-artifact behavior are verified.
+- Deferred later BMAD stages are explicitly documented as out-of-scope for this branch.
 
 ### Must Have
 - Update existing seed rows where they contradict the agreed model.
-- Keep deferred standalone Epic, Sprint Plan, and Implementation Readiness out of the active MVP seed.
-- Use activation-only Story invoke.
+- Keep deferred standalone Epic, Sprint Plan, and Implementation Readiness out of the active branch seed.
 - Preserve fixed-transition semantics; conditions only control transition availability.
+- Stop the active TaskFlow example at Architecture.
 
 ### Must NOT Have
 - No app button calling `manual-seed.mjs`.
 - No deletion of `.sisyphus/drafts/bmad-work-unit-*.md` spec files; they remain living refinement references during implementation.
 - No global graph traversal for referenced work-unit reads.
-- No Course Correction forcing affected work-unit state changes.
-- No Story `backlog` state in MVP.
-- No standalone Sprint Plan/Epic/Implementation Readiness active MVP seed rows.
+- No Story/Backlog/Retrospective/Course Correction seed rollout in this branch.
+- No standalone Sprint Plan/Epic/Implementation Readiness active seed rows.
 
 ## Verification Strategy
 > ZERO HUMAN INTERVENTION - all verification is agent-executed, with evidence files captured under `.sisyphus/evidence/`.
@@ -88,32 +83,24 @@ Make BMAD available as a seeded methodology from the app and verify a TaskFlow p
 ### Parallel Execution Waves
 Wave 1: Platform enablers and seed button foundations.
 Wave 2: Section A seed updates and TaskFlow planning-path verification.
-Wave 3: Section B Backlog/Story seed and working-set verification.
-Wave 4: Section C Retrospective/Course Correction seed and freshness verification.
-Wave 5: final full-path audit, cleanup, and regression.
+Wave 3: final regression, cleanup, and deferred-scope documentation.
 
 ### Dependency Matrix
 - Task 1 blocks all seed-button QA.
-- Task 2 blocks Retrospective availability and any seeded branch/gate using work-unit instance checks.
-- Task 3 blocks Product Brief/PRD/UX/Architecture/Backlog agents that read referenced work-unit facts/artifacts.
+- Task 2 blocks any seeded branch/gate using work-unit instance checks.
+- Task 3 blocks Product Brief/PRD/UX/Architecture agents that read referenced work-unit facts/artifacts.
 - Task 4 depends on Tasks 1-3 for accurate Section A verification.
 - Task 5 depends on Task 4.
-- Task 6 depends on Tasks 2-5.
-- Task 7 depends on Task 6.
-- Task 8 depends on Tasks 2, 6, and 7.
-- Task 9 depends on Task 8.
-- Task 10 depends on all prior tasks.
+- Task 10 depends on Tasks 1-5.
 
 ### Agent Dispatch Summary
 - Wave 1 → 3 tasks → deep / quick / unspecified-high
 - Wave 2 → 2 tasks → deep / unspecified-high
-- Wave 3 → 2 tasks → deep / unspecified-high
-- Wave 4 → 2 tasks → deep / unspecified-high
-- Wave 5 → 1 task → deep
+- Wave 3 → 1 task → deep
 
 ## TODOs
 
-- [ ] 1. Add idempotent BMAD seed action on Methodologies list page
+- [x] 1. Add idempotent BMAD seed action on Methodologies list page
 
   **What to do**: Add a product-visible button/action for seeding/updating the canonical BMAD methodology on the Methodologies list/index page. Locate the route/component for the methodologies list before editing; likely paths are under `apps/web/src/routes/` and/or `apps/web/src/features/methodologies/`. Add a server/API mutation that seeds methodology rows only; do not call `packages/scripts/src/manual-seed.mjs`. Reuse seed authority from `packages/scripts/src/seed/methodology/index.ts` and supporting seed modules. Ensure repeated calls are idempotent and refresh the methodologies list so BMAD appears once.
   **Must NOT do**: Do not reset users/projects/runtime data. Do not shell out to the manual seed script from the app. Do not create duplicate methodology/version rows.
@@ -154,7 +141,7 @@ Wave 5: final full-path audit, cleanup, and regression.
 
   **Commit**: YES | Message: `feat(seed): add idempotent bmad seed action` | Files: methodologies list route/component, API/server mutation files, seed service files, tests
 
-- [ ] 2. Add project-level work-unit instance condition operators across engines
+- [x] 2. Add project-level work-unit instance condition operators across engines
 
   **What to do**: Add `work_unit_instance_exists(workUnitTypeKey, minCount?)` and `work_unit_instance_exists_in_state(workUnitTypeKey, stateKeys, minCount?)` from authoring UI through persistence and runtime evaluation. Implement shared contract support, methodology validation/decode, database persistence via existing condition JSON/config columns, branch evaluation, transition gate execution, runtime guidance/start-gate detail, project-context availability evaluation, API project availability paths, and UI rendering/reason text. Reject empty `stateKeys`; default `minCount` to 1. Count only current state, not historical state.
   **Must NOT do**: Do not overload attached `work_unit_reference_fact` existence semantics. Do not implement in only one evaluator.
@@ -198,16 +185,16 @@ Wave 5: final full-path audit, cleanup, and regression.
     Expected: operator names, workUnitTypeKey, stateKeys, and minCount persist exactly; invalid empty stateKeys cannot be saved.
     Evidence: .sisyphus/evidence/task-2-operator-authoring.md
 
-  Scenario: Retrospective availability
+  Scenario: Architecture-boundary condition stability
     Tool: Bash
-    Steps: Create runtime fixture with zero done Story work units, then one done Story work unit; evaluate transition/guidance availability.
-    Expected: Retrospective unavailable before done Story; available after one done Story.
-    Evidence: .sisyphus/evidence/task-2-retro-availability.md
+    Steps: Create runtime fixtures that exercise the new operators against the active pre-implementation path and verify guidance/availability stays consistent.
+    Expected: The new operators behave consistently without requiring Story/Backlog rollout in this branch.
+    Evidence: .sisyphus/evidence/task-2-architecture-boundary-availability.md
   ```
 
   **Commit**: YES | Message: `feat(conditions): add work unit instance operators` | Files: condition contracts, evaluators, UI display, tests
 
-- [ ] 3. Add narrow referenced-work-unit read packages for explicit refs
+- [x] 3. Add narrow referenced-work-unit read packages for explicit refs
 
   **What to do**: Expand MCP/read behavior for explicitly bound `work_unit_reference_fact` inputs and bound facts whose underlying value is a work-unit reference. Return a narrow read package with referenced metadata, active fact instances, artifact slot instances, artifact paths, and recorded commit/blob refs where available. Keep default read lightweight unless explicitly requested by the workflow/agent read config.
   **Must NOT do**: Do not implement global graph traversal. Do not expose unrelated project work units.
@@ -227,7 +214,7 @@ Wave 5: final full-path audit, cleanup, and regression.
 
   **Acceptance Criteria**:
   - [ ] Product Brief agent can read explicitly referenced Brainstorming/Research facts/artifact paths.
-  - [ ] PRD/UX/Architecture/Backlog agents can read only their explicitly bound source refs.
+  - [ ] Product Brief/PRD/UX/Architecture agents can read only their explicitly bound source refs.
   - [ ] Read package includes artifact path/commit refs when present.
   - [ ] Unbound/unrequested work units are not exposed.
 
@@ -248,7 +235,7 @@ Wave 5: final full-path audit, cleanup, and regression.
 
   **Commit**: YES | Message: `feat(mcp): expand explicit work unit reference reads` | Files: MCP route/service/tests
 
-- [ ] 4. Revise Section A seed: Setup through Architecture
+- [x] 4. Revise Section A seed: Setup through Architecture
 
   **What to do**: Update existing Setup/Brainstorming/Research seed rows and add Product Brief, PRD, UX Design, and Architecture rows per the agreed specs. Keep `display` unused. Preserve `action` as propagation-only. Product Brief binds explicit Brainstorming/Research refs; PRD binds one Product Brief or direct context; UX binds PRD; Architecture binds PRD and optional UX/Research.
   **Must NOT do**: Do not seed standalone Epic/Sprint Plan/Implementation Readiness as active MVP units. Do not leave existing contradictory seed rows in place.
@@ -307,26 +294,29 @@ Wave 5: final full-path audit, cleanup, and regression.
   **Acceptance Criteria**:
   - [ ] TaskFlow creates expected Section A work units and artifacts.
   - [ ] Product Brief can read selected Brainstorming/Research outputs through explicit refs.
-  - [ ] Guidance recommends Backlog after Architecture is complete.
+  - [ ] Guidance records post-architecture work as deferred follow-on scope rather than treating it as active branch execution.
 
   **QA Scenarios**:
   ```
   Scenario: TaskFlow Section A happy path
     Tool: Playwright
     Steps: Seed BMAD; create TaskFlow project; run/advance Setup through Architecture using deterministic TaskFlow inputs.
-    Expected: required artifacts PROJECT_CONTEXT, BRAINSTORMING_OUTPUT, RESEARCH_REPORT, PRODUCT_BRIEF, PRD, UX_DESIGN_SPECIFICATION, ARCHITECTURE_DOCUMENT exist; guidance recommends Backlog.
+    Expected: required artifacts PROJECT_CONTEXT, BRAINSTORMING_OUTPUT, RESEARCH_REPORT, PRODUCT_BRIEF, PRD, UX_DESIGN_SPECIFICATION, ARCHITECTURE_DOCUMENT exist; guidance marks later work as deferred follow-on scope.
     Evidence: .sisyphus/evidence/task-5-taskflow-section-a.md
 
   Scenario: Section A missing optional UX handling
     Tool: Bash
     Steps: Run fixture where Architecture exists but UX is absent for non-UI path.
-    Expected: Backlog remains available when UX is optional; UI projects warn if UX implied and missing.
+    Expected: Architecture remains reachable when UX is optional; UI projects warn if UX implied and missing.
     Evidence: .sisyphus/evidence/task-5-optional-ux.md
   ```
 
   **Commit**: YES | Message: `test(seed): verify taskflow planning path` | Files: tests/evidence fixtures
 
 - [ ] 6. Seed Section B: Backlog readiness, working-set loop, and Story
+
+  **Status**: Deferred to later seed extension. Not active for this branch.
+  > Historical follow-on task body retained below as planning context only.
 
   **What to do**: Add Backlog and Story seed definitions. Backlog includes `EPICS_AND_STORIES`, `READINESS_REPORT`, `SPRINT_STATUS`, `active_working_set`, `working_set_history`, `story_work_units`, `sprint_status`, `working_set_completion_status`, readiness facts, and workflows listed in `.sisyphus/drafts/bmad-seed-workflow-step-inventory.md`. Story includes lifecycle states `ready_for_dev`, `in_progress`, `review`, `done`; workflows `create_story`, `start_dev_story`, `dev_story`, `code_review`; artifacts `STORY_DOCUMENT`, `CODE_CHANGE_FILESET`, `TEST_DOCUMENT`, optional `DEFERRED_WORK`.
   **Must NOT do**: Do not seed Story `backlog` state. Do not seed active standalone Epic/Sprint Plan/Implementation Readiness. Do not create all Story work units from Backlog draft.
@@ -368,6 +358,9 @@ Wave 5: final full-path audit, cleanup, and regression.
 
 - [ ] 7. Verify TaskFlow Section B working-set loop
 
+  **Status**: Deferred to later seed extension. Not active for this branch.
+  > Historical follow-on task body retained below as planning context only.
+
   **What to do**: Verify TaskFlow Backlog creates epics/stories as data, runs readiness, selects first working set, creates only selected Story work units, syncs status, closes working set, and selects second set excluding completed stories.
   **Must NOT do**: Do not mark Backlog done after first working set if remaining stories exist.
 
@@ -407,6 +400,9 @@ Wave 5: final full-path audit, cleanup, and regression.
   **Commit**: YES | Message: `test(seed): verify taskflow backlog loop` | Files: tests/evidence fixtures
 
 - [ ] 8. Seed Section C: Retrospective and Course Correction with freshness routes
+
+  **Status**: Deferred to later seed extension. Not active for this branch.
+  > Historical follow-on task body retained below as planning context only.
 
   **What to do**: Add Retrospective and Course Correction seed definitions. Retrospective availability uses `work_unit_instance_exists_in_state(story, [done], 1)` and first workflow steps select many Story refs. Retrospective artifacts are `RETROSPECTIVE_REPORT`, many-cardinality `RETROSPECTIVE_EVIDENCE_SET`, and optional `ACTION_ITEM_REGISTER`. Course Correction includes affected work-unit refs by type, affected artifacts, `SPRINT_CHANGE_PROPOSAL`, `CHANGE_IMPACT_ANALYSIS`, many-cardinality `ARTIFACT_UPDATE_FILESET`, optional `COURSE_CORRECTION_HANDOFF`, artifact update set, and approved artifact edit/commit behavior. Add stale-artifact refinement transitions/gates on affected PRD/UX/Architecture/Backlog/Story units using `is_fresh`.
   **Must NOT do**: Do not force affected work-unit state changes from Course Correction. Do not make Retrospective require pre-attached Story refs before start.
@@ -454,6 +450,9 @@ Wave 5: final full-path audit, cleanup, and regression.
 
 - [ ] 9. Verify TaskFlow Section C retrospective/correction scenario
 
+  **Status**: Deferred to later seed extension. Not active for this branch.
+  > Historical follow-on task body retained below as planning context only.
+
   **What to do**: Run a TaskFlow scenario after first working set: Retrospective analyzes `STORY-1.1`–`STORY-1.3`, detects a significant discovery, Course Correction creates proposal and artifact update set, and affected work units expose stale-artifact refinement transitions.
   **Must NOT do**: Do not rely on manual inspection only.
 
@@ -493,7 +492,7 @@ Wave 5: final full-path audit, cleanup, and regression.
 
 - [ ] 10. Full seed regression, cleanup, and documentation of superseded units
 
-  **What to do**: Run full checks, mark any active seed references to standalone Epic/Sprint Plan/Implementation Readiness as excluded from active MVP seed, update seed integrity expectations, and capture final evidence. Ensure `.sisyphus/drafts/*` decisions are represented in implementation and no stale terminology remains in active code/test names except future-only docs.
+  **What to do**: Run full checks, mark any active seed references to standalone Epic/Sprint Plan/Implementation Readiness as excluded from the active branch seed, update seed integrity expectations, and capture final evidence. Ensure `.sisyphus/drafts/*` decisions are represented in implementation and that later-stage units are explicitly documented as deferred.
   **Must NOT do**: Do not delete deferred draft specs or per-work-unit spec files. Do not commit generated evidence unless project convention requires it.
 
   **Recommended Agent Profile**:
@@ -511,9 +510,10 @@ Wave 5: final full-path audit, cleanup, and regression.
   **Acceptance Criteria**:
   - [ ] `bun run check-types` passes.
   - [ ] Relevant unit/integration/e2e tests pass.
-  - [ ] Active seed includes no standalone Epic/Sprint Plan/Implementation Readiness rows for 12-hour MVP.
-  - [ ] Section A/B/C TaskFlow evidence is captured.
+  - [ ] Active seed includes no standalone Epic/Sprint Plan/Implementation Readiness rows.
+  - [ ] Section A TaskFlow evidence is captured.
   - [ ] Seed button idempotency evidence is captured.
+  - [ ] Deferred later-stage scope is called out explicitly in the active plan/docs touched by this branch.
 
   **QA Scenarios**:
   ```
@@ -550,6 +550,5 @@ Wave 5: final full-path audit, cleanup, and regression.
 - BMAD can be seeded idempotently from the app.
 - New condition operators work consistently across branch, transition gate, guidance, and UI surfaces.
 - TaskFlow verifies Section A through Architecture.
-- TaskFlow verifies Backlog/Story first working set and second-set selection.
-- Retrospective and Course Correction verify existence/freshness behavior without forced state changes.
-- Active MVP seed excludes standalone Epic, Sprint Plan, and Implementation Readiness as work units.
+- Backlog/Story/Retrospective/Course Correction are preserved as deferred later seed work, not active branch scope.
+- Active seed excludes standalone Epic, Sprint Plan, and Implementation Readiness as work units.

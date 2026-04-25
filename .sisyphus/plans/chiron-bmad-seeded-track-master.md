@@ -1,39 +1,37 @@
 # Chiron BMAD Seeded Track Master Plan
 
 ## TL;DR
-> **Summary**: Replace the stale docs/survey planning with one truth-first master plan that implements the full BMad Method happy path in Chiron through one complete story cycle, rewrites the Astro/Starlight docs to teach only what is actually seeded and demonstrated, and layers the thesis survey on top only after the seeded flow and docs are stable.
+> **Summary**: Replace the stale docs/survey planning with one truth-first master plan that implements the active BMad Method seeded path in Chiron through Architecture, keeps Taskflow as the concrete pre-implementation example, and explicitly defers post-architecture seed work for a later extension.
 > **Deliverables**:
 > - BMAD-native → Chiron mapping matrix and canonical seeded path contract
-> - Extended methodology seed covering analysis, planning, solutioning, and one implementation story cycle
+> - Extended methodology seed covering analysis, planning, and solutioning through Architecture
 > - In-app methodology seed trigger with idempotent project seeding behavior
-> - Runtime proof/fixture pack and capability gate for the first story cycle
-> - Astro/Starlight docs rewrite anchored to the truthful seeded BMAD path
-> - Survey gating, eligibility, and questionnaire updates tied to the completed seeded flow
+> - Explicit defer-later contract for post-architecture seed work
 > - Supersession map for stale plans and docs assumptions
 > **Effort**: XL
-> **Parallel**: YES - 4 waves
-> **Critical Path**: 1 → 2/3/4 → 5/6/7/8/9/10 → 11/12/13 → 14/15
+> **Parallel**: YES - 2 active waves
+> **Critical Path**: 1 → 2/3/4 → 5/6/7
 
 ## Context
 ### Original Request
 - Consolidate the current plan situation into a replacement planning approach.
 - The target is the **BMad Method** track specifically, not a generic Chiron walkthrough.
 - Preserve BMAD semantics first, then map them into Chiron work units, workflows, transitions, and docs.
-- The seeded methodology must cover the full BMAD path through one first story cycle using Taskflow as the concrete example.
+- The seeded methodology for this branch must cover the BMAD path only through Architecture using Taskflow as the concrete example.
 - Add an in-app action so a user can seed that methodology into their project.
 - The current docs-site plan is mostly implemented structurally but inaccurate in content.
 
 ### Interview Summary
-- The desired BMAD path is: analysis (`brainstorming`, `research`, `product-brief`) → planning (`PRD`, optional `UX`) → solutioning (`architecture`, `epics/stories`, `implementation-readiness`) → implementation (`sprint-planning`, `create-story`, `dev-story`, `code-review`).
+- The desired BMAD path for this branch is: analysis (`brainstorming`, `research`, `product-brief`) → planning (`PRD`, optional `UX`) → solutioning (`architecture`).
 - Plan 1 intent from the interview became: implement the seeded BMAD track plus the in-app seed trigger.
-- The proof bar was raised from “stop at epics/stories” to “go through the first full story cycle”.
+- The active scope is now intentionally cut short at Architecture; later BMAD seed work will be added in a follow-on extension.
 - Taskflow should be the concrete narrative for the seeded BMAD path, not a generic placeholder example.
-- Existing docs/site work should not be discarded, but it must be rewritten around the truthful seeded path.
-- Survey work remains in scope, but only after the seeded BMAD flow and docs truth are stable.
+- Existing docs/site and survey work are preserved as later follow-on scope, not part of this branch's completion target.
 
 ### Repo Truth
 - Current methodology seed lives under `packages/scripts/src/seed/methodology/**`, centered on `setup-bmad-mapping.ts`.
 - Current seeded BMAD coverage reaches `setup`, `brainstorming`, and `research` only.
+- Current end-to-end tested evidence in this branch only covers the `setup` work unit; anything beyond setup remains planned or partially modeled rather than proven.
 - Runtime proof surfaces already exist in `packages/db/src/runtime-repositories/*` for agent execution state, harness bindings, and applied writes.
 - Docs app reality is **Astro + Starlight** under `apps/docs`, not VitePress.
 - Current public Taskflow docs exist, but they describe a broader/generic path than the actual seeded BMAD implementation supports today.
@@ -41,13 +39,13 @@
 
 ### Metis Review (gaps addressed)
 - Added a mandatory **BMAD-native → Chiron mapping matrix** so public docs and seed implementation do not drift apart.
-- Added a **capability gate** so the first story cycle is only documented/surveyed once runtime evidence proves it.
+- Added a **defer-later boundary** so post-architecture BMAD stages are preserved without being implied complete in this branch.
 - Added a **seed contract split** between required design-time seeding and optional deterministic runtime/demo fixtures.
 - Added a **supersession map** so old VitePress-era plan assumptions and stale docs content stop misleading future agents.
-- Added a **survey dependency gate** so the thesis experiment cannot start against a moving target.
+- Added a **scope freeze** so docs/survey/runtime follow-ons cannot overclaim beyond the Architecture boundary.
 
 ### Oracle Review (gaps addressed)
-- Locked the first story cycle boundary to: analysis artifacts complete → planning artifacts complete → first story authored → first story executed/reviewed/closed once in Chiron.
+- Locked the active completion boundary to: analysis artifacts complete → planning artifacts complete → Architecture completed once in Chiron.
 - Kept UX as an explicit optional branch with a named rejoin point instead of letting it silently become mandatory.
 - Required docs truth tagging: `seeded and demonstrated`, `manually supported`, or `planned/not yet implemented`.
 - Added non-goals so the work does not expand into Quick Flow, Enterprise, or generalized methodology import.
@@ -60,56 +58,50 @@
 
 ## Work Objectives
 ### Core Objective
-Implement a truthful, fully teachable BMad Method seeded track in Chiron that preserves BMAD semantics, reaches one demonstrated story cycle, can be seeded from the app into a project, is documented accurately in the Astro/Starlight site, and can then support the thesis survey without overclaiming product capability.
+Implement a truthful BMad Method seeded track in Chiron that preserves BMAD semantics, can be seeded from the app into a project, and reaches Architecture as the active completion boundary for this branch while explicitly deferring post-architecture seed work.
 
 ### Deliverables
 - Canonical BMAD happy-path contract and Chiron mapping matrix
-- Extended methodology seed for all required BMAD stages through code-review
+- Extended methodology seed for all required active BMAD stages through Architecture
 - Explicit optional UX branch with rejoin rules
 - Deterministic IDs/rows across methodology seed tables and registries
-- Required seed + optional fixture-pack contract
+- Required seed contract for the active pre-implementation path
 - In-app project-level methodology seed action
-- Runtime capability/evidence matrix for the first story cycle
-- Taskflow docs rewritten around the seeded BMAD path
-- Design Time / Project Runtime / Reference docs claim audit and rewrite
-- Survey eligibility + instrument alignment to the completed seeded flow
+- Taskflow verification path through Architecture
+- Deferred follow-on contract for Backlog, Story, runtime-proof, docs rewrite, and survey work
 - Stale plan/docs supersession notes and README/docs alignment
 
 ### Definition of Done (verifiable conditions with commands)
-- The repository contains a single authoritative BMAD-native → Chiron mapping matrix covering all required stages from analysis through code-review.
-- The methodology seed includes first-class BMAD-stage coverage for product brief, PRD, architecture, epics/stories, implementation-readiness, sprint-planning, create-story, dev-story, and code-review, while preserving current setup/brainstorming/research coverage.
+- The repository contains a single authoritative BMAD-native → Chiron mapping matrix covering all required active stages from analysis through Architecture.
+- The methodology seed includes first-class BMAD-stage coverage for product brief, PRD, optional UX, and architecture, while preserving current setup/brainstorming/research coverage.
 - The seeded flow supports one canonical happy path plus an explicit optional UX branch with a documented rejoin point.
 - A user can seed the BMAD methodology into a project from the app without CLI-only dependency and without duplicate/ambiguous reseeding behavior.
-- The first story cycle is proven by runtime evidence using execution-state, harness-binding, and applied-write surfaces or explicitly blocked by a named enabling sub-track before docs/survey claims proceed.
-- Public docs in `apps/docs` build successfully and Taskflow pages teach the seeded BMAD path rather than a generic placeholder path.
-- Docs claims are tagged or constrained so unsupported runtime depth is not presented as shipped.
-- Survey eligibility depends on the completed seeded BMAD flow and docs terminology freeze, not the earlier generic onboarding path.
+- Taskflow verification proves the active seeded path through Architecture.
+- Post-architecture BMAD stages are explicitly recorded as deferred, not silently removed.
 - Verification commands pass:
   - `bun run check-types`
   - `bun run build`
   - `bun run test`
-  - `bun run build:docs`
-  - `bun run test:docs`
 
 ### Must Have
 - BMAD-native terminology and workflow order preserved before Chiron mapping
-- One canonical BMAD Method happy path through one complete story cycle
+- One canonical BMAD Method happy path through Architecture
 - UX represented as optional, not silently mandatory
 - Required seed separated from optional demo/runtime fixtures
 - In-app project seed trigger with deterministic/idempotent behavior
-- Docs truth matrix and claim policy enforcement
-- Survey gated on seeded-flow completion and docs freeze
+- Post-architecture stages explicitly deferred rather than implied complete
+- Taskflow verification through Architecture
 - Explicit supersession handling for stale plans and framework assumptions
 
 ### Must NOT Have (guardrails, AI slop patterns, scope boundaries)
 - No Quick Flow, Enterprise, or generalized “support all BMAD variants” scope
 - No generic Taskflow storytelling disconnected from the actual seeded BMAD path
 - No VitePress assumptions in docs planning or verification
-- No survey rollout before seeded-flow/runtime/docs gates pass
-- No conflation of design-time seed completion with runtime story-cycle completeness
+- No survey rollout or docs truth rewrite bundled into this branch's active completion target
+- No conflation of design-time seed completion with post-architecture runtime completeness
 - No requirement that UX be completed for the canonical happy path to remain valid
 - No hidden/manual CLI-only path for normal seeded-methodology onboarding
-- No vague “docs are accurate” or “story cycle works” claims without executable verification
+- No vague “post-architecture is seeded” claims without a later follow-on plan and verification
 
 ## Verification Strategy
 > ZERO HUMAN INTERVENTION - all verification is agent-executed.
@@ -118,40 +110,27 @@ Implement a truthful, fully teachable BMad Method seeded track in Chiron that pr
 - Evidence: `.sisyphus/evidence/task-{N}-{slug}.{ext}`
 - Verification gates:
   - **Seed gate**: seeded stages/workflows/artifacts exist and are discoverable by automated inspection/tests
-  - **Runtime gate**: first story cycle produces runtime evidence via execution state, harness binding, and applied writes
-  - **Docs gate**: public docs only claim what the seed/runtime gate proves, or clearly label planned/not yet implemented behavior
-  - **Survey gate**: eligibility/instrument depend on the completed seeded flow and frozen terminology
+  - **Architecture gate**: the seeded path reaches Architecture with deterministic design-time and Taskflow verification
+  - **Deferral gate**: any post-architecture BMAD stage is tagged deferred for later seed work and cannot be claimed as complete in this branch
 
 ## Execution Strategy
 ### Parallel Execution Waves
 > Target: 5-8 tasks per wave. <3 per wave (except final) = under-splitting.
 
 Wave 1: BMAD truth foundation and seed contract (Tasks 1-5)
-Wave 2: Seed/runtime/app implementation through first story cycle (Tasks 6-10)
-Wave 3: Docs truth rewrite and public teaching path (Tasks 11-13)
-Wave 4: Survey layering, supersession cleanup, and integrated verification (Tasks 14-15)
+Wave 2: Seed/app implementation through Architecture (Tasks 6-7)
 
 ### Dependency Matrix (full, all tasks)
-- 1 blocks 2, 3, 4, 6, 7, 8, 9, 11, 12, 14
-- 2 blocks 4, 6, 7, 8, 9, 10, 11, 12, 14
-- 3 blocks 6, 7, 8, 9, 10, 11, 12, 14
-- 4 blocks 6, 7, 8, 9, 10, 11, 12
-- 5 blocks 8, 9, 10, 11, 12, 14
-- 6 blocks 7, 8, 9, 10, 11, 14
-- 7 blocks 8, 9, 10, 11, 14
-- 8 blocks 9, 10, 11, 14
-- 9 blocks 10, 11, 12, 14, 15
-- 10 blocks 11, 12, 14, 15
-- 11 blocks 12, 13, 14, 15
-- 12 blocks 13, 14, 15
-- 13 blocks 14, 15
-- 14 blocks 15
+- 1 blocks 2, 3, 4, 6, 7
+- 2 blocks 4, 6, 7
+- 3 blocks 6, 7
+- 4 blocks 6, 7
+- 5 blocks 6, 7
+- 6 blocks 7
 
 ### Agent Dispatch Summary (wave → task count → categories)
 - Wave 1 → 5 tasks → deep, writing, unspecified-high
-- Wave 2 → 5 tasks → unspecified-high, visual-engineering, quick
-- Wave 3 → 3 tasks → writing, visual-engineering, unspecified-high
-- Wave 4 → 2 tasks → unspecified-high, writing
+- Wave 2 → 2 tasks → unspecified-high, visual-engineering
 
 ## TODOs
 > Implementation + Test = ONE task. Never separate.
@@ -159,7 +138,7 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
 
 - [ ] 1. Freeze the canonical BMAD happy path, mapping matrix, and supersession contract
 
-  **What to do**: Create the single authoritative contract for this milestone before touching any seed rows or docs. Define the canonical BMAD Method happy path in BMAD-native terms first: `brainstorming` / `research` / `product-brief` → `create-prd` → optional `create-ux-design` branch → `create-architecture` → `create-epics-and-stories` → `check-implementation-readiness` → `sprint-planning` → `create-story` → `dev-story` → `code-review`. Then add a separate BMAD-native → Chiron mapping matrix covering stage, work unit type, workflow(s), primary artifacts, key transitions, runtime evidence surfaces, and docs pages that teach each stage. Include a supersession matrix that marks the old docs plan and generic survey assumptions as historical, not authoritative.
+  **What to do**: Create the single authoritative contract for this milestone before touching any seed rows or docs. Define the canonical BMAD Method happy path in BMAD-native terms first: `brainstorming` / `research` / `product-brief` → `create-prd` → optional `create-ux-design` branch → `create-architecture`. Then add a separate BMAD-native → Chiron mapping matrix covering stage, work unit type, workflow(s), primary artifacts, key transitions, and the explicit defer-later boundary after Architecture. Include a supersession matrix that marks the old docs plan and generic survey assumptions as historical, not authoritative.
   **Must NOT do**: Do not start from Chiron entity names and retrofit BMAD semantics afterward. Do not leave old plans with ambiguous authority. Do not add Quick Flow, Enterprise, or non-main-track branches.
 
   **Recommended Agent Profile**:
@@ -167,7 +146,7 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
   - Skills: `[]` - Repo exploration and synthesis are sufficient.
   - Omitted: [`bmad-create-epics-and-stories`] - This is planning the track, not executing a BMAD workflow.
 
-  **Parallelization**: Can Parallel: NO | Wave 1 | Blocks: [2, 3, 4, 6, 7, 8, 9, 11, 12, 14] | Blocked By: []
+  **Parallelization**: Can Parallel: NO | Wave 1 | Blocks: [2, 3, 4, 6, 7] | Blocked By: []
 
   **References** (executor has NO interview context - be exhaustive):
   - Pattern: `packages/scripts/src/seed/methodology/setup/setup-bmad-mapping.ts` - Current seeded BMAD scope baseline (setup, brainstorming, research).
@@ -178,7 +157,7 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
   - External: `https://docs.bmad-method.org/tutorials/getting-started/` - Canonical BMAD Method track framing and outputs.
 
   **Acceptance Criteria** (agent-executable only):
-  - [ ] One authoritative artifact exists that enumerates the canonical BMAD happy path through `code-review` and marks UX as optional.
+  - [ ] One authoritative artifact exists that enumerates the canonical BMAD happy path through `create-architecture` and marks UX as optional.
   - [ ] The artifact contains a BMAD-native → Chiron mapping matrix for every required stage.
   - [ ] The artifact contains an explicit supersession section naming the stale plans/files it replaces or demotes.
   - [ ] The artifact excludes Quick Flow, Enterprise, and generic “all of BMAD” expansion.
@@ -202,7 +181,7 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
 
 - [ ] 2. Define the missing BMAD-stage work unit taxonomy, artifacts, and non-goals
 
-  **What to do**: Extend the methodology design contract so the missing BMAD stages become first-class, named, non-ambiguous Chiron entities. Add the work unit/workflow/artifact taxonomy for `product-brief`, `create-prd`, optional `create-ux-design`, `create-architecture`, `create-epics-and-stories`, `check-implementation-readiness`, `sprint-planning`, `create-story`, `dev-story`, and `code-review`. For each, define: work unit type key, primary workflow key(s), core artifact outputs, required inputs, dependency relationships, and whether the stage is required, optional, or gated. Add explicit non-goals for what this milestone does not cover (for example: Quick Flow, Enterprise/security/devops branches, multi-epic build-out, generalized methodology import).
+  **What to do**: Extend the methodology design contract so the missing active BMAD stages become first-class, named, non-ambiguous Chiron entities. Add the work unit/workflow/artifact taxonomy for `product-brief`, `create-prd`, optional `create-ux-design`, and `create-architecture`. For each, define: work unit type key, primary workflow key(s), core artifact outputs, required inputs, dependency relationships, and whether the stage is required or optional. Add explicit defer-later notes for `create-epics-and-stories`, `check-implementation-readiness`, `sprint-planning`, `create-story`, `dev-story`, and `code-review`.
   **Must NOT do**: Do not collapse multiple BMAD stages into one generic “planning” or “implementation” work unit. Do not make optional UX silently required. Do not leave artifact outputs underspecified.
 
   **Recommended Agent Profile**:
@@ -210,7 +189,7 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
   - Skills: `[]` - Existing methodology schema patterns are enough.
   - Omitted: [`effect-best-practices`] - This is schema/model planning, not Effect service design.
 
-  **Parallelization**: Can Parallel: YES | Wave 1 | Blocks: [4, 6, 7, 8, 9, 10, 11, 12, 14] | Blocked By: [1]
+  **Parallelization**: Can Parallel: YES | Wave 1 | Blocks: [4, 6, 7] | Blocked By: [1]
 
   **References** (executor has NO interview context - be exhaustive):
   - Pattern: `packages/db/src/schema/methodology.ts` - Canonical methodology storage surfaces to mirror.
@@ -222,7 +201,7 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
   - External: `https://docs.bmad-method.org/reference/workflow-map/` - BMAD stage/workflow inventory.
 
   **Acceptance Criteria** (agent-executable only):
-  - [ ] Every missing BMAD stage through `code-review` has an explicit work unit/workflow/artifact contract.
+  - [ ] Every active BMAD stage through `create-architecture` has an explicit work unit/workflow/artifact contract.
   - [ ] UX is marked optional with a documented rejoin point into the canonical happy path.
   - [ ] Non-goals are explicitly recorded and exclude extra BMAD tracks/features.
   - [ ] The design contract distinguishes required inputs from produced outputs for every stage.
@@ -231,8 +210,8 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
   ```
   Scenario: Missing BMAD stages are fully enumerated
     Tool: Bash
-    Steps: Run `grep -R "product-brief\|create-prd\|create-ux-design\|create-architecture\|create-epics-and-stories\|check-implementation-readiness\|sprint-planning\|create-story\|dev-story\|code-review" -n packages docs .sisyphus`.
-    Expected: Each required BMAD stage appears in the authoritative design contract with no placeholders.
+    Steps: Run `grep -R "product-brief\|create-prd\|create-ux-design\|create-architecture" -n packages docs .sisyphus`.
+    Expected: Each active BMAD stage appears in the authoritative design contract with no placeholders, and later stages are explicitly marked deferred.
     Evidence: .sisyphus/evidence/task-2-bmad-taxonomy.txt
 
   Scenario: Optional UX branch stays optional
@@ -244,17 +223,17 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
 
   **Commit**: YES | Message: `feat(methodology): define bmad stage taxonomy` | Files: `packages/contracts/src/methodology/*`, `packages/db/src/schema/methodology.ts`, seed design docs
 
-- [ ] 3. Define lifecycle states, transitions, and capability gates for the first story cycle
+- [ ] 3. Define lifecycle states, transitions, and completion gates through Architecture
 
-  **What to do**: Define the state/transition model for the new BMAD path, including the exact first story cycle boundary. The canonical required completion rule is: analysis artifacts complete → planning artifacts complete → first story authored → first story executed/reviewed/closed once in Chiron. Add lifecycle states, transition keys, prerequisites, and gating rules for required vs optional stages. Create a capability gate table that ties each required step family used in the story cycle to actual Chiron runtime support, naming any enabling gap that must be closed before docs/survey claims proceed.
-  **Must NOT do**: Do not leave “story cycle complete” ambiguous. Do not let docs or survey assume runtime support that is not backed by a capability gate. Do not merge design-time completion with runtime proof.
+  **What to do**: Define the state/transition model for the active BMAD path, including the exact Architecture completion boundary. The canonical required completion rule is: analysis artifacts complete → planning artifacts complete → Architecture completed once in Chiron. Add lifecycle states, transition keys, prerequisites, and gating rules for required vs optional stages. Create a defer-later gate table that names the post-architecture BMAD stages that will be added in a later seed extension.
+  **Must NOT do**: Do not leave “architecture complete” ambiguous. Do not imply post-architecture runtime support in this branch. Do not merge design-time completion with later runtime-proof scope.
 
   **Recommended Agent Profile**:
   - Category: `deep` - Reason: transition and gating semantics determine whether the whole plan is truthful.
   - Skills: `[]` - Repo runtime surfaces provide enough authority.
   - Omitted: [`hono`] - This is not route/framework-specific planning.
 
-  **Parallelization**: Can Parallel: YES | Wave 1 | Blocks: [6, 7, 8, 9, 10, 11, 12, 14] | Blocked By: [1]
+  **Parallelization**: Can Parallel: YES | Wave 1 | Blocks: [6, 7] | Blocked By: [1]
 
   **References** (executor has NO interview context - be exhaustive):
   - Pattern: `packages/db/src/schema/runtime.ts` - Runtime execution/state surfaces that must support the story cycle.
@@ -266,27 +245,27 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
   - Pattern: `README.md` and `apps/docs/src/content/docs/**` - Existing claim policy / not-fully-implemented caveats to reconcile.
 
   **Acceptance Criteria** (agent-executable only):
-  - [ ] The first story cycle completion rule is explicitly defined and unambiguous.
+  - [ ] The Architecture completion rule is explicitly defined and unambiguous.
   - [ ] Each required stage/transition has named prerequisites and completion outcomes.
-  - [ ] A capability gate table exists for each runtime step family used in the seeded story cycle.
-  - [ ] Any unsupported runtime requirement is explicitly converted into a named enabling gap before docs/survey work can proceed.
+  - [ ] A defer-later gate table exists for each post-architecture BMAD stage being postponed.
+  - [ ] Any post-architecture requirement is explicitly converted into named deferred follow-on scope.
 
   **QA Scenarios** (MANDATORY - task incomplete without these):
   ```
-  Scenario: Story-cycle boundary is explicit
+  Scenario: Architecture boundary is explicit
     Tool: Read
-    Steps: Inspect the lifecycle contract and verify that story-cycle completion includes authored, executed, reviewed, and closed states.
-    Expected: No alternate interpretation of “done” remains.
-    Evidence: .sisyphus/evidence/task-3-story-cycle-gate.md
+    Steps: Inspect the lifecycle contract and verify that active completion ends at Architecture rather than any Story/Backlog runtime loop.
+    Expected: No alternate interpretation of the active branch boundary remains.
+    Evidence: .sisyphus/evidence/task-3-architecture-gate.md
 
-  Scenario: Unsupported runtime depth is surfaced, not hidden
+  Scenario: Deferred post-architecture scope is surfaced, not hidden
     Tool: Bash
-    Steps: Run `grep -R "capability gate\|enabling gap\|not fully implemented" -n .sisyphus docs apps/docs README.md packages`.
-    Expected: The implementation contract explicitly names runtime gaps instead of silently assuming support.
-    Evidence: .sisyphus/evidence/task-3-story-cycle-gate-error.txt
+    Steps: Run `grep -R "deferred\|follow-on\|post-architecture" -n .sisyphus docs README.md packages`.
+    Expected: The implementation contract explicitly names later scope instead of silently assuming support.
+    Evidence: .sisyphus/evidence/task-3-architecture-gate-error.txt
   ```
 
-  **Commit**: YES | Message: `feat(methodology): define bmad lifecycle and gates` | Files: methodology contracts, runtime design docs, seed mapping docs
+  **Commit**: YES | Message: `feat(methodology): define bmad architecture boundary` | Files: methodology contracts, runtime design docs, seed mapping docs
 
 - [ ] 4. Register deterministic seed rows and IDs across the methodology tables for the full BMAD path
 
@@ -308,7 +287,7 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
   - Pattern: `packages/db/src/schema/methodology.ts` - Table ownership and expected entities.
 
   **Acceptance Criteria** (agent-executable only):
-  - [ ] Canonical seed rows exist for every required BMAD stage through `code-review`.
+  - [ ] Canonical seed rows exist for every active BMAD stage through `create-architecture`.
   - [ ] IDs/keys are deterministic and follow existing seed conventions.
   - [ ] The seed registry includes the expanded BMAD path without requiring runtime/demo fixtures.
   - [ ] Seeding the methodology produces a reproducible design-time graph.
@@ -317,8 +296,8 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
   ```
   Scenario: Expanded BMAD seed is discoverable in canonical tables
     Tool: Bash
-    Steps: Run `grep -R "productBrief\|prd\|ux\|architecture\|epics\|readiness\|sprintPlanning\|createStory\|devStory\|codeReview" -n packages/scripts/src/seed/methodology`.
-    Expected: Canonical seed modules contain rows for all required BMAD stages.
+    Steps: Run `grep -R "productBrief\|prd\|ux\|architecture" -n packages/scripts/src/seed/methodology`.
+    Expected: Canonical seed modules contain rows for all active BMAD stages, and later stages remain absent or clearly deferred.
     Evidence: .sisyphus/evidence/task-4-seed-rows.txt
 
   Scenario: Seed registry is canonical, not fixture-dependent
@@ -332,8 +311,8 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
 
 - [ ] 5. Split required seed from optional runtime/demo fixture pack
 
-  **What to do**: Create a clear contract separating required design-time methodology seeding from an optional deterministic fixture pack used for runtime proofs, docs screenshots, and repeatable story-cycle demonstrations. The required seed must be enough to install the BMAD path into a project; the optional fixture pack may pre-create project instances, runtime executions, harness bindings, or example artifacts only where needed for evidence generation and docs/survey reproducibility. Document exactly which artifacts are seeded, which are fixture-only, and how reseeding behaves.
-  **Must NOT do**: Do not make fixture support a hidden prerequisite for core methodology seeding. Do not let screenshots/docs depend on one-off manual runtime setup. Do not leave reseed behavior ambiguous.
+  **What to do**: Create a clear contract separating the required design-time methodology seed for the active pre-implementation path from later optional follow-on seed/runtime additions. The required seed must be enough to install the BMAD path into a project through Architecture. Document exactly which artifacts are seeded now, which later BMAD stages are deferred, and how reseeding behaves.
+  **Must NOT do**: Do not make future Story/Backlog work a hidden prerequisite for the current branch. Do not leave reseed behavior ambiguous.
 
   **Recommended Agent Profile**:
   - Category: `unspecified-high` - Reason: this is a critical scope boundary between core product behavior and demo/runtime proof support.
@@ -351,26 +330,26 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
 
   **Acceptance Criteria** (agent-executable only):
   - [ ] Required methodology seed and optional fixture pack are explicitly separated.
-  - [ ] The fixture pack lists the exact runtime/demo state it may materialize and why.
+  - [ ] The contract lists the exact post-architecture seed/runtime additions that are deferred and why.
   - [ ] Reseeding/idempotence behavior is documented for both the required seed and the optional fixture pack.
-  - [ ] Docs/screenshots/runtime proofs can depend on the fixture pack without redefining core seed semantics.
+  - [ ] Later seed work can extend the plan without redefining the current architecture-terminal semantics.
 
   **QA Scenarios** (MANDATORY - task incomplete without these):
   ```
   Scenario: Seed and fixture responsibilities are separated
     Tool: Read
-    Steps: Inspect the seed contract and verify required seed vs optional fixture pack are distinct sections with separate responsibilities.
-    Expected: No core methodology dependency relies on the fixture pack.
+    Steps: Inspect the seed contract and verify required current seed vs deferred later seed are distinct sections with separate responsibilities.
+    Expected: No core methodology dependency relies on post-architecture work.
     Evidence: .sisyphus/evidence/task-5-seed-fixture-split.md
 
   Scenario: Reseed behavior is explicit
     Tool: Bash
-    Steps: Run `grep -R "idempotent\|reseed\|fixture pack\|required seed" -n .sisyphus docs packages/scripts`.
-    Expected: The contract explicitly defines how duplicate seeding and fixture replay are handled.
+    Steps: Run `grep -R "idempotent\|reseed\|deferred\|required seed" -n .sisyphus docs packages/scripts`.
+    Expected: The contract explicitly defines how duplicate seeding and later follow-on work are handled.
     Evidence: .sisyphus/evidence/task-5-seed-fixture-split-error.txt
   ```
 
-  **Commit**: YES | Message: `feat(methodology): split required seed from fixture pack` | Files: seed docs/specs, fixture modules, seed orchestration notes
+  **Commit**: YES | Message: `feat(methodology): split active seed from deferred follow-on` | Files: seed docs/specs, seed orchestration notes
 
 - [ ] 6. Add the in-app BMAD methodology seed trigger with project-scoped idempotence
 
@@ -382,7 +361,7 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
   - Skills: `[]` - Existing app UI patterns should be reused.
   - Omitted: [`create-auth-skill`] - Authentication is not the concern here.
 
-  **Parallelization**: Can Parallel: YES | Wave 2 | Blocks: [7, 8, 9, 10, 11, 14] | Blocked By: [1, 3, 4]
+  **Parallelization**: Can Parallel: YES | Wave 2 | Blocks: [7] | Blocked By: [1, 3, 4]
 
   **References** (executor has NO interview context - be exhaustive):
   - Pattern: `apps/web/src/routes/projects.tsx` - Candidate project-level entry surface.
@@ -416,15 +395,15 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
 
 - [ ] 7. Implement the missing analysis/planning/solutioning BMAD path inside the seeded methodology
 
-  **What to do**: Extend the actual seeded path so the methodology can move from the currently implemented early slice into the missing BMAD stages up through implementation-readiness. This includes the design-time and flow-level coverage for `product-brief`, `create-prd`, optional `create-ux-design`, `create-architecture`, `create-epics-and-stories`, and `check-implementation-readiness`, with correct artifacts, prerequisites, transitions, and rejoin behavior. Ensure the outputs of analysis feed planning, planning feeds solutioning, and readiness is the gate before implementation begins.
-  **Must NOT do**: Do not add these stages as disconnected catalog items with no flow continuity. Do not let UX become mandatory. Do not skip the readiness gate between solutioning and implementation.
+  **What to do**: Extend the actual seeded path so the methodology can move from the currently implemented early slice into the missing BMAD stages through Architecture. This includes the design-time and flow-level coverage for `product-brief`, `create-prd`, optional `create-ux-design`, and `create-architecture`, with correct artifacts, prerequisites, transitions, and rejoin behavior. Ensure the outputs of analysis feed planning and planning feeds solutioning, then stop the active branch scope at Architecture.
+  **Must NOT do**: Do not add these stages as disconnected catalog items with no flow continuity. Do not let UX become mandatory. Do not imply Backlog/Story/runtime-proof coverage in this branch.
 
   **Recommended Agent Profile**:
   - Category: `unspecified-high` - Reason: this is the core methodology expansion that determines whether the seeded BMAD track is complete.
   - Skills: `[]` - The seed and methodology patterns are already in-repo.
   - Omitted: [`bmad-create-prd`] - This task is about modeling the workflow path, not running the workflow.
 
-  **Parallelization**: Can Parallel: YES | Wave 2 | Blocks: [8, 9, 10, 11, 14] | Blocked By: [2, 3, 4, 6]
+  **Parallelization**: Can Parallel: YES | Wave 2 | Blocks: [] | Blocked By: [2, 3, 4, 6]
 
   **References** (executor has NO interview context - be exhaustive):
   - Pattern: `packages/scripts/src/seed/methodology/setup/setup-bmad-mapping.ts` - Existing early-stage BMAD path conventions.
@@ -434,39 +413,41 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
   - External: `https://docs.bmad-method.org/reference/workflow-map/` - Planning/solutioning stage order and outputs.
 
   **Acceptance Criteria** (agent-executable only):
-  - [ ] The seeded methodology includes every required BMAD stage from analysis through `check-implementation-readiness`.
+  - [ ] The seeded methodology includes every required active BMAD stage from analysis through `create-architecture`.
   - [ ] Stage outputs feed the correct downstream stages.
   - [ ] UX remains optional with an explicit rejoin point.
-  - [ ] Implementation cannot begin without the readiness gate in the canonical path.
+  - [ ] The active branch stops at Architecture and records later BMAD stages as deferred follow-on work.
 
   **QA Scenarios** (MANDATORY - task incomplete without these):
   ```
-  Scenario: BMAD path reaches readiness gate
+  Scenario: BMAD path reaches Architecture gate
     Tool: Bash
-    Steps: Run `grep -R "product-brief\|create-prd\|create-ux-design\|create-architecture\|create-epics-and-stories\|check-implementation-readiness" -n packages/scripts/src/seed/methodology packages/contracts packages/db`.
-    Expected: The seeded methodology graph includes all required pre-implementation BMAD stages.
-    Evidence: .sisyphus/evidence/task-7-pre-implementation-path.txt
+    Steps: Run `grep -R "product-brief\|create-prd\|create-ux-design\|create-architecture" -n packages/scripts/src/seed/methodology packages/contracts packages/db`.
+    Expected: The seeded methodology graph includes all required active BMAD stages through Architecture.
+    Evidence: .sisyphus/evidence/task-7-architecture-path.txt
 
-  Scenario: Readiness gate prevents premature implementation path
+  Scenario: Post-architecture scope stays deferred
     Tool: Read
-    Steps: Inspect the seeded flow contract and verify that sprint-planning/create-story are blocked until readiness succeeds.
-    Expected: The canonical path cannot bypass implementation-readiness.
-    Evidence: .sisyphus/evidence/task-7-pre-implementation-path-error.md
+    Steps: Inspect the seeded flow contract and verify that Backlog/Story stages are explicitly deferred after Architecture.
+    Expected: The canonical path cannot silently continue beyond Architecture in this branch.
+    Evidence: .sisyphus/evidence/task-7-architecture-path-error.md
   ```
 
-  **Commit**: YES | Message: `feat(methodology): extend bmad path through readiness` | Files: methodology seed modules, contracts, docs/spec helpers
+  **Commit**: YES | Message: `feat(methodology): extend bmad path through architecture` | Files: methodology seed modules, contracts, docs/spec helpers
 
-- [ ] 8. Implement the first story-cycle runtime path: sprint-planning, create-story, dev-story, and code-review
+- [ ] 8. Deferred follow-on: add post-architecture BMAD stages in a later seed extension
 
-  **What to do**: Extend the seeded methodology and runtime orchestration so the post-readiness path reaches a single truthful story cycle. Add the work units/workflows/transitions/artifacts needed for `sprint-planning`, `create-story`, `dev-story`, and `code-review`. Ensure the canonical path can author one story, execute it, review it, and mark it closed once. Use only step families and runtime capabilities that the capability gate has approved; if any required piece is missing, implement the enabling gap first and keep docs/survey blocked until it passes.
-  **Must NOT do**: Do not mark the BMAD track complete at epics/stories only. Do not fake story execution with static placeholder docs if runtime proof is required. Do not widen scope to multi-story/multi-epic cycles.
+  > Historical follow-on task body retained below as planning context only. It is not active for this branch.
+
+  **What to do**: Keep `create-epics-and-stories`, `check-implementation-readiness`, `sprint-planning`, `create-story`, `dev-story`, `code-review`, docs truth rewrites, and survey rebasing out of the active branch scope. Preserve them only as explicitly deferred follow-on work for a later seed extension.
+  **Must NOT do**: Do not delete the downstream intent. Do not imply these stages are already seeded or verified. Do not let later scope leak back into the active completion target.
 
   **Recommended Agent Profile**:
-  - Category: `unspecified-high` - Reason: this is the highest-risk cross-over between design-time modeling and runtime truth.
-  - Skills: `[]` - Existing runtime repositories and invoke fixtures provide the baseline.
-  - Omitted: [`opencode-sdk`] - This is product workflow/runtimes, not SDK work.
+  - Category: `writing` - Reason: this is a scope-boundary and defer-later documentation task.
+  - Skills: `[]`
+  - Omitted: [`opencode-sdk`] - No runtime implementation belongs in this branch.
 
-  **Parallelization**: Can Parallel: YES | Wave 2 | Blocks: [9, 10, 11, 14] | Blocked By: [3, 4, 5, 6, 7]
+  **Parallelization**: Can Parallel: NO | Wave 2 | Blocks: [] | Blocked By: [7]
 
   **References** (executor has NO interview context - be exhaustive):
   - Pattern: `packages/db/src/schema/runtime.ts` - Runtime execution entities that must reflect the story cycle.
@@ -477,29 +458,23 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
   - External: `https://docs.bmad-method.org/reference/workflow-map/` - Implementation stage workflow order.
 
   **Acceptance Criteria** (agent-executable only):
-  - [ ] The seeded BMAD path reaches `sprint-planning`, `create-story`, `dev-story`, and `code-review` for one canonical story.
-  - [ ] The first story cycle can be executed/reviewed/closed once using supported runtime capabilities.
-  - [ ] Any enabling gap required for truthful runtime proof is implemented before the path is considered complete.
-  - [ ] Scope remains limited to one demonstrated story cycle.
+  - [ ] The active plan explicitly records post-architecture stages as deferred follow-on work.
+  - [ ] No active branch milestone or success criteria claim seeded support beyond Architecture.
 
   **QA Scenarios** (MANDATORY - task incomplete without these):
   ```
-  Scenario: First story cycle exists in the seeded path
+  Scenario: Deferred stages are called out explicitly
     Tool: Bash
-    Steps: Run `grep -R "sprint-planning\|create-story\|dev-story\|code-review" -n packages/scripts/src/seed/methodology packages/contracts packages/db`.
-    Expected: All four BMAD implementation-stage workflows are present in the methodology/runtime contract.
-    Evidence: .sisyphus/evidence/task-8-story-cycle-path.txt
-
-  Scenario: Unsupported runtime steps do not sneak through
-    Tool: Read
-    Steps: Inspect the capability gate and implementation notes for the story cycle.
-    Expected: Every step family used in the first story cycle is either supported and proven or blocked by a named enabling task.
-    Evidence: .sisyphus/evidence/task-8-story-cycle-path-error.md
+    Steps: Run `grep -R "create-epics-and-stories\|check-implementation-readiness\|sprint-planning\|create-story\|dev-story\|code-review\|deferred" -n .sisyphus/plans/chiron-bmad-seeded-track-master.md`.
+    Expected: All post-architecture stages are present only as deferred follow-on scope.
+    Evidence: .sisyphus/evidence/task-8-deferred-follow-on.txt
   ```
 
-  **Commit**: YES | Message: `feat(methodology): add first bmad story cycle` | Files: methodology seed/runtime modules, execution wiring, supporting contracts
+  **Commit**: YES | Message: `docs(plan): defer post-architecture bmad scope` | Files: `.sisyphus/plans/chiron-bmad-seeded-track-master.md`
 
-- [ ] 9. Prove the story cycle with runtime evidence surfaces and deterministic fixture data
+- [ ] 9. Deferred to later seed extension
+
+  > Historical follow-on task body retained below as planning context only. It is not active for this branch.
 
   **What to do**: Use the runtime repositories already present in Chiron to produce a deterministic proof package for the first story cycle. The proof must show execution state transitions, harness binding/session evidence, and applied writes/artifact evidence for the canonical story path. If deterministic fixture data is needed for repeatability, use the fixture-pack contract from Task 5 rather than ad hoc manual setup. Produce evidence that docs and survey gating can rely on.
   **Must NOT do**: Do not use manual screenshots or unrepeatable local state as the only proof. Do not rely solely on design-time presence of stages without runtime evidence.
@@ -541,7 +516,9 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
 
   **Commit**: YES | Message: `test(methodology): prove first bmad story cycle` | Files: runtime tests, deterministic fixtures, evidence helpers
 
-- [ ] 10. Add integrated repository verification for the seeded BMAD path and in-app seed flow
+- [ ] 10. Deferred to later seed extension
+
+  > Historical follow-on task body retained below as planning context only. It is not active for this branch.
 
   **What to do**: Add or update the automated verification commands/tests so the expanded BMAD seed, the in-app seed trigger, and the first story cycle can be validated as a coherent product flow. Cover: canonical seed rows present, in-app seed action idempotence, readiness gate behavior, first story cycle execution, and fixture-pack repeatability. Ensure these checks participate in the repository test/build flow and produce stable evidence.
   **Must NOT do**: Do not leave the BMAD seeded path dependent on manual QA alone. Do not scatter flow verification across undocumented ad hoc commands.
@@ -583,7 +560,9 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
 
   **Commit**: YES | Message: `test(app): verify seeded bmad path end-to-end` | Files: tests, verification helpers, package scripts if needed
 
-- [ ] 11. Build the docs truth matrix and claim audit from seeded/runtime evidence
+- [ ] 11. Deferred to later seed extension
+
+  > Historical follow-on task body retained below as planning context only. It is not active for this branch.
 
   **What to do**: Before rewriting docs content, create a truth matrix that tags every BMAD/Taskflow/docs claim as `seeded and demonstrated`, `manually supported`, or `planned/not yet implemented`. Use the output of Tasks 1-10 as the source of truth. Apply the same matrix to orientation pages, Taskflow pages, Design Time pages, Project Runtime pages, README claims, and survey-facing wording. The docs rewrite may only teach the seeded BMAD path as shipped where the matrix says `seeded and demonstrated`; everything else must be clearly labeled or excluded.
   **Must NOT do**: Do not rewrite docs first and rationalize truth later. Do not leave generic Taskflow claims that outrun runtime proof. Do not keep stale VitePress-era assumptions alive.
@@ -627,7 +606,9 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
 
   **Commit**: YES | Message: `docs(bmad): add truth matrix and claim audit` | Files: `apps/docs/**`, `README.md`, supporting docs authority notes
 
-- [ ] 12. Rewrite the Astro/Starlight orientation and Taskflow docs around the canonical seeded BMAD path
+- [ ] 12. Deferred to later seed extension
+
+  > Historical follow-on task body retained below as planning context only. It is not active for this branch.
 
   **What to do**: Rewrite the docs entry surfaces so they teach the actual seeded BMAD path rather than the current generic narrative. Update the homepage, getting-started, mental-model, and all Taskflow pages so they follow the canonical BMAD happy path using Taskflow as the single concrete example. The walkthrough must explicitly cover: analysis, planning, solutioning, the optional UX branch, readiness, and one story cycle. Taskflow pages must now explain why Chiron’s value shows up across those stages instead of stopping at the current generic slices.
   **Must NOT do**: Do not keep Taskflow as a generic placeholder detached from BMAD semantics. Do not describe VitePress-specific behavior or stale docs architecture. Do not imply unsupported runtime depth.
@@ -673,7 +654,9 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
 
   **Commit**: YES | Message: `docs(bmad): rewrite orientation and taskflow path` | Files: `apps/docs/src/content/docs/{index,getting-started,mental-model,taskflow/**}`
 
-- [ ] 13. Rewrite Design Time / Project Runtime / Reference docs and README to match the seeded BMAD truth
+- [ ] 13. Deferred to later seed extension
+
+  > Historical follow-on task body retained below as planning context only. It is not active for this branch.
 
   **What to do**: Update the rest of the docs corpus so it supports the rewritten Taskflow path. Design Time pages must explain how BMAD stages map into Chiron methodology entities. Project Runtime pages must explain how the first story cycle shows up in runtime state and evidence surfaces. Reference/claim-policy docs must reflect the new truth matrix. README must stop acting like a stale high-level handbook and instead point to the truthful Astro/Starlight docs and seeded BMAD path. Also add explicit supersession notes wherever old plan/docs assumptions would confuse future agents.
   **Must NOT do**: Do not leave Taskflow updated while Design Time/Runtime docs still describe the old generic or partial reality. Do not keep README as a parallel, conflicting conceptual source.
@@ -717,7 +700,9 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
 
   **Commit**: YES | Message: `docs(bmad): align design-time runtime and readme` | Files: `apps/docs/src/content/docs/**`, `README.md`, optional internal docs notes
 
-- [ ] 14. Rebase the thesis survey flow onto the completed seeded BMAD path and freeze its gates
+- [ ] 14. Deferred to later seed extension
+
+  > Historical follow-on task body retained below as planning context only. It is not active for this branch.
 
   **What to do**: Rework the survey assumptions so the experiment measures perception after the completed seeded BMAD flow, not the previous generic onboarding/docs path. Update the survey trigger contract, participant eligibility, questionnaire context wording, and any docs-site survey notes to reference the completed seeded BMAD track and first story cycle. The survey must remain blocked until the seeded-flow, runtime-proof, and docs-truth gates have passed. Ensure the questionnaire language reflects the actual BMAD path participants experienced.
   **Must NOT do**: Do not start survey work against the old generic Taskflow/onboarding model. Do not let the survey depend on unstable terminology or incomplete docs/runtime claims.
@@ -760,7 +745,9 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
 
   **Commit**: YES | Message: `feat(experiment): rebase survey onto seeded bmad flow` | Files: survey docs/specs, docs-site survey scaffolding, experiment contract notes
 
-- [ ] 15. Run integrated docs/site/survey verification and finalize the supersession cleanup
+- [ ] 15. Deferred to later seed extension
+
+  > Historical follow-on task body retained below as planning context only. It is not active for this branch.
 
   **What to do**: Execute the final integrated verification for the seeded BMAD track, docs rewrite, survey rebasing, and stale-plan cleanup. Confirm docs build/test on Astro/Starlight, seeded-path repository verification, survey gate assertions, and explicit supersession notes across the repository. Produce the final evidence package that proves the old docs/survey assumptions have been replaced by one truthful seeded BMAD track.
   **Must NOT do**: Do not leave stale plan references or contradictory framework assumptions behind. Do not rely on manual reading alone.
@@ -804,7 +791,7 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
 
   **Commit**: YES | Message: `test(bmad): verify master seeded track and cleanup` | Files: verification outputs, docs/spec cleanup, stale-reference removals
 
-## Final Verification Wave (MANDATORY — after ALL implementation tasks)
+## Final Verification Wave (MANDATORY — after ALL active implementation tasks)
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 > **Never mark F1-F4 as checked before getting user's okay.** Rejection or user feedback -> fix -> re-run -> present again -> wait for okay.
@@ -834,14 +821,11 @@ Wave 4: Survey layering, supersession cleanup, and integrated verification (Task
 
 ## Commit Strategy
 - Commit at workstream boundaries:
-  1. `feat(methodology): extend bmad seeded track through story cycle`
+  1. `feat(methodology): extend bmad seeded track through architecture`
   2. `feat(app): add in-app bmad methodology seeding`
-  3. `docs(bmad): rewrite taskflow and docs truth around seeded track`
-  4. `feat(experiment): gate survey on seeded bmad flow`
-- Keep supersession/readme/docs-claim cleanup in the docs commit unless build/test integrity requires a separate commit.
+  3. `docs(plan): freeze post-architecture scope as deferred`
 
 ## Success Criteria
-- A user can seed the BMad Method track from the app into a project and progress through one truthful, demonstrated story cycle in Chiron.
-- The public docs teach the seeded BMAD path as it actually exists, not as a generic or aspirational workflow.
-- Chiron preserves BMAD semantics while still mapping them cleanly into Chiron entities and runtime evidence surfaces.
-- The thesis survey measures perception after participants use the completed seeded flow, not a partial or mislabeled path.
+- A user can seed the BMad Method track from the app into a project and progress through a truthful seeded path that ends at Architecture in this branch.
+- Chiron preserves BMAD semantics while still mapping them cleanly into Chiron entities through the Architecture work unit.
+- Post-architecture BMAD stages are preserved as explicit deferred follow-on scope rather than implied complete.
