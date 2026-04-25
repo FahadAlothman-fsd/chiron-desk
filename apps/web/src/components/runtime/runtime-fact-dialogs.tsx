@@ -180,7 +180,7 @@ const getRuntimeFactDialogWidthClass = (editor: RuntimeDialogEditor): string => 
       return "sm:max-w-xl lg:max-w-xl";
     case "primitive":
       return editor.definition.factType === "json"
-        ? "sm:max-w-lg lg:max-w-lg"
+        ? "w-[min(72rem,calc(100vw-2rem))] sm:max-w-none"
         : "sm:max-w-md lg:max-w-md";
     case "bound_fact":
       return "sm:max-w-md lg:max-w-md";

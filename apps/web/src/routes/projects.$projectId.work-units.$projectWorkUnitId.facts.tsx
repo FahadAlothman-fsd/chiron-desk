@@ -191,7 +191,7 @@ function WorkUnitFactValuePresentation(props: {
     ) : (
       <div className="space-y-2">
         <ValidationHintBadges validation={validation} />
-        <pre className="whitespace-pre-wrap break-words border border-fuchsia-500/30 bg-fuchsia-500/10 p-2 text-xs text-fuchsia-100">
+        <pre className="overflow-x-auto whitespace-pre border border-fuchsia-500/30 bg-fuchsia-500/10 p-2 text-xs text-fuchsia-100">
           {JSON.stringify(value, null, 2)}
         </pre>
       </div>
@@ -1002,7 +1002,7 @@ export function ProjectWorkUnitFactsRoute() {
           }
         }}
       >
-        <DialogContent className="max-h-[min(88vh,52rem)] max-w-3xl overflow-y-auto rounded-none border border-border/80 bg-background">
+        <DialogContent className="max-h-[min(88vh,52rem)] w-[min(72rem,calc(100vw-2rem))] overflow-y-auto rounded-none border border-border/80 bg-background sm:max-w-none">
           <DialogHeader>
             <DialogTitle>
               {detail?.factDefinition.factName ??
