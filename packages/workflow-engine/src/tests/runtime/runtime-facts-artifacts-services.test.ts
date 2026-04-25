@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Effect, Layer } from "effect";
 import { MethodologyVersionBoundaryService } from "@chiron/methodology-engine";
 import { ProjectContextRepository } from "@chiron/project-context";
+import { SandboxGitService } from "@chiron/sandbox-engine";
 
 import {
   ArtifactRepository,
@@ -70,6 +71,21 @@ const projectContextLayer = Layer.succeed(ProjectContextRepository, {
   listProjects: () => Effect.succeed([]),
   getProjectById: () => Effect.succeed(null),
 });
+
+const sandboxGitLayer = Layer.succeed(SandboxGitService, {
+  getAvailability: () => Effect.die("unused"),
+  normalizeRepoRelativePath: (_rootPath: string, filePath: string) => Effect.succeed(filePath),
+  resolveArtifactReference: ({ filePath }: { rootPath: string; filePath: string }) =>
+    Effect.succeed({
+      status: "committed" as const,
+      relativePath: filePath,
+      gitCommitHash: "latest-hash",
+      gitBlobHash: "latest-blob",
+      gitCommitSubject: "latest subject",
+      gitCommitBody: null,
+    }),
+  compareRecordedArtifactReference: () => Effect.die("unused"),
+} as any);
 
 const methodologyVersionLayer = Layer.succeed(MethodologyVersionBoundaryService, {
   getVersionWorkspaceSnapshot: () =>
@@ -174,7 +190,16 @@ const methodologyVersionLayer = Layer.succeed(MethodologyVersionBoundaryService,
   createWorkUnitMetadata: () => Effect.die("unused"),
   updateWorkUnitMetadata: () => Effect.die("unused"),
   updateDraftLifecycle: () => Effect.die("unused"),
-  getWorkUnitArtifactSlots: () => Effect.die("unused"),
+  getWorkUnitArtifactSlots: () =>
+    Effect.succeed([
+      {
+        id: "slot-1",
+        key: "PROJECT_OVERVIEW",
+        displayName: "Project Overview",
+        cardinality: "single" as const,
+        templates: [],
+      },
+    ]),
   createWorkUnitArtifactSlot: () => Effect.die("unused"),
   updateWorkUnitArtifactSlot: () => Effect.die("unused"),
   deleteWorkUnitArtifactSlot: () => Effect.die("unused"),
@@ -398,6 +423,9 @@ const factLayer = RuntimeFactServiceLive.pipe(
 const artifactServiceLayer = RuntimeArtifactServiceLive.pipe(
   Layer.provideMerge(artifactLayer),
   Layer.provideMerge(projectWorkUnitLayer),
+  Layer.provideMerge(projectContextLayer),
+  Layer.provideMerge(methodologyVersionLayer),
+  Layer.provideMerge(sandboxGitLayer),
 );
 
 describe("RuntimeFactService + RuntimeArtifactService", () => {
@@ -449,6 +477,11 @@ describe("RuntimeFactService + RuntimeArtifactService", () => {
     const program = Effect.gen(function* () {
       const artifactService = yield* RuntimeArtifactService;
 
+      const slots = yield* artifactService.getArtifactSlots({
+        projectId: "project-1",
+        projectWorkUnitId: "wu-1",
+      });
+
       const detail = yield* artifactService.getArtifactSlotDetail({
         projectId: "project-1",
         projectWorkUnitId: "wu-1",
@@ -468,13 +501,23 @@ describe("RuntimeFactService + RuntimeArtifactService", () => {
         slotDefinitionId: "slot-1",
       });
 
-      return { detail, snapshot, freshness };
+      return { slots, detail, snapshot, freshness };
     }).pipe(Effect.provide(artifactServiceLayer));
 
     const result = await Effect.runPromise(program);
+    expect(result.slots.workUnit.workUnitTypeKey).toBe("TASK");
+    expect(result.slots.slots).toHaveLength(1);
+    expect(result.slots.slots[0]?.slotDefinition.slotKey).toBe("PROJECT_OVERVIEW");
+    expect(result.slots.slots[0]?.currentArtifactInstance.exists).toBe(true);
+    expect(result.slots.slots[0]?.currentArtifactInstance.previewFiles[0]?.filePath).toBe(
+      "docs/spec.md",
+    );
     expect(result.detail.currentArtifactInstance.exists).toBe(true);
     expect(result.detail.currentArtifactInstance.artifactInstanceId).toBe("snapshot-1");
+    expect(result.detail.slotDefinition.slotKey).toBe("PROJECT_OVERVIEW");
+    expect(result.detail.slotDefinition.slotName).toBe("Project Overview");
     expect(result.snapshot.artifactInstance.artifactInstanceId).toBe("snapshot-1");
+    expect(result.snapshot.slotDefinition.slotKey).toBe("PROJECT_OVERVIEW");
     expect(result.freshness.result).toBe("changed");
     expect(result.freshness.artifactInstanceId).toBe("snapshot-1");
   });

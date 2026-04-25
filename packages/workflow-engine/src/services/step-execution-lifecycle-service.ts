@@ -5,12 +5,13 @@ import { ProjectContextRepository } from "@chiron/project-context";
 import { RepositoryError } from "../errors";
 import { BranchStepRuntimeRepository } from "../repositories/branch-step-runtime-repository";
 import { ExecutionReadRepository } from "../repositories/execution-read-repository";
+import { ProjectWorkUnitRepository } from "../repositories/project-work-unit-repository";
 import {
   StepExecutionRepository,
   type RuntimeStepExecutionRow,
 } from "../repositories/step-execution-repository";
 import { WorkflowExecutionRepository } from "../repositories/workflow-execution-repository";
-import { evaluateRoutes } from "./branch-route-evaluator";
+import { evaluateRoutes, toProjectWorkUnitInstanceSummaries } from "./branch-route-evaluator";
 import { StepProgressionService } from "./step-progression-service";
 
 const makeLifecycleError = (cause: string): RepositoryError =>
@@ -50,6 +51,7 @@ export const StepExecutionLifecycleServiceLive = Layer.effect(
     const branchRuntimeRepo = yield* BranchStepRuntimeRepository;
     const executionReadRepo = yield* ExecutionReadRepository;
     const projectContextRepo = yield* ProjectContextRepository;
+    const projectWorkUnitRepo = yield* ProjectWorkUnitRepository;
     const lifecycleRepo = yield* LifecycleRepository;
     const methodologyRepo = yield* MethodologyRepository;
     const progression = yield* StepProgressionService;
@@ -83,19 +85,22 @@ export const StepExecutionLifecycleServiceLive = Layer.effect(
           return yield* makeLifecycleError("workflow work-unit type not found");
         }
 
-        const [branchDefinition, workflowEditor, contextFacts] = yield* Effect.all([
-          methodologyRepo.getBranchStepDefinition({
-            versionId: projectPin.methodologyVersionId,
-            workflowDefinitionId: params.workflowId,
-            stepId: params.stepDefinitionId,
-          }),
-          methodologyRepo.getWorkflowEditorDefinition({
-            versionId: projectPin.methodologyVersionId,
-            workUnitTypeKey: workUnitType.key,
-            workflowDefinitionId: params.workflowId,
-          }),
-          stepRepo.listWorkflowExecutionContextFacts(params.workflowExecutionId),
-        ]);
+        const [branchDefinition, workflowEditor, contextFacts, lifecycleStates, projectWorkUnits] =
+          yield* Effect.all([
+            methodologyRepo.getBranchStepDefinition({
+              versionId: projectPin.methodologyVersionId,
+              workflowDefinitionId: params.workflowId,
+              stepId: params.stepDefinitionId,
+            }),
+            methodologyRepo.getWorkflowEditorDefinition({
+              versionId: projectPin.methodologyVersionId,
+              workUnitTypeKey: workUnitType.key,
+              workflowDefinitionId: params.workflowId,
+            }),
+            stepRepo.listWorkflowExecutionContextFacts(params.workflowExecutionId),
+            lifecycleRepo.findLifecycleStates(projectPin.methodologyVersionId),
+            projectWorkUnitRepo.listProjectWorkUnitsByProject(workflowDetail.projectId),
+          ]);
 
         if (!branchDefinition) {
           return yield* makeLifecycleError("branch step definition not found");
@@ -108,6 +113,11 @@ export const StepExecutionLifecycleServiceLive = Layer.effect(
           })),
           contextFacts,
           contextFactDefinitions: workflowEditor.contextFacts,
+          projectWorkUnitInstances: toProjectWorkUnitInstanceSummaries({
+            projectWorkUnits,
+            workUnitTypeKeysById: new Map(workUnitTypes.map((row) => [row.id, row.key] as const)),
+            stateKeysById: new Map(lifecycleStates.map((row) => [row.id, row.key] as const)),
+          }),
         });
 
         yield* branchRuntimeRepo.createOnActivation({

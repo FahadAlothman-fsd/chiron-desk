@@ -220,6 +220,394 @@ describe("AgentStep MCP v2 services", () => {
     });
   });
 
+  it("returns a narrow referenced-work-unit package for explicit work-unit reference reads only", async () => {
+    const workflowEditorContextFacts = [
+      {
+        kind: "work_unit_reference_fact" as const,
+        contextFactDefinitionId: "ctx-source-brief",
+        key: "source-brief",
+        label: "Source Brief",
+        cardinality: "one" as const,
+        workUnitDefinitionId: "wu-type-brief",
+        linkType: "link-source-brief",
+      },
+    ];
+
+    const base = makeAgentStepRuntimeTestContext();
+
+    const ctx = makeAgentStepRuntimeTestContext({
+      workflowEditorContextFacts,
+      agentPayload: {
+        ...base.agentPayload,
+        explicitReadGrants: [{ contextFactDefinitionId: "ctx-source-brief" }],
+        writeItems: [],
+        completionRequirements: [],
+      },
+      lifecycleWorkUnitTypes: [
+        {
+          id: "wu-type-1",
+          methodologyVersionId: "version-1",
+          key: "setup",
+          displayName: "Setup",
+          descriptionJson: null,
+          guidanceJson: null,
+          cardinality: "many_per_project",
+          createdAt: new Date("2026-04-09T12:00:00.000Z"),
+          updatedAt: new Date("2026-04-09T12:00:00.000Z"),
+        },
+        {
+          id: "wu-type-brief",
+          methodologyVersionId: "version-1",
+          key: "product_brief",
+          displayName: "Product Brief",
+          descriptionJson: null,
+          guidanceJson: null,
+          cardinality: "many_per_project",
+          createdAt: new Date("2026-04-09T12:00:00.000Z"),
+          updatedAt: new Date("2026-04-09T12:00:00.000Z"),
+        },
+        {
+          id: "wu-type-research",
+          methodologyVersionId: "version-1",
+          key: "research",
+          displayName: "Research",
+          descriptionJson: null,
+          guidanceJson: null,
+          cardinality: "many_per_project",
+          createdAt: new Date("2026-04-09T12:00:00.000Z"),
+          updatedAt: new Date("2026-04-09T12:00:00.000Z"),
+        },
+      ],
+      lifecycleStates: [
+        {
+          id: "done-state",
+          methodologyVersionId: "version-1",
+          key: "done",
+          displayName: "Done",
+          descriptionJson: null,
+          guidanceJson: null,
+          position: 1,
+          createdAt: new Date("2026-04-09T12:00:00.000Z"),
+          updatedAt: new Date("2026-04-09T12:00:00.000Z"),
+        },
+      ],
+      artifactSlotsByWorkUnitTypeKey: {
+        product_brief: [
+          {
+            id: "slot-1",
+            methodologyVersionId: "version-1",
+            workUnitTypeId: "wu-type-brief",
+            key: "ARTIFACT",
+            displayName: "Artifact",
+            descriptionJson: null,
+            guidanceJson: null,
+            cardinality: "fileset",
+            rulesJson: null,
+            createdAt: new Date("2026-04-09T12:00:00.000Z"),
+            updatedAt: new Date("2026-04-09T12:00:00.000Z"),
+          },
+        ],
+      },
+      projectWorkUnits: [
+        {
+          id: "pwu-1",
+          projectId: "project-1",
+          workUnitTypeId: "wu-type-1",
+          workUnitKey: "setup-1",
+          instanceNumber: 1,
+          displayName: null,
+          currentStateId: "draft-state",
+          activeTransitionExecutionId: null,
+          createdAt: new Date("2026-04-09T12:00:00.000Z"),
+          updatedAt: new Date("2026-04-09T12:00:00.000Z"),
+        },
+        {
+          id: "wu-brief-1",
+          projectId: "project-1",
+          workUnitTypeId: "wu-type-brief",
+          workUnitKey: "product-brief-1",
+          instanceNumber: 1,
+          displayName: "Brief Alpha",
+          currentStateId: "done-state",
+          activeTransitionExecutionId: null,
+          createdAt: new Date("2026-04-09T12:00:01.000Z"),
+          updatedAt: new Date("2026-04-09T12:00:01.000Z"),
+        },
+        {
+          id: "wu-research-1",
+          projectId: "project-1",
+          workUnitTypeId: "wu-type-research",
+          workUnitKey: "research-1",
+          instanceNumber: 1,
+          displayName: "Research Beta",
+          currentStateId: "done-state",
+          activeTransitionExecutionId: null,
+          createdAt: new Date("2026-04-09T12:00:02.000Z"),
+          updatedAt: new Date("2026-04-09T12:00:02.000Z"),
+        },
+      ],
+      lifecycleFactSchemas: [
+        {
+          id: "wu-fact-brief-summary",
+          methodologyVersionId: "version-1",
+          workUnitTypeId: "wu-type-brief",
+          name: "Brief Summary",
+          key: "brief_summary",
+          factType: "json",
+          cardinality: "one",
+          validationJson: null,
+          description: null,
+          createdAt: new Date("2026-04-09T12:00:00.000Z"),
+          updatedAt: new Date("2026-04-09T12:00:00.000Z"),
+        },
+      ],
+      initialContextFacts: [
+        {
+          id: "fact-source-brief-1",
+          workflowExecutionId: "wfexec-1",
+          contextFactDefinitionId: "ctx-source-brief",
+          instanceOrder: 0,
+          valueJson: { projectWorkUnitId: "wu-brief-1" },
+          sourceStepExecutionId: null,
+          createdAt: new Date("2026-04-09T12:00:03.000Z"),
+          updatedAt: new Date("2026-04-09T12:00:03.000Z"),
+        },
+      ],
+      workUnitFactsByWorkUnitId: {
+        "wu-brief-1": [
+          {
+            id: "brief-fact-1",
+            projectWorkUnitId: "wu-brief-1",
+            factDefinitionId: "wu-fact-brief-summary",
+            valueJson: { summary: "Narrow explicit brief" },
+            referencedProjectWorkUnitId: null,
+            status: "active",
+            supersededByFactInstanceId: null,
+            producedByTransitionExecutionId: null,
+            producedByWorkflowExecutionId: "wfexec-brief-1",
+            authoredByUserId: null,
+            createdAt: new Date("2026-04-09T12:00:04.000Z"),
+          },
+          {
+            id: "brief-fact-old",
+            projectWorkUnitId: "wu-brief-1",
+            factDefinitionId: "wu-fact-brief-summary",
+            valueJson: { summary: "superseded" },
+            referencedProjectWorkUnitId: null,
+            status: "superseded",
+            supersededByFactInstanceId: "brief-fact-1",
+            producedByTransitionExecutionId: null,
+            producedByWorkflowExecutionId: "wfexec-brief-0",
+            authoredByUserId: null,
+            createdAt: new Date("2026-04-09T12:00:03.000Z"),
+          },
+        ],
+      },
+      currentArtifactState: {
+        exists: true,
+        snapshot: {
+          id: "artifact-brief-1",
+          projectWorkUnitId: "wu-brief-1",
+          slotDefinitionId: "slot-1",
+          recordedByTransitionExecutionId: null,
+          recordedByWorkflowExecutionId: "wfexec-brief-1",
+          recordedByUserId: null,
+          supersededByProjectArtifactSnapshotId: null,
+          createdAt: new Date("2026-04-09T12:00:05.000Z"),
+        },
+        members: [
+          {
+            id: "artifact-member-1",
+            artifactSnapshotId: "artifact-brief-1",
+            filePath: "planning/product-brief.md",
+            memberStatus: "present",
+            gitCommitHash: "commit-brief-1",
+            gitBlobHash: "blob-brief-1",
+            gitCommitTitle: "Add brief",
+            gitCommitBody: "body",
+          },
+        ],
+      },
+    });
+
+    const instances = await runMcp(ctx, {
+      version: "v2",
+      toolName: "read_context_fact_instances",
+      input: withHiddenStepExecutionId({ factKey: "source-brief" }),
+    });
+
+    expect(instances.response.toolName).toBe("read_context_fact_instances");
+    if (instances.response.toolName !== "read_context_fact_instances") {
+      throw new Error("expected read_context_fact_instances response");
+    }
+
+    expect(instances.response.output.instances).toHaveLength(1);
+    expect(instances.response.output.instances[0]).toMatchObject({
+      value: { projectWorkUnitId: "wu-brief-1" },
+      target: {
+        projectWorkUnitId: "wu-brief-1",
+        label: "Brief Alpha",
+        workUnitTypeKey: "product_brief",
+        currentStateKey: "done",
+        factInstances: [
+          {
+            factInstanceId: "brief-fact-1",
+            factDefinitionId: "wu-fact-brief-summary",
+            factKey: "brief_summary",
+            value: { summary: "Narrow explicit brief" },
+          },
+        ],
+        artifactSlotInstances: [
+          {
+            artifactInstanceId: "artifact-brief-1",
+            slotDefinitionId: "slot-1",
+            slotKey: "ARTIFACT",
+            files: [
+              {
+                filePath: "planning/product-brief.md",
+                gitCommitHash: "commit-brief-1",
+                gitBlobHash: "blob-brief-1",
+              },
+            ],
+          },
+        ],
+        artifactPaths: ["planning/product-brief.md"],
+      },
+    });
+
+    expect(JSON.stringify(instances.response.output)).not.toContain("wu-research-1");
+    expect(JSON.stringify(instances.response.output)).not.toContain("Research Beta");
+    expect(JSON.stringify(instances.response.output)).not.toContain("superseded");
+  });
+
+  it("adds the same narrow referenced-work-unit package for bound work-unit facts", async () => {
+    const workflowEditorContextFacts = [
+      {
+        kind: "bound_fact" as const,
+        contextFactDefinitionId: "ctx-source-architecture",
+        key: "source-architecture",
+        label: "Source Architecture",
+        cardinality: "one" as const,
+        factDefinitionId: "external-architecture-ref",
+        valueType: "work_unit" as const,
+        workUnitDefinitionId: "wu-type-architecture",
+      },
+    ];
+
+    const base = makeAgentStepRuntimeTestContext();
+    const ctx = makeAgentStepRuntimeTestContext({
+      workflowEditorContextFacts,
+      agentPayload: {
+        ...base.agentPayload,
+        explicitReadGrants: [{ contextFactDefinitionId: "ctx-source-architecture" }],
+        writeItems: [],
+        completionRequirements: [],
+      },
+      lifecycleWorkUnitTypes: [
+        {
+          id: "wu-type-1",
+          methodologyVersionId: "version-1",
+          key: "setup",
+          displayName: "Setup",
+          descriptionJson: null,
+          guidanceJson: null,
+          cardinality: "many_per_project",
+          createdAt: new Date("2026-04-09T12:00:00.000Z"),
+          updatedAt: new Date("2026-04-09T12:00:00.000Z"),
+        },
+        {
+          id: "wu-type-architecture",
+          methodologyVersionId: "version-1",
+          key: "architecture",
+          displayName: "Architecture",
+          descriptionJson: null,
+          guidanceJson: null,
+          cardinality: "many_per_project",
+          createdAt: new Date("2026-04-09T12:00:00.000Z"),
+          updatedAt: new Date("2026-04-09T12:00:00.000Z"),
+        },
+      ],
+      lifecycleStates: [
+        {
+          id: "approved-state",
+          methodologyVersionId: "version-1",
+          key: "approved",
+          displayName: "Approved",
+          descriptionJson: null,
+          guidanceJson: null,
+          position: 1,
+          createdAt: new Date("2026-04-09T12:00:00.000Z"),
+          updatedAt: new Date("2026-04-09T12:00:00.000Z"),
+        },
+      ],
+      projectWorkUnits: [
+        {
+          id: "pwu-1",
+          projectId: "project-1",
+          workUnitTypeId: "wu-type-1",
+          workUnitKey: "setup-1",
+          instanceNumber: 1,
+          displayName: null,
+          currentStateId: "draft-state",
+          activeTransitionExecutionId: null,
+          createdAt: new Date("2026-04-09T12:00:00.000Z"),
+          updatedAt: new Date("2026-04-09T12:00:00.000Z"),
+        },
+        {
+          id: "wu-architecture-1",
+          projectId: "project-1",
+          workUnitTypeId: "wu-type-architecture",
+          workUnitKey: "architecture-1",
+          instanceNumber: 1,
+          displayName: "Architecture Alpha",
+          currentStateId: "approved-state",
+          activeTransitionExecutionId: null,
+          createdAt: new Date("2026-04-09T12:00:01.000Z"),
+          updatedAt: new Date("2026-04-09T12:00:01.000Z"),
+        },
+      ],
+      initialContextFacts: [
+        {
+          id: "fact-source-architecture-1",
+          workflowExecutionId: "wfexec-1",
+          contextFactDefinitionId: "ctx-source-architecture",
+          instanceOrder: 0,
+          valueJson: {
+            factInstanceId: "external-fact-1",
+            value: { projectWorkUnitId: "wu-architecture-1" },
+          },
+          sourceStepExecutionId: null,
+          createdAt: new Date("2026-04-09T12:00:03.000Z"),
+          updatedAt: new Date("2026-04-09T12:00:03.000Z"),
+        },
+      ],
+    });
+
+    const instances = await runMcp(ctx, {
+      version: "v2",
+      toolName: "read_context_fact_instances",
+      input: withHiddenStepExecutionId({ factKey: "source-architecture" }),
+    });
+
+    expect(instances.response.toolName).toBe("read_context_fact_instances");
+    if (instances.response.toolName !== "read_context_fact_instances") {
+      throw new Error("expected read_context_fact_instances response");
+    }
+
+    expect(instances.response.output.instances[0]).toMatchObject({
+      value: {
+        factInstanceId: "external-fact-1",
+        value: { projectWorkUnitId: "wu-architecture-1" },
+      },
+      target: {
+        projectWorkUnitId: "wu-architecture-1",
+        label: "Architecture Alpha",
+        workUnitTypeKey: "architecture",
+        currentStateKey: "approved",
+      },
+    });
+  });
+
   it("enforces active-session gating and requirement gating for v2 writes", async () => {
     const ctx = makeAgentStepRuntimeTestContext();
 
