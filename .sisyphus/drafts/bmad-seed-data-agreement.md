@@ -1,0 +1,172 @@
+# Draft: BMAD Seed Data Agreement
+
+## Requirements (confirmed)
+- user wants to agree on the exact seeded data before execution
+- review must go work unit by work unit
+- for each work unit, show facts, fact types, artifact slots, transitions, states, and workflows
+- preserve BMAD semantics first, then map into Chiron
+- add a `course correction` work unit to the seeded BMAD track
+- backlog / sprint-planning should likely be modeled around setting up the next set of stories to work on
+- original hypothesis was to keep `Backlog` and `Sprint Plan` as separate work units; superseded by 12-hour MVP decision to collapse Sprint Plan behavior into Backlog
+- `Course Correction` operates across the active plan, not just stories or just planning docs
+- include `Retrospective` in the initial seeded methodology
+- treat `workflow_mode`, `scan_level`, `branch_note`, and `deep_dive_target` as context facts only, not core work-unit facts
+- use `invoke` inside the Setup workflow
+- structure Setup primarily around the `greenfield` / `brownfield` split
+- do not add lifecycle states like `in_progress` unless they provide unique value beyond workflow step sequencing
+- Setup should be designed as a broad workflow that can internally invoke downstream work rather than relying on coarse transition splits
+- `requires_brainstorming`, `requires_research`, and `requires_product_brief` are likely workflow-internal routing facts, not externally meaningful end-state facts
+- Setup may support optional deferral of brainstorming / research / product brief instead of forcing them before Setup is considered complete
+- remove `display` as a step type from the methodology; it is no longer needed
+- re-ground all workflow design in the actual implemented step-type code semantics, not assumptions
+- specifically verify what `action` does today before using it in any proposed workflow
+- remove `display` completely from the product and plan it as explicit cleanup work
+- treat `action` as a generic automation engine whose currently-implemented action kind is `propagation`
+- explain exactly what is uneven about the current `agent` step runtime/read-model surface
+- redesign `Setup` in terms of: work-unit facts, workflow context facts, workflow steps, and propagated values
+- account for cardinality interactions across facts, work units, and artifact slots
+- Setup workflow should be agent-centric after the initial project-kind branch
+- greenfield Setup must explicitly focus on understanding what the user wants to build
+- use agents heavily to showcase Chiron's agent-native value rather than over-decomposing into many small forms/branches
+- JSON facts are acceptable for complex analysis, but each JSON fact needs an explicit subschema
+- Setup must include `PROJECT_CONTEXT` as an artifact slot definition for generated/discovered project-context handoff artifacts
+
+## Technical Decisions
+- reopen planning interview at the seed-contract level
+- extract current seeded truth first, then propose missing BMAD stages
+- correct the contract level: work units are BMAD entities; `create-prd`, `create-architecture`, etc. are workflows on those work units, not work units themselves
+- think at workflow/step-graph scope, not only state-transition scope; agentic workflows may be single-step or invoke-driven while still expressing rich routing
+- replace any previously proposed `display` usage with other existing step types
+- pause workflow-shape design until code-level step-type semantics are verified
+- revised Setup workflow keeps first two steps (intake form, greenfield/brownfield branch) and refactors most later routing into path-specific agent steps
+- Setup intake should not ask the user to describe what they want to build because string inputs are one-line only; greenfield build intent should be elicited in the greenfield agent step
+- brownfield users should not be required to describe the project up front; the agent should inspect/traverse the repo and set up context with low friction
+- brownfield may use a post-branch form for scan/workflow mode only if necessary, but prefer agent-driven explanation and discovery
+- Setup should optimize for least-friction user journey through BMAD project setup
+- brownfield path includes an optional form for `scan_level_ctx` and `workflow_mode_ctx`, using help text to explain every option
+- the brownfield agent step follows that form and receives scan/workflow mode context
+- take full advantage of design-time step configuration such as field labels/help/options/defaults/guidance where available
+- optional analysis invokes should be modeled as conditional branch-before-invoke chains because invoke steps do not own condition logic
+- workflow may need repeated propagation/binding between invokes so child transition start gates can be meaningfully satisfied
+- Brainstorming selected techniques should use `workflow_ref_fact`, not separate boolean routing facts
+- Correction from TaskFlow walkthrough: Setup must not preselect Brainstorming technique workflow refs because Setup does not own/access Brainstorming's supporting workflow catalog in the current model
+- Correction from TaskFlow walkthrough: Brainstorming and Research are independent work units and do not require Setup to run
+- Setup may invoke Brainstorming or Research with plain prefilled topic/goals/questions, but must not bind Setup artifacts like `PROJECT_CONTEXT` because Brainstorming/Research cannot currently dereference another work unit's artifacts
+- Brainstorming starts with an agent step that determines/refines topic, goals, and selected technique workflow refs from its own input facts
+- Brainstorming can then invoke all selected technique workflows in one fact-backed workflow invoke step
+- Platform enhancement candidate: work units with cardinality `one` may become globally available MCP context for agents, so canonical project-level units like Setup / Project Context can be checked or read without explicit per-workflow binding
+- Platform enhancement candidate: facts of type `work_unit_reference` should expose a controlled dereferenced read model that can include selected fact instances and artifact slot instances from the referenced work unit
+- These global singleton and dereferenced-reference enhancements are useful future Chiron capabilities but are deferred from the immediate 12-hour BMAD seed MVP unless implementation proves trivial
+- Product Brief exception for MVP: when Product Brief has explicit `brainstorming_work_unit_ref` or `research_work_unit_refs`, its agent MCP/read model should expose referenced work-unit metadata, active facts, and artifact slot file paths so the agent can read Brainstorming/Research outputs
+- This Product Brief read model is narrow and explicit: it applies only to bound work-unit-reference inputs for the current workflow, not global graph traversal
+- Implementation target identified: refactor MCP `read_context_fact_instances` / `readContextFactInstances` for `work_unit_reference_fact` rows and bound facts whose underlying value is a work-unit reference to include a dereferenced read package
+- Current code already returns `target: buildWorkUnitCandidateSummary(...)` for `work_unit_reference_fact`, but that summary is metadata-only; expand it with active fact instances and artifact slot file paths
+- Relevant implementation files: `apps/server/src/mcp/route.ts` output schema and `packages/workflow-engine/src/services/runtime/agent-step-mcp-service.ts` `readContextFactInstances`
+- Brainstorming only needs a branch before technique invoke to check whether selected technique workflow refs exist
+- Supporting technique workflows communicate back to the primary Brainstorming workflow through shared Brainstorming work-unit facts, not shared workflow-local context
+- Supporting technique workflows need their own context facts defined explicitly
+- next work unit to design: `Research`
+- Research must be grounded in BMAD docs and upstream BMAD-METHOD repo, not inferred only from current Chiron seed
+- Setup must define and propagate methodology/project facts for repo directories such as planning artifacts and project documentation/knowledge directories
+- Setup spec is now agreed in shape and ready to be written as a full canonical seed contract
+- Project Context belongs in Setup as an artifact slot (`PROJECT_CONTEXT`), not as a durable setup fact, because it is document-like implementation-agent context
+- Research is `many_per_project`; market/domain/technical are concrete first-class workflows on the Research work unit, not separate work units
+- Research completion should require both structured `research_synthesis` and the `RESEARCH_REPORT` artifact
+- BMAD's six research phases should be embedded inside the Research agent step rather than represented as six separate Chiron steps
+- Product Brief is `many_per_project` because BMAD allows separate briefs for separate ideas, but PRD must bind to one chosen source brief
+- Product Brief canonical output is `PRODUCT_BRIEF`; optional overflow/LLM context belongs in `PRODUCT_BRIEF_DISTILLATE`
+- Product Brief should be agent-driven: understand intent before scanning artifacts, then contextual discovery, elicitation, draft/review, finalize
+- PRD is `many_per_project`; each PRD must bind to one chosen source Product Brief or direct source context
+- PRD canonical output is a single `PRD` artifact and the PRD facts are the downstream capability contract
+- BMAD PRD micro-step architecture should be preserved inside a smaller number of Chiron agent steps rather than modeled as 13 rigid workflow steps initially
+- UX Design is `many_per_project` and optional for non-UI projects, but first-class when interaction design or visual UI matters
+- UX Design canonical output is `UX_DESIGN_SPECIFICATION`; supporting visual outputs are optional artifact slots `UX_COLOR_THEMES` and `UX_DESIGN_DIRECTIONS`
+- UX Design Requirements (`UX-DR#`) must be extracted as a first-class downstream requirement stream for Backlog/Epics
+- Architecture is `many_per_project` and requires a PRD source; it may consume UX Design, Research, Project Context, and docs when available
+- Architecture canonical output is `ARCHITECTURE_DOCUMENT`; optional individual ADRs belong in `ARCHITECTURE_DECISION_RECORDS`
+- Architecture must produce structured architecture decisions, implementation patterns, project structure, requirements coverage, validation results, and architecture-derived requirements for Backlog/Epics
+- Implementation Readiness is not a standalone work unit in the 12-hour MVP; it is a Backlog readiness workflow/transition
+- Backlog owns the canonical `READINESS_REPORT`; it validates PRD, Architecture, Backlog/Epics/Stories, and optional UX Design alignment
+- Backlog readiness status drives the next transition: `ready_for_sprint_planning` when ready, or Backlog/PRD/UX/Architecture/Course Correction remediation when not ready
+- Backlog is the Chiron work unit for BMAD Create Epics and Stories; `create_epics_and_stories` is the workflow on that work unit
+- Backlog is `many_per_project`, binding to one source PRD and one source Architecture baseline, with optional UX Design, Research, Product Brief, and Project Context inputs
+- Backlog output is the canonical `EPICS_AND_STORIES` artifact plus structured facts for input documents, requirements inventory, coverage map, epic design, story inventory, and backlog validation
+- Backlog should preserve BMAD's four source steps as four agent-heavy Chiron steps: requirements extraction, epic design, story generation, and final validation
+- BMAD interactive approvals for requirements, epic list, and stories are handled inside agent collaboration/checkpoints, not with `display` steps
+- Backlog runs its own readiness gate after draft propagation; active working-set planning must wait for Backlog readiness to pass
+- Standalone Sprint Plan is superseded for the 12-hour MVP; Sprint Planning/status behavior lives on Backlog
+- Backlog owns the canonical `SPRINT_STATUS` artifact, equivalent to BMAD `sprint-status.yaml`, plus structured facts for metadata, selected working set, status entries, status detection, validation, findings, and next recommended story keys
+- Backlog models BMAD sprint/status tracking as structured facts while still producing the YAML-like `SPRINT_STATUS` artifact for compatibility with Create Story / Dev Story / Sprint Status semantics
+- Backlog active-working-set planning selects one or many dependency-safe story keys and persists durable selected-story payload; `start_selected_stories` then prepares workflow-local `selected_story_draft_specs_ctx` and invokes Story activation only
+- Story is the Chiron work unit for one selected BMAD backlog story key; it is invoked by Backlog from the selected working set through `activation_to_ready_for_dev` / `create_story`
+- Story has multiple workflows on the same work unit: `create_story`, `start_dev_story`, `dev_story`, and `code_review`
+- Story artifact slots are broader delivery evidence, not just markdown: `STORY_DOCUMENT`, `CODE_CHANGE_FILESET`, `TEST_DOCUMENT`, and optional `DEFERRED_WORK`
+- Retrospective is a standalone many-per-project work unit that analyzes completed Backlog working sets / story slices and may recommend Course Correction; it does not mutate planning or story artifacts directly
+- Retrospective availability needs project-level work-unit existence condition operators, distinct from “specific work-unit reference is attached”:
+  - `work_unit_instance_exists(workUnitTypeKey, minCount?)` — true when the project has at least N instances of a work-unit type in any state
+  - `work_unit_instance_exists_in_state(workUnitTypeKey, stateKeys, minCount?)` — true when the project has at least N instances of a work-unit type in one of the specified states
+- Both new work-unit existence operators must be implemented in the transition gate condition engine and the branch condition engine
+- Retrospective's first workflow steps should discover/select the actual story set; `source_story_work_units` is a many-cardinality `work_unit_reference_fact` populated by agent/user selection
+- Course Correction is a standalone many-per-project work unit that identifies affected work units/artifacts, produces `SPRINT_CHANGE_PROPOSAL`, applies/commits approved artifact updates, and relies on Chiron artifact freshness (`is_fresh`) guards to expose affected work-unit refinement transitions
+- Course Correction must not force affected work-unit state changes directly; PRD/UX/Architecture/Backlog/Story each own their own stale-artifact refinement or revalidation transitions
+- Product Brief/PRD/UX/Architecture/Backlog agents need narrow referenced-work-unit read packages in MVP: only explicitly bound `work_unit_reference_fact` inputs expose referenced metadata, active facts, and artifact slot paths/commit references
+- In-app seed button MVP semantics: idempotent global BMAD methodology seed/update; repeated clicks must not create duplicate methodology/version rows, and projects can select/pin the seeded methodology
+- Course Correction write authority clarified: Course Correction writes its own `SPRINT_CHANGE_PROPOSAL` and may apply/commit approved edits to affected work-unit artifacts; affected work units do not have state forced, but detect stale recorded artifact commits via `is_fresh` and handle refinement through their own transitions
+- Course Correction should expose affected work-unit refs by type where useful: affected PRDs, UX Designs, Architectures, Backlogs, Stories, plus affected artifact metadata and update commit references
+- Story lifecycle states are `ready_for_dev`, `in_progress`, `review`, and `done`; the BMAD `backlog` status remains a Backlog status before Story activation, not a Story state
+- Story ownership boundary confirmed in draft: `create_story` authors the story spec, `dev_story` implements and moves to review, `code_review` verifies and moves to done or back to in_progress
+- Story updates Backlog / `SPRINT_STATUS` at status boundaries: ready-for-dev, in-progress, review, done/return-to-in-progress
+- Story structural review confirmed: `create_story`, `dev_story`, and `code_review` remain workflows on the same Story work unit, not separate work units
+- Story does not have a materialized `backlog` state in the MVP; Backlog stores unstarted stories as structured `story_inventory` data
+- Epic is structured data inside Backlog for the MVP, not a separate materialized work unit
+- Story links to Backlog and stores `epic_key`; Story dependency work-unit refs are populated only when referenced Story work units already exist
+- Platform enabler needed: condition engines must support project-level work-unit instance existence operators in both transition gates and branch routes
+- Implementation must update existing seeded methodology rows where needed, not only append new BMAD work units/workflows; existing Setup/Brainstorming/Research seed definitions may need correction to match the agreed model
+- First implementation features/refactors before full BMAD seeding:
+  1. add an in-app button/action on the Methodologies list page to seed the methodology so the flow is product-testable
+  2. add work-unit instance existence condition operators for transition gates and branch routes: `work_unit_instance_exists` and `work_unit_instance_exists_in_state`
+- The per-work-unit draft spec files in `.sisyphus/drafts/bmad-work-unit-*.md` must be preserved as living refinement references during implementation; cleanup should not delete them
+- Seed rollout should be section-based with manual review checkpoints, not a single all-at-once seed drop
+- First seeded/tested section should cover the planning path through PRD and Architecture using the TaskFlow example before adding the Backlog/Story/Retrospective/Course Correction section
+- Planning split confirmed: create one larger BMAD Seed + Chiron Enablers implementation plan first; create Docs + Survey plan only after the seeded flow proves out
+- Seed + Chiron Enablers plan scope now includes: in-app seed button, full BMAD seed, and platform refactors needed to make seeded BMAD less rigid and properly graph-aware
+- 12-hour MVP correction: defer graph-native Epic work units and referenced-work-unit fact dereferencing refactors from the immediate seed proof
+- 12-hour MVP correction: collapse Sprint Plan into Backlog as additional Backlog workflows instead of a separate Sprint Plan work unit
+- Immediate MVP work-unit shape: Backlog owns epics/story inventory, sprint-status tracking, active working-set selection, and selected Story invocation
+- Full journey structural review confirmed: combined Backlog scope is accepted for the 12-hour MVP; it owns BMAD Create Epics/Stories plus sprint/status/working-set control
+- Immediate MVP Story shape: Story work units are created only for selected story keys from Backlog; Story does not need a materialized `backlog` state for the MVP
+- Immediate MVP Epic shape: Epic remains structured data inside Backlog (`epic_design`, story inventory, coverage maps), not a separate materialized work unit
+- Deferred future enhancement: materialize Epic and all Story instances as a graph once Chiron supports state-aware living-instance draft specs and dereferenced work-unit-reference fact reads
+
+## Research Findings
+- current seed truth is known to exist for setup, brainstorming, and research
+- missing BMAD stages still need explicit seeded-data proposal
+- code-grounded step types are `form`, `agent`, `action`, `invoke`, `branch`, `display`
+- `action` is a propagation engine: it pushes workflow context facts outward to project/work-unit facts and artifact instances; it is not a summary/display step
+- `form` and `agent` write primarily to workflow execution context facts
+- `invoke` creates/activates child workflows or work units and can bind facts/artifacts into them
+- `branch` evaluates routes from workflow context facts and requires an explicit selected target
+- `display` exists in contracts but is deferred/unimplemented at runtime and should not be used in the setup design
+- `agent` is strong in design-time config and harness/runtime services, but the main step-detail/read-model surface still falls back to deferred messaging in some places
+- `action` runtime today is propagation-only, but its contract shape is generic enough to evolve with more action kinds later
+- current seed already has methodology-level facts for `project_knowledge_directory`, `planning_artifacts_directory`, `repository_type`, `project_parts`, `technology_stack_by_part`, `existing_documentation_inventory`, and `integration_points`; Setup should intentionally populate/update the relevant project fact instances
+- BMAD Research has three relevant variants for the seeded track: Market Research, Domain Research, and Technical Research; each produces a report and downstream implications for Product Brief / PRD / Architecture / later execution work
+- BMAD Product Brief has five stages: understand intent, contextual discovery, guided elicitation, draft/review, finalize; the output is a 1-2 page executive brief and optional detail pack for PRD creation
+- BMAD PRD creation builds a dense, polished requirements document through initialization, discovery/classification, vision/executive summary, success criteria, user journeys, optional domain/innovation analysis, project-type requirements, scoping, FRs, NFRs, polish, and completion
+- BMAD UX Design creates a comprehensive specification through project understanding, core/emotional experience, inspiration, design system choice, visual foundation, design direction mockups, user flows, component strategy, UX consistency patterns, and responsive/accessibility strategy
+- BMAD Architecture creates a decision document through input validation, context analysis, starter/template evaluation, core decisions, implementation patterns, project structure/boundaries, validation, and handoff
+- BMAD Implementation Readiness validates document inventory, PRD FR/NFR extraction, epic coverage, UX alignment, epic/story quality, and final readiness status before implementation starts
+- BMAD Create Epics and Stories validates required PRD and Architecture inputs, optionally consumes UX Design, extracts FRs/NFRs/additional architecture requirements/UX-DRs, designs user-value epics, generates sequential stories with Given/When/Then acceptance criteria, and performs final coverage/dependency validation
+- BMAD Backlog guardrails include: no technical-layer epics, no future-story dependencies, no up-front all-table/entity setup, complete FR coverage, UX-DR coverage when UX exists, and starter-template setup in Epic 1 Story 1 when Architecture specifies one
+- BMAD Sprint Planning parses epics/stories into status keys, creates ordered epic/story/retrospective entries, detects existing story files, preserves advanced statuses, generates sprint-status tracking, and validates coverage/status legality/order
+- BMAD Sprint Status reads sprint-status tracking, classifies entries, detects risks, and recommends next workflows such as create-story, dev-story, code-review, retrospective, or course-correction
+- BMAD Create Story creates a comprehensive implementation-ready story file from sprint-status, epics, PRD, architecture, UX, project context, previous story learnings, git intelligence, and latest technical context
+- BMAD Dev Story consumes the story file, implements only mapped tasks/subtasks, follows validation gates, updates allowed story sections only, and moves the story to review
+- BMAD Code Review runs adversarial review layers, triages findings, writes review findings to the story, and either moves the story to done or returns it to in-progress
+
+## Open Questions
+- confirm the corrected work-unit layer before drilling into facts/artifact slots/states/transitions/workflows per unit
+
+## Scope Boundaries
+- INCLUDE: seeded work-unit contract details, BMAD-native workflow outputs, agreement before execution
+- EXCLUDE: code implementation before seed-contract agreement
