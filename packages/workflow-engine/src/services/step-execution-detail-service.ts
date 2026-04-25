@@ -172,27 +172,30 @@ function nestedFieldsFromValidation(
     return undefined;
   }
 
+  const required = Array.isArray(validation.schema?.required)
+    ? new Set(
+        validation.schema.required.filter((entry): entry is string => typeof entry === "string"),
+      )
+    : new Set<string>();
+
   if (validation.subSchema?.type === "object") {
     return validation.subSchema.fields.map((field) => ({
       key: field.key,
       label: humanizeKey(field.key),
       factType: field.type,
       cardinality: field.cardinality,
-      required: false,
+      required: required.has(field.key),
       description: extractMarkdown(field.description),
       ...(field.validation ? { validation: field.validation } : {}),
+      ...(field.validation
+        ? { options: optionListFromValidation(parseValidation(field.validation)) }
+        : {}),
     }));
   }
 
   if (!isRecord(validation.schema) || !isRecord(validation.schema.properties)) {
     return undefined;
   }
-
-  const required = Array.isArray(validation.schema.required)
-    ? new Set(
-        validation.schema.required.filter((entry): entry is string => typeof entry === "string"),
-      )
-    : new Set<string>();
 
   return Object.entries(validation.schema.properties).flatMap(([key, property]) => {
     if (!isRecord(property) || typeof property.type !== "string") {
@@ -224,7 +227,10 @@ function nestedFieldsFromValidation(
             ? (property.cardinality as FactCardinality)
             : ("one" as const),
         required: required.has(key),
-        validation,
+        ...(property.validation ? { validation: property.validation } : {}),
+        ...(property.validation
+          ? { options: optionListFromValidation(parseValidation(property.validation)) }
+          : {}),
       } satisfies RuntimeFormNestedField,
     ];
   });
@@ -643,6 +649,8 @@ function buildResolvedField(params: {
             : params.contextFact.valueType) as FactType,
           cardinality: params.contextFact.cardinality,
           renderedMultiplicity,
+          validation:
+            "validationJson" in params.contextFact ? params.contextFact.validationJson : undefined,
         }),
       };
     case "bound_fact": {

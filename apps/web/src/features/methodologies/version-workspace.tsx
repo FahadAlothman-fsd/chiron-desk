@@ -11,7 +11,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { RUNTIME_DEFERRED_RATIONALE } from "./foundation";
 import { VersionWorkspaceGraph } from "./version-workspace-graph";
 
 export type MethodologyVersionWorkspaceDraft = {
@@ -2641,18 +2640,6 @@ export function MethodologyVersionWorkspace({
                   }}
                 />
               </label>
-            </section>
-
-            <section className="chiron-frame-flat chiron-tone-runtime p-3">
-              <p className="chiron-tone-kicker text-[0.68rem] uppercase tracking-[0.18em]">
-                Runtime
-              </p>
-              <div className="mt-3 flex items-center gap-3">
-                <Button aria-disabled="true" disabled variant="outline" className="rounded-none">
-                  Runtime Execution (Epic 3+)
-                </Button>
-                <p className="text-xs text-muted-foreground">{RUNTIME_DEFERRED_RATIONALE}</p>
-              </div>
             </section>
           </div>
         ) : (

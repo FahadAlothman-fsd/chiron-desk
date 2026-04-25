@@ -1,5 +1,4 @@
 import {
-  RUNTIME_DEFERRED_RATIONALE,
   selectLatestDraft,
   sortCatalogDeterministically,
   type MethodologyCatalogItem,
@@ -20,7 +19,6 @@ export const METHODOLOGY_COMMAND_IDS = {
   CREATE_WORK_UNIT: "CMD-CREATE-WORK-UNIT",
   CREATE_LINK_TYPE: "CMD-CREATE-LINK-TYPE",
   OPEN_DRAFT: "CMD-OPEN-DRAFT",
-  SYS_RUNTIME_DEFERRED: "CMD-SYS-RUNTIME-DEFERRED",
 } as const;
 
 export type MethodologyCommandId =
@@ -191,15 +189,6 @@ export function buildMethodologyCommands(input: MethodologyCommandInput): Method
       disabledReason: latestDraft ? null : "No draft version exists for this methodology",
       targetMethodologyKey,
       targetVersionId,
-    },
-    {
-      id: METHODOLOGY_COMMAND_IDS.SYS_RUNTIME_DEFERRED,
-      label: "Runtime Execution (Epic 3+)",
-      group: "System",
-      shortcut: null,
-      disabledReason: RUNTIME_DEFERRED_RATIONALE,
-      targetMethodologyKey: null,
-      targetVersionId: null,
     },
   ];
 }

@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { describe, it } from "vitest";
 
 import {
-  RUNTIME_DEFERRED_RATIONALE,
   getDeterministicState,
   selectLatestDraft,
   sortCatalogDeterministically,
@@ -94,9 +93,5 @@ describe("methodology foundation helpers", () => {
     ]);
 
     assert.equal(latest?.id, "3");
-  });
-
-  it("keeps exact runtime defer rationale copy", () => {
-    assert.equal(RUNTIME_DEFERRED_RATIONALE, "Workflow runtime execution unlocks in Epic 3+");
   });
 });
