@@ -158,8 +158,8 @@ function createHarness(options: HarnessOptions = {}) {
                       {
                         workflowKey: "default-wf",
                         enabled: false,
-                        disabledReason: "Workflow runtime execution unlocks in Epic 3+",
-                        helperText: "Execution is enabled in Epic 3 after start-gate preflight.",
+                        disabledReason: null,
+                        helperText: null,
                       },
                     ],
                   },

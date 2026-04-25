@@ -82,16 +82,4 @@ describe("projects route", () => {
     const openProjectLink = await screen.findByRole("link", { name: "Open Project" });
     expect(openProjectLink.getAttribute("href")).toBe("/projects/$projectId");
   });
-
-  it("retains runtime boundary copy in overview page", async () => {
-    const { queryClient } = createTestHarness();
-
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ProjectsRoute />
-      </QueryClientProvider>,
-    );
-
-    expect(await screen.findByText("Workflow runtime execution unlocks in Epic 3+")).toBeTruthy();
-  });
 });

@@ -210,8 +210,6 @@ describe("runtime project overview route", () => {
     expect(markup).toContain(
       'href="/projects/$projectId/workflow-executions/$workflowExecutionId"',
     );
-    expect(markup).not.toContain("Runtime Execution (Epic 3+)");
-
     expect(getRuntimeOverviewQueryOptionsMock).toHaveBeenCalledWith({
       input: { projectId: "project-1" },
     });

@@ -27,8 +27,6 @@ const getProjectDetailsInput = z.object({
   workUnitTypeKey: z.string().min(1).optional(),
 });
 
-const runtimeDeferredReason = "Workflow runtime execution unlocks in Epic 3+" as const;
-
 const flattenScopedTransitionWorkflowBindings = (
   value: unknown,
 ): Record<string, readonly string[]> => {
@@ -641,8 +639,8 @@ export function createProjectRouter(
                   return {
                     workflowKey,
                     enabled: false,
-                    disabledReason: runtimeDeferredReason,
-                    helperText: "Execution is enabled in Epic 3 after start-gate preflight.",
+                    disabledReason: null,
+                    helperText: null,
                     guidance:
                       workflowDefinition?.guidance ??
                       layeredGuidance?.byWorkflow?.[workflowKey] ??

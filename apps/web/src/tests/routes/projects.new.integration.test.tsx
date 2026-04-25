@@ -24,7 +24,6 @@ vi.mock("@/features/methodologies/workspace-shell", () => ({
 }));
 
 vi.mock("@/features/methodologies/foundation", () => ({
-  RUNTIME_DEFERRED_RATIONALE: "Deferred",
   getDeterministicState: ({
     isLoading,
     hasError,

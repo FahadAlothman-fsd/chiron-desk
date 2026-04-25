@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { ArrowRightIcon } from "lucide-react";
 import { Result } from "better-result";
 
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -41,8 +40,8 @@ export type BaselineTransition = {
   workflows: Array<{
     workflowKey: string;
     enabled: false;
-    disabledReason: string;
-    helperText: string;
+    disabledReason?: string | null;
+    helperText?: string | null;
   }>;
 };
 
@@ -321,23 +320,11 @@ export function BaselineVisibilitySection({
                               className="flex flex-wrap items-center gap-2 border border-border/70 bg-background/60 p-2"
                             >
                               <span className="font-medium">{workflow.workflowKey}</span>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className="rounded-none"
-                                aria-disabled="true"
-                                onClick={(event) => event.preventDefault()}
-                                onKeyDown={(event) => {
-                                  if (event.key === "Enter" || event.key === " ") {
-                                    event.preventDefault();
-                                  }
-                                }}
-                              >
-                                Execute (Epic 3+)
-                              </Button>
-                              <span className="text-muted-foreground">
-                                {workflow.disabledReason}
-                              </span>
+                              {workflow.disabledReason ? (
+                                <span className="text-muted-foreground">
+                                  {workflow.disabledReason}
+                                </span>
+                              ) : null}
                             </li>
                           ))}
                         </ul>

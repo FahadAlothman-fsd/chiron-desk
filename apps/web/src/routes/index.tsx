@@ -5,10 +5,7 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  RUNTIME_DEFERRED_RATIONALE,
-  getDeterministicState,
-} from "@/features/methodologies/foundation";
+import { getDeterministicState } from "@/features/methodologies/foundation";
 import { MethodologyWorkspaceShell } from "@/features/methodologies/workspace-shell";
 import { cn } from "@/lib/utils";
 
@@ -86,33 +83,6 @@ function HomeComponent() {
           >
             Open methodologies
           </Link>
-        </Card>
-
-        <Card frame="cut-thick" tone="runtime" className="space-y-2 p-4">
-          <p className="text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-            Workflow executions
-          </p>
-          <p className="text-sm">{RUNTIME_DEFERRED_RATIONALE}</p>
-          <p className="text-xs text-muted-foreground">
-            Context preview (
-            {latestProjectDetailsQuery.data?.baselinePreview?.transitionPreview.workUnitTypeKey ??
-              "n/a"}
-            )
-          </p>
-          <p className="text-xs text-muted-foreground">
-            eligible {transitionCounts.eligible} | blocked {transitionCounts.blocked} | future{" "}
-            {transitionCounts.future}
-          </p>
-          {latestProject ? (
-            <Link
-              to="/projects/$projectId/transitions"
-              params={{ projectId: latestProject.id }}
-              search={{ q: "", status: "all" }}
-              className={cn(buttonVariants({ variant: "outline" }), "rounded-none")}
-            >
-              Open transition preview
-            </Link>
-          ) : null}
         </Card>
       </section>
 
