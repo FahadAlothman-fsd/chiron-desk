@@ -8,6 +8,10 @@ const desktopPackageConfig = desktopPackage as typeof desktopPackage & {
   dependencies?: Record<string, string | undefined>;
   scripts: typeof desktopPackage.scripts & {
     "package:linux"?: string;
+    "package:mac"?: string;
+    "package:mac:dmg"?: string;
+    "package:mac:dir"?: string;
+    "package:mac:public"?: string;
   };
   devDependencies: typeof desktopPackage.devDependencies & {
     electron?: string;
@@ -28,6 +32,9 @@ describe("desktop package entrypoint contract", () => {
 
   it("bundles the preload bridge as a CommonJS artifact Electron can execute", () => {
     expect(desktopPackageConfig.scripts.build).toContain("tsconfig.build.json");
+    expect(desktopPackageConfig.scripts["build:runtime-db-template"]).toContain(
+      "build-runtime-db-template.mjs",
+    );
     expect(desktopPackageConfig.scripts.build).toContain("bun build preload.ts");
     expect(desktopPackageConfig.scripts.build).toContain("--format=cjs");
     expect(desktopPackageConfig.scripts.build).toContain("preload.cjs");
@@ -35,6 +42,13 @@ describe("desktop package entrypoint contract", () => {
 
   it("exposes a local Linux packaging script", () => {
     expect(desktopPackageConfig.scripts["package:linux"]).toContain("electron-builder");
+  });
+
+  it("exposes downloadable and directory mac packaging scripts", () => {
+    expect(desktopPackageConfig.scripts["package:mac"]).toContain("electron-builder --mac dmg zip");
+    expect(desktopPackageConfig.scripts["package:mac:dmg"]).toBe("bun run package:mac");
+    expect(desktopPackageConfig.scripts["package:mac:dir"]).toContain("electron-builder --mac dir");
+    expect(desktopPackageConfig.scripts["package:mac:public"]).toBe("bun run package:mac");
   });
 
   it("declares electron-builder for local packaging", () => {

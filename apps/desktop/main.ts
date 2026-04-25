@@ -1,6 +1,7 @@
 import { basename, dirname, extname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { access, copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import net from "node:net";
 import type { BrowserWindowConstructorOptions, OpenDialogOptions } from "electron";
 import type {
@@ -18,6 +19,9 @@ import { buildServerEnv } from "./src/runtime-env.js";
 
 export type RendererTarget = { mode: "url"; target: string } | { mode: "file"; target: string };
 
+const PACKAGED_RENDERER_SCHEME = "chiron";
+const PACKAGED_RENDERER_HOST = "app";
+
 type OwnedRuntimeHandle = {
   owned: boolean;
 };
@@ -25,6 +29,8 @@ type OwnedRuntimeHandle = {
 type RuntimeCleanupHandle = OwnedRuntimeHandle & {
   stop: () => Promise<void>;
 };
+
+type RuntimeStreamMode = "inherit" | "pipe";
 
 type RuntimeLaunchSpec = {
   command: string;
@@ -40,13 +46,19 @@ type SpawnLike = (
   options: {
     cwd: string;
     env: NodeJS.ProcessEnv;
-    stdio: "inherit";
+    stdio: RuntimeStreamMode;
   },
 ) => {
   exitCode: number | null;
   kill: (signal?: NodeJS.Signals | number) => boolean;
   once: (event: string, listener: (...args: unknown[]) => void) => unknown;
   on: (event: string, listener: (...args: unknown[]) => void) => unknown;
+  stdout?: {
+    on: (event: "data", listener: (chunk: string | Uint8Array) => void) => unknown;
+  } | null;
+  stderr?: {
+    on: (event: "data", listener: (chunk: string | Uint8Array) => void) => unknown;
+  } | null;
 };
 
 type RendererLoader = {
@@ -120,19 +132,30 @@ type PackagedPaths = {
   serverCwd: string;
   serverExecutable: string;
   serverEntry: string;
+  runtimeTemplateDatabase: string;
 };
 
 type PackagedRuntimeContext = {
   backendUrl: string;
   rendererTarget: RendererTarget;
   runtimeEnv: RuntimeEnvironment;
+  logFilePath: string;
 };
 
 type DesktopElectronModule = {
   app: DesktopApp & {
-    getPath: (name: string) => string;
+    getPath: (name: any) => string;
   };
   ipcMain: DesktopIpcMain;
+  protocol?: {
+    registerSchemesAsPrivileged?: (
+      customSchemes: Array<{ scheme: string; privileges: Record<string, boolean> }>,
+    ) => void;
+    handle?: (scheme: string, handler: (request: { url: string }) => any) => void;
+  };
+  net?: {
+    fetch: (input: any) => any;
+  };
   BrowserWindow: new (options: BrowserWindowConstructorOptions) => DesktopWindow;
   dialog: {
     showErrorBox: (title: string, content: string) => void;
@@ -233,17 +256,9 @@ export function resolveRendererTarget(options: {
   const appRoot = options.appRoot ?? getDesktopPackageRoot();
 
   if (isPackagedAppLayout(appRoot, options.resourcesPath)) {
-    const packagedPathOptions: {
-      appRoot: string;
-      resourcesPath?: string;
-    } = { appRoot };
-    if (options.resourcesPath !== undefined) {
-      packagedPathOptions.resourcesPath = options.resourcesPath;
-    }
-
     return {
-      mode: "file",
-      target: resolvePackagedPaths(packagedPathOptions).rendererHtml,
+      mode: "url",
+      target: resolvePackagedRendererUrl(),
     };
   }
 
@@ -265,6 +280,7 @@ export function resolvePackagedPaths(options: {
     serverCwd: join(resourcesPath, "server-dist"),
     serverExecutable: join(resourcesPath, "server-dist", "bun"),
     serverEntry: join(resourcesPath, "server-dist", "server.mjs"),
+    runtimeTemplateDatabase: join(resourcesPath, "runtime-template", "chiron.db"),
   };
 }
 
@@ -274,10 +290,45 @@ export function resolveBackendUrl(backendUrl = "http://localhost:3000"): string 
 
 export function resolveRendererOrigin(target: RendererTarget): string {
   if (target.mode === "url") {
-    return new URL(target.target).origin;
+    const url = new URL(target.target);
+    return url.origin === "null" ? `${url.protocol}//${url.host}` : url.origin;
   }
 
   return pathToFileURL(target.target).origin;
+}
+
+function resolvePackagedRendererUrl(): string {
+  return `${PACKAGED_RENDERER_SCHEME}://${PACKAGED_RENDERER_HOST}/index.html`;
+}
+
+function resolvePackagedRendererRequestPath(rendererHtmlPath: string, requestUrl: string): string {
+  const rendererRoot = dirname(rendererHtmlPath);
+  const requestPath = decodeURIComponent(new URL(requestUrl).pathname).replace(/^\/+/, "");
+
+  if (!requestPath || extname(requestPath) === "") {
+    return rendererHtmlPath;
+  }
+
+  return join(rendererRoot, requestPath);
+}
+
+async function registerPackagedRendererProtocol(
+  electron: DesktopElectronModule,
+  packagedPaths: PackagedPaths,
+): Promise<void> {
+  const protocol = electron.protocol;
+  const netModule = electron.net;
+  if (!protocol?.handle || !netModule?.fetch) {
+    return;
+  }
+
+  protocol.handle(PACKAGED_RENDERER_SCHEME, async (request) => {
+    const resolvedPath = resolvePackagedRendererRequestPath(
+      packagedPaths.rendererHtml,
+      request.url,
+    );
+    return await netModule.fetch(pathToFileURL(resolvedPath));
+  });
 }
 
 export async function resolvePackagedRuntimeContext(options: {
@@ -303,13 +354,14 @@ export async function resolvePackagedRuntimeContext(options: {
   const runtimeEnv = buildServerEnv({
     config: runtimeState.config,
     secrets: runtimeState.secrets,
-    rendererOrigin: backendUrl,
+    rendererOrigin: resolveRendererOrigin(rendererTarget),
   });
 
   return {
     backendUrl,
     rendererTarget,
     runtimeEnv,
+    logFilePath: join(runtimeState.paths.logsDir, "server.log"),
   };
 }
 
@@ -364,6 +416,11 @@ export async function waitForRendererTarget(
   options: RendererReadinessOptions = {},
 ): Promise<void> {
   if (target.mode !== "url") {
+    return;
+  }
+
+  const targetUrl = new URL(target.target);
+  if (targetUrl.protocol !== "http:" && targetUrl.protocol !== "https:") {
     return;
   }
 
@@ -543,6 +600,7 @@ export async function createOwnedRuntimeHandle(
     devServerUrl?: string;
     resourcesPath?: string;
     env?: RuntimeEnvironment;
+    logFilePath?: string;
     spawn?: SpawnLike;
   },
 ): Promise<RuntimeCleanupHandle> {
@@ -566,8 +624,22 @@ export async function createOwnedRuntimeHandle(
   const child = spawnImplementation(launchSpec.command, launchSpec.args, {
     cwd: launchSpec.cwd,
     env: options.resourcesPath ? { ...options.env } : { ...process.env, ...options.env },
-    stdio: "inherit",
+    stdio: options.logFilePath ? "pipe" : "inherit",
   });
+
+  if (options.logFilePath) {
+    const logStream = createWriteStream(options.logFilePath, { flags: "a" });
+    const writeChunk = (label: "stdout" | "stderr", chunk: string | Uint8Array) => {
+      const content = typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8");
+      logStream.write(`[${new Date().toISOString()}] [${label}] ${content}`);
+    };
+
+    child.stdout?.on("data", (chunk) => writeChunk("stdout", chunk));
+    child.stderr?.on("data", (chunk) => writeChunk("stderr", chunk));
+    child.once("exit", () => {
+      logStream.end();
+    });
+  }
 
   return {
     owned: true,
@@ -586,6 +658,37 @@ export async function createOwnedRuntimeHandle(
 
 async function ensureDirectory(path: string): Promise<void> {
   await mkdir(path, { recursive: true });
+}
+
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function runtimeDatabaseHasRequiredTables(databaseUrl: string): Promise<boolean> {
+  const { createClient } = await import("@libsql/client");
+  const client = createClient({ url: databaseUrl });
+
+  try {
+    for (const tableName of ["user", "projects", "methodology_definitions"]) {
+      const result = await client.execute({
+        sql: "select 1 from sqlite_master where type = 'table' and name = ? limit 1",
+        args: [tableName],
+      });
+
+      if (result.rows.length === 0) {
+        return false;
+      }
+    }
+
+    return true;
+  } finally {
+    client.close();
+  }
 }
 
 async function readJsonFile(path: string): Promise<unknown | undefined> {
@@ -687,6 +790,19 @@ export async function runDesktopApp(options: RunDesktopAppOptions = {}): Promise
   const devServerUrl =
     options.devServerUrl ?? (isPackagedLayout ? undefined : process.env.ELECTRON_RENDERER_URL);
   const isPackaged = !devServerUrl && isPackagedLayout;
+  if (isPackaged) {
+    electron.protocol?.registerSchemesAsPrivileged?.([
+      {
+        scheme: PACKAGED_RENDERER_SCHEME,
+        privileges: {
+          standard: true,
+          secure: true,
+          supportFetchAPI: true,
+          corsEnabled: true,
+        },
+      },
+    ]);
+  }
   const packagedRuntime = isPackaged
     ? await resolvePackagedRuntimeContext(
         options.bootstrapRuntimeState === undefined
@@ -694,6 +810,27 @@ export async function runDesktopApp(options: RunDesktopAppOptions = {}): Promise
               appRoot,
               resourcesPath,
               userDataPath: electron.app.getPath("userData"),
+              bootstrapRuntimeState: (bootstrapOptions) =>
+                bootstrapRuntimeState({
+                  ...bootstrapOptions,
+                  databaseExists: fileExists,
+                  requiresDatabaseSeed: async (targetPath) => {
+                    if (!(await fileExists(targetPath))) {
+                      return true;
+                    }
+
+                    return !(await runtimeDatabaseHasRequiredTables(
+                      pathToFileURL(targetPath).href,
+                    ));
+                  },
+                  seedDatabase: async (targetPath) => {
+                    await rm(targetPath, { force: true });
+                    await copyFile(
+                      resolvePackagedPaths({ appRoot, resourcesPath }).runtimeTemplateDatabase,
+                      targetPath,
+                    );
+                  },
+                }),
             }
           : {
               appRoot,
@@ -703,6 +840,13 @@ export async function runDesktopApp(options: RunDesktopAppOptions = {}): Promise
             },
       )
     : undefined;
+  if (isPackaged) {
+    await electron.app.whenReady();
+    await registerPackagedRendererProtocol(
+      electron,
+      resolvePackagedPaths({ appRoot, resourcesPath }),
+    );
+  }
   const backendUrl = packagedRuntime
     ? packagedRuntime.backendUrl
     : resolveBackendUrl(process.env.CHIRON_BACKEND_URL);
@@ -729,6 +873,7 @@ export async function runDesktopApp(options: RunDesktopAppOptions = {}): Promise
       devServerUrl?: string;
       resourcesPath?: string;
       env?: RuntimeEnvironment;
+      logFilePath?: string;
     } = {
       resourcesPath,
     };
@@ -737,6 +882,7 @@ export async function runDesktopApp(options: RunDesktopAppOptions = {}): Promise
     }
     if (packagedRuntime?.runtimeEnv !== undefined) {
       handleOptions.env = packagedRuntime.runtimeEnv;
+      handleOptions.logFilePath = packagedRuntime.logFilePath;
     }
 
     ownedRuntime = await (options.createOwnedRuntimeHandleImpl ?? createOwnedRuntimeHandle)(
@@ -819,7 +965,7 @@ export async function runDesktopApp(options: RunDesktopAppOptions = {}): Promise
     onStartupError: async (error) => {
       electron.dialog.showErrorBox(
         "Desktop startup failed",
-        `${error.message}\n\nPlease ensure the web and server builds are available, then retry.`,
+        `${error.message}${packagedRuntime?.logFilePath ? `\n\nServer log: ${packagedRuntime.logFilePath}` : ""}\n\nPlease ensure the web and server builds are available, then retry.`,
       );
       electron.app.quit?.();
     },

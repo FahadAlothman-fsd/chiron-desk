@@ -107,9 +107,7 @@ describe("desktop app lifecycle", () => {
       onStartupError: vi.fn(),
     });
 
-    expect(browserWindow.loadFile).toHaveBeenCalledWith(
-      "/opt/Chiron/resources/web-dist/index.html",
-    );
+    expect(browserWindow.loadURL).toHaveBeenCalledWith("chiron://app/index.html");
     expect(browserWindow.show).toHaveBeenCalledOnce();
   });
 
@@ -121,8 +119,8 @@ describe("desktop app lifecycle", () => {
         backendUrl: "http://127.0.0.1:43110",
       });
       expect(options.rendererTarget).toEqual({
-        mode: "file",
-        target: "/opt/Chiron/resources/web-dist/index.html",
+        mode: "url",
+        target: "chiron://app/index.html",
       });
 
       await options.runtime.startServer();
@@ -185,11 +183,13 @@ describe("desktop app lifecycle", () => {
       "/opt/Chiron/resources/app.asar",
       expect.objectContaining({
         resourcesPath: "/opt/Chiron/resources",
+        logFilePath: "/tmp/chiron/runtime/logs/server.log",
         env: expect.objectContaining({
+          PORT: "43110",
           DATABASE_URL: "file:///tmp/chiron/runtime/data/chiron.db",
           BETTER_AUTH_SECRET: "secret",
           BETTER_AUTH_URL: "http://127.0.0.1:43110",
-          CORS_ORIGIN: "http://127.0.0.1:43110",
+          CORS_ORIGIN: "chiron://app",
         }),
       }),
     );

@@ -15,6 +15,7 @@ describe("buildServerEnv", () => {
       rendererOrigin: "http://127.0.0.1:3001",
     });
 
+    expect(env.PORT).toBe("43110");
     expect(env.DATABASE_URL).toBe("file:/tmp/chiron.db");
     expect(env.BETTER_AUTH_SECRET).toBe("secret");
     expect(env.BETTER_AUTH_URL).toBe("http://127.0.0.1:43110");

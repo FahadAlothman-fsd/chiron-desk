@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import { LoginForm } from "@/components/login-form";
 import { Card, CardContent } from "@/components/ui/card";
+import { resolvePublicAsset } from "@/lib/public-asset";
 
 export const Route = createFileRoute("/login")({
   component: RouteComponent,
@@ -56,7 +57,7 @@ function RouteComponent() {
 
         <div className="relative z-10 flex flex-1 items-center justify-center px-8 pb-44 pt-8">
           <img
-            src="/visuals/chiron-brand/asset-41.svg"
+            src={resolvePublicAsset("visuals/chiron-brand/asset-41.svg")}
             alt=""
             aria-hidden="true"
             className="h-[min(52vh,29rem)] w-[min(52vh,29rem)] object-contain opacity-95 saturate-125 contrast-125 drop-shadow-[0_0_34px_color-mix(in_srgb,var(--chiron-fluo-3)_32%,transparent)]"

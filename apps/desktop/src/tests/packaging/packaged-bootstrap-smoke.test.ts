@@ -69,10 +69,11 @@ describe("packaged bootstrap smoke contract", () => {
     );
     expect(packagedRuntime.backendUrl).toBe("http://127.0.0.1:43110");
     expect(packagedRuntime.runtimeEnv).toMatchObject({
+      PORT: "43110",
       DATABASE_URL: pathToFileURL(runtimePaths.databaseFile).href,
       BETTER_AUTH_SECRET: "secret",
       BETTER_AUTH_URL: "http://127.0.0.1:43110",
-      CORS_ORIGIN: "http://127.0.0.1:43110",
+      CORS_ORIGIN: "chiron://app",
     });
     expect(runtimeArgument).toBeTruthy();
     expect(resolveDesktopRuntimeMetadata(["electron", "app", runtimeArgument ?? ""])).toEqual({

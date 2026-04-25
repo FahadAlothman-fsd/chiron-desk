@@ -21,8 +21,9 @@ import { buildSidebarSections } from "./sidebar-sections";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { orpc } from "@/utils/orpc";
+import { resolvePublicAsset } from "@/lib/public-asset";
 
-const CHIRON_BRAND_ICON = "/visuals/chiron-brand/asset-41.svg";
+const CHIRON_BRAND_ICON = resolvePublicAsset("visuals/chiron-brand/asset-41.svg");
 
 function toLabel(value: string): string {
   return value.replaceAll("-", " ").replace(/\b\w/g, (match) => match.toUpperCase());

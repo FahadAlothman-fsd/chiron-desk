@@ -37,5 +37,11 @@ describe("server build config", () => {
       "for (const dependencyName of Object.keys(serverPackage.dependencies ?? {}))",
     );
     expect(bundleScript).toContain("await copyPackageDependencies(desktopDbPackageDir)");
+    expect(bundleScript).toContain("const nativePackageName = resolveNativeLibsqlPackageName()");
+    expect(bundleScript).toContain('return "darwin-arm64"');
+    expect(bundleScript).toContain('return "darwin-x64"');
+    expect(bundleScript).toContain('"linux-arm64-musl" : "linux-arm64-gnu"');
+    expect(bundleScript).toContain('"linux-x64-musl" : "linux-x64-gnu"');
+    expect(bundleScript).toContain('return "win32-x64-msvc"');
   });
 });

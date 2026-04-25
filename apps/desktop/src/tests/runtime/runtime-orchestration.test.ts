@@ -118,15 +118,17 @@ describe("runtime orchestration contract", () => {
 
     expect(result.backendUrl).toBe("http://127.0.0.1:43110");
     expect(result.rendererTarget).toEqual({
-      mode: "file",
-      target: "/opt/Chiron/resources/web-dist/index.html",
+      mode: "url",
+      target: "chiron://app/index.html",
     });
     expect(result.runtimeEnv).toMatchObject({
+      PORT: "43110",
       DATABASE_URL: "file:///tmp/chiron/runtime/data/chiron.db",
       BETTER_AUTH_SECRET: "secret",
       BETTER_AUTH_URL: "http://127.0.0.1:43110",
-      CORS_ORIGIN: "http://127.0.0.1:43110",
+      CORS_ORIGIN: "chiron://app",
     });
+    expect(result.logFilePath).toBe("/tmp/chiron/runtime/logs/server.log");
   });
 
   it("launches the packaged server with bootstrap-derived env", async () => {
@@ -142,10 +144,11 @@ describe("runtime orchestration contract", () => {
     await createOwnedRuntimeHandle("/opt/Chiron/resources/app.asar", {
       resourcesPath: "/opt/Chiron/resources",
       env: {
+        PORT: "43110",
         DATABASE_URL: "file:///tmp/chiron/runtime/data/chiron.db",
         BETTER_AUTH_SECRET: "secret",
         BETTER_AUTH_URL: "http://127.0.0.1:43110",
-        CORS_ORIGIN: "http://127.0.0.1:43110",
+        CORS_ORIGIN: "chiron://app",
       },
       spawn,
     });
@@ -156,7 +159,8 @@ describe("runtime orchestration contract", () => {
         DATABASE_URL: "file:///tmp/chiron/runtime/data/chiron.db",
         BETTER_AUTH_SECRET: "secret",
         BETTER_AUTH_URL: "http://127.0.0.1:43110",
-        CORS_ORIGIN: "http://127.0.0.1:43110",
+        CORS_ORIGIN: "chiron://app",
+        PORT: "43110",
       },
       stdio: "inherit",
     });
@@ -164,13 +168,10 @@ describe("runtime orchestration contract", () => {
     process.env.CHIRON_TEST_LEAK = originalMarker;
   });
 
-  it("derives a null origin for packaged file renderers", () => {
-    expect(
-      resolveRendererOrigin({
-        mode: "file",
-        target: "/opt/Chiron/resources/web-dist/index.html",
-      }),
-    ).toBe("null");
+  it("derives the packaged custom protocol origin", () => {
+    expect(resolveRendererOrigin({ mode: "url", target: "chiron://app/index.html" })).toBe(
+      "chiron://app",
+    );
   });
 
   it("reuses the preferred port when it is available", async () => {

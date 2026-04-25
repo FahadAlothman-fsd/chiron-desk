@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { resolvePublicAsset } from "@/lib/public-asset";
 
 export type TransitionPreviewStatus = "eligible" | "blocked" | "future";
 
@@ -41,7 +42,7 @@ export function TransitionStatusBadge({ status }: { status: TransitionPreviewSta
       )}
     >
       <img
-        src="/visuals/chiron-status/asset-34.svg"
+        src={resolvePublicAsset("visuals/chiron-status/asset-34.svg")}
         alt=""
         aria-hidden="true"
         className="size-3 shrink-0"
