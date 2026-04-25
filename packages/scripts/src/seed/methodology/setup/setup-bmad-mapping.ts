@@ -21,6 +21,8 @@ export type MethodologyWorkflowContextFactPlainValueSeedRow =
   typeof schema.methodologyWorkflowContextFactPlainValues.$inferInsert;
 export type MethodologyWorkflowContextFactExternalBindingSeedRow =
   typeof schema.methodologyWorkflowContextFactExternalBindings.$inferInsert;
+export type MethodologyWorkflowContextFactWorkflowReferenceSeedRow =
+  typeof schema.methodologyWorkflowContextFactWorkflowReferences.$inferInsert;
 export type MethodologyWorkflowContextFactArtifactReferenceSeedRow =
   typeof schema.methodologyWorkflowContextFactArtifactReferences.$inferInsert;
 export type MethodologyWorkflowFormFieldSeedRow =
@@ -3396,6 +3398,7 @@ type SectionAContextFactSpec =
       readonly kind: "plain_fact";
       readonly cardinality: "one" | "many";
       readonly valueType: "string" | "number" | "boolean" | "json";
+      readonly validation?: unknown;
     }
   | {
       readonly key: string;
@@ -3411,6 +3414,14 @@ type SectionAContextFactSpec =
       readonly cardinality: "one" | "many";
       readonly slotWorkUnitKey: WorkUnitKey;
       readonly slotSuffix: string;
+    }
+  | {
+      readonly key: string;
+      readonly label: string;
+      readonly kind: "workflow_ref_fact";
+      readonly cardinality: "one" | "many";
+      readonly workflowWorkUnitKey: WorkUnitKey;
+      readonly workflowSuffixes: readonly string[];
     }
   | {
       readonly key: string;
@@ -3528,7 +3539,7 @@ type SectionAWorkflowFixtureBundle = {
   readonly methodologyWorkflowContextFactDefinitions: readonly MethodologyWorkflowContextFactDefinitionSeedRow[];
   readonly methodologyWorkflowContextFactPlainValues: readonly MethodologyWorkflowContextFactPlainValueSeedRow[];
   readonly methodologyWorkflowContextFactExternalBindings: readonly MethodologyWorkflowContextFactExternalBindingSeedRow[];
-  readonly methodologyWorkflowContextFactWorkflowReferences: readonly [];
+  readonly methodologyWorkflowContextFactWorkflowReferences: readonly MethodologyWorkflowContextFactWorkflowReferenceSeedRow[];
   readonly methodologyWorkflowContextFactArtifactReferences: readonly MethodologyWorkflowContextFactArtifactReferenceSeedRow[];
   readonly methodologyWorkflowContextFactDraftSpecs: readonly MethodologyWorkflowContextFactDraftSpecSeedRow[];
   readonly methodologyWorkflowContextFactDraftSpecSelections: readonly MethodologyWorkflowContextFactDraftSpecSelectionSeedRow[];
@@ -4357,6 +4368,32 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
         kind: "plain_fact",
         cardinality: "many",
         valueType: "json",
+        validation: {
+          kind: "json-schema" as const,
+          schemaDialect: "draft-2020-12",
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            required: ["title", "priority"],
+            properties: {
+              title: { type: "string", cardinality: "one" },
+              motivation: { type: "string", cardinality: "one" },
+              success_signal: { type: "string", cardinality: "one" },
+              priority: { type: "string", cardinality: "one" },
+              notes: { type: "string", cardinality: "one" },
+            },
+          },
+          subSchema: {
+            type: "object",
+            fields: [
+              { key: "title", type: "string", cardinality: "one" },
+              { key: "motivation", type: "string", cardinality: "one" },
+              { key: "success_signal", type: "string", cardinality: "one" },
+              { key: "priority", type: "string", cardinality: "one" },
+              { key: "notes", type: "string", cardinality: "one" },
+            ],
+          },
+        },
       },
       {
         key: "constraints_ctx",
@@ -4364,6 +4401,43 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
         kind: "plain_fact",
         cardinality: "one",
         valueType: "json",
+        validation: {
+          kind: "json-schema" as const,
+          schemaDialect: "draft-2020-12",
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              must_have: { type: "string", cardinality: "many" },
+              must_avoid: { type: "string", cardinality: "many" },
+              timebox_notes: { type: "string", cardinality: "many" },
+              known_constraints: { type: "string", cardinality: "many" },
+            },
+          },
+          subSchema: {
+            type: "object",
+            fields: [
+              { key: "must_have", type: "string", cardinality: "many" },
+              { key: "must_avoid", type: "string", cardinality: "many" },
+              { key: "timebox_notes", type: "string", cardinality: "many" },
+              { key: "known_constraints", type: "string", cardinality: "many" },
+            ],
+          },
+        },
+      },
+      {
+        key: "selected_technique_workflows_ctx",
+        label: "Selected Technique Workflows",
+        kind: "workflow_ref_fact",
+        cardinality: "many",
+        workflowWorkUnitKey: "brainstorming",
+        workflowSuffixes: [
+          "first-principles-analysis",
+          "five-whys-deep-dive",
+          "socratic-questioning",
+          "stakeholder-round-table",
+          "critique-and-refine",
+        ],
       },
       {
         key: "selected_directions_ctx",
@@ -4408,17 +4482,69 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
             valueType: "string",
             required: true,
           },
+          {
+            key: "objectives",
+            label: "Objectives",
+            contextFactKey: "objectives_ctx",
+            valueType: "json",
+            required: true,
+          },
+          {
+            key: "constraints",
+            label: "Constraints",
+            contextFactKey: "constraints_ctx",
+            valueType: "json",
+          },
         ],
       },
       {
-        key: "facilitate_brainstorming_session",
+        key: "discuss_brainstorming_session",
         type: "agent",
-        displayName: "Facilitate Brainstorming Session",
+        displayName: "Discuss and Recommend Techniques",
+        agentConfig: {
+          objective:
+            "Discuss the brainstorming session framing and recommend a concrete set of technique workflows to invoke next.",
+          instructionsMarkdown:
+            "Use the brainstorming focus, desired outcome, objectives, and constraints to facilitate a short working discussion. Recommend a tight set of brainstorming technique workflows that best fit the session goal before the invoke step runs.",
+          readContextFactKeys: [
+            "brainstorming_focus_ctx",
+            "desired_outcome_ctx",
+            "objectives_ctx",
+            "constraints_ctx",
+          ],
+          writeContextFactKeys: ["selected_technique_workflows_ctx"],
+          completionRequirementContextFactKeys: ["selected_technique_workflows_ctx"],
+        },
+      },
+      {
+        key: "invoke_selected_technique_workflows",
+        type: "invoke",
+        displayName: "Invoke Recommended Technique Workflows",
+        invokeConfig: {
+          targetKind: "workflow",
+          sourceMode: "context_fact_backed",
+          contextFactKey: "selected_technique_workflows_ctx",
+        },
       },
       {
         key: "converge_brainstorming_session",
         type: "agent",
         displayName: "Converge Brainstorming Session",
+        agentConfig: {
+          objective:
+            "Converge the brainstorming session into durable selected directions and follow-up topics after the recommended techniques have been explored.",
+          instructionsMarkdown:
+            "Review the brainstorming frame and the recommended technique workflow set, then converge the session into clear selected directions and optional follow-up research topics that downstream work can act on.",
+          readContextFactKeys: [
+            "brainstorming_focus_ctx",
+            "desired_outcome_ctx",
+            "objectives_ctx",
+            "constraints_ctx",
+            "selected_technique_workflows_ctx",
+          ],
+          writeContextFactKeys: ["selected_directions_ctx", "follow_up_research_topics_ctx"],
+          completionRequirementContextFactKeys: ["selected_directions_ctx"],
+        },
       },
     ],
   },
@@ -5238,6 +5364,8 @@ function buildSectionAWorkflowFixtureBundle(
     [];
   const methodologyWorkflowContextFactDraftSpecFacts: (typeof schema.methodologyWorkflowContextFactDraftSpecFields.$inferInsert)[] =
     [];
+  const methodologyWorkflowContextFactWorkflowReferences: MethodologyWorkflowContextFactWorkflowReferenceSeedRow[] =
+    [];
   const methodologyWorkflowFormFields: MethodologyWorkflowFormFieldSeedRow[] = [];
   const methodologyWorkflowAgentSteps: MethodologyWorkflowAgentStepSeedRow[] = [];
   const methodologyWorkflowAgentStepExplicitReadGrants: MethodologyWorkflowAgentStepExplicitReadGrantSeedRow[] =
@@ -5293,7 +5421,7 @@ function buildSectionAWorkflowFixtureBundle(
           id: `${contextFactDefinitionId}:plain`,
           contextFactDefinitionId,
           type: contextFact.valueType,
-          validationJson: { kind: "none" },
+          validationJson: contextFact.validation ?? { kind: "none" },
         });
       }
 
@@ -5315,6 +5443,20 @@ function buildSectionAWorkflowFixtureBundle(
             contextFact.slotSuffix,
             methodologyVersionId,
           ),
+        });
+      }
+
+      if (contextFact.kind === "workflow_ref_fact") {
+        contextFact.workflowSuffixes.forEach((workflowSuffix) => {
+          methodologyWorkflowContextFactWorkflowReferences.push({
+            id: `${contextFactDefinitionId}:workflow:${workflowSuffix}`,
+            contextFactDefinitionId,
+            workflowDefinitionId: workflowId(
+              contextFact.workflowWorkUnitKey,
+              workflowSuffix,
+              methodologyVersionId,
+            ),
+          });
         });
       }
 
@@ -5749,7 +5891,7 @@ function buildSectionAWorkflowFixtureBundle(
     methodologyWorkflowContextFactDefinitions,
     methodologyWorkflowContextFactPlainValues,
     methodologyWorkflowContextFactExternalBindings,
-    methodologyWorkflowContextFactWorkflowReferences: [],
+    methodologyWorkflowContextFactWorkflowReferences,
     methodologyWorkflowContextFactArtifactReferences,
     methodologyWorkflowContextFactDraftSpecs,
     methodologyWorkflowContextFactDraftSpecSelections,
