@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
+  ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Cache Electron downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/electron
+            .cache/electron-builder
+          key: ${{ runner.os }}-electron-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-electron-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check formatting and lint rules
+        run: bun run check
+
+      - name: Check types
+        run: bun run check-types
+
+      - name: Build apps and packages
+        run: bun run build
+
+      - name: Run tests
+        run: bun run test
