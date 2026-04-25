@@ -16,27 +16,31 @@ import {
 
 const projectWorkUnitLayer = Layer.succeed(ProjectWorkUnitRepository, {
   createProjectWorkUnit: () => Effect.die("not implemented in test"),
-  listProjectWorkUnitsByProject: () =>
-    Effect.succeed([
-      {
-        id: "wu-1",
-        projectId: "project-1",
-        workUnitTypeId: "task",
-        currentStateId: "todo",
-        activeTransitionExecutionId: "te-1",
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-      {
-        id: "wu-2",
-        projectId: "project-1",
-        workUnitTypeId: "task",
-        currentStateId: "todo",
-        activeTransitionExecutionId: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ]),
+  listProjectWorkUnitsByProject: (projectId) =>
+    Effect.succeed(
+      projectId === "project-1"
+        ? [
+            {
+              id: "wu-1",
+              projectId: "project-1",
+              workUnitTypeId: "wut-setup",
+              currentStateId: "state-todo",
+              activeTransitionExecutionId: "te-1",
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+            {
+              id: "wu-2",
+              projectId: "project-1",
+              workUnitTypeId: "wut-setup",
+              currentStateId: "state-todo",
+              activeTransitionExecutionId: null,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          ]
+        : [],
+    ),
   getProjectWorkUnitById: (projectWorkUnitId) =>
     Effect.succeed(
       projectWorkUnitId === "wu-1" || projectWorkUnitId === "wu-2"
@@ -44,7 +48,7 @@ const projectWorkUnitLayer = Layer.succeed(ProjectWorkUnitRepository, {
             id: projectWorkUnitId,
             projectId: "project-1",
             workUnitTypeId: "wut-setup",
-            currentStateId: "todo",
+            currentStateId: "state-todo",
             activeTransitionExecutionId: projectWorkUnitId === "wu-1" ? "te-1" : null,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -70,8 +74,8 @@ const executionReadLayer = Layer.succeed(ExecutionReadRepository, {
             supersededAt: null,
           },
           projectId: "project-1",
-          workUnitTypeId: "task",
-          currentStateId: "doing",
+          workUnitTypeId: "wut-setup",
+          currentStateId: "state-ready",
           activeTransitionExecutionId: "te-1",
           primaryWorkflowExecution: {
             id: "we-1",
@@ -204,6 +208,17 @@ const lifecycleLayer = Layer.succeed(LifecycleRepository, {
   findLifecycleStates: () =>
     Effect.succeed([
       {
+        id: "state-todo",
+        methodologyVersionId: "version-1",
+        workUnitTypeId: "wut-setup",
+        key: "todo",
+        displayName: "Todo",
+        descriptionJson: null,
+        guidanceJson: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
         id: "state-ready",
         methodologyVersionId: "version-1",
         workUnitTypeId: "wut-setup",
@@ -227,6 +242,16 @@ const lifecycleLayer = Layer.succeed(LifecycleRepository, {
         createdAt: new Date(),
         updatedAt: new Date(),
       },
+      {
+        id: "tr-setup-complete",
+        methodologyVersionId: "version-1",
+        workUnitTypeId: "wut-setup",
+        fromStateId: "state-todo",
+        toStateId: "state-ready",
+        transitionKey: "complete_setup",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
     ]),
   findFactSchemas: () => Effect.succeed([]),
   findTransitionConditionSets: () =>
@@ -236,6 +261,18 @@ const lifecycleLayer = Layer.succeed(LifecycleRepository, {
         methodologyVersionId: "version-1",
         transitionId: "tr-setup-start",
         key: "start",
+        phase: "start",
+        mode: "all",
+        groupsJson: [],
+        guidanceJson: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        id: "cs-setup-complete",
+        methodologyVersionId: "version-1",
+        transitionId: "tr-setup-complete",
+        key: "complete",
         phase: "start",
         mode: "all",
         groupsJson: [],
@@ -287,6 +324,148 @@ const guidanceLayer = RuntimeGuidanceServiceLive.pipe(
   Layer.provideMerge(artifactLayer),
   Layer.provideMerge(projectContextLayer),
   Layer.provideMerge(lifecycleLayer),
+);
+
+const blockingFutureProjectWorkUnitLayer = Layer.succeed(ProjectWorkUnitRepository, {
+  createProjectWorkUnit: () => Effect.die("not implemented in test"),
+  listProjectWorkUnitsByProject: (projectId) =>
+    Effect.succeed(
+      projectId === "project-1"
+        ? [
+            {
+              id: "wu-setup-1",
+              projectId: "project-1",
+              workUnitTypeId: "wut-setup",
+              currentStateId: "state-ready",
+              activeTransitionExecutionId: null,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          ]
+        : [],
+    ),
+  getProjectWorkUnitById: (projectWorkUnitId) =>
+    Effect.succeed(
+      projectWorkUnitId === "wu-setup-1"
+        ? {
+            id: "wu-setup-1",
+            projectId: "project-1",
+            workUnitTypeId: "wut-setup",
+            currentStateId: "state-ready",
+            activeTransitionExecutionId: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }
+        : null,
+    ),
+  updateActiveTransitionExecutionPointer: () => Effect.succeed(null),
+});
+
+const blockingFutureLifecycleLayer = Layer.succeed(LifecycleRepository, {
+  findWorkUnitTypes: () =>
+    Effect.succeed([
+      {
+        id: "wut-setup",
+        methodologyVersionId: "version-1",
+        key: "setup",
+        displayName: "Setup",
+        descriptionJson: null,
+        guidanceJson: null,
+        cardinality: "one",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]),
+  findLifecycleStates: () =>
+    Effect.succeed([
+      {
+        id: "state-ready",
+        methodologyVersionId: "version-1",
+        workUnitTypeId: "wut-setup",
+        key: "ready",
+        displayName: "Ready",
+        descriptionJson: null,
+        guidanceJson: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]),
+  findLifecycleTransitions: () =>
+    Effect.succeed([
+      {
+        id: "tr-setup-start",
+        methodologyVersionId: "version-1",
+        workUnitTypeId: "wut-setup",
+        fromStateId: null,
+        toStateId: "state-ready",
+        transitionKey: "start_setup",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]),
+  findFactSchemas: () => Effect.succeed([]),
+  findTransitionConditionSets: () =>
+    Effect.succeed([
+      {
+        id: "cs-setup-start",
+        methodologyVersionId: "version-1",
+        transitionId: "tr-setup-start",
+        key: "start",
+        phase: "start",
+        mode: "all",
+        groupsJson: [
+          {
+            key: "group-work-unit-count",
+            mode: "all",
+            conditions: [
+              {
+                kind: "work_unit",
+                required: true,
+                config: {
+                  operator: "work_unit_instance_exists_in_state",
+                  workUnitTypeKey: "setup",
+                  stateKeys: ["ready"],
+                  minCount: 2,
+                },
+              },
+            ],
+          },
+        ],
+        guidanceJson: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]),
+  findAgentTypes: () => Effect.succeed([]),
+  findTransitionWorkflowBindings: () =>
+    Effect.succeed([
+      {
+        id: "twb-setup-project",
+        methodologyVersionId: "version-1",
+        transitionId: "tr-setup-start",
+        transitionKey: "start_setup",
+        workflowId: "wf-setup-project",
+        workflowKey: "setup_project",
+        workflowName: "Setup Project",
+        workflowDescription: "Set up the project workspace and baseline runtime context.",
+        workflowHumanGuidance: "Review the setup checklist before launching.",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]),
+  saveLifecycleDefinition: () => Effect.die("not implemented in test"),
+  recordLifecycleEvent: () => Effect.die("not implemented in test"),
+} as unknown as LifecycleRepository["Type"]);
+
+const blockingFutureGuidanceLayer = RuntimeGuidanceServiceLive.pipe(
+  Layer.provideMerge(RuntimeGateServiceLive),
+  Layer.provideMerge(blockingFutureProjectWorkUnitLayer),
+  Layer.provideMerge(executionReadLayer),
+  Layer.provideMerge(projectFactLayer),
+  Layer.provideMerge(workUnitFactLayer),
+  Layer.provideMerge(artifactLayer),
+  Layer.provideMerge(projectContextLayer),
+  Layer.provideMerge(blockingFutureLifecycleLayer),
 );
 
 describe("RuntimeGuidanceService", () => {
@@ -402,6 +581,39 @@ describe("RuntimeGuidanceService", () => {
     ).toBe(true);
   });
 
+  it("uses real open transitions and state display names for existing work units", async () => {
+    const program = Effect.gen(function* () {
+      const service = yield* RuntimeGuidanceService;
+      return yield* service.streamCandidates({ projectId: "project-1" });
+    }).pipe(Effect.provide(guidanceLayer));
+
+    const stream = await Effect.runPromise(program);
+    const events: Array<{ type: string; [key: string]: unknown }> = [];
+    for await (const event of stream) {
+      events.push(event as { type: string; [key: string]: unknown });
+    }
+
+    const bootstrap = events.find((event) => event.type === "bootstrap") as
+      | {
+          cards?: Array<{
+            source?: string;
+            workUnitContext?: { currentStateLabel?: string; workUnitTypeKey?: string };
+            transitions?: Array<{ transitionId?: string; transitionKey?: string }>;
+          }>;
+        }
+      | undefined;
+
+    const openSetupCard = bootstrap?.cards?.find((card) => card.source === "open");
+    expect(openSetupCard?.workUnitContext?.workUnitTypeKey).toBe("setup");
+    expect(openSetupCard?.workUnitContext?.currentStateLabel).toBe("Todo");
+    expect(openSetupCard?.transitions).toEqual([
+      expect.objectContaining({
+        transitionId: "tr-setup-complete",
+        transitionKey: "complete_setup",
+      }),
+    ]);
+  });
+
   it("returns start gate detail for future transition candidates", async () => {
     const program = Effect.gen(function* () {
       const service = (yield* RuntimeGuidanceService) as RuntimeGuidanceService["Type"] & {
@@ -512,5 +724,36 @@ describe("RuntimeGuidanceService", () => {
         workflowHumanGuidance: "Review the setup checklist before launching.",
       },
     ]);
+  });
+
+  it("blocks start-gate detail when project work-unit instance requirements are unmet", async () => {
+    const program = Effect.gen(function* () {
+      const service = (yield* RuntimeGuidanceService) as RuntimeGuidanceService["Type"] & {
+        readonly getRuntimeStartGateDetail: (input: {
+          readonly projectId: string;
+          readonly transitionId: string;
+          readonly projectWorkUnitId?: string;
+        }) => Effect.Effect<unknown>;
+      };
+
+      return yield* service.getRuntimeStartGateDetail({
+        projectId: "project-1",
+        transitionId: "tr-setup-start",
+        projectWorkUnitId: "wu-setup-1",
+      });
+    }).pipe(Effect.provide(blockingFutureGuidanceLayer));
+
+    const result = (await Effect.runPromise(program)) as {
+      gateSummary: { result: string };
+      evaluationTree?: {
+        conditions?: Array<{ reason?: string }>;
+        groups?: Array<{ conditions?: Array<{ reason?: string }> }>;
+      };
+      launchability: { canLaunch: boolean };
+    };
+
+    expect(result.gateSummary.result).toBe("blocked");
+    expect(result.launchability.canLaunch).toBe(false);
+    expect(JSON.stringify(result.evaluationTree)).toContain("expected at least 2");
   });
 });

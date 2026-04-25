@@ -84,6 +84,7 @@ import type {
 import type { UpdateDraftWorkflowsInputDto } from "@chiron/contracts/methodology/dto";
 import { Effect, Layer } from "effect";
 import { z } from "zod";
+import { seedCanonicalBmadMethodology } from "@chiron/scripts";
 import { HarnessService } from "../../../agent-runtime/src/index";
 import { protectedProcedure, publicProcedure } from "../index";
 
@@ -1905,6 +1906,10 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
           return yield* svc.listMethodologies();
         }),
       );
+    }),
+
+    seedCanonicalBmadMethodology: protectedProcedure.handler(async () => {
+      return seedCanonicalBmadMethodology();
     }),
 
     getMethodologyDetails: publicProcedure.input(methodologyKeyInput).handler(async ({ input }) => {
@@ -4306,6 +4311,7 @@ export function createMethodologyRouter(serviceLayer: Layer.Layer<any>) {
     catalog: {
       list: router.listMethodologies,
       create: router.createMethodology,
+      seed: router.seedCanonicalBmadMethodology,
       get: router.getMethodologyDetails,
       update: router.updateMethodology,
       delete: router.archiveMethodology,

@@ -4,6 +4,7 @@ import { ProjectContextRepository } from "@chiron/project-context";
 
 import { RepositoryError } from "../errors";
 import { ExecutionReadRepository } from "../repositories/execution-read-repository";
+import { ProjectWorkUnitRepository } from "../repositories/project-work-unit-repository";
 import { StepExecutionRepository } from "../repositories/step-execution-repository";
 import {
   FormStepExecutionService,
@@ -23,7 +24,7 @@ import type {
   SubmitFormStepExecutionOutput,
 } from "@chiron/contracts/runtime/executions";
 import { BranchStepRuntimeRepository } from "../repositories/branch-step-runtime-repository";
-import { evaluateRoutes } from "./branch-route-evaluator";
+import { evaluateRoutes, toProjectWorkUnitInstanceSummaries } from "./branch-route-evaluator";
 
 export interface ActivateWorkflowStepExecutionInput {
   projectId: string;
@@ -87,6 +88,7 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
     const readRepo = yield* ExecutionReadRepository;
     const stepRepo = yield* StepExecutionRepository;
     const projectContextRepo = yield* ProjectContextRepository;
+    const projectWorkUnitRepo = yield* ProjectWorkUnitRepository;
     const methodologyRepo = yield* MethodologyRepository;
     const lifecycleRepo = yield* LifecycleRepository;
     const contextExternalPrefillService = yield* Effect.serviceOption(
@@ -302,7 +304,14 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
           return yield* makeCommandError("workflow work-unit type not found");
         }
 
-        const [branchDefinition, workflowEditor, contextFacts, branchState] = yield* Effect.all([
+        const [
+          branchDefinition,
+          workflowEditor,
+          contextFacts,
+          branchState,
+          lifecycleStates,
+          projectWorkUnits,
+        ] = yield* Effect.all([
           methodologyRepo.getBranchStepDefinition({
             versionId: projectPin.methodologyVersionId,
             workflowDefinitionId: workflowDetail.workflowExecution.workflowId,
@@ -315,6 +324,8 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
           }),
           stepRepo.listWorkflowExecutionContextFacts(stepExecution.workflowExecutionId),
           branchRuntimeRepo.loadWithRoutes(stepExecution.id),
+          lifecycleRepo.findLifecycleStates(projectPin.methodologyVersionId),
+          projectWorkUnitRepo.listProjectWorkUnitsByProject(workflowDetail.projectId),
         ]);
 
         if (!branchDefinition) {
@@ -332,6 +343,11 @@ export const WorkflowExecutionStepCommandServiceLive = Layer.effect(
           })),
           contextFacts,
           contextFactDefinitions: workflowEditor.contextFacts,
+          projectWorkUnitInstances: toProjectWorkUnitInstanceSummaries({
+            projectWorkUnits,
+            workUnitTypeKeysById: new Map(workUnitTypes.map((row) => [row.id, row.key] as const)),
+            stateKeysById: new Map(lifecycleStates.map((row) => [row.id, row.key] as const)),
+          }),
         });
 
         const validConditionalTargets = evaluations

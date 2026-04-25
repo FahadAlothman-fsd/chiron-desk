@@ -112,6 +112,57 @@ const readContextFactInstancesOutputSchema = z.object({
         instanceId: z.string().min(1),
         recordedAt: z.string().optional(),
         value: z.unknown(),
+        target: z
+          .object({
+            projectWorkUnitId: z.string().min(1),
+            label: z.string().min(1),
+            workUnitTypeKey: z.string().min(1),
+            workUnitTypeId: z.string().min(1).optional(),
+            workUnitTypeName: z.string().optional(),
+            cardinality: z.enum(["one_per_project", "many_per_project"]).optional(),
+            currentStateId: z.string().min(1).optional(),
+            currentStateKey: z.string().min(1).optional(),
+            currentStateLabel: z.string().optional(),
+            factSummaries: z.array(z.unknown()).optional(),
+            factInstances: z
+              .array(
+                z.object({
+                  factInstanceId: z.string().min(1),
+                  factDefinitionId: z.string().min(1),
+                  factKey: z.string().min(1).optional(),
+                  label: z.string().optional(),
+                  valueType: z
+                    .enum(["string", "number", "boolean", "json", "work_unit"])
+                    .optional(),
+                  value: z.unknown(),
+                  recordedAt: z.string().optional(),
+                }),
+              )
+              .optional(),
+            artifactSlotInstances: z
+              .array(
+                z.object({
+                  artifactInstanceId: z.string().min(1),
+                  slotDefinitionId: z.string().min(1),
+                  slotKey: z.string().min(1).optional(),
+                  label: z.string().optional(),
+                  recordedAt: z.string().optional(),
+                  files: z.array(
+                    z.object({
+                      filePath: z.string().min(1),
+                      deleted: z.boolean().optional(),
+                      gitCommitHash: z.string().nullable().optional(),
+                      gitBlobHash: z.string().nullable().optional(),
+                      gitCommitTitle: z.string().nullable().optional(),
+                      gitCommitBody: z.string().nullable().optional(),
+                    }),
+                  ),
+                }),
+              )
+              .optional(),
+            artifactPaths: z.array(z.string().min(1)).optional(),
+          })
+          .optional(),
       })
       .passthrough(),
   ),

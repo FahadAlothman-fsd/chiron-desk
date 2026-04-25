@@ -97,6 +97,46 @@ const toRuntimeCondition = (value: unknown): RuntimeCondition | null => {
     };
   }
 
+  if (kind === "work_unit") {
+    const workUnitTypeKey =
+      typeof config.workUnitTypeKey === "string" ? config.workUnitTypeKey.trim() : "";
+    const operator =
+      config.operator === "work_unit_instance_exists_in_state"
+        ? "work_unit_instance_exists_in_state"
+        : config.operator === "work_unit_instance_exists"
+          ? "work_unit_instance_exists"
+          : null;
+    const minCount =
+      typeof config.minCount === "number" &&
+      Number.isInteger(config.minCount) &&
+      config.minCount > 0
+        ? config.minCount
+        : undefined;
+    const stateKeys = Array.isArray(config.stateKeys)
+      ? config.stateKeys.filter(
+          (value): value is string => typeof value === "string" && value.trim().length > 0,
+        )
+      : [];
+    const isNegated = config.isNegated === true ? true : undefined;
+
+    if (!workUnitTypeKey || !operator) {
+      return null;
+    }
+
+    if (operator === "work_unit_instance_exists_in_state" && stateKeys.length === 0) {
+      return null;
+    }
+
+    return {
+      kind: "work_unit",
+      workUnitTypeKey,
+      operator,
+      ...(operator === "work_unit_instance_exists_in_state" ? { stateKeys } : {}),
+      ...(typeof minCount === "number" ? { minCount } : {}),
+      ...(isNegated ? { isNegated } : {}),
+    };
+  }
+
   return null;
 };
 

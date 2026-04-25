@@ -50,10 +50,11 @@ import { AgentStepTimelineServiceLive } from "../services/runtime/agent-step-tim
 const WorkflowEngineRuntimeBaseLayer = Layer.mergeAll(
   Layer.service(ProjectContextRepository),
   Layer.service(LifecycleRepository),
+  SandboxGitServiceLive,
   RuntimeGateServiceLive,
   RuntimeWorkflowIndexServiceLive,
   RuntimeFactServiceLive,
-  RuntimeArtifactServiceLive,
+  RuntimeArtifactServiceLive.pipe(Layer.provideMerge(SandboxGitServiceLive)),
 );
 
 const WorkflowEngineRuntimeGuidanceBaseLayer = Layer.mergeAll(WorkflowEngineRuntimeBaseLayer);

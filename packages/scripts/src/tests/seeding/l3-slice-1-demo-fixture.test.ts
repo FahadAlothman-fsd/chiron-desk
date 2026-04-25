@@ -14,12 +14,12 @@ async function loadSeedArtifacts() {
 }
 
 describe("l3 slice-1 demo fixture", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, () => {
-  it("keeps baseline canonical seeds at zero workflow steps and edges", async () => {
+  it("keeps baseline canonical seeds authored for Section A workflows", async () => {
     const { methodology } = await loadSeedArtifacts();
     const { methodologyCanonicalTableSeedRows } = methodology;
 
-    expect(methodologyCanonicalTableSeedRows.methodology_workflow_steps).toHaveLength(0);
-    expect(methodologyCanonicalTableSeedRows.methodology_workflow_edges).toHaveLength(0);
+    expect(methodologyCanonicalTableSeedRows.methodology_workflow_steps.length).toBeGreaterThan(0);
+    expect(methodologyCanonicalTableSeedRows.methodology_workflow_edges.length).toBeGreaterThan(0);
   });
 
   it("seeds WU.SETUP form->form->agent demo with deterministic runtime handoff shape", async () => {
@@ -145,7 +145,9 @@ describe("l3 slice-1 demo fixture", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, () =>
     expect(slice1FixtureOnlyFactExamples.definitionBackedExternalFacts).toHaveLength(
       methodologyDesignTimeSeedFacts.setupWorkUnitFactDefinitionKeys.length,
     );
-    expect(slice1FixtureOnlyFactExamples.boundExternalFacts).toHaveLength(7);
+    expect(slice1FixtureOnlyFactExamples.boundExternalFacts).toHaveLength(
+      methodologyDesignTimeSeedFacts.methodologyFactDefinitionKeys.length,
+    );
 
     expect(
       slice1FixtureOnlyFactExamples.definitionBackedExternalFacts.map((row) => row.factKey),

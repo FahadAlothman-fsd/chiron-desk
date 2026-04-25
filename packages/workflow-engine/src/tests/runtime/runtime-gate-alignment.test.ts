@@ -1,12 +1,15 @@
 import type { WorkflowContextFactDto } from "@chiron/contracts/methodology/workflow";
 import { describe, expect, it } from "vitest";
 import { Effect, Layer } from "effect";
+import { LifecycleRepository } from "@chiron/methodology-engine";
+import { ProjectContextRepository } from "@chiron/project-context";
 
 import {
   ArtifactRepository,
   type ArtifactFreshnessResult,
   evaluateRoutes,
   ProjectFactRepository,
+  ProjectWorkUnitRepository,
   RuntimeGateService,
   RuntimeGateServiceLive,
   WorkUnitFactRepository,
@@ -75,6 +78,61 @@ const makeArtifactRepoLayer = (
       ),
   });
 
+const makeProjectContextLayer = () =>
+  Layer.succeed(ProjectContextRepository, {
+    findProjectPin: () =>
+      Effect.succeed({
+        projectId: "project-1",
+        methodologyVersionId: "version-1",
+        methodologyId: "methodology-1",
+        methodologyKey: "core",
+        publishedVersion: "1.0.0",
+        actorId: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+  } as unknown as ProjectContextRepository["Type"]);
+
+const makeLifecycleLayer = () =>
+  Layer.succeed(LifecycleRepository, {
+    findWorkUnitTypes: () =>
+      Effect.succeed([
+        {
+          id: "wu-type-1",
+          methodologyVersionId: "version-1",
+          key: "WU.STORY",
+          displayName: "Story",
+          descriptionJson: null,
+          guidanceJson: null,
+          cardinality: "many" as const,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]),
+    findLifecycleStates: () =>
+      Effect.succeed([
+        {
+          id: "state-ready",
+          methodologyVersionId: "version-1",
+          workUnitTypeId: "wu-type-1",
+          key: "ready",
+          displayName: "Ready",
+          descriptionJson: null,
+          guidanceJson: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]),
+  } as unknown as LifecycleRepository["Type"]);
+
+const makeProjectWorkUnitLayer = () =>
+  Layer.succeed(ProjectWorkUnitRepository, {
+    createProjectWorkUnit: () => Effect.die("not implemented in test"),
+    listProjectWorkUnitsByProject: () => Effect.succeed([]),
+    getProjectWorkUnitById: () => Effect.succeed(null),
+    updateActiveTransitionExecutionPointer: () => Effect.succeed(null),
+  });
+
 const makeRuntimeGateLayer = (params?: {
   readonly projectFacts?: ReadonlyMap<string, readonly unknown[]>;
   readonly workUnitFacts?: ReadonlyMap<string, readonly unknown[]>;
@@ -83,9 +141,65 @@ const makeRuntimeGateLayer = (params?: {
     Layer.provideMerge(makeProjectFactRepoLayer(params?.projectFacts ?? new Map())),
     Layer.provideMerge(makeWorkUnitFactRepoLayer(params?.workUnitFacts ?? new Map())),
     Layer.provideMerge(makeArtifactRepoLayer()),
+    Layer.provideMerge(makeProjectContextLayer()),
+    Layer.provideMerge(makeLifecycleLayer()),
+    Layer.provideMerge(makeProjectWorkUnitLayer()),
   );
 
 describe("runtime gate / branch overlap alignment", () => {
+  it("evaluates project work-unit instance branch conditions from current instances", () => {
+    const branchEvaluations = evaluateRoutes({
+      routes: [
+        {
+          routeId: "route-story-ready",
+          targetStepId: "step-ready",
+          sortOrder: 0,
+          conditionMode: "all",
+          groups: [
+            {
+              groupId: "group-story-ready",
+              mode: "all",
+              conditions: [
+                {
+                  conditionId: "cond-story-ready",
+                  contextFactDefinitionId: null,
+                  subFieldKey: null,
+                  comparisonJson: null,
+                  workUnitTypeKey: "WU.STORY",
+                  operator: "work_unit_instance_exists_in_state",
+                  stateKeys: ["ready"],
+                  minCount: 2,
+                  isNegated: false,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      contextFacts: [],
+      contextFactDefinitions: [],
+      projectWorkUnitInstances: [
+        { workUnitTypeKey: "WU.STORY", currentStateKey: "ready" },
+        { workUnitTypeKey: "WU.STORY", currentStateKey: "ready" },
+        { workUnitTypeKey: "WU.STORY", currentStateKey: null },
+      ],
+    });
+
+    expect(branchEvaluations[0]?.isValid).toBe(true);
+    expect(branchEvaluations[0]?.evaluationTree.groups[0]?.conditions[0]).toEqual({
+      condition: {
+        kind: "work_unit",
+        workUnitTypeKey: "WU.STORY",
+        operator: "work_unit_instance_exists_in_state",
+        stateKeys: ["ready"],
+        minCount: 2,
+      },
+      met: true,
+      expectedValueJson: { minCount: 2 },
+      currentValueJson: { count: 2 },
+    });
+  });
+
   it("maps transition condition trees with equals metadata and set/group modes intact", () => {
     const tree = toRuntimeConditionTree([
       {

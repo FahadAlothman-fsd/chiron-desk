@@ -33,7 +33,11 @@ import {
   toCanonicalRuntimeBoundFactEnvelope,
 } from "./runtime-bound-fact-value";
 import { ActionStepDetailService } from "./action-step-detail-service";
-import { evaluateRoutes, getSuggestedTarget } from "./branch-route-evaluator";
+import {
+  evaluateRoutes,
+  getSuggestedTarget,
+  toProjectWorkUnitInstanceSummaries,
+} from "./branch-route-evaluator";
 import { InvokeStepDetailService } from "./invoke-step-detail-service";
 import { StepProgressionService } from "./step-progression-service";
 
@@ -1087,10 +1091,18 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                       );
                     }
 
-                    const [workUnitTypes, branchState, contextFacts] = yield* Effect.all([
+                    const [
+                      workUnitTypes,
+                      branchState,
+                      contextFacts,
+                      lifecycleStates,
+                      projectWorkUnits,
+                    ] = yield* Effect.all([
                       lifecycleRepo.findWorkUnitTypes(projectPin.methodologyVersionId),
                       branchRuntimeRepo.loadWithRoutes(stepExecution.id),
                       stepRepo.listWorkflowExecutionContextFacts(stepExecution.workflowExecutionId),
+                      lifecycleRepo.findLifecycleStates(projectPin.methodologyVersionId),
+                      projectWorkUnitRepo.listProjectWorkUnitsByProject(workflowDetail.projectId),
                     ]);
 
                     const workUnitType = workUnitTypes.find(
@@ -1134,6 +1146,15 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                       })),
                       contextFacts,
                       contextFactDefinitions: workflowEditor.contextFacts,
+                      projectWorkUnitInstances: toProjectWorkUnitInstanceSummaries({
+                        projectWorkUnits,
+                        workUnitTypeKeysById: new Map(
+                          workUnitTypes.map((row) => [row.id, row.key] as const),
+                        ),
+                        stateKeysById: new Map(
+                          lifecycleStates.map((row) => [row.id, row.key] as const),
+                        ),
+                      }),
                     });
 
                     const defaultTargetStepId =

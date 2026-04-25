@@ -43,7 +43,7 @@ export const BASELINE_MANUAL_SEED_PLAN: ManualSeedPlan = {
       name: "BMAD v1 — Slice A",
       descriptionJson: {
         markdown:
-          "Refined Slice-A canonical methodology definition for setup, brainstorming, and research.",
+          "Refined Slice-A canonical methodology definition for setup through architecture.",
       },
     },
   ],

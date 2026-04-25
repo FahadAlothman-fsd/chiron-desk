@@ -50,6 +50,60 @@ const FK_TABLE_DEPENDENCIES: Record<CanonicalTableName, CanonicalTableName[]> = 
   methodology_link_type_definitions: [],
   methodology_workflows: ["methodology_work_unit_types"],
   methodology_workflow_steps: ["methodology_workflows"],
+  methodology_workflow_context_fact_definitions: ["methodology_workflows"],
+  methodology_workflow_context_fact_plain_values: ["methodology_workflow_context_fact_definitions"],
+  methodology_workflow_context_fact_external_bindings: [
+    "methodology_workflow_context_fact_definitions",
+  ],
+  methodology_workflow_context_fact_workflow_references: [
+    "methodology_workflow_context_fact_definitions",
+  ],
+  methodology_workflow_context_fact_artifact_references: [
+    "methodology_workflow_context_fact_definitions",
+  ],
+  methodology_workflow_context_fact_draft_specs: ["methodology_workflow_context_fact_definitions"],
+  methodology_workflow_context_fact_draft_spec_selections: [
+    "methodology_workflow_context_fact_draft_specs",
+  ],
+  methodology_workflow_context_fact_draft_spec_facts: [
+    "methodology_workflow_context_fact_draft_specs",
+  ],
+  methodology_workflow_form_fields: [
+    "methodology_workflow_steps",
+    "methodology_workflow_context_fact_definitions",
+  ],
+  methodology_workflow_agent_steps: ["methodology_workflow_steps"],
+  methodology_workflow_agent_step_explicit_read_grants: [
+    "methodology_workflow_agent_steps",
+    "methodology_workflow_context_fact_definitions",
+  ],
+  methodology_workflow_agent_step_write_items: [
+    "methodology_workflow_agent_steps",
+    "methodology_workflow_context_fact_definitions",
+  ],
+  methodology_workflow_agent_step_write_item_requirements: [
+    "methodology_workflow_agent_step_write_items",
+    "methodology_workflow_context_fact_definitions",
+  ],
+  methodology_workflow_action_steps: ["methodology_workflow_steps"],
+  methodology_workflow_action_step_actions: [
+    "methodology_workflow_action_steps",
+    "methodology_workflow_context_fact_definitions",
+  ],
+  methodology_workflow_action_step_action_items: ["methodology_workflow_action_step_actions"],
+  methodology_workflow_invoke_steps: ["methodology_workflow_steps"],
+  methodology_workflow_invoke_bindings: ["methodology_workflow_invoke_steps"],
+  methodology_workflow_invoke_transitions: ["methodology_workflow_invoke_steps"],
+  methodology_workflow_branch_steps: ["methodology_workflow_steps"],
+  methodology_workflow_branch_routes: [
+    "methodology_workflow_branch_steps",
+    "methodology_workflow_steps",
+  ],
+  methodology_workflow_branch_route_groups: ["methodology_workflow_branch_routes"],
+  methodology_workflow_branch_route_conditions: [
+    "methodology_workflow_branch_route_groups",
+    "methodology_workflow_context_fact_definitions",
+  ],
   methodology_workflow_edges: ["methodology_workflows", "methodology_workflow_steps"],
   methodology_transition_workflow_bindings: [
     "work_unit_lifecycle_transitions",
@@ -70,6 +124,29 @@ const initializeCanonicalSeedState = (seedRows: CanonicalSeedRows): CanonicalSee
   methodology_link_type_definitions: [],
   methodology_workflows: [],
   methodology_workflow_steps: [],
+  methodology_workflow_context_fact_definitions: [],
+  methodology_workflow_context_fact_plain_values: [],
+  methodology_workflow_context_fact_external_bindings: [],
+  methodology_workflow_context_fact_workflow_references: [],
+  methodology_workflow_context_fact_artifact_references: [],
+  methodology_workflow_context_fact_draft_specs: [],
+  methodology_workflow_context_fact_draft_spec_selections: [],
+  methodology_workflow_context_fact_draft_spec_facts: [],
+  methodology_workflow_form_fields: [],
+  methodology_workflow_agent_steps: [],
+  methodology_workflow_agent_step_explicit_read_grants: [],
+  methodology_workflow_agent_step_write_items: [],
+  methodology_workflow_agent_step_write_item_requirements: [],
+  methodology_workflow_action_steps: [],
+  methodology_workflow_action_step_actions: [],
+  methodology_workflow_action_step_action_items: [],
+  methodology_workflow_invoke_steps: [],
+  methodology_workflow_invoke_bindings: [],
+  methodology_workflow_invoke_transitions: [],
+  methodology_workflow_branch_steps: [],
+  methodology_workflow_branch_routes: [],
+  methodology_workflow_branch_route_groups: [],
+  methodology_workflow_branch_route_conditions: [],
   methodology_workflow_edges: [],
   methodology_transition_workflow_bindings: [],
   methodology_fact_definitions: [],
@@ -278,10 +355,29 @@ describe("methodology seed integration", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, 
     );
   });
 
-  it("remains L1/L2-only with no seeded workflow step or edge rows", async () => {
+  it("seeds authored workflow rows for Section A editor surfaces", async () => {
     const { methodologyCanonicalTableSeedRows } = await loadMethodologySeedArtifacts();
 
-    expect(methodologyCanonicalTableSeedRows.methodology_workflow_steps).toEqual([]);
-    expect(methodologyCanonicalTableSeedRows.methodology_workflow_edges).toEqual([]);
+    expect(methodologyCanonicalTableSeedRows.methodology_workflow_steps.length).toBeGreaterThan(0);
+    expect(
+      methodologyCanonicalTableSeedRows.methodology_workflow_context_fact_definitions.length,
+    ).toBeGreaterThan(0);
+    expect(methodologyCanonicalTableSeedRows.methodology_workflow_edges.length).toBeGreaterThan(0);
+
+    const activeSetupWorkflow = methodologyCanonicalTableSeedRows.methodology_workflows.find(
+      (row) => row.methodologyVersionId === "mver_bmad_v1_active" && row.key === "setup_project",
+    );
+    const activePrdWorkflow = methodologyCanonicalTableSeedRows.methodology_workflows.find(
+      (row) => row.methodologyVersionId === "mver_bmad_v1_active" && row.key === "create_prd",
+    );
+
+    expect(activeSetupWorkflow?.metadataJson).toMatchObject({
+      entryStepId:
+        "seed:section-a:setup:setup-project:mver_bmad_v1_active:step:collect_setup_baseline",
+    });
+    expect(activePrdWorkflow?.metadataJson).toMatchObject({
+      entryStepId:
+        "seed:section-a:prd:create-prd:mver_bmad_v1_active:step:prd_input_initialization_agent",
+    });
   });
 });

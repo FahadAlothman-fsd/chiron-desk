@@ -553,6 +553,15 @@ export function createProjectRouter(
                 knownWorkUnitTypeKeys,
                 activeWorkUnitTypeKey,
                 currentState,
+                workUnitInstances:
+                  activeWorkUnitTypeKey !== null
+                    ? [
+                        {
+                          workUnitTypeKey: activeWorkUnitTypeKey,
+                          currentStateKey: currentState,
+                        },
+                      ]
+                    : [],
               });
 
               if (!runtimeConditionEvaluation.met) {

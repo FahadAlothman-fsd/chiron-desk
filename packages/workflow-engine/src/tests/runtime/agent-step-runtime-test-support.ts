@@ -113,6 +113,46 @@ export function makeAgentStepRuntimeTestContext(options?: {
     descriptionJson?: unknown;
     guidanceJson?: unknown;
   }[];
+  lifecycleWorkUnitTypes?: readonly {
+    id: string;
+    methodologyVersionId: string;
+    key: string;
+    displayName: string | null;
+    descriptionJson: unknown;
+    guidanceJson: unknown;
+    cardinality: "one_per_project" | "many_per_project";
+    createdAt: Date;
+    updatedAt: Date;
+  }[];
+  lifecycleStates?: readonly {
+    id: string;
+    methodologyVersionId: string;
+    key: string;
+    displayName: string | null;
+    descriptionJson: unknown;
+    guidanceJson: unknown;
+    position: number;
+    createdAt: Date;
+    updatedAt: Date;
+  }[];
+  artifactSlotsByWorkUnitTypeKey?: Readonly<
+    Record<
+      string,
+      readonly {
+        id: string;
+        methodologyVersionId: string;
+        workUnitTypeId: string;
+        key: string;
+        displayName: string | null;
+        descriptionJson: unknown;
+        guidanceJson: unknown;
+        cardinality: "single" | "fileset";
+        rulesJson: unknown;
+        createdAt: Date;
+        updatedAt: Date;
+      }[]
+    >
+  >;
   agentPayload?: AgentStepDesignTimePayload;
   projectWorkUnits?: readonly ProjectWorkUnitRow[];
   workUnitFactsByWorkUnitId?: Readonly<Record<string, readonly WorkUnitFactInstanceRow[]>>;
@@ -504,19 +544,21 @@ export function makeAgentStepRuntimeTestContext(options?: {
   const lifecycleLayer = Layer.succeed(LifecycleRepository, {
     findWorkUnitTypes: () =>
       Effect.succeed([
-        {
-          id: "wu-type-1",
-          methodologyVersionId: "version-1",
-          key: "setup",
-          displayName: "Setup",
-          descriptionJson: null,
-          guidanceJson: null,
-          cardinality: "many",
-          createdAt: now,
-          updatedAt: now,
-        },
+        ...(options?.lifecycleWorkUnitTypes ?? [
+          {
+            id: "wu-type-1",
+            methodologyVersionId: "version-1",
+            key: "setup",
+            displayName: "Setup",
+            descriptionJson: null,
+            guidanceJson: null,
+            cardinality: "many_per_project",
+            createdAt: now,
+            updatedAt: now,
+          },
+        ]),
       ]),
-    findLifecycleStates: () => Effect.succeed([]),
+    findLifecycleStates: () => Effect.succeed([...(options?.lifecycleStates ?? [])]),
     findLifecycleTransitions: () => Effect.succeed([]),
     findFactSchemas: () => Effect.succeed([...(options?.lifecycleFactSchemas ?? [])]),
     findTransitionConditionSets: () => Effect.succeed([]),
@@ -530,22 +572,24 @@ export function makeAgentStepRuntimeTestContext(options?: {
     listAgentStepDefinitions: () => Effect.succeed([agentStepDefinition]),
     getAgentStepDefinition: () => Effect.succeed(agentStepDefinition),
     getWorkflowEditorDefinition: () => Effect.succeed(workflowEditorDefinition),
-    findArtifactSlotsByWorkUnitType: () =>
-      Effect.succeed([
-        {
-          id: "slot-1",
-          methodologyVersionId: "version-1",
-          workUnitTypeId: "wu-type-1",
-          key: "ARTIFACT",
-          displayName: "Artifact",
-          descriptionJson: null,
-          guidanceJson: null,
-          cardinality: "fileset",
-          rulesJson: null,
-          createdAt: now,
-          updatedAt: now,
-        },
-      ]),
+    findArtifactSlotsByWorkUnitType: ({ workUnitTypeKey }: { workUnitTypeKey: string }) =>
+      Effect.succeed(
+        options?.artifactSlotsByWorkUnitTypeKey?.[workUnitTypeKey] ?? [
+          {
+            id: "slot-1",
+            methodologyVersionId: "version-1",
+            workUnitTypeId: "wu-type-1",
+            key: "ARTIFACT",
+            displayName: "Artifact",
+            descriptionJson: null,
+            guidanceJson: null,
+            cardinality: "fileset",
+            rulesJson: null,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ],
+      ),
     listWorkflowsByWorkUnitType: () =>
       Effect.succeed(
         (options?.workflowDefinitions ?? []).map((workflow) => ({

@@ -46,6 +46,28 @@ export const ArtifactInstanceFile = Schema.Struct({
   filePath: Schema.String,
   gitCommitHash: Schema.NullOr(Schema.String),
   gitCommitTitle: Schema.NullOr(Schema.String),
+  gitCommitDate: Schema.optional(Schema.NullOr(Schema.String)),
+  latestCurrent: Schema.optional(
+    Schema.Struct({
+      status: Schema.Literal(
+        "committed",
+        "not_committed",
+        "missing",
+        "git_not_installed",
+        "not_a_repo",
+      ),
+      relativePath: Schema.String,
+      message: Schema.optional(Schema.String),
+      gitCommitHash: Schema.optional(Schema.NullOr(Schema.String)),
+      gitCommitTitle: Schema.optional(Schema.NullOr(Schema.String)),
+      gitCommitDate: Schema.optional(Schema.NullOr(Schema.String)),
+      tracked: Schema.optional(Schema.Boolean),
+      untracked: Schema.optional(Schema.Boolean),
+      staged: Schema.optional(Schema.Boolean),
+      modified: Schema.optional(Schema.Boolean),
+      deleted: Schema.optional(Schema.Boolean),
+    }),
+  ),
 });
 export type ArtifactInstanceFile = typeof ArtifactInstanceFile.Type;
 

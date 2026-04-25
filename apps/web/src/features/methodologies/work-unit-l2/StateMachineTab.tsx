@@ -144,6 +144,9 @@ const absentFromStateSubtitle = "For activating a work unit from an absent state
 type FactConditionOperator = "exists" | "equals";
 type WorkUnitFactConditionOperator = "exists" | "equals";
 type ArtifactConditionOperator = "exists" | "stale" | "fresh";
+type ProjectWorkUnitConditionOperator =
+  | "work_unit_instance_exists"
+  | "work_unit_instance_exists_in_state";
 
 type FactConditionConfig = {
   factKey: string;
@@ -160,6 +163,13 @@ type WorkUnitFactConditionConfig = {
 type ArtifactConditionConfig = {
   slotKey: string;
   operator: ArtifactConditionOperator;
+};
+
+type ProjectWorkUnitConditionConfig = {
+  workUnitTypeKey: string;
+  operator: ProjectWorkUnitConditionOperator;
+  stateKeys: string[];
+  minCount: number;
 };
 
 const factConditionOperatorOptions: Array<{ value: FactConditionOperator; label: string }> = [
@@ -182,6 +192,14 @@ const artifactConditionOperatorOptions: Array<{
   { value: "exists", label: "exists" },
   { value: "stale", label: "stale" },
   { value: "fresh", label: "fresh" },
+];
+
+const projectWorkUnitConditionOperatorOptions: Array<{
+  value: ProjectWorkUnitConditionOperator;
+  label: string;
+}> = [
+  { value: "work_unit_instance_exists", label: "instance exists" },
+  { value: "work_unit_instance_exists_in_state", label: "instance exists in state" },
 ];
 
 function normalizeFactConditionConfig(config: unknown): FactConditionConfig {
@@ -242,6 +260,50 @@ function normalizeArtifactConditionConfig(config: unknown): ArtifactConditionCon
       value.operator === "stale" || value.operator === "fresh" || value.operator === "exists"
         ? value.operator
         : "exists",
+  };
+}
+
+function normalizeProjectWorkUnitConditionConfig(config: unknown): ProjectWorkUnitConditionConfig {
+  if (!config || typeof config !== "object") {
+    return {
+      workUnitTypeKey: "",
+      operator: "work_unit_instance_exists",
+      stateKeys: [],
+      minCount: 1,
+    };
+  }
+
+  const value = config as {
+    workUnitTypeKey?: unknown;
+    workUnitKey?: unknown;
+    operator?: unknown;
+    stateKeys?: unknown;
+    stateKey?: unknown;
+    minCount?: unknown;
+  };
+
+  return {
+    workUnitTypeKey:
+      typeof value.workUnitTypeKey === "string"
+        ? value.workUnitTypeKey
+        : typeof value.workUnitKey === "string"
+          ? value.workUnitKey
+          : "",
+    operator:
+      value.operator === "work_unit_instance_exists_in_state"
+        ? "work_unit_instance_exists_in_state"
+        : "work_unit_instance_exists",
+    stateKeys: Array.isArray(value.stateKeys)
+      ? value.stateKeys.filter(
+          (entry): entry is string => typeof entry === "string" && entry.trim().length > 0,
+        )
+      : typeof value.stateKey === "string" && value.stateKey.trim().length > 0
+        ? [value.stateKey.trim()]
+        : [],
+    minCount:
+      typeof value.minCount === "number" && Number.isInteger(value.minCount) && value.minCount > 0
+        ? value.minCount
+        : 1,
   };
 }
 
@@ -765,7 +827,7 @@ export function StateMachineTab({
     );
   };
 
-  const addGroupCondition = (kind: "fact" | "work_unit_fact" | "artifact") => {
+  const addGroupCondition = (kind: "fact" | "work_unit_fact" | "artifact" | "work_unit") => {
     setGroupEditor((previous) =>
       previous
         ? {
@@ -780,7 +842,14 @@ export function StateMachineTab({
                     ? { factKey: "", operator: "exists" }
                     : kind === "work_unit_fact"
                       ? { factKey: "", operator: "exists" }
-                      : { slotKey: "", operator: "exists" },
+                      : kind === "work_unit"
+                        ? {
+                            workUnitTypeKey: "",
+                            operator: "work_unit_instance_exists",
+                            stateKeys: [],
+                            minCount: 1,
+                          }
+                        : { slotKey: "", operator: "exists" },
               },
             ],
           }
@@ -879,7 +948,125 @@ export function StateMachineTab({
       );
     }
 
-    if (condition.kind === "work_unit_fact" || condition.kind === "work_unit") {
+    if (condition.kind === "work_unit") {
+      const config = normalizeProjectWorkUnitConditionConfig(condition.config);
+      return (
+        <div key={testId} data-testid={testId} className="chiron-frame-flat grid gap-3 p-3">
+          <div className="flex items-center justify-between gap-2 text-xs uppercase tracking-[0.12em] text-muted-foreground">
+            <span>Project Work-Unit Condition</span>
+            <span className="text-[0.68rem] normal-case tracking-normal text-foreground/90">
+              {config.workUnitTypeKey || "Enter work-unit type"}
+              {` • ${config.operator}`}
+              {config.operator === "work_unit_instance_exists_in_state" &&
+              config.stateKeys.length > 0
+                ? ` • ${config.stateKeys.join(", ")}`
+                : ""}
+              {` • min ${config.minCount}`}
+            </span>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor={`${testId}-work-unit-type`}>Work-unit type key</Label>
+              <Input
+                id={`${testId}-work-unit-type`}
+                className="rounded-none"
+                value={config.workUnitTypeKey}
+                onChange={(event) => {
+                  onChange({
+                    ...condition,
+                    kind: "work_unit",
+                    required: condition.required ?? true,
+                    config: {
+                      ...config,
+                      workUnitTypeKey: event.target.value,
+                    },
+                  });
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${testId}-operator`}>Operator</Label>
+              <select
+                id={`${testId}-operator`}
+                className="h-9 w-full rounded-none border border-input bg-background px-2 text-xs"
+                value={config.operator}
+                onChange={(event) => {
+                  const operator =
+                    event.target.value === "work_unit_instance_exists_in_state"
+                      ? "work_unit_instance_exists_in_state"
+                      : "work_unit_instance_exists";
+                  onChange({
+                    ...condition,
+                    kind: "work_unit",
+                    required: condition.required ?? true,
+                    config: {
+                      ...config,
+                      operator,
+                      ...(operator === "work_unit_instance_exists" ? { stateKeys: [] } : {}),
+                    },
+                  });
+                }}
+              >
+                {projectWorkUnitConditionOperatorOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${testId}-min-count`}>Minimum count</Label>
+              <Input
+                id={`${testId}-min-count`}
+                type="number"
+                min={1}
+                className="rounded-none"
+                value={String(config.minCount)}
+                onChange={(event) => {
+                  const nextCount = Number.parseInt(event.target.value, 10);
+                  onChange({
+                    ...condition,
+                    kind: "work_unit",
+                    required: condition.required ?? true,
+                    config: {
+                      ...config,
+                      minCount: Number.isInteger(nextCount) && nextCount > 0 ? nextCount : 1,
+                    },
+                  });
+                }}
+              />
+            </div>
+            {config.operator === "work_unit_instance_exists_in_state" ? (
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor={`${testId}-state-keys`}>State keys</Label>
+                <Input
+                  id={`${testId}-state-keys`}
+                  className="rounded-none"
+                  placeholder="Comma-separated state keys"
+                  value={config.stateKeys.join(", ")}
+                  onChange={(event) => {
+                    onChange({
+                      ...condition,
+                      kind: "work_unit",
+                      required: condition.required ?? true,
+                      config: {
+                        ...config,
+                        stateKeys: event.target.value
+                          .split(",")
+                          .map((entry) => entry.trim())
+                          .filter((entry) => entry.length > 0),
+                      },
+                    });
+                  }}
+                />
+              </div>
+            ) : null}
+          </div>
+        </div>
+      );
+    }
+
+    if (condition.kind === "work_unit_fact") {
       const config = normalizeWorkUnitFactConditionConfig(condition.config);
       return (
         <div key={testId} data-testid={testId} className="chiron-frame-flat grid gap-3 p-3">
@@ -1047,7 +1234,14 @@ export function StateMachineTab({
         : `${config.factKey || "(fact)"} ${config.operator}`;
     }
 
-    if (condition.kind === "work_unit_fact" || condition.kind === "work_unit") {
+    if (condition.kind === "work_unit") {
+      const config = normalizeProjectWorkUnitConditionConfig(condition.config);
+      return config.operator === "work_unit_instance_exists_in_state"
+        ? `${config.workUnitTypeKey || "(work unit type)"} in ${config.stateKeys.join(", ") || "(states)"} >= ${config.minCount}`
+        : `${config.workUnitTypeKey || "(work unit type)"} >= ${config.minCount}`;
+    }
+
+    if (condition.kind === "work_unit_fact") {
       const config = normalizeWorkUnitFactConditionConfig(condition.config);
       return config.operator === "equals" && config.value?.trim().length
         ? `${config.factKey || "(work-unit fact)"} ${config.operator} ${config.value}`
@@ -2045,6 +2239,14 @@ export function StateMachineTab({
                   onClick={() => addGroupCondition("work_unit_fact")}
                 >
                   Add Work Unit Fact Condition
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-none"
+                  onClick={() => addGroupCondition("work_unit")}
+                >
+                  Add Project Work-Unit Condition
                 </Button>
                 <Button
                   type="button"

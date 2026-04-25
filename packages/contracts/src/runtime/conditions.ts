@@ -1,8 +1,16 @@
 import * as Schema from "effect/Schema";
 
-export const CONDITION_KINDS = ["fact", "work_unit_fact", "artifact"] as const;
+export const CONDITION_KINDS = ["fact", "work_unit_fact", "artifact", "work_unit"] as const;
 export const ConditionKind = Schema.Literal(...CONDITION_KINDS);
 export type ConditionKind = typeof ConditionKind.Type;
+
+const PositiveInteger = Schema.Number.pipe(
+  Schema.filter((value) => Number.isInteger(value) && value > 0),
+);
+
+const NonEmptyStateKeys = Schema.Array(Schema.NonEmptyString).pipe(
+  Schema.filter((value) => value.length > 0),
+);
 
 export const ARTIFACT_CONDITION_OPERATORS = ["exists", "stale", "fresh"] as const;
 export const ArtifactConditionOperator = Schema.Literal(...ARTIFACT_CONDITION_OPERATORS);
@@ -15,6 +23,13 @@ export type FactConditionOperator = typeof FactConditionOperator.Type;
 export const WORK_UNIT_FACT_CONDITION_OPERATORS = ["exists", "equals"] as const;
 export const WorkUnitFactConditionOperator = Schema.Literal(...WORK_UNIT_FACT_CONDITION_OPERATORS);
 export type WorkUnitFactConditionOperator = typeof WorkUnitFactConditionOperator.Type;
+
+export const WORK_UNIT_CONDITION_OPERATORS = [
+  "work_unit_instance_exists",
+  "work_unit_instance_exists_in_state",
+] as const;
+export const WorkUnitConditionOperator = Schema.Literal(...WORK_UNIT_CONDITION_OPERATORS);
+export type WorkUnitConditionOperator = typeof WorkUnitConditionOperator.Type;
 
 export const RuntimeConditionMode = Schema.Literal("all", "any");
 export type RuntimeConditionMode = typeof RuntimeConditionMode.Type;
@@ -53,10 +68,30 @@ export const ArtifactCondition = Schema.Struct({
 });
 export type ArtifactCondition = typeof ArtifactCondition.Type;
 
+export const WorkUnitCondition = Schema.Union(
+  Schema.Struct({
+    kind: Schema.Literal("work_unit"),
+    workUnitTypeKey: Schema.NonEmptyString,
+    operator: Schema.Literal("work_unit_instance_exists"),
+    minCount: Schema.optionalWith(PositiveInteger, { default: () => 1 }),
+    isNegated: Schema.optional(Schema.Boolean),
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("work_unit"),
+    workUnitTypeKey: Schema.NonEmptyString,
+    operator: Schema.Literal("work_unit_instance_exists_in_state"),
+    stateKeys: NonEmptyStateKeys,
+    minCount: Schema.optionalWith(PositiveInteger, { default: () => 1 }),
+    isNegated: Schema.optional(Schema.Boolean),
+  }),
+);
+export type WorkUnitCondition = typeof WorkUnitCondition.Type;
+
 export const RuntimeCondition = Schema.Union(
   FactCondition,
   WorkUnitFactCondition,
   ArtifactCondition,
+  WorkUnitCondition,
 );
 export type RuntimeCondition = typeof RuntimeCondition.Type;
 

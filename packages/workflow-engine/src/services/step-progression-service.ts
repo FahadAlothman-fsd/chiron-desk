@@ -5,11 +5,12 @@ import { Context, Effect, Layer } from "effect";
 import type { RepositoryError } from "../errors";
 import { BranchStepRuntimeRepository } from "../repositories/branch-step-runtime-repository";
 import { ExecutionReadRepository } from "../repositories/execution-read-repository";
+import { ProjectWorkUnitRepository } from "../repositories/project-work-unit-repository";
 import {
   StepExecutionRepository,
   type RuntimeWorkflowStepDefinitionRow,
 } from "../repositories/step-execution-repository";
-import { evaluateRoutes } from "./branch-route-evaluator";
+import { evaluateRoutes, toProjectWorkUnitInstanceSummaries } from "./branch-route-evaluator";
 
 export type EntryStepResolution =
   | {
@@ -89,6 +90,7 @@ export const StepProgressionServiceLive = Layer.effect(
     const branchRuntimeRepo = yield* BranchStepRuntimeRepository;
     const executionReadRepo = yield* ExecutionReadRepository;
     const projectContextRepo = yield* ProjectContextRepository;
+    const projectWorkUnitRepo = yield* ProjectWorkUnitRepository;
     const lifecycleRepo = yield* LifecycleRepository;
     const methodologyRepo = yield* MethodologyRepository;
 
@@ -214,18 +216,21 @@ export const StepProgressionServiceLive = Layer.effect(
           } satisfies NextStepResolution;
         }
 
-        const [branchDefinition, workflowEditor] = yield* Effect.all([
-          methodologyRepo.getBranchStepDefinition({
-            versionId: projectPin.methodologyVersionId,
-            workflowDefinitionId: workflowId,
-            stepId: fromStepDefinitionId,
-          }),
-          methodologyRepo.getWorkflowEditorDefinition({
-            versionId: projectPin.methodologyVersionId,
-            workUnitTypeKey: workUnitType.key,
-            workflowDefinitionId: workflowId,
-          }),
-        ]);
+        const [branchDefinition, workflowEditor, lifecycleStates, projectWorkUnits] =
+          yield* Effect.all([
+            methodologyRepo.getBranchStepDefinition({
+              versionId: projectPin.methodologyVersionId,
+              workflowDefinitionId: workflowId,
+              stepId: fromStepDefinitionId,
+            }),
+            methodologyRepo.getWorkflowEditorDefinition({
+              versionId: projectPin.methodologyVersionId,
+              workUnitTypeKey: workUnitType.key,
+              workflowDefinitionId: workflowId,
+            }),
+            lifecycleRepo.findLifecycleStates(projectPin.methodologyVersionId),
+            projectWorkUnitRepo.listProjectWorkUnitsByProject(workflowDetail.projectId),
+          ]);
 
         if (!branchDefinition) {
           return {
@@ -243,6 +248,11 @@ export const StepProgressionServiceLive = Layer.effect(
           })),
           contextFacts,
           contextFactDefinitions: workflowEditor.contextFacts,
+          projectWorkUnitInstances: toProjectWorkUnitInstanceSummaries({
+            projectWorkUnits,
+            workUnitTypeKeysById: new Map(workUnitTypes.map((row) => [row.id, row.key] as const)),
+            stateKeysById: new Map(lifecycleStates.map((row) => [row.id, row.key] as const)),
+          }),
         });
 
         const validConditionalTargets = evaluations

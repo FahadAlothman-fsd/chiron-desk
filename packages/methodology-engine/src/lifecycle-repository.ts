@@ -37,6 +37,8 @@ export interface LifecycleTransitionRow {
   fromStateId: string | null; // NULL = __absent__
   toStateId: string | null;
   transitionKey: string;
+  descriptionJson: unknown;
+  guidanceJson: unknown;
   createdAt: Date;
   updatedAt: Date;
 }

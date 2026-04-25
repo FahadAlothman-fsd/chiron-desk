@@ -165,6 +165,9 @@ const toBoundValue = (value: unknown): BoundFactValue | null => {
   };
 };
 
+const getProjectWorkUnitIdFromReferenceValue = (value: unknown): string | null =>
+  isRecord(value) && typeof value.projectWorkUnitId === "string" ? value.projectWorkUnitId : null;
+
 const toArtifactPublicValue = (params: {
   readonly storedValue: unknown;
   readonly externalState: ArtifactExternalState;
@@ -380,39 +383,67 @@ const buildWorkUnitCandidateSummary = (params: {
   readonly workUnit: Awaited<
     ReturnType<ProjectWorkUnitRepository["Type"]["getProjectWorkUnitById"]>
   > extends Effect.Effect<infer A, any, any>
-    ? A
+    ? NonNullable<A>
     : never;
   readonly context: AgentStepRuntimeResolvedContext;
+  readonly resolvedWorkUnitType?: {
+    readonly id: string;
+    readonly key: string;
+    readonly displayName: string | null;
+    readonly cardinality: string;
+  };
+  readonly resolvedState?: {
+    readonly id: string;
+    readonly key: string;
+    readonly displayName: string | null;
+  };
 }): {
   readonly projectWorkUnitId: string;
   readonly label: string;
   readonly workUnitTypeKey: string;
   readonly workUnitTypeName?: string;
+  readonly currentStateId?: string;
   readonly currentStateKey?: string;
   readonly currentStateLabel?: string;
 } => {
   const workUnitType = params.context.workflowEditor.contextFacts;
   void workUnitType;
   const currentWorkUnitType = params.context.workUnitType.id === params.workUnit.workUnitTypeId;
+  const resolvedWorkUnitType = params.resolvedWorkUnitType;
+  const resolvedState = params.resolvedState;
   return {
     projectWorkUnitId: params.workUnit.id,
     label:
       params.workUnit.displayName ??
       params.workUnit.workUnitKey ??
-      `${currentWorkUnitType ? (params.context.workUnitType.displayName ?? params.context.workUnitType.key) : params.workUnit.workUnitTypeId} ${params.workUnit.instanceNumber ?? ""}`.trim(),
+      `${
+        currentWorkUnitType
+          ? (params.context.workUnitType.displayName ?? params.context.workUnitType.key)
+          : (resolvedWorkUnitType?.displayName ??
+            resolvedWorkUnitType?.key ??
+            params.workUnit.workUnitTypeId)
+      } ${params.workUnit.instanceNumber ?? ""}`.trim(),
     workUnitTypeKey:
       params.workUnit.workUnitTypeId === params.context.workUnitType.id
         ? params.context.workUnitType.key
-        : params.workUnit.workUnitTypeId,
+        : (resolvedWorkUnitType?.key ?? params.workUnit.workUnitTypeId),
     ...(params.workUnit.workUnitTypeId === params.context.workUnitType.id
       ? {
           workUnitTypeName:
             params.context.workUnitType.displayName ?? params.context.workUnitType.key,
         }
-      : {}),
-    ...(params.workUnit.currentStateId ? { currentStateKey: params.workUnit.currentStateId } : {}),
+      : resolvedWorkUnitType
+        ? { workUnitTypeName: resolvedWorkUnitType.displayName ?? resolvedWorkUnitType.key }
+        : {}),
+    ...(params.workUnit.currentStateId ? { currentStateId: params.workUnit.currentStateId } : {}),
     ...(params.workUnit.currentStateId
-      ? { currentStateLabel: params.workUnit.currentStateId }
+      ? { currentStateKey: resolvedState?.key ?? params.workUnit.currentStateId }
+      : {}),
+    ...(params.workUnit.currentStateId
+      ? {
+          currentStateLabel:
+            resolvedState?.displayName ?? resolvedState?.key ?? params.workUnit.currentStateId,
+        }
       : {}),
   };
 };
@@ -817,6 +848,123 @@ export const AgentStepMcpServiceLive = Layer.effect(
       >;
     }): Effect.Effect<ReadContextFactInstancesOutputV2, AgentStepMcpServiceError> =>
       Effect.gen(function* () {
+        const readReferencedWorkUnitPackage = (projectWorkUnitId: string) =>
+          Effect.gen(function* () {
+            const projectWorkUnitRepo = getProjectWorkUnitRepo();
+            const workUnitFactRepo = getWorkUnitFactRepo();
+            const artifactRepo = getArtifactRepo();
+
+            const [target, workUnitTypes, states, factSchemas] = yield* Effect.all([
+              projectWorkUnitRepo.getProjectWorkUnitById(projectWorkUnitId),
+              lifecycleRepo.findWorkUnitTypes(params.context.projectPin.methodologyVersionId),
+              lifecycleRepo.findLifecycleStates(params.context.projectPin.methodologyVersionId),
+              lifecycleRepo.findFactSchemas(params.context.projectPin.methodologyVersionId),
+            ]);
+
+            if (!target || target.projectId !== params.context.workflowDetail.projectId) {
+              return null;
+            }
+
+            const resolvedWorkUnitType =
+              workUnitTypes.find((candidate) => candidate.id === target.workUnitTypeId) ??
+              undefined;
+            const resolvedState = target.currentStateId
+              ? (states.find((candidate) => candidate.id === target.currentStateId) ?? undefined)
+              : undefined;
+            const factSchemaById = new Map(
+              factSchemas.map((schema) => [schema.id, schema] as const),
+            );
+            const activeFactInstances = (yield* workUnitFactRepo.listFactsByWorkUnit({
+              projectWorkUnitId: target.id,
+            }))
+              .filter((factRow) => factRow.status === "active")
+              .map((factRow) => {
+                const factSchema = factSchemaById.get(factRow.factDefinitionId);
+                return {
+                  factInstanceId: factRow.id,
+                  factDefinitionId: factRow.factDefinitionId,
+                  ...(factSchema?.key ? { factKey: factSchema.key } : {}),
+                  ...(factSchema?.name ? { label: factSchema.name } : {}),
+                  ...(factSchema?.factType ? { valueType: factSchema.factType } : {}),
+                  value:
+                    factRow.referencedProjectWorkUnitId !== null
+                      ? { projectWorkUnitId: factRow.referencedProjectWorkUnitId }
+                      : factRow.valueJson,
+                  ...(toIso(factRow.createdAt) ? { recordedAt: toIso(factRow.createdAt) } : {}),
+                };
+              });
+
+            const slotDefinitions = resolvedWorkUnitType
+              ? yield* methodologyRepo.findArtifactSlotsByWorkUnitType({
+                  versionId: params.context.projectPin.methodologyVersionId,
+                  workUnitTypeKey: resolvedWorkUnitType.key,
+                })
+              : [];
+
+            const artifactSlotInstances = (yield* Effect.forEach(
+              slotDefinitions,
+              (slotDefinition) =>
+                artifactRepo
+                  .getCurrentSnapshotBySlot({
+                    projectWorkUnitId: target.id,
+                    slotDefinitionId: slotDefinition.id,
+                  })
+                  .pipe(Effect.map((state) => ({ slotDefinition, state }))),
+            )).flatMap(({ slotDefinition, state }) => {
+              if (!state.exists || !state.snapshot) {
+                return [];
+              }
+
+              return [
+                {
+                  artifactInstanceId: state.snapshot.id,
+                  slotDefinitionId: slotDefinition.id,
+                  ...(slotDefinition.key ? { slotKey: slotDefinition.key } : {}),
+                  ...(slotDefinition.displayName ? { label: slotDefinition.displayName } : {}),
+                  ...(toIso(state.snapshot.createdAt)
+                    ? { recordedAt: toIso(state.snapshot.createdAt) }
+                    : {}),
+                  files: state.members.map((member) => ({
+                    filePath: member.filePath,
+                    ...(member.memberStatus === "removed" ? { deleted: true } : {}),
+                    ...(member.gitCommitHash !== undefined
+                      ? { gitCommitHash: member.gitCommitHash }
+                      : {}),
+                    ...(member.gitBlobHash !== undefined
+                      ? { gitBlobHash: member.gitBlobHash }
+                      : {}),
+                    ...(member.gitCommitTitle !== undefined
+                      ? { gitCommitTitle: member.gitCommitTitle }
+                      : {}),
+                    ...(member.gitCommitBody !== undefined
+                      ? { gitCommitBody: member.gitCommitBody }
+                      : {}),
+                  })),
+                },
+              ];
+            });
+
+            return {
+              ...buildWorkUnitCandidateSummary({
+                workUnit: target,
+                context: params.context,
+                ...(resolvedWorkUnitType ? { resolvedWorkUnitType } : {}),
+                ...(resolvedState ? { resolvedState } : {}),
+              }),
+              ...(resolvedWorkUnitType
+                ? {
+                    workUnitTypeId: resolvedWorkUnitType.id,
+                    cardinality: resolvedWorkUnitType.cardinality,
+                  }
+                : {}),
+              factInstances: activeFactInstances,
+              artifactSlotInstances,
+              artifactPaths: artifactSlotInstances.flatMap((slotInstance) =>
+                slotInstance.files.map((file) => file.filePath),
+              ),
+            };
+          });
+
         const currentRows = readCurrentRows({ context: params.context, fact: params.fact })
           .filter((row) =>
             params.request.input.instanceIds?.length
@@ -835,15 +983,25 @@ export const AgentStepMcpServiceLive = Layer.effect(
                   value: row.valueJson,
                   ...(toIso(row.createdAt) ? { recordedAt: toIso(row.createdAt) } : {}),
                 };
-              case "bound_fact":
+              case "bound_fact": {
+                const value = toBoundValue(row.valueJson) ?? {
+                  factInstanceId: "unknown",
+                  value: row.valueJson,
+                };
+                const projectWorkUnitId =
+                  params.fact.valueType === "work_unit"
+                    ? getProjectWorkUnitIdFromReferenceValue(value.value)
+                    : null;
+                const target = projectWorkUnitId
+                  ? yield* readReferencedWorkUnitPackage(projectWorkUnitId)
+                  : null;
                 return {
                   instanceId: getInstanceId(row),
-                  value: toBoundValue(row.valueJson) ?? {
-                    factInstanceId: "unknown",
-                    value: row.valueJson,
-                  },
+                  value,
+                  ...(target ? { target } : {}),
                   ...(toIso(row.createdAt) ? { recordedAt: toIso(row.createdAt) } : {}),
                 };
+              }
               case "workflow_ref_fact":
                 return {
                   instanceId: getInstanceId(row),
@@ -855,19 +1013,15 @@ export const AgentStepMcpServiceLive = Layer.effect(
                   ...(toIso(row.createdAt) ? { recordedAt: toIso(row.createdAt) } : {}),
                 };
               case "work_unit_reference_fact": {
-                const projectWorkUnitRepo = getProjectWorkUnitRepo();
-                const projectWorkUnitId =
-                  isRecord(row.valueJson) && typeof row.valueJson.projectWorkUnitId === "string"
-                    ? row.valueJson.projectWorkUnitId
-                    : null;
+                const projectWorkUnitId = getProjectWorkUnitIdFromReferenceValue(row.valueJson);
                 const target = projectWorkUnitId
-                  ? yield* projectWorkUnitRepo.getProjectWorkUnitById(projectWorkUnitId)
+                  ? yield* readReferencedWorkUnitPackage(projectWorkUnitId)
                   : null;
                 return {
                   instanceId: getInstanceId(row),
                   value: { projectWorkUnitId: projectWorkUnitId ?? "unknown" },
                   target: target
-                    ? buildWorkUnitCandidateSummary({ workUnit: target, context: params.context })
+                    ? target
                     : {
                         projectWorkUnitId: projectWorkUnitId ?? "unknown",
                         label: projectWorkUnitId ?? "unknown",
