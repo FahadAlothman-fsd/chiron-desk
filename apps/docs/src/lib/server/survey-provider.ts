@@ -104,6 +104,6 @@ export async function getFinishedSurveyResponses(): Promise<SurveyProviderRespon
   return (payload.data ?? []).map((item) => ({
     id: String(item.id),
     finished: item.finished === true,
-    hiddenFields: ((item.meta ?? {}) as SurveyContext) ?? {},
+    hiddenFields: (item.meta ?? {}) as SurveyContext,
   }));
 }
