@@ -252,7 +252,25 @@ export const BRANCH_STEP_CONDITION_OPERATORS = ["exists", "equals"] as const;
 export const BranchStepConditionOperator = Schema.Literal(...BRANCH_STEP_CONDITION_OPERATORS);
 export type BranchStepConditionOperator = typeof BranchStepConditionOperator.Type;
 
-export const BranchRouteConditionPayload = Schema.Struct({
+export const BRANCH_STEP_PROJECT_WORK_UNIT_CONDITION_OPERATORS = [
+  "work_unit_instance_exists",
+  "work_unit_instance_exists_in_state",
+] as const;
+export const BranchStepProjectWorkUnitConditionOperator = Schema.Literal(
+  ...BRANCH_STEP_PROJECT_WORK_UNIT_CONDITION_OPERATORS,
+);
+export type BranchStepProjectWorkUnitConditionOperator =
+  typeof BranchStepProjectWorkUnitConditionOperator.Type;
+
+const PositiveInteger = Schema.Number.pipe(
+  Schema.filter((value) => Number.isInteger(value) && value > 0),
+);
+
+const NonEmptyStateKeys = Schema.Array(Schema.NonEmptyString).pipe(
+  Schema.filter((value) => value.length > 0),
+);
+
+export const BranchRouteFactConditionPayload = Schema.Struct({
   conditionId: Schema.NonEmptyString,
   contextFactDefinitionId: Schema.NonEmptyString,
   subFieldKey: Schema.optionalWith(Schema.NullOr(Schema.NonEmptyString), {
@@ -261,7 +279,45 @@ export const BranchRouteConditionPayload = Schema.Struct({
   operator: BranchStepConditionOperator,
   isNegated: Schema.optionalWith(Schema.Boolean, { default: () => false }),
   comparisonJson: Schema.Unknown,
+  workUnitTypeKey: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
+  stateKeys: Schema.optional(Schema.Array(Schema.NonEmptyString)),
+  minCount: Schema.optional(PositiveInteger),
 });
+export type BranchRouteFactConditionPayload = typeof BranchRouteFactConditionPayload.Type;
+
+export const BranchRouteProjectWorkUnitExistsConditionPayload = Schema.Struct({
+  conditionId: Schema.NonEmptyString,
+  contextFactDefinitionId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
+  subFieldKey: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
+  workUnitTypeKey: Schema.NonEmptyString,
+  operator: Schema.Literal("work_unit_instance_exists"),
+  minCount: Schema.optionalWith(PositiveInteger, { default: () => 1 }),
+  isNegated: Schema.optionalWith(Schema.Boolean, { default: () => false }),
+  comparisonJson: Schema.optional(Schema.Unknown),
+  stateKeys: Schema.optional(Schema.Array(Schema.NonEmptyString)),
+});
+export type BranchRouteProjectWorkUnitExistsConditionPayload =
+  typeof BranchRouteProjectWorkUnitExistsConditionPayload.Type;
+
+export const BranchRouteProjectWorkUnitExistsInStateConditionPayload = Schema.Struct({
+  conditionId: Schema.NonEmptyString,
+  contextFactDefinitionId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
+  subFieldKey: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
+  workUnitTypeKey: Schema.NonEmptyString,
+  operator: Schema.Literal("work_unit_instance_exists_in_state"),
+  stateKeys: NonEmptyStateKeys,
+  minCount: Schema.optionalWith(PositiveInteger, { default: () => 1 }),
+  isNegated: Schema.optionalWith(Schema.Boolean, { default: () => false }),
+  comparisonJson: Schema.optional(Schema.Unknown),
+});
+export type BranchRouteProjectWorkUnitExistsInStateConditionPayload =
+  typeof BranchRouteProjectWorkUnitExistsInStateConditionPayload.Type;
+
+export const BranchRouteConditionPayload = Schema.Union(
+  BranchRouteFactConditionPayload,
+  BranchRouteProjectWorkUnitExistsConditionPayload,
+  BranchRouteProjectWorkUnitExistsInStateConditionPayload,
+);
 export type BranchRouteConditionPayload = typeof BranchRouteConditionPayload.Type;
 
 export const BranchRouteGroupPayload = Schema.Struct({

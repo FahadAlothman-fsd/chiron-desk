@@ -23,6 +23,7 @@ import {
   VariableValueType,
   VersionEventType,
 } from "../../methodology/version";
+import { BranchRouteConditionPayload } from "../../methodology/workflow";
 import {
   LifecycleTransition,
   TransitionConditionSet,
@@ -202,6 +203,62 @@ describe("MethodologyVersionDefinition", () => {
     const { transitionWorkflowBindings: _, ...rest } = validDefinition;
     const result = decode(rest);
     expect(result.transitionWorkflowBindings).toEqual({});
+  });
+});
+
+describe("BranchRouteConditionPayload", () => {
+  const decode = Schema.decodeUnknownSync(BranchRouteConditionPayload);
+
+  it("decodes project work-unit instance branch conditions", () => {
+    expect(
+      decode({
+        conditionId: "cond-1",
+        workUnitTypeKey: "WU.STORY",
+        operator: "work_unit_instance_exists",
+      }),
+    ).toMatchObject({
+      conditionId: "cond-1",
+      workUnitTypeKey: "WU.STORY",
+      operator: "work_unit_instance_exists",
+      minCount: 1,
+      isNegated: false,
+    });
+
+    expect(
+      decode({
+        conditionId: "cond-2",
+        workUnitTypeKey: "WU.STORY",
+        operator: "work_unit_instance_exists_in_state",
+        stateKeys: ["ready"],
+      }),
+    ).toMatchObject({
+      conditionId: "cond-2",
+      workUnitTypeKey: "WU.STORY",
+      operator: "work_unit_instance_exists_in_state",
+      stateKeys: ["ready"],
+      minCount: 1,
+      isNegated: false,
+    });
+  });
+
+  it("rejects empty stateKeys and invalid minCount for project work-unit conditions", () => {
+    expect(() =>
+      decode({
+        conditionId: "cond-3",
+        workUnitTypeKey: "WU.STORY",
+        operator: "work_unit_instance_exists_in_state",
+        stateKeys: [],
+      }),
+    ).toThrow();
+
+    expect(() =>
+      decode({
+        conditionId: "cond-4",
+        workUnitTypeKey: "WU.STORY",
+        operator: "work_unit_instance_exists",
+        minCount: 0,
+      }),
+    ).toThrow();
   });
 });
 

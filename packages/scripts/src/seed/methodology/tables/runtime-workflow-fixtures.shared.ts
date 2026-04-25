@@ -1,7 +1,3 @@
-import { brainstormingDemoFixtureSeedRowsAllVersions } from "../setup/brainstorming-demo-fixture";
-import { setupInvokePhase1FixtureSeedRowsAllVersions } from "../setup/setup-invoke-phase-1-fixture";
+import { sectionAWorkflowFixtureBundles } from "../setup/setup-bmad-mapping";
 
-export const runtimeWorkflowFixtureBundles = [
-  ...brainstormingDemoFixtureSeedRowsAllVersions,
-  ...setupInvokePhase1FixtureSeedRowsAllVersions,
-] as const;
+export const runtimeWorkflowFixtureBundles = [...sectionAWorkflowFixtureBundles] as const;

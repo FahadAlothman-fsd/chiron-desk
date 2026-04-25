@@ -12,7 +12,7 @@ describe("manual seed fixtures", () => {
       name: "BMAD v1 — Slice A",
       descriptionJson: {
         markdown:
-          "Refined Slice-A canonical methodology definition for setup, brainstorming, and research.",
+          "Refined Slice-A canonical methodology definition for setup through architecture.",
       },
     });
     expect(BASELINE_MANUAL_SEED_PLAN.methodologyVersions).toHaveLength(2);

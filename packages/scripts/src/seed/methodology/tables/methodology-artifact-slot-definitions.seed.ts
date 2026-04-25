@@ -1,9 +1,13 @@
 import { schema } from "@chiron/db";
 
 import {
+  architectureArtifactSlotDefinitionSeedRows,
   brainstormingArtifactSlotDefinitionSeedRows,
+  prdArtifactSlotDefinitionSeedRows,
+  productBriefArtifactSlotDefinitionSeedRows,
   researchArtifactSlotDefinitionSeedRows,
   setupArtifactSlotDefinitionSeedRows,
+  uxDesignArtifactSlotDefinitionSeedRows,
 } from "../setup/setup-bmad-mapping";
 
 export type MethodologyArtifactSlotDefinitionSeedRow =
@@ -14,4 +18,8 @@ export const methodologyArtifactSlotDefinitionSeedRows: readonly MethodologyArti
     ...setupArtifactSlotDefinitionSeedRows,
     ...brainstormingArtifactSlotDefinitionSeedRows,
     ...researchArtifactSlotDefinitionSeedRows,
+    ...productBriefArtifactSlotDefinitionSeedRows,
+    ...prdArtifactSlotDefinitionSeedRows,
+    ...uxDesignArtifactSlotDefinitionSeedRows,
+    ...architectureArtifactSlotDefinitionSeedRows,
   ];

@@ -1,9 +1,13 @@
 import { schema } from "@chiron/db";
 
 import {
+  architectureLifecycleTransitionSeedRows,
   brainstormingLifecycleTransitionSeedRows,
+  prdLifecycleTransitionSeedRows,
+  productBriefLifecycleTransitionSeedRows,
   researchLifecycleTransitionSeedRows,
   setupLifecycleTransitionSeedRows,
+  uxDesignLifecycleTransitionSeedRows,
 } from "../setup/setup-bmad-mapping";
 
 export type MethodologyLifecycleTransitionSeedRow =
@@ -14,4 +18,8 @@ export const methodologyLifecycleTransitionSeedRows: readonly MethodologyLifecyc
     ...setupLifecycleTransitionSeedRows,
     ...brainstormingLifecycleTransitionSeedRows,
     ...researchLifecycleTransitionSeedRows,
+    ...productBriefLifecycleTransitionSeedRows,
+    ...prdLifecycleTransitionSeedRows,
+    ...uxDesignLifecycleTransitionSeedRows,
+    ...architectureLifecycleTransitionSeedRows,
   ];

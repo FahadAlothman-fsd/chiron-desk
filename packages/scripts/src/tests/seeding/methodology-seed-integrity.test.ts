@@ -14,41 +14,28 @@ async function loadMethodologySeedArtifacts() {
 }
 
 describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, () => {
-  it("keeps manual seed baseline deterministic for operator journey", () => {
+  it("keeps the baseline manual seed metadata deterministic", () => {
     expect(BASELINE_MANUAL_SEED_PLAN.planId).toBe("baseline_manual");
-    expect(BASELINE_MANUAL_SEED_PLAN.users).toHaveLength(1);
-    expect(BASELINE_MANUAL_SEED_PLAN.users[0]?.email).toBe("operator@chiron.local");
-    expect(BASELINE_MANUAL_SEED_PLAN.methodologyDefinitions).toHaveLength(1);
     expect(BASELINE_MANUAL_SEED_PLAN.methodologyDefinitions[0]).toMatchObject({
       id: "mdef_bmad_v1",
       key: "bmad.slice-a.v1",
       name: "BMAD v1 — Slice A",
       descriptionJson: {
         markdown:
-          "Refined Slice-A canonical methodology definition for setup, brainstorming, and research.",
+          "Refined Slice-A canonical methodology definition for setup through architecture.",
       },
     });
     expect(BASELINE_MANUAL_SEED_PLAN.methodologyVersions).toHaveLength(2);
-    expect(BASELINE_MANUAL_SEED_PLAN.methodologyVersions[0]?.methodologyId).toBe("mdef_bmad_v1");
-    expect(BASELINE_MANUAL_SEED_PLAN.methodologyVersions[1]?.methodologyId).toBe("mdef_bmad_v1");
     expect(
-      BASELINE_MANUAL_SEED_PLAN.methodologyVersions.some(
-        (version) => version.id === "mver_bmad_v1_draft",
-      ),
-    ).toBe(true);
-    expect(
-      BASELINE_MANUAL_SEED_PLAN.methodologyVersions.some(
-        (version) => version.id === "mver_bmad_v1_active",
-      ),
-    ).toBe(true);
+      BASELINE_MANUAL_SEED_PLAN.methodologyVersions.map((version) => version.id).toSorted(),
+    ).toEqual(["mver_bmad_v1_active", "mver_bmad_v1_draft"]);
   });
 
-  it("keeps canonical seed metadata deterministic across slice registrations", async () => {
+  it("registers the full Section A slice set with expected canonical counts", async () => {
     const {
       METHODOLOGY_CANONICAL_TABLE_SEED_ORDER,
       methodologyCanonicalTableSeedRows,
       methodologyDesignTimeSeedFacts,
-      methodologyRuntimeSeedPolicy,
       methodologySeedSlices,
     } = await loadMethodologySeedArtifacts();
 
@@ -64,42 +51,72 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
       "methodology_link_type_definitions",
       "methodology_workflows",
       "methodology_workflow_steps",
+      "methodology_workflow_context_fact_definitions",
+      "methodology_workflow_context_fact_plain_values",
+      "methodology_workflow_context_fact_external_bindings",
+      "methodology_workflow_context_fact_workflow_references",
+      "methodology_workflow_context_fact_artifact_references",
+      "methodology_workflow_context_fact_draft_specs",
+      "methodology_workflow_context_fact_draft_spec_selections",
+      "methodology_workflow_context_fact_draft_spec_facts",
+      "methodology_workflow_form_fields",
+      "methodology_workflow_agent_steps",
+      "methodology_workflow_agent_step_explicit_read_grants",
+      "methodology_workflow_agent_step_write_items",
+      "methodology_workflow_agent_step_write_item_requirements",
+      "methodology_workflow_action_steps",
+      "methodology_workflow_action_step_actions",
+      "methodology_workflow_action_step_action_items",
+      "methodology_workflow_invoke_steps",
+      "methodology_workflow_invoke_bindings",
+      "methodology_workflow_invoke_transitions",
+      "methodology_workflow_branch_steps",
+      "methodology_workflow_branch_routes",
+      "methodology_workflow_branch_route_groups",
+      "methodology_workflow_branch_route_conditions",
       "methodology_workflow_edges",
       "methodology_transition_workflow_bindings",
       "methodology_fact_definitions",
     ]);
+
     expect(Object.keys(methodologySeedSlices)).toEqual([
       "slice_a_setup",
       "slice_a_brainstorming",
       "slice_a_research",
+      "slice_a_product_brief",
+      "slice_a_prd",
+      "slice_a_ux_design",
+      "slice_a_architecture",
     ]);
-    expect(methodologySeedSlices.slice_a_setup.slice).toBe("slice_a_setup");
-    expect(methodologySeedSlices.slice_a_brainstorming.slice).toBe("slice_a_brainstorming");
-    expect(methodologySeedSlices.slice_a_research.slice).toBe("slice_a_research");
 
-    expect(
-      Object.fromEntries(
-        Object.entries(methodologyCanonicalTableSeedRows).map(([table, rows]) => [
-          table,
-          rows.length,
-        ]),
-      ),
-    ).toEqual({
-      methodology_work_unit_types: 6,
+    const tableCounts = Object.fromEntries(
+      Object.entries(methodologyCanonicalTableSeedRows).map(([table, rows]) => [
+        table,
+        rows.length,
+      ]),
+    );
+
+    expect(tableCounts).toMatchObject({
+      methodology_work_unit_types: 14,
       methodology_agent_types: 6,
-      work_unit_lifecycle_states: 6,
-      work_unit_lifecycle_transitions: 6,
-      transition_condition_sets: 12,
-      work_unit_fact_definitions: 46,
-      methodology_artifact_slot_definitions: 6,
-      methodology_artifact_slot_templates: 10,
-      methodology_link_type_definitions: 6,
-      methodology_workflows: 38,
-      methodology_workflow_steps: 0,
-      methodology_workflow_edges: 0,
-      methodology_transition_workflow_bindings: 16,
-      methodology_fact_definitions: 18,
+      work_unit_lifecycle_states: 14,
+      work_unit_lifecycle_transitions: 14,
+      transition_condition_sets: 28,
+      methodology_artifact_slot_definitions: 26,
+      methodology_artifact_slot_templates: 30,
+      methodology_link_type_definitions: 12,
+      methodology_workflows: 34,
+      methodology_transition_workflow_bindings: 18,
+      methodology_fact_definitions: 20,
     });
+    expect(tableCounts.work_unit_fact_definitions).toBeGreaterThan(0);
+    expect(tableCounts.methodology_workflow_steps).toBeGreaterThan(0);
+    expect(tableCounts.methodology_workflow_context_fact_definitions).toBeGreaterThan(0);
+    expect(tableCounts.methodology_workflow_form_fields).toBeGreaterThan(0);
+    expect(tableCounts.methodology_workflow_agent_steps).toBeGreaterThan(0);
+    expect(tableCounts.methodology_workflow_action_steps).toBeGreaterThan(0);
+    expect(tableCounts.methodology_workflow_branch_steps).toBeGreaterThan(0);
+    expect(tableCounts.methodology_workflow_edges).toBeGreaterThan(0);
 
     expect(methodologyDesignTimeSeedFacts).toEqual({
       setupWorkUnitFactDefinitionKeys: [
@@ -114,6 +131,7 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
       methodologyFactDefinitionKeys: [
         "project_knowledge_directory",
         "planning_artifacts_directory",
+        "implementation_artifacts_directory",
         "repository_type",
         "project_parts",
         "technology_stack_by_part",
@@ -130,6 +148,7 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
         "deep_dive_target",
         "project_knowledge_directory",
         "planning_artifacts_directory",
+        "implementation_artifacts_directory",
         "repository_type",
         "project_parts",
         "technology_stack_by_part",
@@ -137,1711 +156,507 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
         "integration_points",
       ],
     });
-    expect(methodologyRuntimeSeedPolicy).toEqual({
-      seedProjectFactInstances: false,
-      seedWorkUnitFactInstances: false,
-    });
+  });
 
-    const workUnitDefinitions = methodologyCanonicalTableSeedRows.methodology_work_unit_types;
-    expect(workUnitDefinitions).toHaveLength(6);
+  it("seeds the Section A work unit catalog without deferred standalone MVP units", async () => {
+    const { methodologyCanonicalTableSeedRows } = await loadMethodologySeedArtifacts();
 
-    const methodologyAgents = methodologyCanonicalTableSeedRows.methodology_agent_types;
-    expect(methodologyAgents).toHaveLength(6);
-    expect(new Set(methodologyAgents.map((agent) => agent.methodologyVersionId))).toEqual(
-      new Set(["mver_bmad_v1_draft", "mver_bmad_v1_active"]),
-    );
-    expect(new Set(methodologyAgents.map((agent) => agent.key))).toEqual(
-      new Set(["bmad_analyst", "bmad_brainstorming_coach", "bmad_tech_writer"]),
-    );
-
-    for (const agent of methodologyAgents) {
-      const promptMarkdown = agent.promptTemplateJson?.markdown ?? "";
-      expect(agent.descriptionJson).toBeTruthy();
-      expect(agent.guidanceJson).toBeTruthy();
-      expect(agent.persona).toEqual(expect.any(String));
-      expect(agent.promptTemplateJson).toBeTruthy();
-      expect(agent.persona).not.toMatch(/_bmad\//i);
-      expect(agent.persona).not.toMatch(/\.md\b/i);
-      expect(promptMarkdown).not.toMatch(/_bmad\//i);
-      expect(promptMarkdown).not.toMatch(/\.md\b/i);
-    }
-
-    const draftAgentRows = methodologyAgents
-      .filter((agent) => agent.methodologyVersionId === "mver_bmad_v1_draft")
-      .map(({ methodologyVersionId: _methodologyVersionId, id: _id, ...row }) => row)
-      .toSorted((a, b) => a.key.localeCompare(b.key));
-
-    const activeAgentRows = methodologyAgents
-      .filter((agent) => agent.methodologyVersionId === "mver_bmad_v1_active")
-      .map(({ methodologyVersionId: _methodologyVersionId, id: _id, ...row }) => row)
-      .toSorted((a, b) => a.key.localeCompare(b.key));
-
-    expect(draftAgentRows).toEqual(activeAgentRows);
-
-    const lifecycleStates = methodologyCanonicalTableSeedRows.work_unit_lifecycle_states;
-    expect(lifecycleStates).toHaveLength(6);
-    expect(new Set(lifecycleStates.map((state) => state.key))).toEqual(new Set(["done"]));
-    const setupLifecycleStates = lifecycleStates.filter((state) =>
-      state.workUnitTypeId.includes(":wut:setup:"),
-    );
-    expect(setupLifecycleStates).toHaveLength(2);
-    for (const state of setupLifecycleStates) {
-      expect(state.id).toBe(`seed:state:setup:done:${state.methodologyVersionId}`);
-      expect(state.workUnitTypeId).toBe(`seed:wut:setup:${state.methodologyVersionId}`);
-      expect(state.descriptionJson).toBeTruthy();
-      expect(state.guidanceJson).toBeTruthy();
-    }
-
-    const brainstormingLifecycleStates = lifecycleStates.filter((state) =>
-      state.workUnitTypeId.includes(":wut:brainstorming:"),
-    );
-    expect(brainstormingLifecycleStates).toHaveLength(2);
-    for (const state of brainstormingLifecycleStates) {
-      expect(state.id).toBe(`seed:state:brainstorming:done:${state.methodologyVersionId}`);
-      expect(state.workUnitTypeId).toBe(`seed:wut:brainstorming:${state.methodologyVersionId}`);
-      expect(state.descriptionJson).toBeTruthy();
-      expect(state.guidanceJson).toBeTruthy();
-    }
-
-    const researchLifecycleStates = lifecycleStates.filter((state) =>
-      state.workUnitTypeId.includes(":wut:research:"),
-    );
-    expect(researchLifecycleStates).toHaveLength(2);
-    for (const state of researchLifecycleStates) {
-      expect(state.id).toBe(`seed:state:research:done:${state.methodologyVersionId}`);
-      expect(state.workUnitTypeId).toBe(`seed:wut:research:${state.methodologyVersionId}`);
-      expect(state.descriptionJson).toBeTruthy();
-      expect(state.guidanceJson).toBeTruthy();
-    }
-
-    const lifecycleTransitions = methodologyCanonicalTableSeedRows.work_unit_lifecycle_transitions;
-    expect(lifecycleTransitions).toHaveLength(6);
-    expect(new Set(lifecycleTransitions.map((transition) => transition.transitionKey))).toEqual(
-      new Set(["activation_to_done"]),
-    );
-    const setupLifecycleTransitions = lifecycleTransitions.filter((transition) =>
-      transition.workUnitTypeId.includes(":wut:setup:"),
-    );
-    expect(setupLifecycleTransitions).toHaveLength(2);
-    for (const transition of setupLifecycleTransitions) {
-      expect(transition.id).toBe(
-        `seed:transition:setup:activation-to-done:${transition.methodologyVersionId}`,
-      );
-      expect(transition.workUnitTypeId).toBe(`seed:wut:setup:${transition.methodologyVersionId}`);
-      expect(transition.fromStateId).toBeNull();
-      expect(transition.toStateId).toBe(`seed:state:setup:done:${transition.methodologyVersionId}`);
-      expect(transition.descriptionJson).toBeTruthy();
-      expect(transition.guidanceJson).toBeTruthy();
-    }
-
-    const brainstormingLifecycleTransitions = lifecycleTransitions.filter((transition) =>
-      transition.workUnitTypeId.includes(":wut:brainstorming:"),
-    );
-    expect(brainstormingLifecycleTransitions).toHaveLength(2);
-    for (const transition of brainstormingLifecycleTransitions) {
-      expect(transition.id).toBe(
-        `seed:transition:brainstorming:activation-to-done:${transition.methodologyVersionId}`,
-      );
-      expect(transition.workUnitTypeId).toBe(
-        `seed:wut:brainstorming:${transition.methodologyVersionId}`,
-      );
-      expect(transition.fromStateId).toBeNull();
-      expect(transition.toStateId).toBe(
-        `seed:state:brainstorming:done:${transition.methodologyVersionId}`,
-      );
-      expect(transition.descriptionJson).toBeTruthy();
-      expect(transition.guidanceJson).toBeTruthy();
-    }
-
-    const researchLifecycleTransitions = lifecycleTransitions.filter((transition) =>
-      transition.workUnitTypeId.includes(":wut:research:"),
-    );
-    expect(researchLifecycleTransitions).toHaveLength(2);
-    for (const transition of researchLifecycleTransitions) {
-      expect(transition.id).toBe(
-        `seed:transition:research:activation-to-done:${transition.methodologyVersionId}`,
-      );
-      expect(transition.workUnitTypeId).toBe(
-        `seed:wut:research:${transition.methodologyVersionId}`,
-      );
-      expect(transition.fromStateId).toBeNull();
-      expect(transition.toStateId).toBe(
-        `seed:state:research:done:${transition.methodologyVersionId}`,
-      );
-      expect(transition.descriptionJson).toBeTruthy();
-      expect(transition.guidanceJson).toBeTruthy();
-    }
-
-    const transitionConditionSets = methodologyCanonicalTableSeedRows.transition_condition_sets;
-    expect(transitionConditionSets).toHaveLength(12);
-    expect(new Set(transitionConditionSets.map((conditionSet) => conditionSet.phase))).toEqual(
-      new Set(["start", "completion"]),
-    );
-    expect(new Set(transitionConditionSets.map((conditionSet) => conditionSet.mode))).toEqual(
-      new Set(["all"]),
-    );
-    for (const conditionSet of transitionConditionSets) {
-      expect(conditionSet).not.toHaveProperty("descriptionJson");
-      expect(conditionSet).not.toHaveProperty("guidanceJson");
-    }
-
-    const setupTransitionConditionSets = transitionConditionSets.filter((conditionSet) =>
-      conditionSet.key.startsWith("wu.setup."),
-    );
-    expect(setupTransitionConditionSets).toHaveLength(4);
-
-    const startConditionSets = setupTransitionConditionSets.filter(
-      (conditionSet) => conditionSet.phase === "start",
-    );
-    expect(startConditionSets).toHaveLength(2);
-    for (const startConditionSet of startConditionSets) {
-      expect(startConditionSet.id).toBe(
-        `seed:condition-set:setup:activation-to-done:start:${startConditionSet.methodologyVersionId}`,
-      );
-      expect(startConditionSet.key).toBe("wu.setup.activation_to_done.start");
-      expect(startConditionSet.transitionId).toBe(
-        `seed:transition:setup:activation-to-done:${startConditionSet.methodologyVersionId}`,
-      );
-      expect(startConditionSet.groupsJson).toEqual([]);
-    }
-
-    const completionConditionSets = setupTransitionConditionSets.filter(
-      (conditionSet) => conditionSet.phase === "completion",
-    );
-    expect(completionConditionSets).toHaveLength(2);
-    for (const completionConditionSet of completionConditionSets) {
-      expect(completionConditionSet.id).toBe(
-        `seed:condition-set:setup:activation-to-done:completion:${completionConditionSet.methodologyVersionId}`,
-      );
-      expect(completionConditionSet.key).toBe("wu.setup.activation_to_done.completion");
-      expect(completionConditionSet.transitionId).toBe(
-        `seed:transition:setup:activation-to-done:${completionConditionSet.methodologyVersionId}`,
-      );
-      expect(completionConditionSet.groupsJson).toEqual([
-        {
-          mode: "all",
-          conditions: [
-            {
-              kind: "work_unit_fact",
-              required: true,
-              config: {
-                factKey: "initiative_name",
-                factDefinitionId: `seed:work-unit-fact:initiative-name:${completionConditionSet.methodologyVersionId}`,
-                operator: "exists",
-              },
-            },
-            {
-              kind: "work_unit_fact",
-              required: true,
-              config: {
-                factKey: "project_kind",
-                factDefinitionId: `seed:work-unit-fact:project-kind:${completionConditionSet.methodologyVersionId}`,
-                operator: "exists",
-              },
-            },
-          ],
-        },
-        {
-          mode: "any",
-          conditions: [
-            {
-              kind: "artifact",
-              required: true,
-              config: {
-                slotKey: "PROJECT_OVERVIEW",
-                slotDefinitionId: `seed:artifact-slot:setup:project-overview:${completionConditionSet.methodologyVersionId}`,
-                operator: "exists",
-              },
-            },
-            {
-              kind: "work_unit_fact",
-              required: true,
-              config: {
-                factKey: "requires_brainstorming",
-                factDefinitionId: `seed:work-unit-fact:requires-brainstorming:${completionConditionSet.methodologyVersionId}`,
-                operator: "exists",
-              },
-            },
-            {
-              kind: "work_unit_fact",
-              required: true,
-              config: {
-                factKey: "requires_research",
-                factDefinitionId: `seed:work-unit-fact:requires-research:${completionConditionSet.methodologyVersionId}`,
-                operator: "exists",
-              },
-            },
-          ],
-        },
-      ]);
-    }
-
-    const brainstormingTransitionConditionSets = transitionConditionSets.filter((conditionSet) =>
-      conditionSet.key.startsWith("wu.brainstorming."),
-    );
-    expect(brainstormingTransitionConditionSets).toHaveLength(4);
-
-    const brainstormingStartConditionSets = brainstormingTransitionConditionSets.filter(
-      (conditionSet) => conditionSet.phase === "start",
-    );
-    expect(brainstormingStartConditionSets).toHaveLength(2);
-    for (const conditionSet of brainstormingStartConditionSets) {
-      expect(conditionSet.id).toBe(
-        `seed:condition-set:brainstorming:activation-to-done:start:${conditionSet.methodologyVersionId}`,
-      );
-      expect(conditionSet.transitionId).toBe(
-        `seed:transition:brainstorming:activation-to-done:${conditionSet.methodologyVersionId}`,
-      );
-      expect(conditionSet.groupsJson).toEqual([
-        {
-          mode: "all",
-          conditions: [
-            {
-              kind: "work_unit_fact",
-              required: true,
-              config: {
-                factKey: "setup_work_unit",
-                factDefinitionId: `seed:work-unit-fact:brainstorming:setup-work-unit:${conditionSet.methodologyVersionId}`,
-                operator: "exists",
-              },
-            },
-          ],
-        },
-      ]);
-    }
-
-    const brainstormingCompletionConditionSets = brainstormingTransitionConditionSets.filter(
-      (conditionSet) => conditionSet.phase === "completion",
-    );
-    expect(brainstormingCompletionConditionSets).toHaveLength(2);
-    for (const conditionSet of brainstormingCompletionConditionSets) {
-      expect(conditionSet.id).toBe(
-        `seed:condition-set:brainstorming:activation-to-done:completion:${conditionSet.methodologyVersionId}`,
-      );
-      expect(conditionSet.transitionId).toBe(
-        `seed:transition:brainstorming:activation-to-done:${conditionSet.methodologyVersionId}`,
-      );
-      expect(conditionSet.groupsJson).toEqual([
-        {
-          mode: "all",
-          conditions: [
-            {
-              kind: "work_unit_fact",
-              required: true,
-              config: {
-                factKey: "desired_outcome",
-                factDefinitionId: `seed:work-unit-fact:brainstorming:desired-outcome:${conditionSet.methodologyVersionId}`,
-                operator: "exists",
-              },
-            },
-            {
-              kind: "work_unit_fact",
-              required: true,
-              config: {
-                factKey: "selected_direction",
-                factDefinitionId: `seed:work-unit-fact:brainstorming:selected-direction:${conditionSet.methodologyVersionId}`,
-                operator: "exists",
-              },
-            },
-          ],
-        },
-        {
-          mode: "any",
-          conditions: [
-            {
-              kind: "artifact",
-              required: true,
-              config: {
-                slotKey: "brainstorming_session",
-                slotDefinitionId: `seed:artifact-slot:brainstorming:brainstorming-session:${conditionSet.methodologyVersionId}`,
-                operator: "exists",
-              },
-            },
-            {
-              kind: "work_unit_fact",
-              required: true,
-              config: {
-                factKey: "objectives",
-                factDefinitionId: `seed:work-unit-fact:brainstorming:objectives:${conditionSet.methodologyVersionId}`,
-                operator: "exists",
-              },
-            },
-          ],
-        },
-      ]);
-    }
-
-    const researchTransitionConditionSets = transitionConditionSets.filter((conditionSet) =>
-      conditionSet.key.startsWith("wu.research."),
-    );
-    expect(researchTransitionConditionSets).toHaveLength(4);
-
-    const researchStartConditionSets = researchTransitionConditionSets.filter(
-      (conditionSet) => conditionSet.phase === "start",
-    );
-    expect(researchStartConditionSets).toHaveLength(2);
-    for (const conditionSet of researchStartConditionSets) {
-      expect(conditionSet.id).toBe(
-        `seed:condition-set:research:activation-to-done:start:${conditionSet.methodologyVersionId}`,
-      );
-      expect(conditionSet.transitionId).toBe(
-        `seed:transition:research:activation-to-done:${conditionSet.methodologyVersionId}`,
-      );
-      expect(conditionSet.groupsJson).toEqual([
-        {
-          mode: "all",
-          conditions: [
-            {
-              kind: "work_unit_fact",
-              required: true,
-              config: {
-                factKey: "setup_work_unit",
-                factDefinitionId: `seed:work-unit-fact:research:setup-work-unit:${conditionSet.methodologyVersionId}`,
-                operator: "exists",
-              },
-            },
-            {
-              kind: "work_unit_fact",
-              required: true,
-              config: {
-                factKey: "research_topic",
-                factDefinitionId: `seed:work-unit-fact:research:research-topic:${conditionSet.methodologyVersionId}`,
-                operator: "exists",
-              },
-            },
-          ],
-        },
-      ]);
-    }
-
-    const researchCompletionConditionSets = researchTransitionConditionSets.filter(
-      (conditionSet) => conditionSet.phase === "completion",
-    );
-    expect(researchCompletionConditionSets).toHaveLength(2);
-    for (const conditionSet of researchCompletionConditionSets) {
-      expect(conditionSet.id).toBe(
-        `seed:condition-set:research:activation-to-done:completion:${conditionSet.methodologyVersionId}`,
-      );
-      expect(conditionSet.transitionId).toBe(
-        `seed:transition:research:activation-to-done:${conditionSet.methodologyVersionId}`,
-      );
-      expect(conditionSet.groupsJson).toEqual([
-        {
-          mode: "all",
-          conditions: [
-            {
-              kind: "work_unit_fact",
-              required: true,
-              config: {
-                factKey: "research_topic",
-                factDefinitionId: `seed:work-unit-fact:research:research-topic:${conditionSet.methodologyVersionId}`,
-                operator: "exists",
-              },
-            },
-          ],
-        },
-        {
-          mode: "any",
-          conditions: [
-            {
-              kind: "work_unit_fact",
-              required: true,
-              config: {
-                factKey: "research_synthesis",
-                factDefinitionId: `seed:work-unit-fact:research:research-synthesis:${conditionSet.methodologyVersionId}`,
-                operator: "exists",
-              },
-            },
-            {
-              kind: "artifact",
-              required: true,
-              config: {
-                slotKey: "research_report",
-                slotDefinitionId: `seed:artifact-slot:research:research-report:${conditionSet.methodologyVersionId}`,
-                operator: "exists",
-              },
-            },
-          ],
-        },
-      ]);
-    }
-
-    const transitionWorkflowBindings =
-      methodologyCanonicalTableSeedRows.methodology_transition_workflow_bindings;
-    expect(transitionWorkflowBindings).toHaveLength(16);
-
-    const setupTransitionWorkflowBindings = transitionWorkflowBindings.filter((binding) =>
-      binding.id.includes(":binding:setup:"),
-    );
-    expect(setupTransitionWorkflowBindings).toHaveLength(2);
-    for (const binding of setupTransitionWorkflowBindings) {
-      expect(binding.id).toBe(
-        `seed:binding:setup:activation-to-done:${binding.methodologyVersionId}`,
-      );
-      expect(binding.transitionId).toBe(
-        `seed:transition:setup:activation-to-done:${binding.methodologyVersionId}`,
-      );
-      expect(binding.workflowId).toBe(
-        `seed:workflow:setup:setup-project:${binding.methodologyVersionId}`,
-      );
-      expect(binding).not.toHaveProperty("descriptionJson");
-      expect(binding).not.toHaveProperty("guidanceJson");
-    }
-
-    const brainstormingTransitionWorkflowBindings = transitionWorkflowBindings.filter((binding) =>
-      binding.id.includes(":binding:brainstorming:"),
-    );
-    expect(brainstormingTransitionWorkflowBindings).toHaveLength(6);
-    for (const binding of brainstormingTransitionWorkflowBindings) {
-      expect(binding.transitionId).toBe(
-        `seed:transition:brainstorming:activation-to-done:${binding.methodologyVersionId}`,
-      );
-      expect(binding.workflowId).toMatch(
-        new RegExp(
-          `^seed:workflow:brainstorming:(brainstorming|brainstorming-primary|brainstorming-support):${binding.methodologyVersionId}$`,
-        ),
-      );
-      expect(binding.id).toMatch(
-        new RegExp(
-          `^seed:binding:brainstorming:activation-to-done(?::brainstorming-(primary|support))?:${binding.methodologyVersionId}$`,
-        ),
-      );
-      expect(binding).not.toHaveProperty("descriptionJson");
-      expect(binding).not.toHaveProperty("guidanceJson");
-    }
-
-    const researchTransitionWorkflowBindings = transitionWorkflowBindings.filter((binding) =>
-      binding.id.includes(":binding:research:"),
-    );
-    expect(researchTransitionWorkflowBindings).toHaveLength(8);
-    for (const binding of researchTransitionWorkflowBindings) {
-      expect(binding.transitionId).toBe(
-        `seed:transition:research:activation-to-done:${binding.methodologyVersionId}`,
-      );
-      expect(binding).not.toHaveProperty("descriptionJson");
-      expect(binding).not.toHaveProperty("guidanceJson");
-      expect(binding.workflowId).toMatch(
-        new RegExp(
-          `^seed:workflow:research:(research-primary|market-research|domain-research|technical-research):${binding.methodologyVersionId}$`,
-        ),
-      );
-      expect(binding.id).toMatch(
-        new RegExp(
-          `^seed:binding:research:(research-primary|market-research|domain-research|technical-research):${binding.methodologyVersionId}$`,
-        ),
-      );
-    }
-
-    expect(
-      new Set(researchTransitionWorkflowBindings.map((binding) => binding.workflowId)),
-    ).toEqual(
+    const workUnitTypes = methodologyCanonicalTableSeedRows.methodology_work_unit_types;
+    expect(new Set(workUnitTypes.map((row) => row.key))).toEqual(
       new Set([
-        "seed:workflow:research:market-research:mver_bmad_v1_draft",
-        "seed:workflow:research:domain-research:mver_bmad_v1_draft",
-        "seed:workflow:research:research-primary:mver_bmad_v1_draft",
-        "seed:workflow:research:technical-research:mver_bmad_v1_draft",
-        "seed:workflow:research:market-research:mver_bmad_v1_active",
-        "seed:workflow:research:domain-research:mver_bmad_v1_active",
-        "seed:workflow:research:research-primary:mver_bmad_v1_active",
-        "seed:workflow:research:technical-research:mver_bmad_v1_active",
-      ]),
-    );
-
-    const workflows = methodologyCanonicalTableSeedRows.methodology_workflows;
-    expect(workflows).toHaveLength(38);
-    expect(new Set(workflows.map((workflow) => workflow.key))).toEqual(
-      new Set([
-        "setup_project",
-        "generate_project_context",
+        "setup",
         "brainstorming",
-        "brainstorming_primary",
-        "brainstorming_support",
-        "five_whys_deep_dive",
-        "architecture_decision_records",
-        "self_consistency_validation",
-        "first_principles_analysis",
-        "socratic_questioning",
-        "critique_and_refine",
-        "tree_of_thoughts",
-        "graph_of_thoughts",
-        "meta_prompting_analysis",
-        "stakeholder_round_table",
-        "research_primary",
-        "market_research",
-        "domain_research",
-        "technical_research",
+        "research",
+        "product_brief",
+        "prd",
+        "ux_design",
+        "architecture",
       ]),
     );
-    const setupWorkflows = workflows.filter((workflow) =>
-      workflow.workUnitTypeId.includes(":wut:setup:"),
-    );
-    expect(setupWorkflows).toHaveLength(4);
-    for (const workflow of setupWorkflows) {
-      expect(workflow.workUnitTypeId).toBe(`seed:wut:setup:${workflow.methodologyVersionId}`);
-      expect(workflow.descriptionJson).toBeTruthy();
-      expect(workflow.guidanceJson).toBeTruthy();
-      expect(workflow.metadataJson).toMatchObject({
-        family: "setup",
-        supports_modes: ["greenfield", "brownfield"],
-      });
-    }
+    expect(workUnitTypes.some((row) => row.key === "epic")).toBe(false);
+    expect(workUnitTypes.some((row) => row.key === "sprint_plan")).toBe(false);
+    expect(workUnitTypes.some((row) => row.key === "implementation_readiness")).toBe(false);
+  });
 
-    const brainstormingWorkflows = workflows.filter((workflow) =>
-      workflow.workUnitTypeId.includes(":wut:brainstorming:"),
-    );
-    expect(brainstormingWorkflows).toHaveLength(26);
-    for (const workflow of brainstormingWorkflows) {
-      expect(workflow.workUnitTypeId).toBe(
-        `seed:wut:brainstorming:${workflow.methodologyVersionId}`,
-      );
-      expect(workflow.descriptionJson).toBeTruthy();
-      expect(workflow.guidanceJson).toBeTruthy();
-      expect(workflow.metadataJson).toMatchObject({
-        family: "brainstorming",
-      });
-    }
+  it("updates setup, brainstorming, and research rows to the agreed Section A contract", async () => {
+    const { methodologyCanonicalTableSeedRows } = await loadMethodologySeedArtifacts();
 
-    const researchWorkflows = workflows.filter((workflow) =>
-      workflow.workUnitTypeId.includes(":wut:research:"),
-    );
-    expect(researchWorkflows).toHaveLength(8);
-    for (const workflow of researchWorkflows) {
-      expect(workflow.workUnitTypeId).toBe(`seed:wut:research:${workflow.methodologyVersionId}`);
-      expect(workflow.descriptionJson).toBeTruthy();
-      expect(workflow.guidanceJson).toBeTruthy();
-      expect(workflow.metadataJson).toMatchObject({
-        family: "research",
-        bound_by_default: true,
-        primary_transition_key: "activation_to_done",
-      });
-    }
+    const factRows = methodologyCanonicalTableSeedRows.work_unit_fact_definitions;
+    const slotRows = methodologyCanonicalTableSeedRows.methodology_artifact_slot_definitions;
+    const workflowRows = methodologyCanonicalTableSeedRows.methodology_workflows;
+    const conditionSets = methodologyCanonicalTableSeedRows.transition_condition_sets;
 
-    expect(new Set(researchWorkflows.map((workflow) => workflow.key))).toEqual(
-      new Set(["research_primary", "market_research", "domain_research", "technical_research"]),
-    );
-    for (const key of [
-      "research_primary",
-      "market_research",
-      "domain_research",
-      "technical_research",
-    ] as const) {
-      expect(researchWorkflows.filter((workflow) => workflow.key === key)).toHaveLength(2);
-    }
-
-    const setupProjectWorkflowRows = workflows.filter(
-      (workflow) => workflow.key === "setup_project",
-    );
-    expect(setupProjectWorkflowRows).toHaveLength(2);
-    for (const workflow of setupProjectWorkflowRows) {
-      expect(workflow.id).toBe(
-        `seed:workflow:setup:setup-project:${workflow.methodologyVersionId}`,
-      );
-      expect(workflow.metadataJson).toMatchObject({
-        intent: "primary_setup_completion",
-        bound_by_default: true,
-        primary_transition_key: "activation_to_done",
-      });
-    }
-
-    const generateProjectContextWorkflowRows = workflows.filter(
-      (workflow) => workflow.key === "generate_project_context",
-    );
-    expect(generateProjectContextWorkflowRows).toHaveLength(2);
-    for (const workflow of generateProjectContextWorkflowRows) {
-      expect(workflow.id).toBe(
-        `seed:workflow:setup:generate-project-context:${workflow.methodologyVersionId}`,
-      );
-      expect(workflow.metadataJson).toMatchObject({
-        intent: "supporting_context_generation",
-        bound_by_default: false,
-      });
-    }
-
-    const primaryBrainstormingWorkflowRows = workflows.filter(
-      (workflow) => workflow.key === "brainstorming",
-    );
-    expect(primaryBrainstormingWorkflowRows).toHaveLength(2);
-    for (const workflow of primaryBrainstormingWorkflowRows) {
-      expect(workflow.id).toBe(
-        `seed:workflow:brainstorming:brainstorming:${workflow.methodologyVersionId}`,
-      );
-      expect(workflow.metadataJson).toMatchObject({
-        intent: "primary_brainstorming_session",
-        bound_by_default: true,
-        primary_transition_key: "activation_to_done",
-        source_workflow: "brainstorming",
-      });
-    }
-
-    const phase1PrimaryBrainstormingWorkflowRows = workflows.filter(
-      (workflow) => workflow.key === "brainstorming_primary",
-    );
-    expect(phase1PrimaryBrainstormingWorkflowRows).toHaveLength(2);
-    for (const workflow of phase1PrimaryBrainstormingWorkflowRows) {
-      expect(workflow.id).toBe(
-        `seed:workflow:brainstorming:brainstorming-primary:${workflow.methodologyVersionId}`,
-      );
-      expect(workflow.metadataJson).toMatchObject({
-        intent: "phase_1_invoke_primary_brainstorming",
-        bound_by_default: true,
-        primary_transition_key: "activation_to_done",
-      });
-    }
-
-    const phase1SupportWorkflowRows = workflows.filter(
-      (workflow) => workflow.key === "brainstorming_support",
-    );
-    expect(phase1SupportWorkflowRows).toHaveLength(2);
-    for (const workflow of phase1SupportWorkflowRows) {
-      expect(workflow.id).toBe(
-        `seed:workflow:brainstorming:brainstorming-support:${workflow.methodologyVersionId}`,
-      );
-      expect(workflow.metadataJson).toMatchObject({
-        bound_by_default: false,
-        source_method_key: "brainstorming_support",
-      });
-    }
-
-    const brainstormingSupportWorkflowRows = brainstormingWorkflows.filter(
-      (workflow) =>
-        !["brainstorming", "brainstorming_primary", "brainstorming_support"].includes(workflow.key),
-    );
-    expect(brainstormingSupportWorkflowRows).toHaveLength(20);
+    expect(factRows.filter((row) => row.workUnitTypeId.includes(":wut:setup:"))).toHaveLength(8);
     expect(
       new Set(
-        brainstormingSupportWorkflowRows.map((workflow) => workflow.metadataJson?.bound_by_default),
+        factRows.filter((row) => row.workUnitTypeId.includes(":wut:setup:")).map((row) => row.key),
       ),
-    ).toEqual(new Set([false]));
-    expect(
-      new Set(
-        brainstormingSupportWorkflowRows.map((workflow) => workflow.metadataJson?.source_workflow),
-      ),
-    ).toEqual(new Set(["advanced_elicitation"]));
-
-    const supportWorkflowKeys = new Set([
-      "five_whys_deep_dive",
-      "architecture_decision_records",
-      "self_consistency_validation",
-      "first_principles_analysis",
-      "socratic_questioning",
-      "critique_and_refine",
-      "tree_of_thoughts",
-      "graph_of_thoughts",
-      "meta_prompting_analysis",
-      "stakeholder_round_table",
-    ]);
-    for (const key of supportWorkflowKeys) {
-      expect(
-        brainstormingSupportWorkflowRows.filter((workflow) => workflow.key === key),
-      ).toHaveLength(2);
-    }
-
-    const workflowsByVersion = new Map<string, typeof workflows>();
-    for (const workflow of workflows) {
-      const existing = workflowsByVersion.get(workflow.methodologyVersionId) ?? [];
-      existing.push(workflow);
-      workflowsByVersion.set(workflow.methodologyVersionId, existing);
-    }
-    expect([...workflowsByVersion.keys()].toSorted()).toEqual([
-      "mver_bmad_v1_active",
-      "mver_bmad_v1_draft",
-    ]);
-    for (const [versionId, versionWorkflows] of workflowsByVersion) {
-      expect(versionWorkflows).toHaveLength(19);
-      expect(
-        versionWorkflows.filter((workflow) => workflow.metadataJson?.bound_by_default === true),
-      ).toHaveLength(7);
-      expect(
-        versionWorkflows.filter((workflow) => workflow.metadataJson?.bound_by_default === false),
-      ).toHaveLength(12);
-      expect(
-        versionWorkflows
-          .filter((workflow) => workflow.metadataJson?.bound_by_default === true)
-          .map((workflow) => workflow.key)
-          .toSorted(),
-      ).toEqual([
-        "brainstorming",
-        "brainstorming_primary",
-        "domain_research",
-        "market_research",
-        "research_primary",
-        "setup_project",
-        "technical_research",
-      ]);
-      const versionSupportWorkflows = versionWorkflows.filter(
-        (workflow) =>
-          workflow.metadataJson?.source_workflow === "advanced_elicitation" &&
-          workflow.metadataJson?.bound_by_default === false &&
-          workflow.key !== "brainstorming_support",
-      );
-      expect(versionSupportWorkflows).toHaveLength(10);
-      expect(versionSupportWorkflows.map((workflow) => workflow.key).toSorted()).toEqual(
-        [...supportWorkflowKeys].toSorted(),
-      );
-      expect(
-        transitionWorkflowBindings
-          .filter((binding) => binding.methodologyVersionId === versionId)
-          .map((binding) => binding.workflowId)
-          .toSorted(),
-      ).toEqual([
-        `seed:workflow:brainstorming:brainstorming-primary:${versionId}`,
-        `seed:workflow:brainstorming:brainstorming-support:${versionId}`,
-        `seed:workflow:brainstorming:brainstorming:${versionId}`,
-        `seed:workflow:research:domain-research:${versionId}`,
-        `seed:workflow:research:market-research:${versionId}`,
-        `seed:workflow:research:research-primary:${versionId}`,
-        `seed:workflow:research:technical-research:${versionId}`,
-        `seed:workflow:setup:setup-project:${versionId}`,
-      ]);
-    }
-
-    expect(methodologyCanonicalTableSeedRows.methodology_workflow_steps).toHaveLength(0);
-    expect(methodologyCanonicalTableSeedRows.methodology_workflow_edges).toHaveLength(0);
-
-    const factDefinitions = methodologyCanonicalTableSeedRows.methodology_fact_definitions;
-    expect(factDefinitions).toHaveLength(18);
-
-    const dependencyDefinitions =
-      methodologyCanonicalTableSeedRows.methodology_link_type_definitions;
-    expect(dependencyDefinitions).toHaveLength(6);
-
-    const versionIds = new Set(
-      factDefinitions.map((factDefinition) => factDefinition.methodologyVersionId),
-    );
-    expect(versionIds).toEqual(new Set(["mver_bmad_v1_draft", "mver_bmad_v1_active"]));
-
-    expect(new Set(factDefinitions.map((factDefinition) => factDefinition.key))).toEqual(
-      new Set([
-        "communication_language",
-        "document_output_language",
-        "project_knowledge_directory",
-        "planning_artifacts_directory",
-        "repository_type",
-        "project_parts",
-        "technology_stack_by_part",
-        "existing_documentation_inventory",
-        "integration_points",
-      ]),
-    );
-    expect(
-      factDefinitions.some((factDefinition) => factDefinition.key === "project_root_path"),
-    ).toBe(false);
-
-    expect(
-      new Set(dependencyDefinitions.map((dependencyDefinition) => dependencyDefinition.key)),
     ).toEqual(
-      new Set(["requires_setup_context", "informed_by_brainstorming", "informed_by_research"]),
-    );
-
-    expect(
-      new Set(workUnitDefinitions.map((workUnitDefinition) => workUnitDefinition.key)),
-    ).toEqual(new Set(["setup", "brainstorming", "research"]));
-    for (const workUnitDefinition of workUnitDefinitions) {
-      expect(workUnitDefinition.id).toBe(
-        `seed:wut:${workUnitDefinition.key}:${workUnitDefinition.methodologyVersionId}`,
-      );
-    }
-
-    for (const factDefinition of factDefinitions) {
-      expect(factDefinition.guidanceJson).toBeTruthy();
-      expect(factDefinition.descriptionJson).toBeTruthy();
-      expect(["one", "many"]).toContain(factDefinition.cardinality);
-    }
-
-    const projectKnowledgeDirectoryMethodFactRows = factDefinitions.filter(
-      (factDefinition) => factDefinition.key === "project_knowledge_directory",
-    );
-    expect(projectKnowledgeDirectoryMethodFactRows).toHaveLength(2);
-    for (const projectKnowledgeDirectoryMethodFact of projectKnowledgeDirectoryMethodFactRows) {
-      expect(projectKnowledgeDirectoryMethodFact.defaultValueJson).toBe("docs");
-      expect(projectKnowledgeDirectoryMethodFact.validationJson).toMatchObject({
-        kind: "path",
-        path: {
-          pathKind: "directory",
-          safety: { disallowAbsolute: true, preventTraversal: true },
-        },
-      });
-    }
-
-    const planningArtifactsDirectoryMethodFactRows = factDefinitions.filter(
-      (factDefinition) => factDefinition.key === "planning_artifacts_directory",
-    );
-    expect(planningArtifactsDirectoryMethodFactRows).toHaveLength(2);
-    for (const planningArtifactsDirectoryMethodFact of planningArtifactsDirectoryMethodFactRows) {
-      expect(planningArtifactsDirectoryMethodFact.defaultValueJson).toBe(".sisyphus");
-      expect(planningArtifactsDirectoryMethodFact.validationJson).toMatchObject({
-        kind: "path",
-        path: {
-          pathKind: "directory",
-          safety: { disallowAbsolute: true, preventTraversal: true },
-        },
-      });
-    }
-
-    const repositoryTypeFactRows = factDefinitions.filter(
-      (factDefinition) => factDefinition.key === "repository_type",
-    );
-    expect(repositoryTypeFactRows).toHaveLength(2);
-    for (const repositoryTypeFact of repositoryTypeFactRows) {
-      expect(repositoryTypeFact.validationJson).toEqual({
-        kind: "allowed-values",
-        values: ["monolith", "monorepo", "multi_part"],
-      });
-    }
-
-    const projectPartsFactRows = factDefinitions.filter(
-      (factDefinition) => factDefinition.key === "project_parts",
-    );
-    expect(projectPartsFactRows).toHaveLength(2);
-    for (const projectPartsFact of projectPartsFactRows) {
-      expect(projectPartsFact.valueType).toBe("json");
-      expect(projectPartsFact.cardinality).toBe("many");
-      expect(projectPartsFact.validationJson).toMatchObject({
-        kind: "json-schema",
-        schemaDialect: "draft-2020-12",
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          required: ["part_id", "root_path", "project_type_id"],
-          properties: {
-            part_id: { type: "string", cardinality: "one" },
-            root_path: {
-              type: "string",
-              cardinality: "one",
-              title: "Root Path",
-              "x-validation": {
-                kind: "path",
-                path: {
-                  pathKind: "directory",
-                  normalization: {
-                    mode: "posix",
-                    trimWhitespace: true,
-                  },
-                  safety: {
-                    disallowAbsolute: true,
-                    preventTraversal: true,
-                  },
-                },
-              },
-            },
-            project_type_id: { type: "string", cardinality: "one" },
-          },
-        },
-        subSchema: {
-          type: "object",
-        },
-      });
-      expect(projectPartsFact.validationJson?.subSchema?.fields).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ key: "part_id", type: "string", cardinality: "one" }),
-          expect.objectContaining({
-            key: "root_path",
-            type: "string",
-            cardinality: "one",
-            validation: {
-              kind: "path",
-              path: {
-                pathKind: "directory",
-                normalization: {
-                  mode: "posix",
-                  trimWhitespace: true,
-                },
-                safety: {
-                  disallowAbsolute: true,
-                  preventTraversal: true,
-                },
-              },
-            },
-          }),
-          expect.objectContaining({
-            key: "project_type_id",
-            type: "string",
-            cardinality: "one",
-          }),
-        ]),
-      );
-    }
-
-    const technologyStackByPartFactRows = factDefinitions.filter(
-      (factDefinition) => factDefinition.key === "technology_stack_by_part",
-    );
-    expect(technologyStackByPartFactRows).toHaveLength(2);
-    for (const technologyStackByPartFact of technologyStackByPartFactRows) {
-      expect(technologyStackByPartFact.valueType).toBe("json");
-      expect(technologyStackByPartFact.cardinality).toBe("many");
-      expect(technologyStackByPartFact.validationJson).toMatchObject({
-        kind: "json-schema",
-        schemaDialect: "draft-2020-12",
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          required: ["part_id", "framework", "language", "version", "database", "dependencies"],
-          properties: {
-            part_id: { type: "string", cardinality: "one" },
-            framework: { type: "string", cardinality: "one" },
-            language: { type: "string", cardinality: "one" },
-            version: { type: "string", cardinality: "one" },
-            database: { type: "string", cardinality: "one" },
-            dependencies: { type: "string", cardinality: "one" },
-          },
-        },
-        subSchema: {
-          type: "object",
-        },
-      });
-      expect(technologyStackByPartFact.validationJson?.subSchema?.fields).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ key: "part_id", type: "string", cardinality: "one" }),
-          expect.objectContaining({ key: "framework", type: "string", cardinality: "one" }),
-          expect.objectContaining({ key: "language", type: "string", cardinality: "one" }),
-          expect.objectContaining({ key: "version", type: "string", cardinality: "one" }),
-          expect.objectContaining({ key: "database", type: "string", cardinality: "one" }),
-          expect.objectContaining({ key: "dependencies", type: "string", cardinality: "one" }),
-        ]),
-      );
-    }
-
-    const existingDocumentationInventoryFactRows = factDefinitions.filter(
-      (factDefinition) => factDefinition.key === "existing_documentation_inventory",
-    );
-    expect(existingDocumentationInventoryFactRows).toHaveLength(2);
-    for (const documentationInventoryFact of existingDocumentationInventoryFactRows) {
-      expect(documentationInventoryFact.valueType).toBe("json");
-      expect(documentationInventoryFact.cardinality).toBe("many");
-      expect(documentationInventoryFact.validationJson).toMatchObject({
-        kind: "json-schema",
-        schemaDialect: "draft-2020-12",
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          required: ["path", "doc_type", "related_part_id"],
-          properties: {
-            path: {
-              type: "string",
-              cardinality: "one",
-              title: "path",
-              "x-validation": {
-                kind: "path",
-                path: {
-                  pathKind: "file",
-                  normalization: {
-                    mode: "posix",
-                    trimWhitespace: true,
-                  },
-                  safety: {
-                    disallowAbsolute: true,
-                    preventTraversal: true,
-                  },
-                },
-              },
-            },
-            doc_type: { type: "string", cardinality: "one" },
-            related_part_id: { type: "string", cardinality: "one" },
-          },
-        },
-        subSchema: {
-          type: "object",
-        },
-      });
-      expect(documentationInventoryFact.validationJson?.subSchema?.fields).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            key: "path",
-            type: "string",
-            cardinality: "one",
-            validation: {
-              kind: "path",
-              path: {
-                pathKind: "file",
-                normalization: {
-                  mode: "posix",
-                  trimWhitespace: true,
-                },
-                safety: {
-                  disallowAbsolute: true,
-                  preventTraversal: true,
-                },
-              },
-            },
-          }),
-          expect.objectContaining({ key: "doc_type", type: "string", cardinality: "one" }),
-          expect.objectContaining({ key: "related_part_id", type: "string", cardinality: "one" }),
-        ]),
-      );
-    }
-
-    const integrationPointsFactRows = factDefinitions.filter(
-      (factDefinition) => factDefinition.key === "integration_points",
-    );
-    expect(integrationPointsFactRows).toHaveLength(2);
-    for (const integrationPointsFact of integrationPointsFactRows) {
-      expect(integrationPointsFact.valueType).toBe("json");
-      expect(integrationPointsFact.cardinality).toBe("many");
-      expect(integrationPointsFact.validationJson).toMatchObject({
-        kind: "json-schema",
-        schemaDialect: "draft-2020-12",
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          required: ["from_part_id", "to_part_id", "integration_type", "details"],
-          properties: {
-            from_part_id: { type: "string", cardinality: "one" },
-            to_part_id: { type: "string", cardinality: "one" },
-            integration_type: { type: "string", cardinality: "one" },
-            details: { type: "string", cardinality: "one" },
-          },
-        },
-        subSchema: {
-          type: "object",
-        },
-      });
-      expect(integrationPointsFact.validationJson?.subSchema?.fields).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ key: "from_part_id", type: "string", cardinality: "one" }),
-          expect.objectContaining({ key: "to_part_id", type: "string", cardinality: "one" }),
-          expect.objectContaining({
-            key: "integration_type",
-            type: "string",
-            cardinality: "one",
-          }),
-          expect.objectContaining({ key: "details", type: "string", cardinality: "one" }),
-        ]),
-      );
-    }
-
-    const draftFactRows = factDefinitions
-      .filter((factDefinition) => factDefinition.methodologyVersionId === "mver_bmad_v1_draft")
-      .map(({ methodologyVersionId: _methodologyVersionId, id: _id, ...row }) => row)
-      .toSorted((a, b) => a.key.localeCompare(b.key));
-
-    const activeFactRows = factDefinitions
-      .filter((factDefinition) => factDefinition.methodologyVersionId === "mver_bmad_v1_active")
-      .map(({ methodologyVersionId: _methodologyVersionId, id: _id, ...row }) => row)
-      .toSorted((a, b) => a.key.localeCompare(b.key));
-
-    expect(draftFactRows).toEqual(activeFactRows);
-
-    const draftDependencyRows = dependencyDefinitions
-      .filter(
-        (dependencyDefinition) =>
-          dependencyDefinition.methodologyVersionId === "mver_bmad_v1_draft",
-      )
-      .map(({ methodologyVersionId: _methodologyVersionId, id: _id, ...row }) => row)
-      .toSorted((a, b) => a.key.localeCompare(b.key));
-
-    const activeDependencyRows = dependencyDefinitions
-      .filter(
-        (dependencyDefinition) =>
-          dependencyDefinition.methodologyVersionId === "mver_bmad_v1_active",
-      )
-      .map(({ methodologyVersionId: _methodologyVersionId, id: _id, ...row }) => row)
-      .toSorted((a, b) => a.key.localeCompare(b.key));
-
-    expect(draftDependencyRows).toEqual(activeDependencyRows);
-
-    const draftWorkUnitRows = workUnitDefinitions
-      .filter(
-        (workUnitDefinition) => workUnitDefinition.methodologyVersionId === "mver_bmad_v1_draft",
-      )
-      .map(({ methodologyVersionId: _methodologyVersionId, id: _id, ...row }) => row)
-      .toSorted((a, b) => a.key.localeCompare(b.key));
-
-    const activeWorkUnitRows = workUnitDefinitions
-      .filter(
-        (workUnitDefinition) => workUnitDefinition.methodologyVersionId === "mver_bmad_v1_active",
-      )
-      .map(({ methodologyVersionId: _methodologyVersionId, id: _id, ...row }) => row)
-      .toSorted((a, b) => a.key.localeCompare(b.key));
-
-    expect(draftWorkUnitRows).toEqual(activeWorkUnitRows);
-
-    const workUnitFactDefinitions = methodologyCanonicalTableSeedRows.work_unit_fact_definitions;
-    expect(workUnitFactDefinitions).toHaveLength(46);
-    expect(new Set(workUnitFactDefinitions.map((fact) => fact.key))).toEqual(
       new Set([
         "initiative_name",
         "project_kind",
-        "workflow_mode",
-        "scan_level",
-        "requires_brainstorming",
-        "requires_research",
-        "branch_note",
-        "deep_dive_target",
+        "setup_path_summary",
+        "next_recommended_work_unit",
+      ]),
+    );
+
+    expect(
+      new Set(
+        slotRows.filter((row) => row.workUnitTypeId.includes(":wut:setup:")).map((row) => row.key),
+      ),
+    ).toEqual(new Set(["PROJECT_OVERVIEW", "BROWNFIELD_DOCS_INDEX", "PROJECT_CONTEXT"]));
+
+    const setupCompletion = conditionSets.find(
+      (row) =>
+        row.key === "wu.setup.activation_to_done.completion" &&
+        row.methodologyVersionId === "mver_bmad_v1_active",
+    );
+    expect(setupCompletion?.groupsJson).toEqual([
+      {
+        mode: "all",
+        conditions: [
+          expect.objectContaining({
+            config: expect.objectContaining({ factKey: "initiative_name" }),
+          }),
+          expect.objectContaining({ config: expect.objectContaining({ factKey: "project_kind" }) }),
+          expect.objectContaining({
+            config: expect.objectContaining({ factKey: "setup_path_summary" }),
+          }),
+          expect.objectContaining({
+            config: expect.objectContaining({ factKey: "next_recommended_work_unit" }),
+          }),
+          expect.objectContaining({
+            config: expect.objectContaining({ slotKey: "PROJECT_OVERVIEW" }),
+          }),
+        ],
+      },
+    ]);
+
+    expect(
+      new Set(
+        factRows
+          .filter((row) => row.workUnitTypeId.includes(":wut:brainstorming:"))
+          .map((row) => row.key),
+      ),
+    ).toEqual(
+      new Set([
         "setup_work_unit",
-        "objectives",
+        "brainstorming_focus",
         "desired_outcome",
-        "selected_direction",
+        "objectives",
         "constraints",
+        "technique_plan",
+        "selected_technique_workflows",
+        "technique_outputs",
         "selected_directions",
-        "session_notes_file",
-        "estimated_research_effort",
-        "research_work_units",
+        "follow_up_research_topics",
+      ]),
+    );
+    expect(workflowRows.some((row) => row.key === "brainstorming_primary")).toBe(false);
+    expect(workflowRows.some((row) => row.key === "brainstorming_support")).toBe(false);
+    expect(workflowRows.some((row) => row.key === "architecture_decision_records")).toBe(false);
+    expect(
+      new Set(
+        workflowRows
+          .filter((row) => row.workUnitTypeId.includes(":wut:brainstorming:"))
+          .map((row) => row.key),
+      ),
+    ).toEqual(
+      new Set([
+        "brainstorming",
+        "first_principles_analysis",
+        "five_whys_deep_dive",
+        "socratic_questioning",
+        "stakeholder_round_table",
+        "critique_and_refine",
+      ]),
+    );
+
+    expect(
+      new Set(
+        factRows
+          .filter((row) => row.workUnitTypeId.includes(":wut:research:"))
+          .map((row) => row.key),
+      ),
+    ).toEqual(
+      new Set([
+        "setup_work_unit",
         "brainstorming_work_unit",
+        "research_type",
         "research_topic",
         "research_goals",
         "scope_notes",
         "research_synthesis",
+        "source_inventory",
       ]),
     );
-    const setupWorkUnitFactDefinitions = workUnitFactDefinitions.filter((fact) =>
-      fact.workUnitTypeId.includes(":wut:setup:"),
-    );
-    expect(setupWorkUnitFactDefinitions).toHaveLength(16);
-    for (const factDefinition of setupWorkUnitFactDefinitions) {
-      expect(factDefinition.workUnitTypeId).toBe(
-        `seed:wut:setup:${factDefinition.methodologyVersionId}`,
-      );
-      expect(factDefinition.descriptionJson).toBeTruthy();
-      expect(factDefinition.guidanceJson).toBeTruthy();
-      expect(["one", "many"]).toContain(factDefinition.cardinality);
-    }
+    expect(
+      new Set(
+        slotRows
+          .filter((row) => row.workUnitTypeId.includes(":wut:research:"))
+          .map((row) => row.key),
+      ),
+    ).toEqual(new Set(["RESEARCH_REPORT"]));
+    expect(workflowRows.some((row) => row.key === "research_primary")).toBe(false);
+    expect(
+      new Set(
+        workflowRows
+          .filter((row) => row.workUnitTypeId.includes(":wut:research:"))
+          .map((row) => row.key),
+      ),
+    ).toEqual(new Set(["market_research", "domain_research", "technical_research"]));
+  });
 
-    const brainstormingWorkUnitFactDefinitions = workUnitFactDefinitions.filter((fact) =>
-      fact.workUnitTypeId.includes(":wut:brainstorming:"),
-    );
-    expect(brainstormingWorkUnitFactDefinitions).toHaveLength(18);
+  it("adds Product Brief, PRD, UX Design, and Architecture with required bindings and artifacts", async () => {
+    const { methodologyCanonicalTableSeedRows } = await loadMethodologySeedArtifacts();
 
-    const setupWorkUnitFactRows = brainstormingWorkUnitFactDefinitions.filter(
-      (fact) => fact.key === "setup_work_unit",
-    );
-    expect(setupWorkUnitFactRows).toHaveLength(2);
-    for (const setupWorkUnitFact of setupWorkUnitFactRows) {
-      expect(setupWorkUnitFact.factType).toBe("work_unit");
-      expect(setupWorkUnitFact.validationJson).toMatchObject({
-        kind: "none",
-        dependencyType: "requires_setup_context",
-        workUnitKey: "setup",
-      });
-    }
+    const factRows = methodologyCanonicalTableSeedRows.work_unit_fact_definitions;
+    const slotRows = methodologyCanonicalTableSeedRows.methodology_artifact_slot_definitions;
+    const workflowRows = methodologyCanonicalTableSeedRows.methodology_workflows;
+    const bindingRows = methodologyCanonicalTableSeedRows.methodology_transition_workflow_bindings;
 
-    const sessionNotesFileRows = brainstormingWorkUnitFactDefinitions.filter(
-      (fact) => fact.key === "session_notes_file",
+    expect(
+      new Set(
+        factRows
+          .filter((row) => row.workUnitTypeId.includes(":wut:product_brief:"))
+          .map((row) => row.key),
+      ),
+    ).toEqual(
+      new Set([
+        "setup_work_unit",
+        "brainstorming_work_unit",
+        "research_work_units",
+        "product_name",
+        "product_intent_summary",
+        "source_context_summary",
+        "brief_synthesis",
+        "review_findings",
+        "open_questions",
+        "next_recommended_work_unit",
+      ]),
     );
-    expect(sessionNotesFileRows).toHaveLength(2);
-    for (const sessionNotesFile of sessionNotesFileRows) {
-      expect(sessionNotesFile.factType).toBe("string");
-      expect(sessionNotesFile.validationJson).toMatchObject({
-        kind: "path",
-        path: {
-          pathKind: "file",
-        },
-      });
-    }
+    expect(
+      new Set(
+        slotRows
+          .filter((row) => row.workUnitTypeId.includes(":wut:product_brief:"))
+          .map((row) => row.key),
+      ),
+    ).toEqual(new Set(["PRODUCT_BRIEF", "PRODUCT_BRIEF_DISTILLATE"]));
+    expect(workflowRows.filter((row) => row.key === "create_product_brief")).toHaveLength(2);
 
-    const estimatedResearchEffortRows = brainstormingWorkUnitFactDefinitions.filter(
-      (fact) => fact.key === "estimated_research_effort",
+    expect(
+      new Set(
+        factRows.filter((row) => row.workUnitTypeId.includes(":wut:prd:")).map((row) => row.key),
+      ),
+    ).toEqual(
+      new Set([
+        "setup_work_unit",
+        "product_brief_work_unit",
+        "research_work_units",
+        "brainstorming_work_unit",
+        "project_name",
+        "input_context_inventory",
+        "project_classification",
+        "product_vision",
+        "success_criteria",
+        "user_journeys",
+        "scope_plan",
+        "functional_requirements",
+        "non_functional_requirements",
+        "prd_synthesis",
+        "next_recommended_work_units",
+      ]),
     );
-    expect(estimatedResearchEffortRows).toHaveLength(2);
-    for (const estimatedResearchEffort of estimatedResearchEffortRows) {
-      expect(estimatedResearchEffort.factType).toBe("number");
-    }
+    expect(
+      slotRows.filter((row) => row.workUnitTypeId.includes(":wut:prd:")).map((row) => row.key),
+    ).toEqual(["PRD", "PRD"]);
+    expect(workflowRows.filter((row) => row.key === "create_prd")).toHaveLength(2);
 
-    const researchWorkUnitsRows = brainstormingWorkUnitFactDefinitions.filter(
-      (fact) => fact.key === "research_work_units",
+    expect(
+      new Set(
+        factRows
+          .filter((row) => row.workUnitTypeId.includes(":wut:ux_design:"))
+          .map((row) => row.key),
+      ),
+    ).toContain("prd_work_unit");
+    expect(
+      new Set(
+        slotRows
+          .filter((row) => row.workUnitTypeId.includes(":wut:ux_design:"))
+          .map((row) => row.key),
+      ),
+    ).toEqual(new Set(["UX_DESIGN_SPECIFICATION", "UX_COLOR_THEMES", "UX_DESIGN_DIRECTIONS"]));
+    expect(workflowRows.filter((row) => row.key === "create_ux_design")).toHaveLength(2);
+
+    expect(
+      new Set(
+        factRows
+          .filter((row) => row.workUnitTypeId.includes(":wut:architecture:"))
+          .map((row) => row.key),
+      ),
+    ).toEqual(
+      new Set([
+        "prd_work_unit",
+        "ux_design_work_unit",
+        "research_work_units",
+        "project_context_artifact",
+        "project_context_analysis",
+        "architecture_decisions",
+        "implementation_patterns",
+        "project_structure",
+        "requirements_coverage",
+        "validation_results",
+        "architecture_synthesis",
+        "next_recommended_work_units",
+      ]),
     );
-    expect(researchWorkUnitsRows).toHaveLength(2);
-    for (const researchWorkUnits of researchWorkUnitsRows) {
-      expect(researchWorkUnits.factType).toBe("work_unit");
-      expect(researchWorkUnits.cardinality).toBe("many");
-      expect(researchWorkUnits.validationJson).toMatchObject({
-        kind: "none",
-        dependencyType: "informed_by_research",
-        workUnitKey: "research",
-      });
-    }
-
-    for (const factDefinition of brainstormingWorkUnitFactDefinitions) {
-      expect(factDefinition.workUnitTypeId).toBe(
-        `seed:wut:brainstorming:${factDefinition.methodologyVersionId}`,
-      );
-      expect(factDefinition.descriptionJson).toBeTruthy();
-      expect(factDefinition.guidanceJson).toBeTruthy();
-      expect(["one", "many"]).toContain(factDefinition.cardinality);
-    }
-
-    const researchWorkUnitFactDefinitions = workUnitFactDefinitions.filter((fact) =>
-      fact.workUnitTypeId.includes(":wut:research:"),
+    expect(
+      factRows.find(
+        (row) =>
+          row.workUnitTypeId.includes(":wut:architecture:") &&
+          row.key === "project_context_artifact",
+      )?.factType,
+    ).toBe("work_unit_reference");
+    expect(
+      new Set(
+        slotRows
+          .filter((row) => row.workUnitTypeId.includes(":wut:architecture:"))
+          .map((row) => row.key),
+      ),
+    ).toEqual(new Set(["ARCHITECTURE_DOCUMENT", "ARCHITECTURE_DECISION_RECORDS"]));
+    expect(workflowRows.filter((row) => row.key === "create_architecture")).toHaveLength(2);
+    expect(workflowRows.filter((row) => row.key === "record_architecture_decision")).toHaveLength(
+      2,
     );
-    expect(researchWorkUnitFactDefinitions).toHaveLength(12);
-    for (const factDefinition of researchWorkUnitFactDefinitions) {
-      expect(factDefinition.workUnitTypeId).toBe(
-        `seed:wut:research:${factDefinition.methodologyVersionId}`,
-      );
-      expect(factDefinition.descriptionJson).toBeTruthy();
-      expect(factDefinition.guidanceJson).toBeTruthy();
-      expect(["one", "many"]).toContain(factDefinition.cardinality);
-    }
+    expect(
+      bindingRows.filter((row) => row.workflowId.includes(":record-architecture-decision:")),
+    ).toEqual([]);
+  });
 
-    const researchSetupWorkUnitFactRows = researchWorkUnitFactDefinitions.filter(
-      (fact) => fact.key === "setup_work_unit",
-    );
-    expect(researchSetupWorkUnitFactRows).toHaveLength(2);
-    for (const setupWorkUnitFact of researchSetupWorkUnitFactRows) {
-      expect(setupWorkUnitFact.factType).toBe("work_unit");
-      expect(setupWorkUnitFact.validationJson).toMatchObject({
-        kind: "none",
-        dependencyType: "requires_setup_context",
-        workUnitKey: "setup",
-      });
-    }
+  it("seeds authored Section A workflow steps, edges, and context facts", async () => {
+    const { methodologyCanonicalTableSeedRows } = await loadMethodologySeedArtifacts();
 
-    const researchBrainstormingWorkUnitFactRows = researchWorkUnitFactDefinitions.filter(
-      (fact) => fact.key === "brainstorming_work_unit",
-    );
-    expect(researchBrainstormingWorkUnitFactRows).toHaveLength(2);
-    for (const brainstormingWorkUnitFact of researchBrainstormingWorkUnitFactRows) {
-      expect(brainstormingWorkUnitFact.factType).toBe("work_unit");
-      expect(brainstormingWorkUnitFact.validationJson).toMatchObject({
-        kind: "none",
-        dependencyType: "informed_by_brainstorming",
-        workUnitKey: "brainstorming",
-      });
-    }
+    const workflowSteps = methodologyCanonicalTableSeedRows.methodology_workflow_steps;
+    const workflowEdges = methodologyCanonicalTableSeedRows.methodology_workflow_edges;
+    const contextFacts =
+      methodologyCanonicalTableSeedRows.methodology_workflow_context_fact_definitions;
 
-    const objectivesFactRows = brainstormingWorkUnitFactDefinitions.filter(
-      (fact) => fact.key === "objectives",
+    expect(workflowSteps.length).toBeGreaterThan(0);
+    expect(workflowEdges.length).toBeGreaterThan(0);
+    expect(contextFacts.length).toBeGreaterThan(0);
+
+    expect(
+      workflowSteps
+        .filter((row) => row.workflowId.includes(":workflow:setup:setup-project:"))
+        .map((row) => row.key),
+    ).toEqual([
+      "collect_setup_baseline",
+      "branch_project_kind",
+      "greenfield_setup_agent",
+      "brownfield_scan_preferences",
+      "invoke_document_project",
+      "branch_need_brainstorming",
+      "invoke_brainstorming_work",
+      "branch_need_research",
+      "invoke_research_work",
+      "branch_need_product_brief",
+      "invoke_product_brief_work",
+      "propagate_setup_outputs",
+      "collect_setup_baseline",
+      "branch_project_kind",
+      "greenfield_setup_agent",
+      "brownfield_scan_preferences",
+      "invoke_document_project",
+      "branch_need_brainstorming",
+      "invoke_brainstorming_work",
+      "branch_need_research",
+      "invoke_research_work",
+      "branch_need_product_brief",
+      "invoke_product_brief_work",
+      "propagate_setup_outputs",
+    ]);
+
+    expect(
+      workflowSteps
+        .filter((row) => row.workflowId.includes(":workflow:prd:create-prd:"))
+        .map((row) => row.key),
+    ).toEqual([
+      "prd_input_initialization_agent",
+      "prd_discovery_and_vision_agent",
+      "prd_success_and_journeys_agent",
+      "prd_context_requirements_agent",
+      "prd_capability_contract_agent",
+      "prd_polish_and_completion_agent",
+      "propagate_prd_outputs",
+      "prd_input_initialization_agent",
+      "prd_discovery_and_vision_agent",
+      "prd_success_and_journeys_agent",
+      "prd_context_requirements_agent",
+      "prd_capability_contract_agent",
+      "prd_polish_and_completion_agent",
+      "propagate_prd_outputs",
+    ]);
+
+    expect(
+      workflowSteps
+        .filter((row) => row.workflowId.includes(":workflow:product_brief:create-product-brief:"))
+        .map((row) => row.key),
+    ).toEqual([
+      "brief_intent_agent",
+      "product_brief_authoring_agent",
+      "propagate_product_brief_outputs",
+      "brief_intent_agent",
+      "product_brief_authoring_agent",
+      "propagate_product_brief_outputs",
+    ]);
+
+    expect(
+      workflowSteps
+        .filter((row) => row.workflowId.includes(":workflow:ux_design:create-ux-design:"))
+        .map((row) => row.key),
+    ).toEqual([
+      "ux_input_initialization_agent",
+      "ux_project_and_experience_agent",
+      "ux_visual_foundation_agent",
+      "ux_flows_components_patterns_agent",
+      "ux_responsive_accessibility_completion_agent",
+      "propagate_ux_design_outputs",
+      "ux_input_initialization_agent",
+      "ux_project_and_experience_agent",
+      "ux_visual_foundation_agent",
+      "ux_flows_components_patterns_agent",
+      "ux_responsive_accessibility_completion_agent",
+      "propagate_ux_design_outputs",
+    ]);
+
+    expect(
+      workflowSteps
+        .filter((row) => row.workflowId.includes(":workflow:architecture:create-architecture:"))
+        .map((row) => row.key),
+    ).toEqual([
+      "architecture_input_initialization_agent",
+      "architecture_context_agent",
+      "architecture_starter_and_decisions_agent",
+      "architecture_patterns_structure_agent",
+      "architecture_validation_completion_agent",
+      "propagate_architecture_outputs",
+      "architecture_input_initialization_agent",
+      "architecture_context_agent",
+      "architecture_starter_and_decisions_agent",
+      "architecture_patterns_structure_agent",
+      "architecture_validation_completion_agent",
+      "propagate_architecture_outputs",
+    ]);
+
+    expect(
+      workflowEdges
+        .filter((row) => row.workflowId.includes(":workflow:setup:setup-project:"))
+        .map((row) => row.edgeKey),
+    ).toEqual([
+      "collect_setup_baseline_to_branch_project_kind",
+      "greenfield_setup_agent_to_branch_need_brainstorming",
+      "brownfield_scan_preferences_to_invoke_document_project",
+      "invoke_document_project_to_propagate_setup_outputs",
+      "invoke_brainstorming_work_to_branch_need_research",
+      "invoke_research_work_to_branch_need_product_brief",
+      "invoke_product_brief_work_to_propagate_setup_outputs",
+      "collect_setup_baseline_to_branch_project_kind",
+      "greenfield_setup_agent_to_branch_need_brainstorming",
+      "brownfield_scan_preferences_to_invoke_document_project",
+      "invoke_document_project_to_propagate_setup_outputs",
+      "invoke_brainstorming_work_to_branch_need_research",
+      "invoke_research_work_to_branch_need_product_brief",
+      "invoke_product_brief_work_to_propagate_setup_outputs",
+    ]);
+
+    const setupActionRows =
+      methodologyCanonicalTableSeedRows.methodology_workflow_action_step_actions;
+    const setupActionItemRows =
+      methodologyCanonicalTableSeedRows.methodology_workflow_action_step_action_items;
+    const setupBoundFactPropagationActions = setupActionRows.filter(
+      (row) =>
+        row.actionStepId.includes(":setup:setup-project:") &&
+        row.actionKey === "propagate_setup_bound_facts",
     );
-    expect(objectivesFactRows).toHaveLength(2);
-    for (const objectiveFact of objectivesFactRows) {
-      expect(objectiveFact.factType).toBe("json");
-      expect(objectiveFact.cardinality).toBe("many");
-      expect(objectiveFact.defaultValueJson).toBeNull();
-      expect(objectiveFact.validationJson).toMatchObject({
-        kind: "json-schema",
-        schemaDialect: "draft-2020-12",
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          required: ["title", "motivation", "success_signal"],
-          properties: {
-            title: { type: "string", cardinality: "one" },
-            motivation: { type: "string", cardinality: "one" },
-            success_signal: { type: "string", cardinality: "one" },
-            priority: { type: "number", cardinality: "one" },
-            notes: { type: "string", cardinality: "one" },
-          },
-        },
-      });
+    expect(setupBoundFactPropagationActions).toHaveLength(2);
+    for (const action of setupBoundFactPropagationActions) {
+      expect(action.contextFactKind).toBe("bound_fact");
+      expect(
+        setupActionItemRows
+          .filter((row) => row.actionRowId === action.id)
+          .map((row) => row.itemKey),
+      ).toEqual([
+        "setup.initiative_name",
+        "setup.project_kind",
+        "setup.project_knowledge_directory",
+        "setup.planning_artifacts_directory",
+        "setup.communication_language",
+        "setup.document_output_language",
+        "setup.workflow_mode",
+        "setup.scan_level",
+        "setup.deep_dive_target",
+        "setup.repository_type",
+        "setup.project_parts",
+        "setup.technology_stack_by_part",
+        "setup.existing_documentation_inventory",
+        "setup.integration_points",
+        "setup.setup_path_summary",
+        "setup.next_recommended_work_unit",
+      ]);
     }
 
     expect(
-      brainstormingWorkUnitFactDefinitions.some(
-        (factDefinition) => factDefinition.key === "objective",
+      new Set(
+        contextFacts
+          .filter((row) => row.workflowId.includes(":workflow:product_brief:create-product-brief:"))
+          .map((row) => row.factKey),
       ),
-    ).toBe(false);
-
-    const selectedDirectionsFactRows = brainstormingWorkUnitFactDefinitions.filter(
-      (fact) => fact.key === "selected_directions",
+    ).toEqual(
+      new Set([
+        "brief_mode_ctx",
+        "setup_input_summary_ctx",
+        "brainstorming_input_summary_ctx",
+        "research_input_summary_ctx",
+        "product_name_ctx",
+        "product_intent_summary_ctx",
+        "source_context_summary_ctx",
+        "brief_synthesis_ctx",
+        "review_findings_ctx",
+        "open_questions_ctx",
+        "next_work_unit_ref_ctx",
+        "product_brief_artifact_ctx",
+        "product_brief_distillate_artifact_ctx",
+      ]),
     );
-    expect(selectedDirectionsFactRows).toHaveLength(2);
-    for (const selectedDirectionsFact of selectedDirectionsFactRows) {
-      expect(selectedDirectionsFact.factType).toBe("json");
-      expect(selectedDirectionsFact.cardinality).toBe("one");
-      expect(selectedDirectionsFact.defaultValueJson).toBeNull();
-      expect(selectedDirectionsFact.validationJson).toMatchObject({
-        kind: "json-schema",
-        schemaDialect: "draft-2020-12",
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            primary_directions: { type: "string", cardinality: "many" },
-            quick_wins: { type: "string", cardinality: "many" },
-            breakthrough_concepts: { type: "string", cardinality: "many" },
-          },
-        },
-      });
-      const selectedDirectionProperties =
-        selectedDirectionsFact.validationJson?.kind === "json-schema" &&
-        selectedDirectionsFact.validationJson.schema &&
-        typeof selectedDirectionsFact.validationJson.schema === "object" &&
-        "properties" in selectedDirectionsFact.validationJson.schema
-          ? selectedDirectionsFact.validationJson.schema.properties
-          : null;
-      if (selectedDirectionProperties && typeof selectedDirectionProperties === "object") {
-        for (const field of [
-          "primary_directions",
-          "quick_wins",
-          "breakthrough_concepts",
-        ] as const) {
-          const property = selectedDirectionProperties[field];
-          if (property && typeof property === "object") {
-            expect(property).not.toHaveProperty("default");
-          }
-        }
-      }
-    }
 
-    const selectedDirectionFactRows = brainstormingWorkUnitFactDefinitions.filter(
-      (fact) => fact.key === "selected_direction",
+    expect(
+      new Set(
+        contextFacts
+          .filter((row) => row.workflowId.includes(":workflow:prd:create-prd:"))
+          .map((row) => row.factKey),
+      ),
+    ).toEqual(
+      new Set([
+        "setup_input_summary_ctx",
+        "product_brief_input_summary_ctx",
+        "research_input_summary_ctx",
+        "brainstorming_input_summary_ctx",
+        "project_name_ctx",
+        "input_context_inventory_ctx",
+        "project_classification_ctx",
+        "product_vision_ctx",
+        "success_criteria_ctx",
+        "user_journeys_ctx",
+        "domain_requirements_ctx",
+        "innovation_analysis_ctx",
+        "project_type_requirements_ctx",
+        "scope_plan_ctx",
+        "functional_requirements_ctx",
+        "non_functional_requirements_ctx",
+        "prd_synthesis_ctx",
+        "next_work_unit_refs_ctx",
+        "prd_artifact_ctx",
+      ]),
     );
-    expect(selectedDirectionFactRows).toHaveLength(2);
-    for (const selectedDirectionFact of selectedDirectionFactRows) {
-      expect(selectedDirectionFact.factType).toBe("string");
-      expect(selectedDirectionFact.cardinality).toBe("one");
-      expect(selectedDirectionFact.defaultValueJson).toBeNull();
-      expect(selectedDirectionFact.validationJson).toEqual({ kind: "none" });
-    }
-
-    const constraintsFactRows = brainstormingWorkUnitFactDefinitions.filter(
-      (fact) => fact.key === "constraints",
-    );
-    expect(constraintsFactRows).toHaveLength(2);
-    for (const constraintsFact of constraintsFactRows) {
-      expect(constraintsFact.factType).toBe("json");
-      expect(constraintsFact.cardinality).toBe("one");
-      expect(constraintsFact.defaultValueJson).toBeNull();
-      expect(constraintsFact.validationJson).toMatchObject({
-        kind: "json-schema",
-        schemaDialect: "draft-2020-12",
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            must_have: { type: "string", cardinality: "many" },
-            must_avoid: { type: "string", cardinality: "many" },
-            timebox_notes: { type: "string", cardinality: "many" },
-          },
-        },
-      });
-    }
-
-    const researchGoalsFactRows = researchWorkUnitFactDefinitions.filter(
-      (fact) => fact.key === "research_goals",
-    );
-    expect(researchGoalsFactRows).toHaveLength(2);
-    for (const researchGoalsFact of researchGoalsFactRows) {
-      expect(researchGoalsFact.factType).toBe("json");
-      expect(researchGoalsFact.cardinality).toBe("many");
-      expect(researchGoalsFact.defaultValueJson).toBeNull();
-      expect(researchGoalsFact.validationJson).toMatchObject({
-        kind: "json-schema",
-        schemaDialect: "draft-2020-12",
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          required: ["title", "question", "success_signal"],
-          properties: {
-            title: { type: "string", cardinality: "one" },
-            question: { type: "string", cardinality: "one" },
-            success_signal: { type: "string", cardinality: "one" },
-            priority: { type: "number", cardinality: "one" },
-            notes: { type: "string", cardinality: "one" },
-          },
-        },
-      });
-    }
-
-    const researchSynthesisFactRows = researchWorkUnitFactDefinitions.filter(
-      (fact) => fact.key === "research_synthesis",
-    );
-    expect(researchSynthesisFactRows).toHaveLength(2);
-    for (const researchSynthesisFact of researchSynthesisFactRows) {
-      expect(researchSynthesisFact.factType).toBe("json");
-      expect(researchSynthesisFact.cardinality).toBe("one");
-      expect(researchSynthesisFact.defaultValueJson).toBeNull();
-      expect(researchSynthesisFact.validationJson).toMatchObject({
-        kind: "json-schema",
-        schemaDialect: "draft-2020-12",
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          required: ["executive_summary", "key_finding", "primary_recommendation"],
-          properties: {
-            executive_summary: { type: "string", cardinality: "one" },
-            key_finding: { type: "string", cardinality: "one" },
-            primary_recommendation: { type: "string", cardinality: "one" },
-            source_verification_summary: { type: "string", cardinality: "one" },
-          },
-        },
-      });
-    }
-
-    const projectKindFactRows = workUnitFactDefinitions.filter(
-      (fact) => fact.key === "project_kind",
-    );
-    expect(projectKindFactRows).toHaveLength(2);
-    for (const projectKindFact of projectKindFactRows) {
-      expect(projectKindFact.validationJson).toEqual({
-        kind: "allowed-values",
-        values: ["greenfield", "brownfield"],
-      });
-    }
-
-    const workflowModeFactRows = workUnitFactDefinitions.filter(
-      (fact) => fact.key === "workflow_mode",
-    );
-    expect(workflowModeFactRows).toHaveLength(2);
-    for (const workflowModeFact of workflowModeFactRows) {
-      expect(workflowModeFact.factType).toBe("string");
-      expect(workflowModeFact.cardinality).toBe("one");
-      expect(workflowModeFact.validationJson).toEqual({
-        kind: "allowed-values",
-        values: ["lightweight", "invoke_test"],
-      });
-    }
-
-    const scanLevelFactRows = workUnitFactDefinitions.filter((fact) => fact.key === "scan_level");
-    expect(scanLevelFactRows).toHaveLength(2);
-    for (const scanLevelFact of scanLevelFactRows) {
-      expect(scanLevelFact.factType).toBe("string");
-      expect(scanLevelFact.cardinality).toBe("one");
-      expect(scanLevelFact.validationJson).toEqual({
-        kind: "allowed-values",
-        values: ["quick", "deep", "exhaustive"],
-      });
-    }
-
-    const requiresBrainstormingFactRows = workUnitFactDefinitions.filter(
-      (fact) => fact.key === "requires_brainstorming",
-    );
-    expect(requiresBrainstormingFactRows).toHaveLength(2);
-    for (const requiresBrainstormingFact of requiresBrainstormingFactRows) {
-      expect(requiresBrainstormingFact.factType).toBe("boolean");
-      expect(requiresBrainstormingFact.cardinality).toBe("one");
-      expect(requiresBrainstormingFact.defaultValueJson).toBeNull();
-      expect(requiresBrainstormingFact.validationJson).toEqual({ kind: "none" });
-    }
-
-    const requiresResearchFactRows = workUnitFactDefinitions.filter(
-      (fact) => fact.key === "requires_research",
-    );
-    expect(requiresResearchFactRows).toHaveLength(2);
-    for (const requiresResearchFact of requiresResearchFactRows) {
-      expect(requiresResearchFact.factType).toBe("boolean");
-      expect(requiresResearchFact.cardinality).toBe("one");
-      expect(requiresResearchFact.defaultValueJson).toBeNull();
-      expect(requiresResearchFact.validationJson).toEqual({ kind: "none" });
-    }
-
-    const branchNoteFactRows = workUnitFactDefinitions.filter((fact) => fact.key === "branch_note");
-    expect(branchNoteFactRows).toHaveLength(2);
-    for (const branchNoteFact of branchNoteFactRows) {
-      expect(branchNoteFact.factType).toBe("string");
-      expect(branchNoteFact.cardinality).toBe("one");
-      expect(branchNoteFact.defaultValueJson).toBeNull();
-      expect(branchNoteFact.validationJson).toEqual({
-        kind: "allowed-values",
-        values: ["brainstorm_then_research", "research_only"],
-      });
-    }
-
-    const deepDiveTargetFactRows = workUnitFactDefinitions.filter(
-      (fact) => fact.key === "deep_dive_target",
-    );
-    expect(deepDiveTargetFactRows).toHaveLength(2);
-    for (const deepDiveTargetFact of deepDiveTargetFactRows) {
-      expect(deepDiveTargetFact.factType).toBe("json");
-      expect(deepDiveTargetFact.cardinality).toBe("one");
-      expect(deepDiveTargetFact.validationJson).toMatchObject({
-        kind: "json-schema",
-        schemaDialect: "draft-2020-12",
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          required: ["target_type", "target_path", "target_name", "target_scope"],
-          properties: {
-            target_type: { type: "string", cardinality: "one" },
-            target_path: { type: "string", cardinality: "one" },
-            target_name: { type: "string", cardinality: "one" },
-            target_scope: { type: "string", cardinality: "one" },
-          },
-        },
-      });
-    }
-
-    const artifactSlotDefinitions =
-      methodologyCanonicalTableSeedRows.methodology_artifact_slot_definitions;
-    expect(artifactSlotDefinitions).toHaveLength(6);
-
-    const setupArtifactSlotDefinitions = artifactSlotDefinitions.filter((slot) =>
-      slot.workUnitTypeId.includes(":wut:setup:"),
-    );
-    expect(setupArtifactSlotDefinitions).toHaveLength(2);
-    for (const slot of setupArtifactSlotDefinitions) {
-      expect(slot.id).toBe(
-        `seed:artifact-slot:setup:project-overview:${slot.methodologyVersionId}`,
-      );
-      expect(slot.key).toBe("PROJECT_OVERVIEW");
-      expect(slot.workUnitTypeId).toBe(`seed:wut:setup:${slot.methodologyVersionId}`);
-      expect(slot.cardinality).toBe("single");
-      expect(slot.descriptionJson).toBeTruthy();
-      expect(slot.guidanceJson).toBeTruthy();
-      expect(slot.rulesJson).toEqual({
-        pathStrategy: "project-knowledge",
-        suggestedPath: "project-overview.md",
-        templateEngine: "handlebars",
-        maxFiles: 1,
-      });
-    }
-
-    const brainstormingArtifactSlotDefinitions = artifactSlotDefinitions.filter((slot) =>
-      slot.workUnitTypeId.includes(":wut:brainstorming:"),
-    );
-    expect(brainstormingArtifactSlotDefinitions).toHaveLength(2);
-    for (const slot of brainstormingArtifactSlotDefinitions) {
-      expect(slot.id).toBe(
-        `seed:artifact-slot:brainstorming:brainstorming-session:${slot.methodologyVersionId}`,
-      );
-      expect(slot.key).toBe("brainstorming_session");
-      expect(slot.workUnitTypeId).toBe(`seed:wut:brainstorming:${slot.methodologyVersionId}`);
-      expect(slot.cardinality).toBe("single");
-      expect(slot.rulesJson).toMatchObject({
-        pathStrategy: "project-knowledge",
-        suggestedPath: "brainstorming/brainstorming-session.md",
-        templateEngine: "handlebars",
-        maxFiles: 1,
-      });
-    }
-
-    const researchArtifactSlotDefinitions = artifactSlotDefinitions.filter((slot) =>
-      slot.workUnitTypeId.includes(":wut:research:"),
-    );
-    expect(researchArtifactSlotDefinitions).toHaveLength(2);
-    for (const slot of researchArtifactSlotDefinitions) {
-      expect(slot.id).toBe(
-        `seed:artifact-slot:research:research-report:${slot.methodologyVersionId}`,
-      );
-      expect(slot.key).toBe("research_report");
-      expect(slot.workUnitTypeId).toBe(`seed:wut:research:${slot.methodologyVersionId}`);
-      expect(slot.cardinality).toBe("single");
-      expect(slot.rulesJson).toMatchObject({
-        pathStrategy: "planning-artifacts",
-        suggestedPath: "research/research-report.md",
-        templateEngine: "handlebars",
-        maxFiles: 1,
-      });
-    }
-
-    const artifactSlotTemplates =
-      methodologyCanonicalTableSeedRows.methodology_artifact_slot_templates;
-    expect(artifactSlotTemplates).toHaveLength(10);
-
-    const setupArtifactSlotTemplates = artifactSlotTemplates.filter((template) =>
-      template.slotDefinitionId.includes(":artifact-slot:setup:"),
-    );
-    expect(setupArtifactSlotTemplates).toHaveLength(2);
-    for (const template of setupArtifactSlotTemplates) {
-      expect(template.id).toBe(
-        `seed:artifact-template:setup:default:${template.methodologyVersionId}`,
-      );
-      expect(template.slotDefinitionId).toBe(
-        `seed:artifact-slot:setup:project-overview:${template.methodologyVersionId}`,
-      );
-      expect(template.key).toBe("default");
-      expect(template.descriptionJson).toBeTruthy();
-      expect(template.guidanceJson).toBeTruthy();
-      expect(template.content).toContain("{{workUnit.facts.initiative_name}}");
-      expect(template.content).toContain("{{workUnit.facts.project_kind}}");
-      expect(template.content).toContain("{{methodology.facts.project_knowledge_directory}}");
-      expect(template.content).toContain("{{methodology.facts.planning_artifacts_directory}}");
-      expect(template.content).not.toContain("project_root_directory");
-    }
-
-    const brainstormingArtifactSlotTemplates = artifactSlotTemplates.filter((template) =>
-      template.slotDefinitionId.includes(":artifact-slot:brainstorming:"),
-    );
-    expect(brainstormingArtifactSlotTemplates).toHaveLength(2);
-    for (const template of brainstormingArtifactSlotTemplates) {
-      expect(template.id).toBe(
-        `seed:artifact-template:brainstorming:default:${template.methodologyVersionId}`,
-      );
-      expect(template.slotDefinitionId).toBe(
-        `seed:artifact-slot:brainstorming:brainstorming-session:${template.methodologyVersionId}`,
-      );
-      expect(template.key).toBe("default");
-      expect(template.content).toContain("{{workUnit.facts.desired_outcome}}");
-      expect(template.content).toContain("{{#if workUnit.facts.objectives}}");
-      expect(template.content).toContain("{{#if workUnit.facts.constraints.must_have}}");
-      expect(template.content).toContain(
-        "{{#if workUnit.facts.selected_directions.primary_directions}}",
-      );
-      expect(template.content).toContain("{{#each workUnit.facts.constraints.must_have}}");
-      expect(template.content).toContain("{{#each workUnit.facts.constraints.must_avoid}}");
-      expect(template.content).toContain("{{#each workUnit.facts.constraints.timebox_notes}}");
-      expect(template.content).toContain(
-        "{{#each workUnit.facts.selected_directions.primary_directions}}",
-      );
-      expect(template.content).toContain("{{#each workUnit.facts.selected_directions.quick_wins}}");
-      expect(template.content).toContain(
-        "{{#each workUnit.facts.selected_directions.breakthrough_concepts}}",
-      );
-      expect(template.content).not.toContain("{{workUnit.facts.constraints.must_have}}");
-      expect(template.content).not.toContain("{{workUnit.facts.constraints.must_avoid}}");
-      expect(template.content).not.toContain("{{workUnit.facts.constraints.timebox_notes}}");
-      expect(template.content).not.toContain(
-        "{{workUnit.facts.selected_directions.primary_directions}}",
-      );
-      expect(template.content).not.toContain("{{workUnit.facts.selected_directions.quick_wins}}");
-      expect(template.content).not.toContain(
-        "{{workUnit.facts.selected_directions.breakthrough_concepts}}",
-      );
-    }
-
-    const researchArtifactSlotTemplates = artifactSlotTemplates.filter((template) =>
-      template.slotDefinitionId.includes(":artifact-slot:research:"),
-    );
-    expect(researchArtifactSlotTemplates).toHaveLength(6);
-    expect(new Set(researchArtifactSlotTemplates.map((template) => template.key))).toEqual(
-      new Set(["market", "domain", "technical"]),
-    );
-    for (const template of researchArtifactSlotTemplates) {
-      expect(template.id).toBe(
-        `seed:artifact-template:research:${template.key}:${template.methodologyVersionId}`,
-      );
-      expect(template.slotDefinitionId).toBe(
-        `seed:artifact-slot:research:research-report:${template.methodologyVersionId}`,
-      );
-      expect(template.content).toContain("{{workUnit.facts.research_topic}}");
-      expect(template.content).toContain("{{#if workUnit.facts.research_goals}}");
-      expect(template.content).toContain(
-        "{{#if workUnit.facts.research_synthesis.executive_summary}}",
-      );
-    }
-  });
-
-  it("seeds methodology json fact definitions with normalized subSchema fields", async () => {
-    const { methodologyCanonicalTableSeedRows } = await loadMethodologySeedArtifacts();
-
-    const factDefinitions = methodologyCanonicalTableSeedRows.methodology_fact_definitions;
-    const jsonFacts = [
-      "technology_stack_by_part",
-      "existing_documentation_inventory",
-      "integration_points",
-    ];
-
-    for (const factKey of jsonFacts) {
-      const rows = factDefinitions.filter((factDefinition) => factDefinition.key === factKey);
-      expect(rows).toHaveLength(2);
-      for (const row of rows) {
-        const validationJson =
-          typeof row.validationJson === "string"
-            ? (JSON.parse(row.validationJson) as { subSchema?: { fields?: unknown[] } })
-            : (row.validationJson as { subSchema?: { fields?: unknown[] } });
-        expect(validationJson).toMatchObject({
-          kind: "json-schema",
-        });
-        expect(validationJson.subSchema?.type).toBe("object");
-        expect(Array.isArray(validationJson.subSchema?.fields ?? [])).toBe(true);
-      }
-    }
-  });
-
-  it("seeds brainstorming setup_work_unit as canonical work_unit fact type", async () => {
-    const { methodologyCanonicalTableSeedRows } = await loadMethodologySeedArtifacts();
-
-    const setupWorkUnitFactRows = methodologyCanonicalTableSeedRows.work_unit_fact_definitions
-      .filter((fact) => fact.workUnitTypeId.includes(":wut:brainstorming:"))
-      .filter((fact) => fact.key === "setup_work_unit");
-
-    expect(setupWorkUnitFactRows).toHaveLength(2);
-    for (const setupWorkUnitFact of setupWorkUnitFactRows) {
-      expect(setupWorkUnitFact.factType).toBe("work_unit");
-      expect(setupWorkUnitFact.validationJson).toMatchObject({
-        kind: "none",
-        dependencyType: "requires_setup_context",
-        workUnitKey: "setup",
-      });
-    }
   });
 });
