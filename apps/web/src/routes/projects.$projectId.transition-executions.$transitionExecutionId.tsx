@@ -12,6 +12,14 @@ import { z } from "zod";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -29,6 +37,15 @@ import {
   getExecutionStatusTone,
   getGateStateTone,
 } from "@/features/projects/execution-detail-visuals";
+import { authClient } from "@/lib/auth-client";
+import {
+  dismissSurvey,
+  getSurveyGatewayUrl,
+  getSurveyState,
+  launchSurvey,
+  snoozeSurvey,
+  type SurveyState,
+} from "@/lib/survey-client";
 import { cn } from "@/lib/utils";
 
 const transitionExecutionSearchSchema = z.object({
@@ -380,6 +397,11 @@ export function TransitionExecutionDetailRoute() {
     typeof search.projectWorkUnitId === "string" ? search.projectWorkUnitId : undefined;
 
   const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
+  const [surveyDialogOpen, setSurveyDialogOpen] = useState(false);
+  const [surveyState, setSurveyState] = useState<SurveyState | null>(null);
+  const [surveySessionId] = useState(() => crypto.randomUUID());
+  const [surveyPromptedTransitionId, setSurveyPromptedTransitionId] = useState<string | null>(null);
+  const { data: session } = authClient.useSession();
 
   const transitionDetailQuery = useQuery({
     ...(projectWorkUnitId
@@ -421,6 +443,30 @@ export function TransitionExecutionDetailRoute() {
           queryClient.invalidateQueries({ queryKey: runtimeGuidanceActiveQueryKey(projectId) }),
           queryClient.invalidateQueries({ queryKey: runtimeActiveWorkflowsQueryKey(projectId) }),
         ]);
+
+        const email = session?.user.email;
+
+        if (
+          !email ||
+          !getSurveyGatewayUrl() ||
+          surveyPromptedTransitionId === transitionExecutionId
+        ) {
+          return;
+        }
+
+        const nextSurveyState = await getSurveyState(email);
+
+        setSurveyState(nextSurveyState);
+        setSurveyPromptedTransitionId(transitionExecutionId);
+
+        if (
+          nextSurveyState.status === "eligible" ||
+          (nextSurveyState.status === "snoozed" &&
+            nextSurveyState.lastSnoozedSessionId !== surveySessionId) ||
+          nextSurveyState.status === "clicked"
+        ) {
+          setSurveyDialogOpen(true);
+        }
       },
     }),
   );
@@ -528,6 +574,82 @@ export function TransitionExecutionDetailRoute() {
 
       {detail ? (
         <>
+          <Dialog open={surveyDialogOpen} onOpenChange={setSurveyDialogOpen}>
+            <DialogContent className="max-w-md rounded-none border border-border/80 bg-background">
+              <DialogHeader>
+                <DialogTitle>Help evaluate Chiron</DialogTitle>
+                <DialogDescription>
+                  You just completed a transition. If you have a few minutes, this thesis survey
+                  helps measure whether Chiron changes your AI-assisted workflow.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="gap-2 sm:justify-between">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={async () => {
+                    const email = session?.user.email;
+                    if (!email) {
+                      return;
+                    }
+                    await dismissSurvey(email);
+                    setSurveyDialogOpen(false);
+                  }}
+                >
+                  Don't ask again
+                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      const email = session?.user.email;
+                      if (!email) {
+                        return;
+                      }
+                      await snoozeSurvey(email, surveySessionId);
+                      setSurveyDialogOpen(false);
+                    }}
+                  >
+                    Not now
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={async () => {
+                      const email = session?.user.email;
+                      if (!email || !projectWorkUnitId) {
+                        return;
+                      }
+
+                      const launch = await launchSurvey({
+                        email,
+                        projectId,
+                        projectWorkUnitId,
+                        transitionExecutionId,
+                      });
+
+                      setSurveyState({
+                        ...(surveyState ?? {
+                          experimentId: "chiron-thesis-2026",
+                          surveyVersion: "v1",
+                          participantRef: launch.participantRef,
+                        }),
+                        status: "clicked",
+                      });
+                      setSurveyDialogOpen(false);
+                      window.open(launch.gatewayUrl, "_blank", "noopener,noreferrer");
+                    }}
+                  >
+                    Take survey
+                  </Button>
+                </div>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
           <section className="space-y-4 border border-border/80 bg-background p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-1">
