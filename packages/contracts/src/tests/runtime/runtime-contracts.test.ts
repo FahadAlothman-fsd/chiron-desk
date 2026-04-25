@@ -6,6 +6,9 @@ import {
   CONDITION_KINDS,
   ConditionKind,
   ArtifactConditionOperator,
+  RuntimeCondition,
+  WORK_UNIT_CONDITION_OPERATORS,
+  WorkUnitConditionOperator,
 } from "../../runtime/conditions";
 import {
   RUNTIME_GUIDANCE_STREAM_ENVELOPE_VERSIONS,
@@ -112,11 +115,16 @@ describe("runtime contract inventory locks", () => {
   });
 
   it("locks condition kinds and artifact operators", () => {
-    expect(CONDITION_KINDS).toEqual(["fact", "work_unit_fact", "artifact"]);
+    expect(CONDITION_KINDS).toEqual(["fact", "work_unit_fact", "artifact", "work_unit"]);
     expect(ARTIFACT_CONDITION_OPERATORS).toEqual(["exists", "stale", "fresh"]);
+    expect(WORK_UNIT_CONDITION_OPERATORS).toEqual([
+      "work_unit_instance_exists",
+      "work_unit_instance_exists_in_state",
+    ]);
 
     const decodeConditionKind = Schema.decodeUnknownSync(ConditionKind);
     const decodeArtifactOperator = Schema.decodeUnknownSync(ArtifactConditionOperator);
+    const decodeWorkUnitOperator = Schema.decodeUnknownSync(WorkUnitConditionOperator);
 
     for (const kind of CONDITION_KINDS) {
       expect(decodeConditionKind(kind)).toBe(kind);
@@ -124,9 +132,63 @@ describe("runtime contract inventory locks", () => {
     for (const operator of ARTIFACT_CONDITION_OPERATORS) {
       expect(decodeArtifactOperator(operator)).toBe(operator);
     }
+    for (const operator of WORK_UNIT_CONDITION_OPERATORS) {
+      expect(decodeWorkUnitOperator(operator)).toBe(operator);
+    }
 
     expect(() => decodeConditionKind("step")).toThrow();
     expect(() => decodeArtifactOperator("modified")).toThrow();
+    expect(() => decodeWorkUnitOperator("exists")).toThrow();
+  });
+
+  it("decodes project work-unit runtime conditions with defaults and rejects invalid config", () => {
+    const decodeCondition = Schema.decodeUnknownSync(RuntimeCondition);
+
+    expect(
+      decodeCondition({
+        kind: "work_unit",
+        workUnitTypeKey: "WU.STORY",
+        operator: "work_unit_instance_exists",
+      }),
+    ).toEqual({
+      kind: "work_unit",
+      workUnitTypeKey: "WU.STORY",
+      operator: "work_unit_instance_exists",
+      minCount: 1,
+    });
+
+    expect(
+      decodeCondition({
+        kind: "work_unit",
+        workUnitTypeKey: "WU.STORY",
+        operator: "work_unit_instance_exists_in_state",
+        stateKeys: ["ready"],
+      }),
+    ).toEqual({
+      kind: "work_unit",
+      workUnitTypeKey: "WU.STORY",
+      operator: "work_unit_instance_exists_in_state",
+      stateKeys: ["ready"],
+      minCount: 1,
+    });
+
+    expect(() =>
+      decodeCondition({
+        kind: "work_unit",
+        workUnitTypeKey: "WU.STORY",
+        operator: "work_unit_instance_exists_in_state",
+        stateKeys: [],
+      }),
+    ).toThrow();
+
+    expect(() =>
+      decodeCondition({
+        kind: "work_unit",
+        workUnitTypeKey: "WU.STORY",
+        operator: "work_unit_instance_exists",
+        minCount: 0,
+      }),
+    ).toThrow();
   });
 
   it("locks the canonical artifact-instance runtime schemas", () => {

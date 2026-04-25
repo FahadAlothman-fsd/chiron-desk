@@ -36,6 +36,10 @@ export interface EvaluateRuntimeConditionsInput {
   readonly knownWorkUnitTypeKeys: readonly string[];
   readonly activeWorkUnitTypeKey: string | null;
   readonly currentState: string;
+  readonly workUnitInstances?: readonly {
+    readonly workUnitTypeKey: string;
+    readonly currentStateKey: string | null;
+  }[];
 }
 
 export interface EvaluateRuntimeConditionsOutput {
@@ -94,10 +98,27 @@ const evaluateWorkUnitCondition = (
   knownWorkUnitTypeKeys: readonly string[],
   activeWorkUnitTypeKey: string | null,
   currentState: string,
+  workUnitInstances: readonly {
+    readonly workUnitTypeKey: string;
+    readonly currentStateKey: string | null;
+  }[],
 ): { met: boolean; required: string; observed: string } => {
   const operator = typeof config.operator === "string" ? config.operator : null;
   const workUnitKey = typeof config.workUnitKey === "string" ? config.workUnitKey : null;
   const stateKey = typeof config.stateKey === "string" ? config.stateKey : null;
+  const workUnitTypeKey =
+    typeof config.workUnitTypeKey === "string"
+      ? config.workUnitTypeKey
+      : typeof config.workUnitKey === "string"
+        ? config.workUnitKey
+        : null;
+  const stateKeys = Array.isArray(config.stateKeys)
+    ? config.stateKeys.filter((value): value is string => typeof value === "string")
+    : typeof stateKey === "string"
+      ? [stateKey]
+      : [];
+  const minCount =
+    typeof config.minCount === "number" && Number.isInteger(config.minCount) ? config.minCount : 1;
 
   if (!operator) {
     return {
@@ -127,6 +148,67 @@ const evaluateWorkUnitCondition = (
       met,
       required: `work unit '${targetWorkUnitKey ?? "<unknown>"}' state to be '${stateKey ?? "<unknown>"}'`,
       observed: `active=${activeWorkUnitTypeKey ?? "<none>"}, state=${currentState}`,
+    };
+  }
+
+  if (
+    operator === "work_unit_instance_exists" ||
+    operator === "work_unit_instance_exists_in_state"
+  ) {
+    if (!workUnitTypeKey) {
+      return {
+        met: false,
+        required: "valid work_unit_instance condition config",
+        observed: "missing workUnitTypeKey",
+      };
+    }
+
+    if (!knownWorkUnitTypeKeys.includes(workUnitTypeKey)) {
+      return {
+        met: false,
+        required: `known work unit type '${workUnitTypeKey}'`,
+        observed: "unknown work unit type",
+      };
+    }
+
+    if (minCount <= 0) {
+      return {
+        met: false,
+        required: "minCount > 0",
+        observed: `minCount=${String(minCount)}`,
+      };
+    }
+
+    if (operator === "work_unit_instance_exists_in_state" && stateKeys.length === 0) {
+      return {
+        met: false,
+        required: "one or more stateKeys",
+        observed: "empty stateKeys",
+      };
+    }
+
+    const fallbackInstances =
+      activeWorkUnitTypeKey !== null
+        ? [{ workUnitTypeKey: activeWorkUnitTypeKey, currentStateKey: currentState }]
+        : [];
+    const instances = workUnitInstances.length > 0 ? workUnitInstances : fallbackInstances;
+    const matchedCount = instances.filter((instance) => {
+      if (instance.workUnitTypeKey !== workUnitTypeKey) {
+        return false;
+      }
+
+      return operator === "work_unit_instance_exists_in_state"
+        ? instance.currentStateKey !== null && stateKeys.includes(instance.currentStateKey)
+        : true;
+    }).length;
+
+    return {
+      met: matchedCount >= minCount,
+      required:
+        operator === "work_unit_instance_exists_in_state"
+          ? `at least ${minCount} '${workUnitTypeKey}' work unit(s) in state ${stateKeys.join(", ")}`
+          : `at least ${minCount} '${workUnitTypeKey}' work unit(s)`,
+      observed: `matched=${matchedCount}`,
     };
   }
 
@@ -170,6 +252,7 @@ const evaluateCondition = (
       input.knownWorkUnitTypeKeys,
       input.activeWorkUnitTypeKey,
       input.currentState,
+      input.workUnitInstances ?? [],
     );
     return {
       met: result.met,
@@ -181,7 +264,7 @@ const evaluateCondition = (
             required: result.required,
             observed: result.observed,
             remediation:
-              "Satisfy dependency/work-unit state requirements before running transition.",
+              "Satisfy project work-unit instance requirements before running transition.",
           },
     };
   }

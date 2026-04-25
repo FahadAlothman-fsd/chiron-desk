@@ -9,10 +9,14 @@ import type {
 import type { RuntimeCandidateAvailability } from "@chiron/contracts/runtime/status";
 import { Context, Data, Effect, Layer } from "effect";
 
+import { LifecycleRepository } from "@chiron/methodology-engine";
+import { ProjectContextRepository } from "@chiron/project-context";
+
 import type { RepositoryError } from "../errors";
 import { ArtifactRepository } from "../repositories/artifact-repository";
 import { ProjectFactRepository } from "../repositories/project-fact-repository";
 import type { ProjectFactInstanceRow } from "../repositories/project-fact-repository";
+import { ProjectWorkUnitRepository } from "../repositories/project-work-unit-repository";
 import { WorkUnitFactRepository } from "../repositories/work-unit-fact-repository";
 import type { WorkUnitFactInstanceRow } from "../repositories/work-unit-fact-repository";
 import { unwrapRuntimeBoundFactEnvelope } from "./runtime-bound-fact-value";
@@ -72,6 +76,11 @@ interface ConditionEvaluationTreeResult {
 }
 
 type RuntimeFactRow = ProjectFactInstanceRow | WorkUnitFactInstanceRow;
+
+interface ProjectWorkUnitInstanceSummary {
+  readonly workUnitTypeKey: string;
+  readonly currentStateKey: string | null;
+}
 
 export class RuntimeGateService extends Context.Tag("RuntimeGateService")<
   RuntimeGateService,
@@ -429,6 +438,14 @@ export const RuntimeGateServiceLive = Layer.effect(
     const projectFactRepository = yield* ProjectFactRepository;
     const workUnitFactRepository = yield* WorkUnitFactRepository;
     const artifactRepository = yield* ArtifactRepository;
+    const projectContextRepository = yield* ProjectContextRepository;
+    const lifecycleRepository = yield* LifecycleRepository;
+    const projectWorkUnitRepository = yield* ProjectWorkUnitRepository;
+
+    let cachedProjectWorkUnitsByProjectId: ReadonlyMap<
+      string,
+      readonly ProjectWorkUnitInstanceSummary[]
+    > = new Map();
 
     const toProjectedWorkUnitFactRows = (params: {
       projectWorkUnitId?: string;
@@ -453,6 +470,90 @@ export const RuntimeGateServiceLive = Layer.effect(
       (condition: Extract<RuntimeCondition, { kind: "artifact" }>) =>
       (met: boolean): boolean =>
         condition.isNegated ? !met : met;
+
+    const loadProjectWorkUnitInstances = (projectId: string) =>
+      Effect.gen(function* () {
+        const cached = cachedProjectWorkUnitsByProjectId.get(projectId);
+        if (cached) {
+          return cached;
+        }
+
+        const pin = yield* projectContextRepository.findProjectPin(projectId);
+        if (!pin) {
+          cachedProjectWorkUnitsByProjectId = new Map(cachedProjectWorkUnitsByProjectId).set(
+            projectId,
+            [],
+          );
+          return [] as const;
+        }
+
+        const [projectWorkUnits, workUnitTypes, lifecycleStates] = yield* Effect.all([
+          projectWorkUnitRepository.listProjectWorkUnitsByProject(projectId),
+          lifecycleRepository.findWorkUnitTypes(pin.methodologyVersionId),
+          lifecycleRepository.findLifecycleStates(pin.methodologyVersionId),
+        ]);
+
+        const workUnitTypeKeyById = new Map(workUnitTypes.map((row) => [row.id, row.key] as const));
+        const stateKeyById = new Map(lifecycleStates.map((row) => [row.id, row.key] as const));
+
+        const normalized = projectWorkUnits.flatMap((row) => {
+          const workUnitTypeKey = workUnitTypeKeyById.get(row.workUnitTypeId);
+          if (!workUnitTypeKey) {
+            return [];
+          }
+
+          return [
+            {
+              workUnitTypeKey,
+              currentStateKey: row.currentStateId
+                ? (stateKeyById.get(row.currentStateId) ?? null)
+                : null,
+            } satisfies ProjectWorkUnitInstanceSummary,
+          ];
+        });
+
+        cachedProjectWorkUnitsByProjectId = new Map(cachedProjectWorkUnitsByProjectId).set(
+          projectId,
+          normalized,
+        );
+
+        return normalized;
+      });
+
+    const evaluateProjectWorkUnitCondition = (
+      context: RuntimeGateEvaluationInput,
+      condition: Extract<RuntimeCondition, { kind: "work_unit" }>,
+    ) =>
+      Effect.gen(function* () {
+        const projectWorkUnits = yield* loadProjectWorkUnitInstances(context.projectId);
+        const matchedCount = projectWorkUnits.filter((workUnit) => {
+          if (workUnit.workUnitTypeKey !== condition.workUnitTypeKey) {
+            return false;
+          }
+
+          return condition.operator === "work_unit_instance_exists_in_state"
+            ? workUnit.currentStateKey !== null &&
+                condition.stateKeys.includes(workUnit.currentStateKey)
+            : true;
+        }).length;
+        const minCount = condition.minCount ?? 1;
+        const baseMet = matchedCount >= minCount;
+        const met = condition.isNegated ? !baseMet : baseMet;
+
+        if (met) {
+          return { met: true } as const;
+        }
+
+        const stateScope =
+          condition.operator === "work_unit_instance_exists_in_state"
+            ? ` in states ${condition.stateKeys.join(", ")}`
+            : "";
+
+        return {
+          met: false,
+          reason: `Project work unit '${condition.workUnitTypeKey}' matched ${matchedCount} instance(s)${stateScope}; expected at least ${minCount}`,
+        } as const;
+      });
 
     const evaluateSingleCondition = (
       context: RuntimeGateEvaluationInput,
@@ -570,6 +671,8 @@ export const RuntimeGateServiceLive = Layer.effect(
                   reason: `Artifact slot '${condition.slotKey}' is not stale`,
                 } as const);
           }
+          case "work_unit":
+            return yield* evaluateProjectWorkUnitCondition(context, condition);
           default:
             return yield* new UnsupportedConditionKindError({
               kind: (condition as { kind: string }).kind,

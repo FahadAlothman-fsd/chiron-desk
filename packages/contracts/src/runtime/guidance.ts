@@ -28,6 +28,7 @@ export const RuntimeGuidanceWorkUnitContext = Schema.Struct({
   workUnitTypeId: Schema.String,
   workUnitTypeKey: Schema.String,
   workUnitTypeName: Schema.String,
+  workUnitHumanGuidance: Schema.optional(Schema.String),
   currentStateKey: Schema.optional(Schema.String),
   currentStateLabel: Schema.String,
 });
@@ -68,6 +69,7 @@ export const GetRuntimeGuidanceActiveOutput = Schema.Struct({
       workUnitTypeId: Schema.String,
       workUnitTypeKey: Schema.String,
       workUnitTypeName: Schema.String,
+      workUnitHumanGuidance: Schema.optional(Schema.String),
       currentStateKey: Schema.String,
       currentStateLabel: Schema.String,
       factSummary: Schema.Struct({

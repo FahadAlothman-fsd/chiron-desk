@@ -11,6 +11,8 @@ import type {
   FactCondition,
   RuntimeConditionEvaluation,
   RuntimeConditionEvaluationTree,
+  RuntimeCondition,
+  WorkUnitCondition,
 } from "@chiron/contracts/runtime/conditions";
 
 import type { RuntimeWorkflowExecutionContextFactRow } from "../repositories/step-execution-repository";
@@ -45,7 +47,37 @@ export interface EvaluateBranchRoutesParams {
   routes: readonly BranchEvaluableRoute[];
   contextFacts: readonly RuntimeWorkflowExecutionContextFactRow[];
   contextFactDefinitions: readonly WorkflowContextFactDto[];
+  projectWorkUnitInstances?: readonly ProjectWorkUnitInstanceSummary[];
 }
+
+export interface ProjectWorkUnitInstanceSummary {
+  readonly workUnitTypeKey: string;
+  readonly currentStateKey: string | null;
+}
+
+export const toProjectWorkUnitInstanceSummaries = (params: {
+  readonly projectWorkUnits: readonly {
+    readonly workUnitTypeId: string;
+    readonly currentStateId: string | null;
+  }[];
+  readonly workUnitTypeKeysById: ReadonlyMap<string, string>;
+  readonly stateKeysById: ReadonlyMap<string, string>;
+}): readonly ProjectWorkUnitInstanceSummary[] =>
+  params.projectWorkUnits.flatMap((workUnit) => {
+    const workUnitTypeKey = params.workUnitTypeKeysById.get(workUnit.workUnitTypeId);
+    if (!workUnitTypeKey) {
+      return [];
+    }
+
+    return [
+      {
+        workUnitTypeKey,
+        currentStateKey: workUnit.currentStateId
+          ? (params.stateKeysById.get(workUnit.currentStateId) ?? null)
+          : null,
+      } satisfies ProjectWorkUnitInstanceSummary,
+    ];
+  });
 
 export interface BranchRouteEvaluation {
   routeId: string;
@@ -109,17 +141,55 @@ const summarizeExtractedValues = (values: readonly unknown[]): unknown => {
 const toRuntimeCondition = (
   condition: BranchRouteConditionPayload,
   definition: WorkflowContextFactDto | undefined,
-): FactCondition => ({
-  kind: "fact",
-  factDefinitionId: condition.contextFactDefinitionId,
-  factKey: definition?.key ?? condition.contextFactDefinitionId,
-  ...(condition.subFieldKey ? { subFieldKey: condition.subFieldKey } : {}),
-  operator: condition.operator as "exists" | "equals",
-  ...(condition.isNegated ? { isNegated: true } : {}),
-  ...(typeof condition.comparisonJson !== "undefined"
-    ? { comparisonJson: condition.comparisonJson }
-    : {}),
-});
+): RuntimeCondition => {
+  if (
+    condition.operator === "work_unit_instance_exists" ||
+    condition.operator === "work_unit_instance_exists_in_state"
+  ) {
+    return {
+      kind: "work_unit",
+      workUnitTypeKey: condition.workUnitTypeKey,
+      operator: condition.operator,
+      ...(condition.operator === "work_unit_instance_exists_in_state"
+        ? { stateKeys: condition.stateKeys }
+        : {}),
+      ...(typeof condition.minCount === "number" ? { minCount: condition.minCount } : {}),
+      ...(condition.isNegated ? { isNegated: true } : {}),
+    } satisfies WorkUnitCondition;
+  }
+
+  return {
+    kind: "fact",
+    factDefinitionId: condition.contextFactDefinitionId,
+    factKey: definition?.key ?? condition.contextFactDefinitionId,
+    ...(condition.subFieldKey ? { subFieldKey: condition.subFieldKey } : {}),
+    operator: condition.operator,
+    ...(condition.isNegated ? { isNegated: true } : {}),
+    ...(typeof condition.comparisonJson !== "undefined"
+      ? { comparisonJson: condition.comparisonJson }
+      : {}),
+  } satisfies FactCondition;
+};
+
+const countMatchingProjectWorkUnits = (params: {
+  readonly projectWorkUnitInstances: readonly ProjectWorkUnitInstanceSummary[];
+  readonly condition: Extract<
+    BranchRouteConditionPayload,
+    {
+      readonly operator: "work_unit_instance_exists" | "work_unit_instance_exists_in_state";
+    }
+  >;
+}): number =>
+  params.projectWorkUnitInstances.filter((workUnit) => {
+    if (workUnit.workUnitTypeKey !== params.condition.workUnitTypeKey) {
+      return false;
+    }
+
+    return params.condition.operator === "work_unit_instance_exists_in_state"
+      ? workUnit.currentStateKey !== null &&
+          params.condition.stateKeys.includes(workUnit.currentStateKey)
+      : true;
+  }).length;
 
 const pickJsonSubFieldValues = (value: unknown, subFieldKey: string): readonly unknown[] => {
   if (!isRecord(value) || !(subFieldKey in value)) {
@@ -255,8 +325,38 @@ const evaluateCondition = (params: {
   condition: BranchRouteConditionPayload;
   definition: WorkflowContextFactDto | undefined;
   matchingRows: readonly RuntimeWorkflowExecutionContextFactRow[];
+  projectWorkUnitInstances: readonly ProjectWorkUnitInstanceSummary[];
 }): RuntimeConditionEvaluation => {
   const runtimeCondition = toRuntimeCondition(params.condition, params.definition);
+
+  if (
+    params.condition.operator === "work_unit_instance_exists" ||
+    params.condition.operator === "work_unit_instance_exists_in_state"
+  ) {
+    const matchedCount = countMatchingProjectWorkUnits({
+      condition: params.condition,
+      projectWorkUnitInstances: params.projectWorkUnitInstances,
+    });
+    const minCount = params.condition.minCount ?? 1;
+    const baseMet = matchedCount >= minCount;
+    const met = params.condition.isNegated ? !baseMet : baseMet;
+    const stateScope =
+      params.condition.operator === "work_unit_instance_exists_in_state"
+        ? ` in states ${params.condition.stateKeys.join(", ")}`
+        : "";
+
+    return {
+      condition: runtimeCondition,
+      met,
+      expectedValueJson: { minCount },
+      currentValueJson: { count: matchedCount },
+      ...(!met
+        ? {
+            reason: `Project work unit '${params.condition.workUnitTypeKey}' matched ${matchedCount} instance(s)${stateScope}; expected at least ${minCount}`,
+          }
+        : {}),
+    };
+  }
 
   const extractedValues = !params.definition
     ? []
@@ -343,12 +443,20 @@ const evaluateGroup = (params: {
     readonly RuntimeWorkflowExecutionContextFactRow[]
   >;
   definitionsById: ReadonlyMap<string, WorkflowContextFactDto>;
+  projectWorkUnitInstances: readonly ProjectWorkUnitInstanceSummary[];
 }): RuntimeConditionEvaluationTree => {
   const conditions = params.group.conditions.map((condition) =>
     evaluateCondition({
       condition,
-      definition: params.definitionsById.get(condition.contextFactDefinitionId),
-      matchingRows: params.contextFactsByDefinitionId.get(condition.contextFactDefinitionId) ?? [],
+      definition:
+        "contextFactDefinitionId" in condition
+          ? params.definitionsById.get(condition.contextFactDefinitionId)
+          : undefined,
+      matchingRows:
+        "contextFactDefinitionId" in condition
+          ? (params.contextFactsByDefinitionId.get(condition.contextFactDefinitionId) ?? [])
+          : [],
+      projectWorkUnitInstances: params.projectWorkUnitInstances,
     }),
   );
 
@@ -359,6 +467,7 @@ export const evaluateRoutes = ({
   routes,
   contextFacts,
   contextFactDefinitions,
+  projectWorkUnitInstances,
 }: EvaluateBranchRoutesParams): readonly BranchRouteEvaluation[] => {
   const contextFactsByDefinitionId = new Map<string, RuntimeWorkflowExecutionContextFactRow[]>();
   for (const fact of contextFacts) {
@@ -380,6 +489,7 @@ export const evaluateRoutes = ({
           group,
           contextFactsByDefinitionId,
           definitionsById,
+          projectWorkUnitInstances: projectWorkUnitInstances ?? [],
         }),
       );
       const evaluationTree = finalizeTree(route.conditionMode, [], groups);

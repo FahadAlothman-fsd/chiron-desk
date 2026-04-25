@@ -227,6 +227,11 @@ export function RuntimeGuidanceSections({
                   {card.workUnitContext.workUnitTypeKey} · current{" "}
                   {normalizeStateLabel(card.workUnitContext.currentStateLabel)}
                 </CardDescription>
+                {card.workUnitContext.workUnitHumanGuidance ? (
+                  <p className="text-sm text-muted-foreground">
+                    {card.workUnitContext.workUnitHumanGuidance}
+                  </p>
+                ) : null}
               </CardHeader>
 
               <CardContent className="space-y-2 py-3">
@@ -412,6 +417,11 @@ export function RuntimeGuidanceActiveCards({
                     {compactKey(card.workUnitContext.workUnitTypeKey)} · current state{" "}
                     {normalizeStateLabel(card.workUnitContext.currentStateLabel)}
                   </CardDescription>
+                  {card.workUnitContext.workUnitHumanGuidance ? (
+                    <p className="text-sm text-muted-foreground">
+                      {card.workUnitContext.workUnitHumanGuidance}
+                    </p>
+                  ) : null}
                 </CardHeader>
                 <CardContent className="space-y-3 py-3">
                   <div className="grid grid-cols-2 gap-2 text-xs">
@@ -498,6 +508,9 @@ export function RuntimeGuidanceActiveCards({
                 {compactKey(card.workUnitTypeKey)} · current state{" "}
                 {normalizeStateLabel(card.currentStateLabel)}
               </CardDescription>
+              {card.workUnitHumanGuidance ? (
+                <p className="text-sm text-muted-foreground">{card.workUnitHumanGuidance}</p>
+              ) : null}
             </CardHeader>
             <CardContent className="space-y-3 py-3">
               <div className="space-y-1 text-xs">

@@ -150,6 +150,18 @@ function describeRuntimeCondition(condition: RuntimeCondition): {
               ? "A stale artifact snapshot is required."
               : "A current artifact snapshot must exist.",
       };
+    case "work_unit":
+      return {
+        kindLabel: "Project work unit",
+        summary:
+          condition.operator === "work_unit_instance_exists_in_state"
+            ? `${condition.workUnitTypeKey} (${condition.stateKeys.join(", ")}) × ${condition.minCount ?? 1}`
+            : `${condition.workUnitTypeKey} × ${condition.minCount ?? 1}`,
+        detail:
+          condition.operator === "work_unit_instance_exists_in_state"
+            ? "Matching project work units must currently exist in one of the required lifecycle states before completion."
+            : "Matching project work units must currently exist before completion.",
+      };
   }
 }
 
@@ -205,6 +217,10 @@ function renderSatisfiedCopy(condition: RuntimeCondition): string {
         : condition.operator === "stale"
           ? "A stale artifact snapshot is currently available."
           : "A current artifact snapshot is currently available.";
+    case "work_unit":
+      return condition.operator === "work_unit_instance_exists_in_state"
+        ? "Enough project work units are currently in the required states."
+        : "Enough project work units currently exist.";
   }
 }
 
@@ -289,7 +305,9 @@ function ConditionEvaluationTreePanel({
                     label={
                       evaluation.condition.kind === "artifact"
                         ? evaluation.condition.operator
-                        : "exists"
+                        : evaluation.condition.kind === "work_unit"
+                          ? evaluation.condition.operator
+                          : "exists"
                     }
                     tone="slate"
                   />

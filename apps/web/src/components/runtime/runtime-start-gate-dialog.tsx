@@ -158,6 +158,24 @@ function describeRuntimeCondition(condition: RuntimeCondition): {
         detail: "Checks artifact presence or freshness requirements before launch.",
       };
     }
+
+    case "work_unit": {
+      const minCount = condition.minCount ?? 1;
+      const stateScope =
+        condition.operator === "work_unit_instance_exists_in_state"
+          ? ` in ${condition.stateKeys.join(", ")}`
+          : "";
+
+      return {
+        kindLabel: "Project work unit",
+        operatorLabel: `${negationPrefix}${condition.operator}`,
+        summary: `${minCount}+ ${condition.workUnitTypeKey}${stateScope}`,
+        detail:
+          condition.operator === "work_unit_instance_exists_in_state"
+            ? "Checks whether enough project work units of this type currently sit in one of the required states before launch."
+            : "Checks whether enough project work units of this type currently exist before launch.",
+      };
+    }
   }
 }
 

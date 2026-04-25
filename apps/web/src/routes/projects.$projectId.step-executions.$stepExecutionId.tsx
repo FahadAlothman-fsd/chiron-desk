@@ -1125,6 +1125,14 @@ function getBranchConditionSummary(evaluation: RuntimeConditionEvaluation): stri
     return condition.isNegated ? `NOT ${expression}` : expression;
   }
 
+  if (condition.kind === "work_unit") {
+    const expression =
+      condition.operator === "work_unit_instance_exists_in_state"
+        ? `${condition.workUnitTypeKey} in [${condition.stateKeys.join(", ")}] >= ${condition.minCount ?? 1}`
+        : `${condition.workUnitTypeKey} >= ${condition.minCount ?? 1}`;
+    return condition.isNegated ? `NOT ${expression}` : expression;
+  }
+
   const target = condition.subFieldKey
     ? `${condition.factKey}.${condition.subFieldKey}`
     : condition.factKey;
@@ -1142,6 +1150,12 @@ function getBranchConditionTargetLabel(evaluation: RuntimeConditionEvaluation): 
 
   if (condition.kind === "artifact") {
     return `artifact:${condition.slotKey}`;
+  }
+
+  if (condition.kind === "work_unit") {
+    return condition.operator === "work_unit_instance_exists_in_state"
+      ? `${condition.workUnitTypeKey} (${condition.stateKeys.join(", ")})`
+      : condition.workUnitTypeKey;
   }
 
   return condition.subFieldKey
@@ -1162,6 +1176,15 @@ function getBranchConditionExpectedValue(evaluation: RuntimeConditionEvaluation)
 
   if (evaluation.condition.kind === "artifact") {
     return evaluation.condition.operator === "exists" ? "present" : undefined;
+  }
+
+  if (evaluation.condition.kind === "work_unit") {
+    return {
+      minCount: evaluation.condition.minCount ?? 1,
+      ...(evaluation.condition.operator === "work_unit_instance_exists_in_state"
+        ? { stateKeys: evaluation.condition.stateKeys }
+        : {}),
+    };
   }
 
   return evaluation.condition.operator === "equals"
@@ -1376,6 +1399,21 @@ function describeInvokeRuntimeCondition(condition: RuntimeConditionTree["conditi
         summary: `Artifact slot ${condition.slotKey} must be ${negationPrefix}${condition.operator}`,
         detail: "Checks artifact presence or freshness requirements before launch.",
       };
+    case "work_unit": {
+      const minCount = condition.minCount ?? 1;
+      return {
+        kindLabel: "Project work unit",
+        operatorLabel: `${negationPrefix}${condition.operator}`,
+        summary:
+          condition.operator === "work_unit_instance_exists_in_state"
+            ? `${condition.workUnitTypeKey} in ${condition.stateKeys.join(", ")} × ${minCount}`
+            : `${condition.workUnitTypeKey} × ${minCount}`,
+        detail:
+          condition.operator === "work_unit_instance_exists_in_state"
+            ? "Checks whether enough project work-unit instances currently sit in the required states before launch."
+            : "Checks whether enough project work-unit instances currently exist before launch.",
+      };
+    }
   }
 }
 

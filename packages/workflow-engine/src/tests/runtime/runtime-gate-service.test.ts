@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { Effect, Layer } from "effect";
+import { LifecycleRepository } from "@chiron/methodology-engine";
+import { ProjectContextRepository } from "@chiron/project-context";
 
 import {
   ArtifactRepository,
   ProjectFactRepository,
+  ProjectWorkUnitRepository,
   RuntimeGateService,
   RuntimeGateServiceLive,
   WorkUnitFactRepository,
@@ -87,11 +90,88 @@ const makeArtifactRepoLayer = (freshnessBySlot: ReadonlyMap<string, ArtifactFres
       ),
   });
 
+const makeProjectContextLayer = () =>
+  Layer.succeed(ProjectContextRepository, {
+    findProjectPin: () =>
+      Effect.succeed({
+        projectId: "project-1",
+        methodologyVersionId: "version-1",
+        methodologyId: "methodology-1",
+        methodologyKey: "core",
+        publishedVersion: "1.0.0",
+        actorId: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+  } as unknown as ProjectContextRepository["Type"]);
+
+const makeLifecycleLayer = () =>
+  Layer.succeed(LifecycleRepository, {
+    findWorkUnitTypes: () =>
+      Effect.succeed([
+        {
+          id: "wut-story",
+          methodologyVersionId: "version-1",
+          key: "WU.STORY",
+          displayName: "Story",
+          descriptionJson: null,
+          guidanceJson: null,
+          cardinality: "many" as const,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]),
+    findLifecycleStates: () =>
+      Effect.succeed([
+        {
+          id: "state-ready",
+          methodologyVersionId: "version-1",
+          workUnitTypeId: "wut-story",
+          key: "ready",
+          displayName: "Ready",
+          descriptionJson: null,
+          guidanceJson: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]),
+  } as unknown as LifecycleRepository["Type"]);
+
+const makeProjectWorkUnitLayer = (
+  workUnits?:
+    | readonly {
+        id: string;
+        workUnitTypeId: string;
+        currentStateId: string | null;
+      }[]
+    | undefined,
+) =>
+  Layer.succeed(ProjectWorkUnitRepository, {
+    createProjectWorkUnit: () => Effect.die("not implemented in test"),
+    listProjectWorkUnitsByProject: () =>
+      Effect.succeed(
+        (workUnits ?? []).map((workUnit) => ({
+          ...workUnit,
+          projectId: "project-1",
+          activeTransitionExecutionId: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })),
+      ),
+    getProjectWorkUnitById: () => Effect.succeed(null),
+    updateActiveTransitionExecutionPointer: () => Effect.succeed(null),
+  });
+
 const makeRuntimeGateLayer = (params: {
   readonly existingProjectFactDefinitionIds: readonly string[];
   readonly existingWorkUnitFactDefinitionIds: readonly string[];
   readonly artifactFreshnessBySlot?: ReadonlyMap<string, ArtifactFreshnessResult>;
   readonly onProjectFactRead?: (factDefinitionId: string) => void;
+  readonly projectWorkUnits?: readonly {
+    id: string;
+    workUnitTypeId: string;
+    currentStateId: string | null;
+  }[];
 }) =>
   RuntimeGateServiceLive.pipe(
     Layer.provideMerge(
@@ -102,6 +182,9 @@ const makeRuntimeGateLayer = (params: {
     ),
     Layer.provideMerge(makeWorkUnitFactRepoLayer(params.existingWorkUnitFactDefinitionIds)),
     Layer.provideMerge(makeArtifactRepoLayer(params.artifactFreshnessBySlot ?? new Map())),
+    Layer.provideMerge(makeProjectContextLayer()),
+    Layer.provideMerge(makeLifecycleLayer()),
+    Layer.provideMerge(makeProjectWorkUnitLayer(params.projectWorkUnits)),
   );
 
 describe("RuntimeGateService", () => {
@@ -366,5 +449,53 @@ describe("RuntimeGateService", () => {
 
     const result = await Effect.runPromise(program);
     expect(result.result).toBe("available");
+  });
+
+  it("evaluates project work-unit instance conditions using current state only", async () => {
+    const program = Effect.gen(function* () {
+      const service = yield* RuntimeGateService;
+      return yield* service.evaluateCompletionGateExhaustive({
+        projectId: "project-1",
+        projectWorkUnitId: "wu-1",
+        conditionTree: {
+          mode: "all",
+          conditions: [
+            {
+              kind: "work_unit",
+              workUnitTypeKey: "WU.STORY",
+              operator: "work_unit_instance_exists_in_state",
+              stateKeys: ["ready"],
+              minCount: 2,
+            },
+          ],
+          groups: [],
+        },
+      });
+    }).pipe(
+      Effect.provide(
+        makeRuntimeGateLayer({
+          existingProjectFactDefinitionIds: [],
+          existingWorkUnitFactDefinitionIds: [],
+          projectWorkUnits: [
+            { id: "wu-story-1", workUnitTypeId: "wut-story", currentStateId: "state-ready" },
+            { id: "wu-story-2", workUnitTypeId: "wut-story", currentStateId: "state-ready" },
+            { id: "wu-story-3", workUnitTypeId: "wut-story", currentStateId: null },
+          ],
+        }),
+      ),
+    );
+
+    const result = await Effect.runPromise(program);
+    expect(result.result).toBe("available");
+    expect(result.evaluationTree.conditions[0]).toEqual({
+      condition: {
+        kind: "work_unit",
+        workUnitTypeKey: "WU.STORY",
+        operator: "work_unit_instance_exists_in_state",
+        stateKeys: ["ready"],
+        minCount: 2,
+      },
+      met: true,
+    });
   });
 });

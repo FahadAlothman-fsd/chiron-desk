@@ -78,49 +78,6 @@ const countDistinctFactDefinitions = (
   };
 };
 
-const createFallbackSeeds = (
-  projectWorkUnits: readonly {
-    readonly id: string;
-    readonly workUnitTypeId: string;
-    readonly currentStateId: string | null;
-    readonly activeTransitionExecutionId: string | null;
-  }[],
-): readonly RuntimeGuidanceCandidateCardSeed[] =>
-  projectWorkUnits
-    .filter((workUnit) => workUnit.activeTransitionExecutionId === null)
-    .map((workUnit) => ({
-      candidateCardId: `open:${workUnit.id}`,
-      source: "open",
-      workUnitContext: {
-        projectWorkUnitId: workUnit.id,
-        workUnitTypeId: workUnit.workUnitTypeId,
-        workUnitTypeKey: workUnit.workUnitTypeId,
-        workUnitTypeName: workUnit.workUnitTypeId,
-        currentStateKey: workUnit.currentStateId ?? "unknown-state",
-        currentStateLabel: workUnit.currentStateId ?? "unknown-state",
-      },
-      summaries: {
-        facts: { currentCount: 0, totalCount: 0 },
-        artifactSlots: { currentCount: 0, totalCount: 0 },
-      },
-      transitions: [
-        {
-          candidateId: `candidate:${workUnit.id}:default`,
-          transitionId: `transition:${workUnit.id}:default`,
-          transitionKey: `transition:${workUnit.id}:default`,
-          transitionName: "Default transition",
-          toStateKey: workUnit.currentStateId ?? "unknown-state",
-          toStateLabel: workUnit.currentStateId ?? "unknown-state",
-          source: "open",
-          startGate: {
-            mode: "all",
-            conditions: [],
-            groups: [],
-          },
-        },
-      ],
-    }));
-
 const emptyGate: RuntimeConditionTree = {
   mode: "all",
   conditions: [],
@@ -131,6 +88,21 @@ const asRecord = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+
+const extractHumanGuidanceMarkdown = (value: unknown): string | undefined => {
+  const record = asRecord(value);
+  const human = record?.human;
+  if (
+    human &&
+    typeof human === "object" &&
+    "markdown" in human &&
+    typeof (human as { markdown?: unknown }).markdown === "string"
+  ) {
+    return (human as { markdown: string }).markdown;
+  }
+
+  return undefined;
+};
 
 const toRuntimeCondition = (value: unknown): RuntimeCondition | null => {
   const condition = asRecord(value);
@@ -194,6 +166,46 @@ const toRuntimeCondition = (value: unknown): RuntimeCondition | null => {
       operator,
       ...(slotDefinitionId ? { slotDefinitionId } : {}),
     };
+  }
+
+  if (kind === "work_unit") {
+    const workUnitTypeKey =
+      typeof config.workUnitTypeKey === "string" ? config.workUnitTypeKey.trim() : "";
+    const operator =
+      config.operator === "work_unit_instance_exists_in_state"
+        ? "work_unit_instance_exists_in_state"
+        : config.operator === "work_unit_instance_exists"
+          ? "work_unit_instance_exists"
+          : null;
+    const minCount =
+      typeof config.minCount === "number" &&
+      Number.isInteger(config.minCount) &&
+      config.minCount > 0
+        ? config.minCount
+        : undefined;
+    const stateKeys = Array.isArray(config.stateKeys)
+      ? config.stateKeys.filter(
+          (value): value is string => typeof value === "string" && value.trim().length > 0,
+        )
+      : [];
+    const isNegated = config.isNegated === true ? true : undefined;
+
+    if (!workUnitTypeKey || !operator) {
+      return null;
+    }
+
+    if (operator === "work_unit_instance_exists_in_state" && stateKeys.length === 0) {
+      return null;
+    }
+
+    return {
+      kind: "work_unit",
+      workUnitTypeKey,
+      operator,
+      ...(operator === "work_unit_instance_exists_in_state" ? { stateKeys } : {}),
+      ...(typeof minCount === "number" ? { minCount } : {}),
+      ...(isNegated ? { isNegated } : {}),
+    } satisfies RuntimeCondition;
   }
 
   return null;
@@ -291,6 +303,15 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
         const projectWorkUnits = yield* projectWorkUnitRepository.listProjectWorkUnitsByProject(
           input.projectId,
         );
+        const projectPin = yield* projectContextRepository.findProjectPin(input.projectId);
+        const [workUnitTypes, lifecycleStates] = projectPin
+          ? yield* Effect.all([
+              lifecycleRepository.findWorkUnitTypes(projectPin.methodologyVersionId),
+              lifecycleRepository.findLifecycleStates(projectPin.methodologyVersionId),
+            ])
+          : ([[], []] as const);
+        const workUnitTypeById = new Map(workUnitTypes.map((row) => [row.id, row] as const));
+        const stateById = new Map(lifecycleStates.map((row) => [row.id, row] as const));
 
         const activeCards = yield* Effect.forEach(
           projectWorkUnits,
@@ -356,14 +377,29 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
                   : "active";
 
               const factCounts = countDistinctFactDefinitions(workUnitFacts);
-
+              const workUnitType = workUnitTypeById.get(workUnit.workUnitTypeId);
+              const currentState = workUnit.currentStateId
+                ? (stateById.get(workUnit.currentStateId) ?? null)
+                : null;
               return {
                 projectWorkUnitId: workUnit.id,
                 workUnitTypeId: workUnit.workUnitTypeId,
-                workUnitTypeKey: workUnit.workUnitTypeId,
-                workUnitTypeName: workUnit.workUnitTypeId,
+                workUnitTypeKey: workUnitType?.key ?? workUnit.workUnitTypeId,
+                workUnitTypeName:
+                  workUnitType?.displayName ?? workUnitType?.key ?? workUnit.workUnitTypeId,
+                ...(extractHumanGuidanceMarkdown(workUnitType?.guidanceJson)
+                  ? {
+                      workUnitHumanGuidance: extractHumanGuidanceMarkdown(
+                        workUnitType?.guidanceJson,
+                      ),
+                    }
+                  : {}),
                 currentStateKey: workUnit.currentStateId ?? "unknown-state",
-                currentStateLabel: workUnit.currentStateId ?? "unknown-state",
+                currentStateLabel:
+                  currentState?.displayName ??
+                  currentState?.key ??
+                  workUnit.currentStateId ??
+                  "unknown-state",
                 factSummary: {
                   currentCount: factCounts.currentCount,
                   totalCount: factCounts.totalCount,
@@ -419,22 +455,116 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
         const projectWorkUnits = yield* projectWorkUnitRepository.listProjectWorkUnitsByProject(
           input.projectId,
         );
+        const projectPin = yield* projectContextRepository.findProjectPin(input.projectId);
 
         const openCards =
           options?.candidateSeeds ??
-          createFallbackSeeds(
-            projectWorkUnits.map((workUnit) => ({
-              id: workUnit.id,
-              workUnitTypeId: workUnit.workUnitTypeId,
-              currentStateId: workUnit.currentStateId ?? "unknown-state",
-              activeTransitionExecutionId: workUnit.activeTransitionExecutionId,
-            })),
-          );
+          (yield* Effect.gen(function* () {
+            if (!projectPin) {
+              return [] as const;
+            }
+
+            const [workUnitTypes, lifecycleStates, lifecycleTransitions, transitionConditionSets] =
+              yield* Effect.all([
+                lifecycleRepository.findWorkUnitTypes(projectPin.methodologyVersionId),
+                lifecycleRepository.findLifecycleStates(projectPin.methodologyVersionId),
+                lifecycleRepository.findLifecycleTransitions(projectPin.methodologyVersionId),
+                lifecycleRepository.findTransitionConditionSets(projectPin.methodologyVersionId),
+              ]);
+
+            const workUnitTypeById = new Map(workUnitTypes.map((row) => [row.id, row] as const));
+            const stateById = new Map(lifecycleStates.map((state) => [state.id, state] as const));
+            const conditionSetsByTransitionId = new Map<
+              string,
+              Array<(typeof transitionConditionSets)[number]>
+            >();
+            for (const row of transitionConditionSets) {
+              const current = conditionSetsByTransitionId.get(row.transitionId) ?? [];
+              current.push(row);
+              conditionSetsByTransitionId.set(row.transitionId, current);
+            }
+
+            return projectWorkUnits
+              .filter((workUnit) => workUnit.activeTransitionExecutionId === null)
+              .flatMap((workUnit) => {
+                const workUnitType = workUnitTypeById.get(workUnit.workUnitTypeId);
+                const currentState = workUnit.currentStateId
+                  ? (stateById.get(workUnit.currentStateId) ?? null)
+                  : null;
+                const transitions = lifecycleTransitions
+                  .filter(
+                    (transition) =>
+                      transition.workUnitTypeId === workUnit.workUnitTypeId &&
+                      transition.fromStateId === workUnit.currentStateId,
+                  )
+                  .flatMap((transition) => {
+                    const toState = transition.toStateId
+                      ? (stateById.get(transition.toStateId) ?? null)
+                      : null;
+                    if (!toState) {
+                      return [];
+                    }
+
+                    const startSets = (conditionSetsByTransitionId.get(transition.id) ?? [])
+                      .filter((conditionSet) => conditionSet.phase !== "completion")
+                      .sort((a, b) => a.key.localeCompare(b.key));
+
+                    return [
+                      {
+                        candidateId: `candidate:open:${workUnit.id}:${transition.id}`,
+                        transitionId: transition.id,
+                        transitionKey: transition.transitionKey,
+                        transitionName: transition.transitionKey,
+                        toStateKey: toState.key,
+                        toStateLabel: toState.displayName ?? toState.key,
+                        source: "open" as const,
+                        startGate: toStartGate(startSets),
+                      },
+                    ];
+                  });
+
+                if (transitions.length === 0) {
+                  return [];
+                }
+
+                return [
+                  {
+                    candidateCardId: `open:${workUnit.id}`,
+                    source: "open" as const,
+                    workUnitContext: {
+                      projectWorkUnitId: workUnit.id,
+                      workUnitTypeId: workUnit.workUnitTypeId,
+                      workUnitTypeKey: workUnitType?.key ?? workUnit.workUnitTypeId,
+                      workUnitTypeName:
+                        workUnitType?.displayName ?? workUnitType?.key ?? workUnit.workUnitTypeId,
+                      ...(extractHumanGuidanceMarkdown(workUnitType?.guidanceJson)
+                        ? {
+                            workUnitHumanGuidance: extractHumanGuidanceMarkdown(
+                              workUnitType?.guidanceJson,
+                            ),
+                          }
+                        : {}),
+                      currentStateKey:
+                        currentState?.key ?? workUnit.currentStateId ?? "unknown-state",
+                      currentStateLabel:
+                        currentState?.displayName ??
+                        currentState?.key ??
+                        workUnit.currentStateId ??
+                        "unknown-state",
+                    },
+                    summaries: {
+                      facts: { currentCount: 0, totalCount: 0 },
+                      artifactSlots: { currentCount: 0, totalCount: 0 },
+                    },
+                    transitions,
+                  },
+                ];
+              });
+          }));
 
         const futureCards = options?.candidateSeeds
           ? []
           : yield* Effect.gen(function* () {
-              const projectPin = yield* projectContextRepository.findProjectPin(input.projectId);
               if (!projectPin) {
                 return [] as const;
               }
@@ -518,6 +648,13 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
                       workUnitTypeId: workUnitType.id,
                       workUnitTypeKey: workUnitType.key,
                       workUnitTypeName: workUnitType.displayName ?? workUnitType.key,
+                      ...(extractHumanGuidanceMarkdown(workUnitType.guidanceJson)
+                        ? {
+                            workUnitHumanGuidance: extractHumanGuidanceMarkdown(
+                              workUnitType.guidanceJson,
+                            ),
+                          }
+                        : {}),
                       currentStateLabel: "Not started",
                     },
                     summaries: {
@@ -737,6 +874,9 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
               workUnitTypeKey:
                 input.futureCandidate.workUnitTypeKey ?? workUnitType.key ?? workUnitType.id,
               workUnitTypeName: workUnitType.displayName ?? workUnitType.key,
+              ...(extractHumanGuidanceMarkdown(workUnitType.guidanceJson)
+                ? { workUnitHumanGuidance: extractHumanGuidanceMarkdown(workUnitType.guidanceJson) }
+                : {}),
               currentStateLabel: "Not started",
               source: "future",
             },
@@ -871,6 +1011,9 @@ export const RuntimeGuidanceServiceLive = Layer.effect(
               workUnitTypeId: workUnitType.id,
               workUnitTypeKey: workUnitType.key ?? workUnitType.id,
               workUnitTypeName: workUnitType.displayName ?? workUnitType.key ?? workUnitType.id,
+              ...(extractHumanGuidanceMarkdown(workUnitType.guidanceJson)
+                ? { workUnitHumanGuidance: extractHumanGuidanceMarkdown(workUnitType.guidanceJson) }
+                : {}),
               currentStateLabel:
                 currentState?.displayName ??
                 currentState?.key ??

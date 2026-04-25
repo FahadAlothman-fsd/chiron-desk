@@ -109,6 +109,8 @@ function toLifecycleTransitionRow(
     fromStateId: row.fromStateId,
     toStateId: row.toStateId,
     transitionKey: row.transitionKey,
+    descriptionJson: row.descriptionJson,
+    guidanceJson: row.guidanceJson,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

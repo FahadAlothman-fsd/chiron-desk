@@ -491,6 +491,21 @@ const validateConditionReferences = (
         }
 
         for (const condition of group.conditions) {
+          if (
+            condition.operator === "work_unit_instance_exists" ||
+            condition.operator === "work_unit_instance_exists_in_state"
+          ) {
+            continue;
+          }
+
+          if (typeof condition.contextFactDefinitionId !== "string") {
+            return yield* new ValidationDecodeError({
+              message:
+                `Branch condition '${condition.conditionId}' must reference a workflow context fact ` +
+                "when using fact-based operators",
+            });
+          }
+
           const fact = factByIdentifier.get(condition.contextFactDefinitionId);
           if (!fact) {
             return yield* new ValidationDecodeError({
@@ -570,7 +585,13 @@ const validateConditions = (
     ),
   );
 
-  if (conditions.some((entry) => !entry.operand)) {
+  const validatorConditions = conditions.filter(
+    (entry) =>
+      entry.condition.operator !== "work_unit_instance_exists" &&
+      entry.condition.operator !== "work_unit_instance_exists_in_state",
+  );
+
+  if (validatorConditions.some((entry) => !entry.operand)) {
     return Effect.fail(
       new ValidationDecodeError({
         message: "Failed to resolve one or more branch condition operands",
@@ -578,8 +599,12 @@ const validateConditions = (
     );
   }
 
+  if (validatorConditions.length === 0) {
+    return Effect.void;
+  }
+
   return validator.validateConditionSet(
-    conditions.map((entry) => ({
+    validatorConditions.map((entry) => ({
       condition: entry.condition,
       operand: entry.operand as ResolvedConditionOperand,
     })),
