@@ -322,6 +322,8 @@ function resolveBoundExternalFactOptions(params: {
     key: string;
     name: string | null;
     cardinality: string | null;
+    valueType: string | null;
+    validationJson: unknown;
   }[];
   workUnitFactSchemas: readonly FactSchemaRow[];
   projectFactInstances: readonly {
@@ -613,6 +615,8 @@ function buildResolvedField(params: {
     key: string;
     name: string | null;
     cardinality: string | null;
+    valueType: string | null;
+    validationJson: unknown;
   }[];
   artifactSlotDefinitions: readonly { id: string; key: string; displayName: string | null }[];
   projectFactInstances: readonly { id: string; factDefinitionId: string; valueJson: unknown }[];
@@ -676,6 +680,11 @@ function buildResolvedField(params: {
         external?.cardinality === "many" || externalDefinition?.cardinality === "many"
           ? "many"
           : "one";
+      const boundValueType = (params.contextFact.valueType ??
+        external?.factType ??
+        externalDefinition?.valueType ??
+        "json") as FactType;
+      const boundValidation = external?.validationJson ?? externalDefinition?.validationJson;
       const isReferenceFact =
         params.contextFact.valueType === "work_unit" ||
         typeof params.contextFact.workUnitDefinitionId === "string";
@@ -688,10 +697,10 @@ function buildResolvedField(params: {
         projectWorkUnits: params.projectWorkUnits,
       });
       const boundValueWidget = buildPrimitiveWidget({
-        valueType: (params.contextFact.valueType ?? external?.factType ?? "json") as FactType,
+        valueType: boundValueType,
         cardinality: params.contextFact.cardinality,
         renderedMultiplicity,
-        validation: external?.validationJson,
+        validation: boundValidation,
       });
 
       return {
@@ -699,7 +708,7 @@ function buildResolvedField(params: {
         widget: isReferenceFact
           ? {
               control: "reference",
-              valueType: (params.contextFact.valueType ?? external?.factType ?? "json") as FactType,
+              valueType: boundValueType,
               cardinality: params.contextFact.cardinality,
               renderedMultiplicity,
               boundValueWidget,
@@ -717,12 +726,10 @@ function buildResolvedField(params: {
             }
           : {
               ...buildPrimitiveWidget({
-                valueType: (params.contextFact.valueType ??
-                  external?.factType ??
-                  "json") as FactType,
+                valueType: boundValueType,
                 cardinality: params.contextFact.cardinality,
                 renderedMultiplicity,
-                validation: external?.validationJson,
+                validation: boundValidation,
                 externalBindingKey: externalBindingId,
               }),
               externalCardinality,
