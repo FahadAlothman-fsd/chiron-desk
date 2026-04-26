@@ -2521,45 +2521,18 @@ export function WorkflowExecutionDetailRoute() {
   const detail = workflowExecutionDetailQuery.data;
   const isLoading = workflowExecutionDetailQuery.isLoading;
   const hasError = Boolean(workflowExecutionDetailQuery.error);
-  const projectDetailsQuery = useQuery(
-    (orpc.project.getProjectDetails?.queryOptions?.({ input: { projectId } }) ?? {
-      queryKey: ["project-details", projectId],
-      queryFn: async () => null,
-    }) as unknown as {
-      queryKey: unknown[];
-      queryFn: () => Promise<unknown>;
+  const projectDetailsQuery = useQuery({
+    queryKey: ["project-details", projectId],
+    queryFn: async () => {
+      const { client } = await import("@/utils/orpc");
+      return client.project.getProjectDetails({ projectId });
     },
-  );
+  });
   const projectPin = getProjectPin(projectDetailsQuery.data);
-  const workflowProcedures = orpc.methodology?.version?.workUnit?.workflow as unknown as {
-    getEditorDefinition?: {
-      queryOptions?: (input: {
-        input: {
-          methodologyId: string;
-          versionId: string;
-          workUnitTypeKey: string;
-          workflowDefinitionId: string;
-        };
-      }) => { queryKey: unknown[]; queryFn: () => Promise<unknown> };
-    };
-    list?: {
-      queryOptions?: (input: { input: { versionId: string; workUnitTypeKey: string } }) => {
-        queryKey: unknown[];
-        queryFn: () => Promise<unknown>;
-      };
-    };
-  };
 
   const contextEditorDefinitionQuery = useQuery(
     (projectPin && detail
-      ? (workflowProcedures.getEditorDefinition?.queryOptions?.({
-          input: {
-            methodologyId: projectPin.methodologyId,
-            versionId: projectPin.methodologyVersionId,
-            workUnitTypeKey: detail.workUnit.workUnitTypeKey,
-            workflowDefinitionId: detail.workflowExecution.workflowId,
-          },
-        }) ?? {
+      ? {
           queryKey: [
             "workflow-editor-definition",
             projectPin.methodologyId,
@@ -2567,8 +2540,16 @@ export function WorkflowExecutionDetailRoute() {
             detail.workUnit.workUnitTypeKey,
             detail.workflowExecution.workflowId,
           ],
-          queryFn: async () => null,
-        })
+          queryFn: async () => {
+            const { client } = await import("@/utils/orpc");
+            return client.methodology.getEditorDefinition({
+              methodologyId: projectPin.methodologyId,
+              versionId: projectPin.methodologyVersionId,
+              workUnitTypeKey: detail.workUnit.workUnitTypeKey,
+              workflowDefinitionId: detail.workflowExecution.workflowId,
+            });
+          },
+        }
       : {
           queryKey: ["workflow-editor-definition", projectId, workflowExecutionId, "idle"],
           queryFn: async () => null,
@@ -2577,11 +2558,8 @@ export function WorkflowExecutionDetailRoute() {
 
   const methodologyFactDefinitionsQuery = useQuery(
     (projectPin
-      ? (orpc.methodology?.version?.fact?.list?.queryOptions?.({
+      ? orpc.methodology.version.fact.list.queryOptions({
           input: { versionId: projectPin.methodologyVersionId },
-        }) ?? {
-          queryKey: ["methodology-facts", projectPin.methodologyVersionId],
-          queryFn: async () => ({ factDefinitions: [] }),
         })
       : {
           queryKey: ["methodology-facts", "idle"],
@@ -2591,11 +2569,8 @@ export function WorkflowExecutionDetailRoute() {
 
   const workUnitFactDefinitionsQuery = useQuery(
     (projectPin
-      ? (orpc.methodology?.version?.workUnit?.fact?.list?.queryOptions?.({
+      ? orpc.methodology.version.workUnit.fact.list.queryOptions({
           input: { versionId: projectPin.methodologyVersionId },
-        }) ?? {
-          queryKey: ["work-unit-facts", projectPin.methodologyVersionId],
-          queryFn: async () => ({ workUnitTypes: [] }),
         })
       : {
           queryKey: ["work-unit-facts", "idle"],
@@ -2605,11 +2580,8 @@ export function WorkflowExecutionDetailRoute() {
 
   const workUnitDefinitionsQuery = useQuery(
     (projectPin
-      ? (orpc.methodology?.version?.workUnit?.list?.queryOptions?.({
+      ? orpc.methodology.version.workUnit.list.queryOptions({
           input: { versionId: projectPin.methodologyVersionId },
-        }) ?? {
-          queryKey: ["work-unit-types", projectPin.methodologyVersionId],
-          queryFn: async () => ({ workUnitTypes: [] }),
         })
       : {
           queryKey: ["work-unit-types", "idle"],
@@ -2619,18 +2591,11 @@ export function WorkflowExecutionDetailRoute() {
 
   const workflowDefinitionsQuery = useQuery(
     (projectPin && detail
-      ? (workflowProcedures.list?.queryOptions?.({
+      ? orpc.methodology.version.workUnit.workflow.list.queryOptions({
           input: {
             versionId: projectPin.methodologyVersionId,
             workUnitTypeKey: detail.workUnit.workUnitTypeKey,
           },
-        }) ?? {
-          queryKey: [
-            "work-unit-workflows",
-            projectPin.methodologyVersionId,
-            detail.workUnit.workUnitTypeKey,
-          ],
-          queryFn: async () => [],
         })
       : {
           queryKey: ["work-unit-workflows", "idle"],
@@ -2640,18 +2605,11 @@ export function WorkflowExecutionDetailRoute() {
 
   const artifactSlotDefinitionsQuery = useQuery(
     (projectPin && detail
-      ? (orpc.methodology?.version?.workUnit?.artifactSlot?.list?.queryOptions?.({
+      ? orpc.methodology.version.workUnit.artifactSlot.list.queryOptions({
           input: {
             versionId: projectPin.methodologyVersionId,
             workUnitTypeKey: detail.workUnit.workUnitTypeKey,
           },
-        }) ?? {
-          queryKey: [
-            "artifact-slots",
-            projectPin.methodologyVersionId,
-            detail.workUnit.workUnitTypeKey,
-          ],
-          queryFn: async () => [],
         })
       : {
           queryKey: ["artifact-slots", "idle"],
@@ -2659,12 +2617,13 @@ export function WorkflowExecutionDetailRoute() {
         }) as unknown as { queryKey: unknown[]; queryFn: () => Promise<unknown> },
   );
 
-  const runtimeWorkUnitsQuery = useQuery(
-    (orpc.project.getRuntimeWorkUnits?.queryOptions?.({ input: { projectId } }) ?? {
-      queryKey: ["runtime-work-units", projectId],
-      queryFn: async () => ({ rows: [] }),
-    }) as unknown as { queryKey: unknown[]; queryFn: () => Promise<unknown> },
-  );
+  const runtimeWorkUnitsQuery = useQuery({
+    queryKey: ["runtime-work-units", projectId],
+    queryFn: async () => {
+      const { client } = await import("@/utils/orpc");
+      return client.project.getRuntimeWorkUnits({ projectId });
+    },
+  });
 
   const contextDefinitions = useMemo(
     () => toWorkflowContextDefinitions(contextEditorDefinitionQuery.data),
@@ -2692,20 +2651,12 @@ export function WorkflowExecutionDetailRoute() {
     queries: artifactSnapshotSlotIds.map(
       (slotDefinitionId) =>
         (detail
-          ? (orpc.project.getRuntimeArtifactSlotDetail?.queryOptions?.({
+          ? orpc.project.getRuntimeArtifactSlotDetail.queryOptions({
               input: {
                 projectId,
                 projectWorkUnitId: detail.workUnit.projectWorkUnitId,
                 slotDefinitionId,
               },
-            }) ?? {
-              queryKey: [
-                "runtime-artifact-slot-detail",
-                projectId,
-                detail.workUnit.projectWorkUnitId,
-                slotDefinitionId,
-              ],
-              queryFn: async () => null,
             })
           : {
               queryKey: ["runtime-artifact-slot-detail", projectId, "idle", slotDefinitionId],
@@ -2777,34 +2728,19 @@ export function WorkflowExecutionDetailRoute() {
     queries: boundFactSourceDescriptors.map(
       (descriptor) =>
         (descriptor.source === "project"
-          ? (orpc.project.getRuntimeProjectFactDetail?.queryOptions?.({
+          ? orpc.project.getRuntimeProjectFactDetail.queryOptions({
               input: {
                 projectId,
                 factDefinitionId: descriptor.resolvedFactDefinitionId,
               },
-            }) ?? {
-              queryKey: [
-                "runtime-project-fact-detail",
-                projectId,
-                descriptor.resolvedFactDefinitionId,
-              ],
-              queryFn: async () => null,
             })
           : detail
-            ? (orpc.project.getRuntimeWorkUnitFactDetail?.queryOptions?.({
+            ? orpc.project.getRuntimeWorkUnitFactDetail.queryOptions({
                 input: {
                   projectId,
                   projectWorkUnitId: detail.workUnit.projectWorkUnitId,
                   factDefinitionId: descriptor.resolvedFactDefinitionId,
                 },
-              }) ?? {
-                queryKey: [
-                  "runtime-work-unit-fact-detail",
-                  projectId,
-                  detail.workUnit.projectWorkUnitId,
-                  descriptor.resolvedFactDefinitionId,
-                ],
-                queryFn: async () => null,
               })
             : {
                 queryKey: [

@@ -107,7 +107,7 @@ describe("desktop app lifecycle", () => {
       onStartupError: vi.fn(),
     });
 
-    expect(browserWindow.loadURL).toHaveBeenCalledWith("chiron://app/index.html");
+    expect(browserWindow.loadURL).toHaveBeenCalledWith("chiron://app/");
     expect(browserWindow.show).toHaveBeenCalledOnce();
   });
 
@@ -120,7 +120,7 @@ describe("desktop app lifecycle", () => {
       });
       expect(options.rendererTarget).toEqual({
         mode: "url",
-        target: "chiron://app/index.html",
+        target: "chiron://app/",
       });
 
       await options.runtime.startServer();

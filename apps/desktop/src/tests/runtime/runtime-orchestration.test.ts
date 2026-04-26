@@ -119,7 +119,7 @@ describe("runtime orchestration contract", () => {
     expect(result.backendUrl).toBe("http://127.0.0.1:43110");
     expect(result.rendererTarget).toEqual({
       mode: "url",
-      target: "chiron://app/index.html",
+      target: "chiron://app/",
     });
     expect(result.runtimeEnv).toMatchObject({
       PORT: "43110",
@@ -169,9 +169,7 @@ describe("runtime orchestration contract", () => {
   });
 
   it("derives the packaged custom protocol origin", () => {
-    expect(resolveRendererOrigin({ mode: "url", target: "chiron://app/index.html" })).toBe(
-      "chiron://app",
-    );
+    expect(resolveRendererOrigin({ mode: "url", target: "chiron://app/" })).toBe("chiron://app");
   });
 
   it("reuses the preferred port when it is available", async () => {

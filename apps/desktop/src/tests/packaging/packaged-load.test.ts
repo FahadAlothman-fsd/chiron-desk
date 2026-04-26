@@ -21,7 +21,7 @@ describe("renderer target resolution in packaged mode", () => {
       }),
     ).toEqual({
       mode: "url",
-      target: "chiron://app/index.html",
+      target: "chiron://app/",
     });
   });
 

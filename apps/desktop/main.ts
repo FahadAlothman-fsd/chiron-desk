@@ -298,7 +298,7 @@ export function resolveRendererOrigin(target: RendererTarget): string {
 }
 
 function resolvePackagedRendererUrl(): string {
-  return `${PACKAGED_RENDERER_SCHEME}://${PACKAGED_RENDERER_HOST}/index.html`;
+  return `${PACKAGED_RENDERER_SCHEME}://${PACKAGED_RENDERER_HOST}/`;
 }
 
 function resolvePackagedRendererRequestPath(rendererHtmlPath: string, requestUrl: string): string {
