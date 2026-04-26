@@ -12,8 +12,8 @@
     "start:headless": "bun run dist/index.mjs"
   },
   "dependencies": {
-    "@chiron/api": "workspace:*",
     "@chiron/agent-runtime": "workspace:*",
+    "@chiron/api": "workspace:*",
     "@chiron/auth": "workspace:*",
     "@chiron/contracts": "workspace:*",
     "@chiron/db": "workspace:*",

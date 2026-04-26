@@ -1,10 +1,9 @@
 {
   "name": "desktop",
-  "productName": "Chiron",
   "version": "0.0.1",
+  "private": true,
   "description": "Chiron is a project management and guidance application that lets users create development methodologies they can follow to plan and execute projects.",
   "author": "Fahad Alothman",
-  "private": true,
   "type": "module",
   "main": "dist/desktop/main.js",
   "scripts": {
@@ -23,8 +22,8 @@
     "check-types": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@libsql/client": "catalog:",
     "@chiron/contracts": "workspace:*",
+    "@libsql/client": "catalog:",
     "better-result": "^2.7.0"
   },
   "devDependencies": {
@@ -87,5 +86,6 @@
         "AppImage"
       ]
     }
-  }
+  },
+  "productName": "Chiron"
 }
