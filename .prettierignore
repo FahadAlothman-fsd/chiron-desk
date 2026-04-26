@@ -1,0 +1,8 @@
+.agents/**
+.opencode/**
+.sisyphus/**
+_bmad/**
+_bmad-output/**
+academic_reports/**
+docs/**
+**/*.md
