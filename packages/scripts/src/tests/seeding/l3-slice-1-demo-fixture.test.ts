@@ -160,9 +160,7 @@ describe("l3 slice-1 demo fixture", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, () =>
       expect(example.seedSource).toBe("work_unit_fact_definition");
       expect(example.workflowContextFactKind).toBe("bound_fact");
       expect(example.permanence).toBe("fixture_only");
-      expect(permanentWorkUnitFactKeys.has(example.factKey)).toBe(
-        example.factKey === "requires_product_brief" ? false : true,
-      );
+      expect(permanentWorkUnitFactKeys.has(example.factKey)).toBe(false);
       expect(permanentMethodologyFactKeys.has(example.factKey)).toBe(false);
     }
 

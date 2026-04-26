@@ -487,11 +487,17 @@ describe("setup invoke phase-1 fixture", () => {
       ),
     ).toEqual([
       "collect_setup_baseline",
-      "synthesize_setup_for_invoke",
-      "propagate_setup_context",
-      "route_setup_followups",
-      "invoke_brainstorming_fixed",
-      "invoke_research_from_draft_spec",
+      "branch_project_kind",
+      "greenfield_setup_agent",
+      "brownfield_scan_preferences",
+      "invoke_document_project",
+      "branch_need_brainstorming",
+      "invoke_brainstorming_work",
+      "branch_need_research",
+      "invoke_research_work",
+      "branch_need_product_brief",
+      "invoke_product_brief_work",
+      "propagate_setup_outputs",
     ]);
   });
 });
