@@ -45,10 +45,10 @@ Display steps stay presentation-only.
 
 ## Taskflow example
 
-In Taskflow review and rework, a `display` step can show the drafted story summary, diagnostics, and suggested next actions in tabs before a reviewer chooses to continue or send the workflow back through a branch.
+In the narrowed public Taskflow example, a `display` step can show the onboarding summary, gathered constraints, and architecture handoff checklist before the operator continues into the `Architecture` work unit.
 
 > **Screenshot placeholder**
-> Taskflow display step, showing review tabs for draft summary, diagnostics, evidence, and suggested next actions.
+> Taskflow display step, showing onboarding summary tabs, gathered constraints, and the Architecture handoff checklist.
 
 ## Current behavior and implementation status
 

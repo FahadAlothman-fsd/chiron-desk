@@ -53,12 +53,12 @@ Branch steps are read-only evaluators.
 
 ## Taskflow example
 
-In Taskflow review and rework, a `branch` step can check whether required review outcomes exist. If the result is strong enough, it routes to completion. If not, it routes back to a rework path.
+In the narrowed public Taskflow example, a `branch` step can check whether onboarding has enough context to continue directly into the `Architecture` work unit or whether more setup input is still required.
 
-The same branch concept also appears earlier in setup, where onboarding can split by project type, and in fan-out, where delegation can split by scope or readiness.
+That keeps the route choice attached to the workflow instead of hiding readiness decisions in tribal knowledge.
 
 > **Screenshot placeholder**
-> Taskflow branch step, showing evaluated routes for completion, rework, and delegated follow-up.
+> Taskflow branch step, showing evaluated routes for additional setup versus Architecture handoff.
 
 ## Current behavior and implementation status
 

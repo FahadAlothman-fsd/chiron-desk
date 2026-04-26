@@ -37,8 +37,6 @@ export default defineConfig({
           items: [
             { label: "Taskflow Overview", slug: "taskflow" },
             { label: "Setup And Onboarding", slug: "taskflow/setup-onboarding" },
-            { label: "Fan-Out And Delegation", slug: "taskflow/fan-out-delegation" },
-            { label: "Review And Rework", slug: "taskflow/review-rework" },
           ],
         },
         {

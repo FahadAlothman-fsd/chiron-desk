@@ -31,12 +31,11 @@ When deeper implementation detail matters, the public site links outward to inte
 
 Taskflow keeps the Design Time story concrete.
 
-- setup and onboarding starts here, where the method, work-unit contracts, workflows, branches, and first artifact slots are defined
-- fan-out and delegation is prepared here, where parent-child work-unit relationships, invoke paths, and returned artifact expectations are authored
-- review and rework is prepared here, where approval routes, review evidence, and rework branches become part of the method instead of an improvised side loop
+- setup and onboarding starts here, where the method, work-unit contracts, workflows, and first artifact slots are defined
+- the public example then stops once that setup flow is ready to hand work into the `Architecture` work unit
 
 > **Screenshot placeholder**
-> Design Time landing view, showing the four public layers and how the three Taskflow slices map onto them.
+> Design Time landing view, showing the four public layers and how the setup-to-architecture handoff maps across them.
 
 ## Next move
 

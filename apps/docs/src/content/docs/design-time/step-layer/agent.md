@@ -52,10 +52,10 @@ Agent steps are intentionally narrow in authority.
 
 ## Taskflow example
 
-In Taskflow review and rework, an `agent` step could read the current story draft, architecture notes, and artifact snapshots, then propose a rework plan through declared actions that write only to the approved context targets.
+In the narrowed public Taskflow example, an `agent` step could read the onboarding brief, repo context, and architecture constraints, then draft the first architecture-oriented output through declared actions that write only to approved context targets.
 
 > **Screenshot placeholder**
-> Taskflow agent step configuration, showing bounded context selectors, allowed actions, and completion rules for rework support.
+> Taskflow agent step configuration, showing bounded context selectors, allowed actions, and completion rules for early Architecture work support.
 
 ## Current behavior and implementation status
 

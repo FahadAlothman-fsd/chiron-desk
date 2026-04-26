@@ -3,7 +3,7 @@ title: Taskflow Setup And Onboarding
 ---
 This scenario slice shows how Taskflow starts.
 
-It begins at Design Time, where you define the method, then moves into Project Runtime, where a real project starts using that method.
+It begins at Design Time, where you define the method, then moves into Project Runtime, where a real project starts using that method and reaches the `Architecture` work unit.
 
 ## At Design Time
 
@@ -16,9 +16,8 @@ At the Methodology Layer, you decide which kinds of work Taskflow needs.
 For example, they may define work such as:
 
 - setup
-- planning
-- delivery
-- review
+- PRD
+- Architecture
 
 This is the catalog that the rest of the system will build from.
 
@@ -37,7 +36,7 @@ For a setup or onboarding work unit, that contract may define:
 
 The onboarding workflow then explains how setup should run.
 
-It might collect project context, ask for missing inputs, produce an onboarding artifact, and only allow completion when the required starting information is present.
+It might collect project context, ask for missing inputs, produce an onboarding artifact, and only allow completion when the required starting information is present so the `Architecture` work unit can begin with real context.
 
 ### Step Layer
 
@@ -46,7 +45,7 @@ Inside that workflow, you can think in step types such as form, agent, display, 
 Public docs use the Step Layer as part of the mental model. Some of the deeper authoring and runtime depth for this layer is still not fully implemented.
 
 > **Screenshot placeholder**
-> Taskflow onboarding workflow, showing setup inputs, the branch between greenfield and existing-project onboarding, and the first onboarding artifacts.
+> Taskflow onboarding workflow, showing setup inputs, the path to readiness, and the first onboarding artifacts that feed the Architecture work unit.
 
 ## At Project Runtime
 
@@ -56,13 +55,15 @@ The project can see which onboarding work-unit instances exist, which facts are 
 
 That is the key shift from loose setup documents to inspectable work.
 
-## Where branching appears
+## Where the public example stops
 
-Even this early slice can branch.
+This public example stops when onboarding has produced enough structure and context for the `Architecture` work unit to exist as real project work.
 
-For example, onboarding might follow one path for a brand new project and another for a project that already has an established repository and delivery conventions.
+At that point the docs have already shown the key handoff:
 
-The branching logic stays attached to the workflow instead of living in tribal knowledge.
+- Design Time defined the work-unit catalog and workflow contract
+- Project Runtime picked up that method as visible work
+- onboarding artifacts now feed a named downstream work unit instead of disappearing into setup notes
 
 ## Which artifacts matter here
 
@@ -74,15 +75,15 @@ Typical early artifacts might include:
 - a project context summary
 - a checklist that shows what is ready and what is blocked
 
-Those outputs then become visible to later work. The fan-out slice reuses them as inputs, and the review slice treats them as durable evidence instead of setup-only notes.
+Those outputs then become visible to the `Architecture` work unit instead of disappearing into setup-only notes.
 
 ## Why this slice matters
 
-Setup and onboarding show the full Design Time to Project Runtime handoff in the smallest possible story.
+Setup and onboarding show the Design Time to Project Runtime handoff in the smallest possible story.
 
-If this part is clear, the rest of Taskflow is easier to follow.
+If this part is clear, the layer model is easier to follow without committing the public docs to the full downstream delivery lifecycle.
 
-## Continue the example
+## Continue reading
 
-- Next: [/taskflow/fan-out-delegation](/taskflow/fan-out-delegation)
 - Back to overview: [/taskflow/](/taskflow/)
+- Runtime work-unit list: [/project-runtime/work-unit-instances](/project-runtime/work-unit-instances)

@@ -76,19 +76,17 @@ That includes:
 
 ## Taskflow as the running example
 
-Taskflow is the single public example used throughout the docs. It anchors three scenario slices:
+Taskflow is the single public example used throughout the docs. It anchors one intentionally limited public slice:
 
-- setup and onboarding
-- fan-out and delegation
-- review and rework
+- setup and onboarding into the `Architecture` work unit
 
-Those slices let the docs teach one consistent story from method setup to delegation to review.
+That slice lets the docs teach one consistent story from method setup to the first concrete downstream work without pretending to cover the full delivery lifecycle.
 
-### How the slices connect
+### How the public slice connects
 
 1. **Setup and onboarding** shows the method being defined, then picked up by a real project.
-2. **Fan-out and delegation** shows one work unit creating or activating more focused work.
-3. **Review and rework** shows how evidence, approval, and correction stay inside the same system.
+2. The resulting facts and artifacts give the project enough structure to produce or activate the `Architecture` work unit.
+3. The public docs stop there and leave deeper downstream flows to later implementation and internal references.
 
 ## Why the split matters
 

@@ -1,62 +1,133 @@
 # Deployment
 
-## Docs site (`apps/docs`) on Vercel
+## Docs site and survey gateway (`apps/docs`) on Vercel
 
 The public docs site deploys with **Vercel native Git integration** as a dedicated monorepo project.
 
-This setup is intentionally separate from the main web app and does **not** rely on GitHub Actions.
+This deployment is the current priority path. It serves both:
+
+- the public Astro/Starlight docs site
+- the thesis survey landing page and survey API routes
+
+It is intentionally separate from the main web app and does **not** depend on the desktop packaging flow.
 
 ## Recommended Vercel project settings
 
-Create/import a Vercel project for the repository and point it at the docs app.
+Create or import a Vercel project for this repository and point it at the docs app.
 
 - **Root Directory:** `apps/docs`
-- **Framework Preset:** `VitePress`
+- **Framework Preset:** `astro`
 - **Install Command:** `bun install`
 - **Build Command:** `bun run build:docs`
-- **Output Directory:** `.vitepress/dist`
+- **Target Node runtime:** `22.x`
 
 The checked-in app-local configuration lives in `apps/docs/vercel.json`:
 
 ```json
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "vitepress",
+  "framework": "astro",
   "installCommand": "bun install",
-  "buildCommand": "bun run build:docs",
-  "outputDirectory": ".vitepress/dist"
+  "buildCommand": "bun run build:docs"
 }
+```
+
+The docs app itself also pins Node through `apps/docs/package.json`:
+
+```json
+"engines": {
+  "node": "22.x"
+}
+```
+
+For local shell alignment, the docs app also includes:
+
+```text
+apps/docs/.nvmrc
+```
+
+with the value:
+
+```text
+22
 ```
 
 ## Why the build command is `bun run build:docs`
 
-Maintainers already use the repo-level docs build entrypoint:
+Maintainers use the repo-level docs build entrypoint:
 
 ```bash
 bun run build:docs
 ```
 
-That command is the safest operational contract to document because it is also the command contributors can run locally from the repository root before merging docs changes.
+That command is the safest operational contract to document because it works from the repo root and matches what Vercel runs from the docs app root.
 
-Inside `apps/docs/package.json`, `build:docs` is a local alias for the VitePress production build so the same command name works when Vercel runs from the docs app root.
+Script chain:
 
-## Output expectations
+- Root `package.json`: `build:docs` -> `turbo run build --filter=docs`
+- `apps/docs/package.json`: `build:docs` -> `bun run build`
+- `apps/docs/package.json`: `build` -> `astro build`
 
-- VitePress emits the static site into `apps/docs/.vitepress/dist`.
-- Because the Vercel project root is `apps/docs`, the configured output directory is `.vitepress/dist`.
-- Turbo already treats `.vitepress/dist/**` as a build artifact in both the root `turbo.json` and `apps/docs/turbo.json`.
+## What deploys with `apps/docs`
 
-## Environment assumptions
+This single app deployment includes:
 
-- The repository pins Bun via the root `packageManager` field (`bun@1.3.9`).
-- The docs app currently builds as a static VitePress site and does not require docs-specific environment variables.
-- The current docs build uses files under `apps/docs` and VitePress itself; if the docs app later imports workspace packages or other files outside `apps/docs`, revisit the Vercel project setting for including source files outside the root directory.
+- docs content under `apps/docs/src/content/docs/`
+- public survey page at `/survey`
+- survey API routes under `/api/survey/*`
+
+Important survey entry points:
+
+- `src/pages/survey.astro`
+- `src/pages/api/survey/launch.ts`
+- `src/pages/api/survey/state.ts`
+- `src/pages/api/survey/not-now.ts`
+- `src/pages/api/survey/dismiss.ts`
+- `src/pages/api/survey/reconcile.ts`
+- `src/pages/api/survey/webhook.ts`
+
+## Environment variables
+
+### Plain docs pages
+
+No extra environment variables are required for a normal docs-only deploy.
+
+### Survey flow
+
+Required for persistence and token flow:
+
+- `DATABASE_URL` or `POSTGRES_URL`
+- `SURVEY_TOKEN_SECRET` or `PUBLIC_SURVEY_TEST_SECRET`
+
+Operational mode:
+
+- `SURVEY_MODE=disabled|test|prod`
+  - defaults to `test` when unset
+
+Optional gateway override:
+
+- `SURVEY_GATEWAY_BASE_URL`
+
+Optional Formbricks production settings:
+
+- `FORMBRICKS_SURVEY_URL`
+- `FORMBRICKS_API_BASE_URL`
+- `FORMBRICKS_SURVEY_ID`
+- `FORMBRICKS_API_KEY`
+
+Optional test helper:
+
+- `SURVEY_TEST_COMPLETED_PARTICIPANT_REF`
+
+If the main Chiron web app should call this deployed survey gateway, configure the web app with:
+
+- `VITE_SURVEY_GATEWAY_URL=<docs-origin>`
 
 ## Preview and production behavior
 
 - **Preview deployments:** every pull request and other non-`main` Git update should get a preview deployment for the docs project.
-- **Production deployment:** the docs site promotes from the `main` branch.
-- For monorepo hygiene, enable Vercel's unaffected-project skipping for the docs project so unrelated repository changes do not rebuild the docs site.
+- **Production deployment:** promote from the `main` branch.
+- For monorepo hygiene, enable Vercel unaffected-project skipping so unrelated repo changes do not rebuild the docs app.
 
 ## Maintainer checklist
 
@@ -66,12 +137,23 @@ Before relying on auto-deploys, verify the Vercel project matches this contract:
 2. `apps/docs/vercel.json` is detected.
 3. Install command is `bun install`.
 4. Build command is `bun run build:docs`.
-5. Output directory is `.vitepress/dist`.
+5. Framework preset is `astro`.
 6. Preview deploys are enabled.
 7. Production branch is `main`.
+8. Survey environment variables are set if the survey flow is enabled.
 
-Local verification command:
+## Local verification commands
+
+From the repo root:
 
 ```bash
+bun install
+bun run dev:docs
 bun run build:docs
+bun run preview:docs
 ```
+
+Local URLs:
+
+- docs + survey dev server: `http://localhost:4303`
+- docs preview server: `http://localhost:4304`
