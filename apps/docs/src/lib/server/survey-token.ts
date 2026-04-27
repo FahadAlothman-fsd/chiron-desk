@@ -1,5 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
+import type { SurveyContext } from "./survey-config";
+
 const encoder = new TextEncoder();
 
 export type SurveyLaunchTokenPayload = {
@@ -8,6 +10,7 @@ export type SurveyLaunchTokenPayload = {
   participantRef: string;
   issuedAt: string;
   expiresAt: string;
+  hiddenFields: SurveyContext;
 };
 
 function base64UrlEncode(value: string): string {

@@ -82,6 +82,7 @@ export const POST: APIRoute = async ({ request }) => {
       participantRef,
       issuedAt: now.toISOString(),
       expiresAt: expiresAt.toISOString(),
+      hiddenFields,
     },
     process.env.SURVEY_TOKEN_SECRET ?? getRequiredEnv("PUBLIC_SURVEY_TEST_SECRET"),
   );

@@ -1,5 +1,17 @@
 ---
-export const prerender = true;
+import { getRequiredEnv } from "../lib/server/survey-config";
+import { createSurveyLaunch } from "../lib/server/survey-provider";
+import { verifyLaunchToken } from "../lib/server/survey-token";
+
+export const prerender = false;
+
+const launchToken = Astro.url.searchParams.get("launchToken");
+const tokenSecret = process.env.SURVEY_TOKEN_SECRET ?? process.env.PUBLIC_SURVEY_TEST_SECRET;
+const payload =
+  launchToken && tokenSecret ? verifyLaunchToken(launchToken, tokenSecret) : null;
+const surveyLaunch = payload ? createSurveyLaunch(payload.hiddenFields) : null;
+const surveyHref = surveyLaunch?.surveyUrl ?? "#";
+const invalidLaunch = Boolean(launchToken) && !payload;
 ---
 
 <html lang="en">
@@ -131,22 +143,25 @@ export const prerender = true;
           <li>Do not include private project details or secrets in free-text answers.</li>
           <li>Chiron uses a pseudonymous participant reference for survey tracking.</li>
         </ul>
+        {
+          invalidLaunch ? (
+            <p>
+              This survey launch link is invalid or expired. Start again from Chiron so we can
+              attach the correct participant and workflow context.
+            </p>
+          ) : null
+        }
         <div class="actions">
-          <a id="start-survey" class="button" href="https://app.formbricks.com/s/cmoex3g1qiicyue01q0tnvir3">Start survey</a>
+          <a
+            class="button"
+            href={surveyHref}
+            aria-disabled={surveyLaunch ? undefined : "true"}
+          >
+            Start survey
+          </a>
           <a class="button secondary" href="/">Back to docs</a>
         </div>
       </div>
     </main>
-    <script>
-      const surveyLink = document.getElementById("start-survey");
-      const params = new URLSearchParams(window.location.search);
-      const launchToken = params.get("launchToken");
-
-      if (surveyLink instanceof HTMLAnchorElement && launchToken) {
-        const target = new URL(surveyLink.href);
-        target.searchParams.set("launchToken", launchToken);
-        surveyLink.href = target.toString();
-      }
-    </script>
   </body>
 </html>
