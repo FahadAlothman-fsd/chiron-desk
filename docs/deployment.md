@@ -85,6 +85,7 @@ Important survey entry points:
 - `src/pages/api/survey/dismiss.ts`
 - `src/pages/api/survey/reconcile.ts`
 - `src/pages/api/survey/webhook.ts`
+- `src/pages/api/survey/complete-test.ts` (local/test mode helper only)
 
 ## Environment variables
 
@@ -157,3 +158,29 @@ Local URLs:
 
 - docs + survey dev server: `http://localhost:4303`
 - docs preview server: `http://localhost:4304`
+
+### Local full-journey survey check
+
+For a no-webhook local test of the Chiron -> docs gateway -> Formbricks -> completion-state loop:
+
+1. Run the docs app with `SURVEY_MODE=test`, persistence configured, and a survey token secret.
+2. Run the web app with `VITE_SURVEY_GATEWAY_URL=http://localhost:4303`.
+3. Complete an eligible transition in Chiron.
+4. Click **Take survey**.
+5. After the external survey page opens, mark the participant complete locally:
+
+```bash
+curl -X POST http://localhost:4303/api/survey/complete-test \
+  -H 'content-type: application/json' \
+  -d '{"email":"you@example.com"}'
+```
+
+6. Verify the gateway state now returns `completed`:
+
+```bash
+curl -X POST http://localhost:4303/api/survey/state \
+  -H 'content-type: application/json' \
+  -d '{"email":"you@example.com"}'
+```
+
+7. Complete another eligible transition with the same Chiron user and verify the survey prompt no longer appears.
