@@ -72,6 +72,7 @@ The docs app also hosts the survey landing page and survey API routes:
 - `http://localhost:4303/api/survey/state`
 - `http://localhost:4303/api/survey/not-now`
 - `http://localhost:4303/api/survey/dismiss`
+- `http://localhost:4303/api/survey/complete-test` (test mode only)
 
 For the survey flow, set these env vars in the Vercel project or your local environment:
 
@@ -87,6 +88,34 @@ For the survey flow, set these env vars in the Vercel project or your local envi
 If you are testing survey prompts from the main app, also set:
 
 - `VITE_SURVEY_GATEWAY_URL` to your deployed or local docs origin
+
+### Local end-to-end survey journey
+
+You can test the whole Chiron-to-survey loop locally without webhooks.
+
+1. Start the docs gateway in test mode with persistence configured.
+2. Start the main app with `VITE_SURVEY_GATEWAY_URL=http://localhost:4303`.
+3. In Chiron, complete the first transition that should trigger the survey prompt.
+4. Click **Take survey** and confirm the browser opens `/survey` and then the external Formbricks URL.
+5. Simulate survey completion locally:
+
+```bash
+curl -X POST http://localhost:4303/api/survey/complete-test \
+  -H 'content-type: application/json' \
+  -d '{"email":"you@example.com"}'
+```
+
+6. Confirm completion state:
+
+```bash
+curl -X POST http://localhost:4303/api/survey/state \
+  -H 'content-type: application/json' \
+  -d '{"email":"you@example.com"}'
+```
+
+Expected result: the returned survey `status` becomes `completed`.
+
+7. Complete another transition in Chiron with the same signed-in user. The survey prompt should no longer appear for that participant.
 
 ### Full app development
 
