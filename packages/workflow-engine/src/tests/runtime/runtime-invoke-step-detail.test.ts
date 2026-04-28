@@ -34,7 +34,10 @@ import {
   WorkflowExecutionRepository,
   type WorkflowExecutionRow,
 } from "../../repositories/workflow-execution-repository";
-import { InvokeCompletionServiceLive } from "../../services/invoke-completion-service";
+import {
+  InvokeCompletionService,
+  InvokeCompletionServiceLive,
+} from "../../services/invoke-completion-service";
 import { RuntimeGateServiceLive } from "../../services/runtime-gate-service";
 import { InvokeStepDetailServiceLive } from "../../services/invoke-step-detail-service";
 import { ActionStepDetailService } from "../../services/action-step-detail-service";
@@ -400,15 +403,20 @@ describe("runtime invoke step detail", () => {
       projectWorkUnitLayer,
     );
     const progressionLayer = Layer.provide(StepProgressionServiceLive, baseLayer);
-    const invokeCompletionLayer = InvokeCompletionServiceLive.pipe(Layer.provide(baseLayer));
-    const invokeStepDetailLayer = InvokeStepDetailServiceLive.pipe(
-      Layer.provideMerge(baseLayer),
-      Layer.provideMerge(invokeCompletionLayer),
+    const invokeCompletionLayer = Layer.succeed(InvokeCompletionService, {
+      getCompletionEligibility: () =>
+        Effect.succeed({
+          eligible: false,
+          reasonIfIneligible: NO_INVOKE_TARGETS_RESOLVED_REASON,
+        }),
+    } as Context.Tag.Service<typeof InvokeCompletionService>);
+    const invokeStepDetailLayer = Layer.provide(
+      InvokeStepDetailServiceLive,
+      Layer.mergeAll(baseLayer, invokeCompletionLayer),
     );
-    const layer = StepExecutionDetailServiceLive.pipe(
-      Layer.provideMerge(baseLayer),
-      Layer.provideMerge(progressionLayer),
-      Layer.provideMerge(invokeStepDetailLayer),
+    const layer = Layer.provide(
+      StepExecutionDetailServiceLive,
+      Layer.mergeAll(baseLayer, progressionLayer, invokeStepDetailLayer),
     );
 
     const detail = await Effect.runPromise(
@@ -752,15 +760,21 @@ describe("runtime invoke step detail", () => {
       transitionLayer,
     );
     const progressionLayer = Layer.provide(StepProgressionServiceLive, baseLayer);
-    const invokeCompletionLayer = InvokeCompletionServiceLive.pipe(Layer.provide(baseLayer));
-    const invokeStepDetailLayer = InvokeStepDetailServiceLive.pipe(
-      Layer.provideMerge(baseLayer),
-      Layer.provideMerge(invokeCompletionLayer),
+    const invokeCompletionLayer = Layer.succeed(InvokeCompletionService, {
+      getCompletionEligibility: () =>
+        Effect.succeed({
+          eligible: false,
+          reasonIfIneligible:
+            "At least one child workflow execution must be completed before invoke completion",
+        }),
+    } as Context.Tag.Service<typeof InvokeCompletionService>);
+    const invokeStepDetailLayer = Layer.provide(
+      InvokeStepDetailServiceLive,
+      Layer.mergeAll(baseLayer, invokeCompletionLayer),
     );
-    const layer = StepExecutionDetailServiceLive.pipe(
-      Layer.provideMerge(baseLayer),
-      Layer.provideMerge(progressionLayer),
-      Layer.provideMerge(invokeStepDetailLayer),
+    const layer = Layer.provide(
+      StepExecutionDetailServiceLive,
+      Layer.mergeAll(baseLayer, progressionLayer, invokeStepDetailLayer),
     );
 
     const detail = await Effect.runPromise(
@@ -1066,7 +1080,7 @@ describe("runtime invoke step detail", () => {
               label: "Story drafts",
               cardinality: "many",
               workUnitDefinitionId: "wu-story",
-              selectedWorkUnitFactDefinitionIds: [],
+              selectedWorkUnitFactDefinitionIds: ["fact-work-unit"],
               selectedArtifactSlotDefinitionIds: [],
             },
           ],
@@ -1295,15 +1309,21 @@ describe("runtime invoke step detail", () => {
       workflowRepoLayer,
     );
     const progressionLayer = Layer.provide(StepProgressionServiceLive, baseLayer);
-    const invokeCompletionLayer = InvokeCompletionServiceLive.pipe(Layer.provide(baseLayer));
-    const invokeStepDetailLayer = InvokeStepDetailServiceLive.pipe(
-      Layer.provideMerge(baseLayer),
-      Layer.provideMerge(invokeCompletionLayer),
+    const invokeCompletionLayer = Layer.succeed(InvokeCompletionService, {
+      getCompletionEligibility: () =>
+        Effect.succeed({
+          eligible: false,
+          reasonIfIneligible:
+            "At least one child transition path must be completed before invoke completion",
+        }),
+    } as Context.Tag.Service<typeof InvokeCompletionService>);
+    const invokeStepDetailLayer = Layer.provide(
+      InvokeStepDetailServiceLive,
+      Layer.mergeAll(baseLayer, invokeCompletionLayer),
     );
-    const layer = StepExecutionDetailServiceLive.pipe(
-      Layer.provideMerge(baseLayer),
-      Layer.provideMerge(progressionLayer),
-      Layer.provideMerge(invokeStepDetailLayer),
+    const layer = Layer.provide(
+      StepExecutionDetailServiceLive,
+      Layer.mergeAll(baseLayer, progressionLayer, invokeStepDetailLayer),
     );
 
     const detail = await Effect.runPromise(
@@ -1357,6 +1377,16 @@ describe("runtime invoke step detail", () => {
         bindingPreview: [
           expect.objectContaining({
             destinationDefinitionId: "fact-work-unit",
+            sourceKind: "context_fact",
+            sourceContextFactDefinitionId: "ctx-story-drafts",
+            sourceContextFactKind: "work_unit_draft_spec_fact",
+            sourceContextFactKey: "storyDrafts",
+            savedDraftValueJson: { projectWorkUnitId: "setup-work-unit-1" },
+            resolvedValueJson: { projectWorkUnitId: "setup-work-unit-1" },
+            requiresRuntimeValue: false,
+          }),
+          expect.objectContaining({
+            destinationDefinitionId: "fact-work-unit",
             destinationFactType: "work_unit",
             requiresRuntimeValue: true,
             editorWorkUnitTypeKey: "WU.PARENT",
@@ -1390,6 +1420,14 @@ describe("runtime invoke step detail", () => {
         bindingPreview: [
           expect.objectContaining({
             destinationDefinitionId: "fact-work-unit",
+            sourceKind: "context_fact",
+            sourceContextFactDefinitionId: "ctx-story-drafts",
+            sourceContextFactKind: "work_unit_draft_spec_fact",
+            resolvedValueJson: { projectWorkUnitId: "setup-work-unit-1" },
+          }),
+          expect.objectContaining({
+            destinationDefinitionId: "fact-work-unit",
+            sourceKind: "runtime",
             resolvedValueJson: { projectWorkUnitId: "setup-work-unit-1" },
           }),
         ],

@@ -19,7 +19,7 @@ import {
   type FactSchemaRow,
 } from "@chiron/methodology-engine";
 import { ProjectContextRepository } from "@chiron/project-context";
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, Option } from "effect";
 
 import { RepositoryError } from "../errors";
 import { ExecutionReadRepository } from "../repositories/execution-read-repository";
@@ -844,7 +844,7 @@ export const StepExecutionDetailServiceLive = Layer.effect(
     const branchRuntimeRepo = yield* BranchStepRuntimeRepository;
     const lifecycleRepo = yield* LifecycleRepository;
     const methodologyRepo = yield* MethodologyRepository;
-    const projectContextRepo = yield* ProjectContextRepository;
+    const projectContextRepo = yield* Effect.serviceOption(ProjectContextRepository);
     const projectFactRepo = yield* ProjectFactRepository;
     const projectWorkUnitRepo = yield* ProjectWorkUnitRepository;
     const workUnitFactRepo = yield* WorkUnitFactRepository;
@@ -907,7 +907,13 @@ export const StepExecutionDetailServiceLive = Layer.effect(
         const body: GetRuntimeStepExecutionDetailOutput["body"] =
           stepExecution.stepType === "form"
             ? yield* Effect.gen(function* () {
-                const projectPin = yield* projectContextRepo.findProjectPin(
+                if (Option.isNone(projectContextRepo)) {
+                  return yield* makeDetailError(
+                    "project context repository missing for form step detail",
+                  );
+                }
+
+                const projectPin = yield* projectContextRepo.value.findProjectPin(
                   workflowDetail.projectId,
                 );
                 if (!projectPin) {
@@ -924,7 +930,7 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                   currentWorkUnitFactInstances,
                   workflowExecutionContextFacts,
                 ] = yield* Effect.all([
-                  projectContextRepo.getProjectById({ projectId: workflowDetail.projectId }),
+                  projectContextRepo.value.getProjectById({ projectId: workflowDetail.projectId }),
                   lifecycleRepo.findWorkUnitTypes(projectPin.methodologyVersionId),
                   lifecycleRepo.findFactSchemas(projectPin.methodologyVersionId),
                   methodologyRepo.findFactDefinitionsByVersionId(projectPin.methodologyVersionId),
@@ -1097,7 +1103,13 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                 }
               : stepExecution.stepType === "branch"
                 ? yield* Effect.gen(function* () {
-                    const projectPin = yield* projectContextRepo.findProjectPin(
+                    if (Option.isNone(projectContextRepo)) {
+                      return yield* makeDetailError(
+                        "project context repository missing for branch step detail",
+                      );
+                    }
+
+                    const projectPin = yield* projectContextRepo.value.findProjectPin(
                       workflowDetail.projectId,
                     );
                     if (!projectPin) {
