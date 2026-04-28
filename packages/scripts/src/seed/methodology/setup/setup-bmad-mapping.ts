@@ -686,6 +686,12 @@ function buildTransitionConditionSetSeedRowsFor(
               "selected-directions",
               methodologyVersionId,
             ),
+            factCondition(
+              "brainstorming",
+              "priority_directions",
+              "priority-directions",
+              methodologyVersionId,
+            ),
             artifactCondition(
               "brainstorming",
               "brainstorming_session",
@@ -1186,6 +1192,16 @@ const brainstormingFactDefinitions = [
           notes: { type: "string", cardinality: "one" },
         },
       },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "title", type: "string", cardinality: "one" },
+          { key: "motivation", type: "string", cardinality: "one" },
+          { key: "success_signal", type: "string", cardinality: "one" },
+          { key: "priority", type: "string", cardinality: "one" },
+          { key: "notes", type: "string", cardinality: "one" },
+        ],
+      },
     },
     defaultValueJson: null,
   },
@@ -1214,6 +1230,15 @@ const brainstormingFactDefinitions = [
           known_constraints: { type: "string", cardinality: "many" },
         },
       },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "must_have", type: "string", cardinality: "many" },
+          { key: "must_avoid", type: "string", cardinality: "many" },
+          { key: "timebox_notes", type: "string", cardinality: "many" },
+          { key: "known_constraints", type: "string", cardinality: "many" },
+        ],
+      },
     },
     defaultValueJson: null,
   },
@@ -1232,7 +1257,36 @@ const brainstormingFactDefinitions = [
     validationJson: {
       kind: "json-schema" as const,
       schemaDialect: "draft-2020-12",
-      schema: { type: "object" },
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["mode", "sequence"],
+        properties: {
+          mode: { type: "string", cardinality: "one" },
+          rationale: { type: "string", cardinality: "one" },
+          sequence: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["workflow_key", "reason"],
+              properties: {
+                workflow_key: { type: "string", cardinality: "one" },
+                reason: { type: "string", cardinality: "one" },
+                order: { type: "number", cardinality: "one" },
+              },
+            },
+          },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "mode", type: "string", cardinality: "one" },
+          { key: "rationale", type: "string", cardinality: "one" },
+          { key: "sequence", type: "json", cardinality: "many" },
+        ],
+      },
     },
     defaultValueJson: null,
   },
@@ -1248,7 +1302,30 @@ const brainstormingFactDefinitions = [
     guidanceJson: toGuidanceJson(
       "Persist the chosen support workflow keys so later review can understand how the session was run.",
     ),
-    validationJson: { kind: "none" as const },
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["workflow_key"],
+        properties: {
+          workflow_key: { type: "string", cardinality: "one" },
+          selected_via: { type: "string", cardinality: "one" },
+          reason: { type: "string", cardinality: "one" },
+          execution_order: { type: "number", cardinality: "one" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "workflow_key", type: "string", cardinality: "one" },
+          { key: "selected_via", type: "string", cardinality: "one" },
+          { key: "reason", type: "string", cardinality: "one" },
+          { key: "execution_order", type: "number", cardinality: "one" },
+        ],
+      },
+    },
     defaultValueJson: null,
   },
   {
@@ -1264,7 +1341,28 @@ const brainstormingFactDefinitions = [
     validationJson: {
       kind: "json-schema" as const,
       schemaDialect: "draft-2020-12",
-      schema: { type: "object" },
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["workflow_key", "summary"],
+        properties: {
+          workflow_key: { type: "string", cardinality: "one" },
+          summary: { type: "string", cardinality: "one" },
+          ideas: { type: "string", cardinality: "many" },
+          tensions: { type: "string", cardinality: "many" },
+          refinements: { type: "string", cardinality: "many" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "workflow_key", type: "string", cardinality: "one" },
+          { key: "summary", type: "string", cardinality: "one" },
+          { key: "ideas", type: "string", cardinality: "many" },
+          { key: "tensions", type: "string", cardinality: "many" },
+          { key: "refinements", type: "string", cardinality: "many" },
+        ],
+      },
     },
     defaultValueJson: null,
   },
@@ -1283,7 +1381,26 @@ const brainstormingFactDefinitions = [
     validationJson: {
       kind: "json-schema" as const,
       schemaDialect: "draft-2020-12",
-      schema: { type: "object" },
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["primary_directions"],
+        properties: {
+          primary_directions: { type: "string", cardinality: "many" },
+          quick_wins: { type: "string", cardinality: "many" },
+          breakthrough_concepts: { type: "string", cardinality: "many" },
+          deferred_directions: { type: "string", cardinality: "many" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "primary_directions", type: "string", cardinality: "many" },
+          { key: "quick_wins", type: "string", cardinality: "many" },
+          { key: "breakthrough_concepts", type: "string", cardinality: "many" },
+          { key: "deferred_directions", type: "string", cardinality: "many" },
+        ],
+      },
     },
     defaultValueJson: null,
   },
@@ -1302,7 +1419,62 @@ const brainstormingFactDefinitions = [
     validationJson: {
       kind: "json-schema" as const,
       schemaDialect: "draft-2020-12",
-      schema: { type: "object" },
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["topic", "reason"],
+        properties: {
+          topic: { type: "string", cardinality: "one" },
+          reason: { type: "string", cardinality: "one" },
+          priority: { type: "string", cardinality: "one" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "topic", type: "string", cardinality: "one" },
+          { key: "reason", type: "string", cardinality: "one" },
+          { key: "priority", type: "string", cardinality: "one" },
+        ],
+      },
+    },
+    defaultValueJson: null,
+  },
+  {
+    idSuffix: "priority-directions",
+    key: "priority_directions",
+    name: "Priority Directions",
+    factType: "json",
+    cardinality: "many",
+    descriptionJson: toDescriptionJson(
+      "Prioritized directions selected for downstream planning or architecture work.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Persist the ranked directions that should anchor downstream planning and tradeoff decisions.",
+    ),
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["title", "priority"],
+        properties: {
+          title: { type: "string", cardinality: "one" },
+          priority: { type: "string", cardinality: "one" },
+          rationale: { type: "string", cardinality: "one" },
+          next_step: { type: "string", cardinality: "one" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "title", type: "string", cardinality: "one" },
+          { key: "priority", type: "string", cardinality: "one" },
+          { key: "rationale", type: "string", cardinality: "one" },
+          { key: "next_step", type: "string", cardinality: "one" },
+        ],
+      },
     },
     defaultValueJson: null,
   },
@@ -2800,7 +2972,7 @@ const artifactTemplateDefinitionsByWorkUnit: Record<
       ),
       guidanceJson: toGuidanceJson("Persist framing, techniques, and selected directions clearly."),
       content:
-        "# Brainstorming Session\n\n## Focus\n{{workUnit.facts.brainstorming_focus}}\n\n## Desired Outcome\n{{workUnit.facts.desired_outcome}}\n\n{{#if workUnit.facts.selected_directions}}## Selected Directions\n{{workUnit.facts.selected_directions}}\n{{/if}}",
+        "# Brainstorming Session\n\n## Focus\n{{workUnit.facts.brainstorming_focus}}\n\n## Desired Outcome\n{{workUnit.facts.desired_outcome}}\n\n{{#if workUnit.facts.objectives}}## Objectives\n{{workUnit.facts.objectives}}\n{{/if}}\n\n{{#if workUnit.facts.constraints}}## Constraints\n{{workUnit.facts.constraints}}\n{{/if}}\n\n{{#if workUnit.facts.technique_plan}}## Technique Plan\n{{workUnit.facts.technique_plan}}\n{{/if}}\n\n{{#if workUnit.facts.technique_outputs}}## Technique Outputs\n{{workUnit.facts.technique_outputs}}\n{{/if}}\n\n{{#if workUnit.facts.selected_directions}}## Selected Directions\n{{workUnit.facts.selected_directions}}\n{{/if}}\n\n{{#if workUnit.facts.priority_directions}}## Priority Directions\n{{workUnit.facts.priority_directions}}\n{{/if}}\n\n{{#if workUnit.facts.follow_up_research_topics}}## Follow-up Research Topics\n{{workUnit.facts.follow_up_research_topics}}\n{{/if}}",
     },
   ],
   research: [
@@ -3324,12 +3496,12 @@ const workflowEntryStepKeys: Partial<Record<WorkUnitKey, Record<string, string>>
     "generate-project-context": "scan_project_context_sources",
   },
   brainstorming: {
-    brainstorming: "setup_brainstorming_session",
-    "first-principles-analysis": "run_first_principles_analysis",
-    "five-whys-deep-dive": "run_five_whys_deep_dive",
-    "socratic-questioning": "run_socratic_questioning",
-    "stakeholder-round-table": "run_stakeholder_round_table",
-    "critique-and-refine": "run_critique_and_refine",
+    brainstorming: "session_setup",
+    "first-principles-analysis": "frame_foundations",
+    "five-whys-deep-dive": "define_problem_signal",
+    "socratic-questioning": "frame_claims_to_probe",
+    "stakeholder-round-table": "select_stakeholder_lenses",
+    "critique-and-refine": "select_ideas_for_critique",
   },
   research: {
     "market-research": "research_scope_confirmation",
@@ -3951,14 +4123,6 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
           targetKind: "work_unit",
           sourceMode: "context_fact_backed",
           contextFactKey: "brainstorming_draft_spec_ctx",
-          bindings: [
-            {
-              destinationKind: "work_unit_fact",
-              destinationWorkUnitKey: "brainstorming",
-              destinationFactKey: "setup_work_unit",
-              sourceKind: "runtime",
-            },
-          ],
           activationTransitions: [
             {
               workUnitKey: "brainstorming",
@@ -4355,9 +4519,9 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
       {
         key: "brainstorming_focus_ctx",
         label: "Brainstorming Focus",
-        kind: "plain_fact",
+        kind: "bound_fact",
         cardinality: "one",
-        valueType: "string",
+        bindingKey: "brainstorming_focus",
       },
       {
         key: "desired_outcome_ctx",
@@ -4369,69 +4533,61 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
       {
         key: "objectives_ctx",
         label: "Objectives",
-        kind: "plain_fact",
+        kind: "bound_fact",
         cardinality: "many",
-        valueType: "json",
-        validation: {
-          kind: "json-schema" as const,
-          schemaDialect: "draft-2020-12",
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            required: ["title", "priority"],
-            properties: {
-              title: { type: "string", cardinality: "one" },
-              motivation: { type: "string", cardinality: "one" },
-              success_signal: { type: "string", cardinality: "one" },
-              priority: { type: "string", cardinality: "one" },
-              notes: { type: "string", cardinality: "one" },
-            },
-          },
-          subSchema: {
-            type: "object",
-            fields: [
-              { key: "title", type: "string", cardinality: "one" },
-              { key: "motivation", type: "string", cardinality: "one" },
-              { key: "success_signal", type: "string", cardinality: "one" },
-              { key: "priority", type: "string", cardinality: "one" },
-              { key: "notes", type: "string", cardinality: "one" },
-            ],
-          },
-        },
+        bindingKey: "objectives",
       },
       {
         key: "constraints_ctx",
         label: "Constraints",
+        kind: "bound_fact",
+        cardinality: "one",
+        bindingKey: "constraints",
+      },
+      {
+        key: "session_mode_ctx",
+        label: "Session Mode",
         kind: "plain_fact",
         cardinality: "one",
-        valueType: "json",
+        valueType: "string",
         validation: {
-          kind: "json-schema" as const,
-          schemaDialect: "draft-2020-12",
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              must_have: { type: "string", cardinality: "many" },
-              must_avoid: { type: "string", cardinality: "many" },
-              timebox_notes: { type: "string", cardinality: "many" },
-              known_constraints: { type: "string", cardinality: "many" },
-            },
-          },
-          subSchema: {
-            type: "object",
-            fields: [
-              { key: "must_have", type: "string", cardinality: "many" },
-              { key: "must_avoid", type: "string", cardinality: "many" },
-              { key: "timebox_notes", type: "string", cardinality: "many" },
-              { key: "known_constraints", type: "string", cardinality: "many" },
-            ],
-          },
+          kind: "allowed-values" as const,
+          values: ["new", "continue"],
         },
       },
       {
-        key: "selected_technique_workflows_ctx",
-        label: "Selected Technique Workflows",
+        key: "facilitation_mode_ctx",
+        label: "Facilitation Mode",
+        kind: "plain_fact",
+        cardinality: "one",
+        valueType: "string",
+        validation: {
+          kind: "allowed-values" as const,
+          values: [
+            "user_selected_techniques",
+            "ai_recommended_techniques",
+            "random_selection",
+            "progressive_flow",
+          ],
+        },
+      },
+      {
+        key: "need_specialist_techniques_ctx",
+        label: "Need Specialist Techniques",
+        kind: "plain_fact",
+        cardinality: "one",
+        valueType: "boolean",
+      },
+      {
+        key: "technique_plan_ctx",
+        label: "Technique Plan",
+        kind: "bound_fact",
+        cardinality: "one",
+        bindingKey: "technique_plan",
+      },
+      {
+        key: "selected_technique_workflow_refs_ctx",
+        label: "Selected Technique Workflow Refs",
         kind: "workflow_ref_fact",
         cardinality: "many",
         workflowWorkUnitKey: "brainstorming",
@@ -4444,6 +4600,27 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
         ],
       },
       {
+        key: "selected_technique_workflows_payload_ctx",
+        label: "Selected Technique Workflows Payload",
+        kind: "bound_fact",
+        cardinality: "many",
+        bindingKey: "selected_technique_workflows",
+      },
+      {
+        key: "technique_outputs_ctx",
+        label: "Technique Outputs",
+        kind: "bound_fact",
+        cardinality: "many",
+        bindingKey: "technique_outputs",
+      },
+      {
+        key: "idea_clusters_ctx",
+        label: "Idea Clusters",
+        kind: "plain_fact",
+        cardinality: "many",
+        valueType: "json",
+      },
+      {
         key: "selected_directions_ctx",
         label: "Selected Directions",
         kind: "bound_fact",
@@ -4451,11 +4628,18 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
         bindingKey: "selected_directions",
       },
       {
+        key: "priority_directions_ctx",
+        label: "Priority Directions",
+        kind: "bound_fact",
+        cardinality: "many",
+        bindingKey: "priority_directions",
+      },
+      {
         key: "follow_up_research_topics_ctx",
         label: "Follow-up Research Topics",
-        kind: "plain_fact",
+        kind: "bound_fact",
         cardinality: "many",
-        valueType: "json",
+        bindingKey: "follow_up_research_topics",
       },
       {
         key: "brainstorming_session_artifact_ctx",
@@ -4468,9 +4652,9 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
     ],
     steps: [
       {
-        key: "setup_brainstorming_session",
+        key: "session_setup",
         type: "form",
-        displayName: "Setup Brainstorming Session",
+        displayName: "Session Setup",
         formFields: [
           {
             key: "brainstorming_focus",
@@ -4499,57 +4683,239 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
             contextFactKey: "constraints_ctx",
             valueType: "json",
           },
+          {
+            key: "session_mode",
+            label: "Session Mode",
+            contextFactKey: "session_mode_ctx",
+            valueType: "string",
+            required: true,
+          },
+          {
+            key: "facilitation_mode",
+            label: "Facilitation Mode",
+            contextFactKey: "facilitation_mode_ctx",
+            valueType: "string",
+            required: true,
+          },
         ],
       },
       {
-        key: "discuss_brainstorming_session",
+        key: "facilitate_brainstorming_session",
         type: "agent",
-        displayName: "Discuss and Recommend Techniques",
+        displayName: "Facilitate Brainstorming Session",
         agentConfig: {
           objective:
-            "Discuss the brainstorming session framing and recommend a concrete set of technique workflows to invoke next.",
+            "Facilitate the brainstorming session, produce the technique plan, decide whether specialist techniques are needed, and write the canonical brainstorming session artifact.",
           instructionsMarkdown:
-            "Use the brainstorming focus, desired outcome, objectives, and constraints to facilitate a short working discussion. Recommend a tight set of brainstorming technique workflows that best fit the session goal before the invoke step runs.",
+            "Use the brainstorming focus, desired outcome, objectives, constraints, session mode, and facilitation mode to run the main brainstorming facilitation. First decide the technique plan and whether specialist technique workflows are needed. Then write both the invokeable workflow refs and the durable selected-techniques payload. After the plan is established, write or update the brainstorming session artifact and capture any preliminary follow-up research topics that emerge from the core facilitation pass.",
           readContextFactKeys: [
             "brainstorming_focus_ctx",
             "desired_outcome_ctx",
             "objectives_ctx",
             "constraints_ctx",
+            "session_mode_ctx",
+            "facilitation_mode_ctx",
           ],
-          writeContextFactKeys: ["selected_technique_workflows_ctx"],
-          completionRequirementContextFactKeys: ["selected_technique_workflows_ctx"],
+          writeContextFactKeys: [
+            "technique_plan_ctx",
+            "selected_technique_workflow_refs_ctx",
+            "selected_technique_workflows_payload_ctx",
+            "need_specialist_techniques_ctx",
+            "brainstorming_session_artifact_ctx",
+            "follow_up_research_topics_ctx",
+          ],
+          writeItemRequirementContextFactKeysByWriteKey: {
+            selected_technique_workflow_refs_ctx: ["technique_plan_ctx"],
+            selected_technique_workflows_payload_ctx: ["technique_plan_ctx"],
+            need_specialist_techniques_ctx: ["technique_plan_ctx"],
+            brainstorming_session_artifact_ctx: [
+              "technique_plan_ctx",
+              "selected_technique_workflows_payload_ctx",
+            ],
+            follow_up_research_topics_ctx: ["brainstorming_session_artifact_ctx"],
+          },
+          completionRequirementContextFactKeys: [
+            "technique_plan_ctx",
+            "selected_technique_workflows_payload_ctx",
+            "need_specialist_techniques_ctx",
+            "brainstorming_session_artifact_ctx",
+          ],
         },
       },
       {
-        key: "invoke_selected_technique_workflows",
+        key: "branch_need_specialist_techniques",
+        type: "branch",
+        displayName: "Need Specialist Techniques?",
+        branchConfig: {
+          defaultTargetStepKey: "synthesize_session_outputs",
+          routes: [
+            {
+              routeId: "needs_specialist_techniques",
+              targetStepKey: "invoke_specialist_techniques",
+              conditionMode: "all",
+              groups: [
+                {
+                  groupId: "needs_specialist_techniques_group",
+                  mode: "all",
+                  conditions: [
+                    {
+                      conditionId: "need_specialist_techniques_true",
+                      contextFactKey: "need_specialist_techniques_ctx",
+                      operator: "equals",
+                      comparisonJson: { value: true },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        key: "invoke_specialist_techniques",
         type: "invoke",
-        displayName: "Invoke Recommended Technique Workflows",
+        displayName: "Invoke Specialist Techniques",
         invokeConfig: {
           targetKind: "workflow",
           sourceMode: "context_fact_backed",
-          contextFactKey: "selected_technique_workflows_ctx",
+          contextFactKey: "selected_technique_workflow_refs_ctx",
+          bindings: [
+            {
+              destinationKind: "work_unit_fact",
+              destinationWorkUnitKey: "brainstorming",
+              destinationFactKey: "brainstorming_focus",
+              sourceKind: "context_fact",
+              contextFactKey: "brainstorming_focus_ctx",
+            },
+            {
+              destinationKind: "work_unit_fact",
+              destinationWorkUnitKey: "brainstorming",
+              destinationFactKey: "desired_outcome",
+              sourceKind: "context_fact",
+              contextFactKey: "desired_outcome_ctx",
+            },
+            {
+              destinationKind: "work_unit_fact",
+              destinationWorkUnitKey: "brainstorming",
+              destinationFactKey: "constraints",
+              sourceKind: "context_fact",
+              contextFactKey: "constraints_ctx",
+            },
+            {
+              destinationKind: "artifact_slot",
+              destinationSlotWorkUnitKey: "brainstorming",
+              destinationSlotSuffix: "brainstorming-session",
+              sourceKind: "context_fact",
+              contextFactKey: "brainstorming_session_artifact_ctx",
+            },
+          ],
         },
       },
       {
-        key: "converge_brainstorming_session",
+        key: "synthesize_session_outputs",
         type: "agent",
-        displayName: "Converge Brainstorming Session",
+        displayName: "Synthesize Session Outputs",
         agentConfig: {
           objective:
-            "Converge the brainstorming session into durable selected directions and follow-up topics after the recommended techniques have been explored.",
+            "Synthesize the brainstorming session and any specialist-technique outputs into durable selected directions, priority directions, and follow-up research topics.",
           instructionsMarkdown:
-            "Review the brainstorming frame and the recommended technique workflow set, then converge the session into clear selected directions and optional follow-up research topics that downstream work can act on.",
+            "Review the brainstorming session artifact, the technique plan, and any specialist-technique outputs. Group ideas into clusters, select the most actionable directions, prioritize them, and write durable downstream-usable outputs into bound facts.",
           readContextFactKeys: [
-            "brainstorming_focus_ctx",
+            "brainstorming_session_artifact_ctx",
+            "technique_plan_ctx",
+            "technique_outputs_ctx",
             "desired_outcome_ctx",
-            "objectives_ctx",
-            "constraints_ctx",
-            "selected_technique_workflows_ctx",
           ],
-          writeContextFactKeys: ["selected_directions_ctx", "follow_up_research_topics_ctx"],
-          completionRequirementContextFactKeys: ["selected_directions_ctx"],
+          writeContextFactKeys: [
+            "idea_clusters_ctx",
+            "selected_directions_ctx",
+            "priority_directions_ctx",
+            "follow_up_research_topics_ctx",
+          ],
+          completionRequirementContextFactKeys: [
+            "selected_directions_ctx",
+            "priority_directions_ctx",
+          ],
         },
       },
+      {
+        key: "propagate_brainstorming_outputs",
+        type: "action",
+        displayName: "Propagate Brainstorming Outputs",
+        actionConfig: {
+          actions: [
+            {
+              actionId: "propagate_selected_directions",
+              actionKey: "propagate_selected_directions",
+              label: "Propagate Selected Directions",
+              contextFactKey: "selected_directions_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "selected_directions",
+                  itemKey: "brainstorming.selected_directions",
+                  label: "Selected Directions",
+                  targetContextFactKey: "selected_directions_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_priority_directions",
+              actionKey: "propagate_priority_directions",
+              label: "Propagate Priority Directions",
+              contextFactKey: "priority_directions_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "priority_directions",
+                  itemKey: "brainstorming.priority_directions",
+                  label: "Priority Directions",
+                  targetContextFactKey: "priority_directions_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_follow_up_research_topics",
+              actionKey: "propagate_follow_up_research_topics",
+              label: "Propagate Follow-up Research Topics",
+              contextFactKey: "follow_up_research_topics_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "follow_up_research_topics",
+                  itemKey: "brainstorming.follow_up_research_topics",
+                  label: "Follow-up Research Topics",
+                  targetContextFactKey: "follow_up_research_topics_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_brainstorming_session_artifact",
+              actionKey: "propagate_brainstorming_session_artifact",
+              label: "Propagate Brainstorming Session Artifact",
+              contextFactKey: "brainstorming_session_artifact_ctx",
+              contextFactKind: "artifact_slot_reference_fact",
+              items: [
+                {
+                  itemId: "brainstorming_session_artifact",
+                  itemKey: "brainstorming.brainstorming_session",
+                  label: "Brainstorming Session Artifact",
+                  targetContextFactKey: "brainstorming_session_artifact_ctx",
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ],
+    explicitEdges: [
+      { fromStepKey: "session_setup", toStepKey: "facilitate_brainstorming_session" },
+      {
+        fromStepKey: "facilitate_brainstorming_session",
+        toStepKey: "branch_need_specialist_techniques",
+      },
+      { fromStepKey: "invoke_specialist_techniques", toStepKey: "synthesize_session_outputs" },
+      { fromStepKey: "synthesize_session_outputs", toStepKey: "propagate_brainstorming_outputs" },
     ],
   },
   ...(
@@ -4565,6 +4931,35 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
     workflowSuffix,
     contextFacts: [
       {
+        key: "brainstorming_focus_ctx",
+        label: "Brainstorming Focus",
+        kind: "bound_fact",
+        cardinality: "one",
+        bindingKey: "brainstorming_focus",
+      },
+      {
+        key: "desired_outcome_ctx",
+        label: "Desired Outcome",
+        kind: "bound_fact",
+        cardinality: "one",
+        bindingKey: "desired_outcome",
+      },
+      {
+        key: "constraints_ctx",
+        label: "Constraints",
+        kind: "bound_fact",
+        cardinality: "one",
+        bindingKey: "constraints",
+      },
+      {
+        key: "brainstorming_session_artifact_ctx",
+        label: "Brainstorming Session Artifact",
+        kind: "artifact_slot_reference_fact",
+        cardinality: "one",
+        slotWorkUnitKey: "brainstorming",
+        slotSuffix: "brainstorming-session",
+      },
+      {
         key: "technique_focus_ctx",
         label: "Technique Focus",
         kind: "plain_fact",
@@ -4574,16 +4969,95 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
       {
         key: "technique_output_ctx",
         label: "Technique Output",
-        kind: "plain_fact",
+        kind: "bound_fact",
         cardinality: "many",
-        valueType: "json",
+        bindingKey: "technique_outputs",
       },
     ],
     steps: [
       {
+        key:
+          workflowSuffix === "first-principles-analysis"
+            ? "frame_foundations"
+            : workflowSuffix === "five-whys-deep-dive"
+              ? "define_problem_signal"
+              : workflowSuffix === "socratic-questioning"
+                ? "frame_claims_to_probe"
+                : workflowSuffix === "stakeholder-round-table"
+                  ? "select_stakeholder_lenses"
+                  : "select_ideas_for_critique",
+        type: "form" as const,
+        displayName:
+          workflowSuffix === "first-principles-analysis"
+            ? "Frame Foundations"
+            : workflowSuffix === "five-whys-deep-dive"
+              ? "Define Problem Signal"
+              : workflowSuffix === "socratic-questioning"
+                ? "Frame Claims to Probe"
+                : workflowSuffix === "stakeholder-round-table"
+                  ? "Select Stakeholder Lenses"
+                  : "Select Ideas for Critique",
+        formFields: [
+          {
+            key: "technique_focus",
+            label: "Technique Focus",
+            contextFactKey: "technique_focus_ctx",
+            valueType: "string",
+            required: true,
+          },
+        ],
+      },
+      {
         key: `run_${workflowSuffix.replaceAll("-", "_")}`,
         type: "agent" as const,
         displayName: "Run Technique",
+        agentConfig: {
+          objective: `Run the ${workflowSuffix} technique against the current brainstorming focus and record a durable technique output.`,
+          instructionsMarkdown:
+            "Use the brainstorming focus, desired outcome, constraints, and existing brainstorming session artifact to execute the technique. Produce a structured technique output that can be consumed during synthesis.",
+          readContextFactKeys: [
+            "brainstorming_focus_ctx",
+            "desired_outcome_ctx",
+            "constraints_ctx",
+            "brainstorming_session_artifact_ctx",
+            "technique_focus_ctx",
+          ],
+          writeContextFactKeys: ["technique_output_ctx"],
+          completionRequirementContextFactKeys: ["technique_output_ctx"],
+        },
+      },
+      {
+        key:
+          workflowSuffix === "first-principles-analysis"
+            ? "capture_first_principles_output"
+            : workflowSuffix === "five-whys-deep-dive"
+              ? "capture_five_whys_output"
+              : workflowSuffix === "socratic-questioning"
+                ? "capture_socratic_output"
+                : workflowSuffix === "stakeholder-round-table"
+                  ? "capture_stakeholder_output"
+                  : "capture_refinement_output",
+        type: "action" as const,
+        displayName: "Capture Technique Output",
+        actionConfig: {
+          actions: [
+            {
+              actionId: `propagate_${workflowSuffix.replaceAll("-", "_")}_output`,
+              actionKey: `propagate_${workflowSuffix.replaceAll("-", "_")}_output`,
+              label: "Propagate Technique Output",
+              contextFactKey: "technique_output_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "technique_output",
+                  itemKey: `brainstorming.${workflowSuffix}.technique_output`,
+                  label: "Technique Output",
+                  targetContextFactKey: "technique_output_ctx",
+                },
+              ],
+            },
+          ],
+        },
       },
     ],
   })),

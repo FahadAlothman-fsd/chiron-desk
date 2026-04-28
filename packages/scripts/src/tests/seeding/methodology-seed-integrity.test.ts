@@ -250,6 +250,7 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
         "technique_outputs",
         "selected_directions",
         "follow_up_research_topics",
+        "priority_directions",
       ]),
     );
     expect(workflowRows.some((row) => row.key === "brainstorming_primary")).toBe(false);
@@ -602,6 +603,40 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
         "setup.integration_points",
         "setup.setup_path_summary",
         "setup.next_recommended_work_unit",
+      ]);
+
+      expect(
+        workflowSteps
+          .filter((row) => row.workflowId.includes(":workflow:brainstorming:brainstorming:"))
+          .map((row) => row.key),
+      ).toEqual([
+        "session_setup",
+        "facilitate_brainstorming_session",
+        "branch_need_specialist_techniques",
+        "invoke_specialist_techniques",
+        "synthesize_session_outputs",
+        "propagate_brainstorming_outputs",
+        "session_setup",
+        "facilitate_brainstorming_session",
+        "branch_need_specialist_techniques",
+        "invoke_specialist_techniques",
+        "synthesize_session_outputs",
+        "propagate_brainstorming_outputs",
+      ]);
+
+      expect(
+        workflowEdges
+          .filter((row) => row.workflowId.includes(":workflow:brainstorming:brainstorming:"))
+          .map((row) => row.edgeKey),
+      ).toEqual([
+        "session_setup_to_facilitate_brainstorming_session",
+        "facilitate_brainstorming_session_to_branch_need_specialist_techniques",
+        "invoke_specialist_techniques_to_synthesize_session_outputs",
+        "synthesize_session_outputs_to_propagate_brainstorming_outputs",
+        "session_setup_to_facilitate_brainstorming_session",
+        "facilitate_brainstorming_session_to_branch_need_specialist_techniques",
+        "invoke_specialist_techniques_to_synthesize_session_outputs",
+        "synthesize_session_outputs_to_propagate_brainstorming_outputs",
       ]);
     }
 
