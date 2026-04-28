@@ -489,6 +489,154 @@ function serializeInvokeBindingDraftValue(
   return typeof value === "string" ? value : formatUnknown(value);
 }
 
+type InvokeBindingEditorField = RuntimeFormNestedField & {
+  readonly nestedFields?: readonly RuntimeFormNestedField[];
+};
+
+function buildInvokeBindingEditorField(
+  binding: InvokeWorkUnitBindingPreview,
+): InvokeBindingEditorField | null {
+  if (binding.destinationKind !== "work_unit_fact") {
+    return null;
+  }
+
+  return {
+    key: binding.destinationDefinitionId,
+    label: binding.destinationLabel,
+    factType: binding.destinationFactType ?? "string",
+    cardinality: binding.destinationCardinality ?? "one",
+    required: false,
+    ...(typeof binding.validation !== "undefined" ? { validation: binding.validation } : {}),
+    ...(binding.editorOptions ? { options: binding.editorOptions } : {}),
+    ...(binding.editorEmptyState ? { emptyState: binding.editorEmptyState } : {}),
+    ...(binding.editorWorkUnitTypeKey ? { workUnitTypeKey: binding.editorWorkUnitTypeKey } : {}),
+    ...(binding.editorNestedFields?.length ? { nestedFields: binding.editorNestedFields } : {}),
+  };
+}
+
+function parseInvokeBindingEditorValue(
+  binding: InvokeWorkUnitBindingPreview,
+  rawValue: string,
+): unknown {
+  if (rawValue.trim().length === 0) {
+    return binding.destinationCardinality === "many" ? [] : null;
+  }
+
+  if (binding.destinationCardinality === "many" || binding.destinationFactType === "json") {
+    const parsed = Result.try({
+      try: () => JSON.parse(rawValue),
+      catch: () => undefined,
+    });
+
+    return parsed.isOk() ? parsed.value : binding.destinationCardinality === "many" ? [] : null;
+  }
+
+  if (isWorkUnitBinding(binding)) {
+    return decodeOptionValue(rawValue);
+  }
+
+  if (binding.editorOptions?.length) {
+    return decodeOptionValue(rawValue);
+  }
+
+  if (binding.destinationFactType === "boolean") {
+    return rawValue === "true" ? true : rawValue === "false" ? false : null;
+  }
+
+  if (binding.destinationFactType === "number") {
+    const parsed = Number(rawValue);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return rawValue;
+}
+
+function InvokeBindingValueEditor(props: {
+  binding: InvokeWorkUnitBindingPreview;
+  rawValue: string;
+  onRawValueChange: (nextRawValue: string) => void;
+  disabled: boolean;
+}) {
+  const { binding, rawValue, onRawValueChange, disabled } = props;
+  const editorField = buildInvokeBindingEditorField(binding);
+
+  if (!editorField) {
+    return null;
+  }
+
+  const commitValue = (nextValue: unknown) => {
+    onRawValueChange(serializeInvokeBindingDraftValue(binding, nextValue));
+  };
+
+  if (binding.destinationFactType === "json" && binding.editorNestedFields?.length) {
+    const renderStructuredBlock = (
+      blockValue: unknown,
+      onBlockChange: (nextValue: unknown) => void,
+    ) => {
+      const current = isPlainRecord(blockValue) ? blockValue : {};
+
+      return (
+        <div className="space-y-3 border border-border/70 bg-background/40 p-3">
+          {binding.editorNestedFields?.map((nestedField) => (
+            <NestedFieldEditor
+              key={nestedField.key}
+              nestedField={nestedField}
+              value={current[nestedField.key]}
+              onChange={(nextValue) => onBlockChange({ ...current, [nestedField.key]: nextValue })}
+              disabled={disabled}
+            />
+          ))}
+        </div>
+      );
+    };
+
+    if (binding.destinationCardinality === "many") {
+      const blocks = Array.isArray(parseInvokeBindingEditorValue(binding, rawValue))
+        ? (parseInvokeBindingEditorValue(binding, rawValue) as unknown[])
+        : [];
+
+      return (
+        <div className="space-y-3">
+          {blocks.map((block, index) => (
+            <div key={`${binding.destinationDefinitionId}-${index}`} className="space-y-3">
+              {renderStructuredBlock(block, (nextValue) =>
+                commitValue(updateArrayValue(blocks, index, nextValue)),
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                disabled={disabled}
+                onClick={() => commitValue(removeArrayValue(blocks, index))}
+              >
+                Remove row
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            disabled={disabled}
+            onClick={() => commitValue(addArrayValue(blocks, {}))}
+          >
+            Add row
+          </Button>
+        </div>
+      );
+    }
+
+    return renderStructuredBlock(parseInvokeBindingEditorValue(binding, rawValue), commitValue);
+  }
+
+  return (
+    <NestedFieldEditor
+      nestedField={editorField}
+      value={parseInvokeBindingEditorValue(binding, rawValue)}
+      onChange={commitValue}
+      disabled={disabled}
+    />
+  );
+}
+
 function createRuntimeBindingDraftState(
   rows: readonly RuntimeInvokeWorkUnitTargetRow[],
 ): Record<string, Record<string, string>> {
@@ -7252,10 +7400,11 @@ function InvokeInteractionSurface(props: {
                                                     </SelectContent>
                                                   </Select>
                                                 ) : manyOrJsonInput ? (
-                                                  <Textarea
-                                                    value={runtimeRawValue}
+                                                  <InvokeBindingValueEditor
+                                                    binding={binding}
+                                                    rawValue={runtimeRawValue}
                                                     disabled={bindingsLocked}
-                                                    onChange={(event) => {
+                                                    onRawValueChange={(value) => {
                                                       setRuntimeBindingValidationError(null);
                                                       setRuntimeBindingInputsByRowId((current) =>
                                                         updateRuntimeBindingDraftState({
@@ -7264,16 +7413,10 @@ function InvokeInteractionSurface(props: {
                                                             row.invokeWorkUnitTargetExecutionId,
                                                           destinationDefinitionId:
                                                             binding.destinationDefinitionId,
-                                                          value: event.target.value,
+                                                          value,
                                                         }),
                                                       );
                                                     }}
-                                                    rows={3}
-                                                    placeholder={
-                                                      binding.destinationCardinality === "many"
-                                                        ? '["value-1", "value-2"]'
-                                                        : '{"key":"value"}'
-                                                    }
                                                   />
                                                 ) : (
                                                   <Input

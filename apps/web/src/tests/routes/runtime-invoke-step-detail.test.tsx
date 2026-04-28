@@ -44,6 +44,17 @@ vi.mock("@/components/ui/button", () => ({
   buttonVariants: () => "button-variant",
 }));
 
+vi.mock("@/components/ui/checkbox", () => ({
+  Checkbox: ({ checked, onCheckedChange, ...props }: any) => (
+    <input
+      type="checkbox"
+      checked={Boolean(checked)}
+      onChange={(event) => onCheckedChange?.(event.target.checked)}
+      {...props}
+    />
+  ),
+}));
+
 vi.mock("@/components/ui/card", () => ({
   Card: ({ children }: { children: ReactNode }) => <section>{children}</section>,
   CardHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -364,6 +375,117 @@ function buildDetail(): any {
               destinationFactType: "string" as const,
               destinationCardinality: "one" as const,
               sourceKind: "runtime" as const,
+              requiresRuntimeValue: true,
+            },
+            {
+              destinationKind: "work_unit_fact" as const,
+              destinationDefinitionId: "fact-story-constraints",
+              destinationLabel: "Story Constraints",
+              destinationFactType: "json" as const,
+              destinationCardinality: "one" as const,
+              validation: {
+                kind: "json-schema" as const,
+                schema: {
+                  type: "object" as const,
+                  properties: {
+                    must_have: {
+                      type: "string" as const,
+                      title: "Must Have",
+                    },
+                    needs_review: {
+                      type: "boolean" as const,
+                      title: "Needs Review",
+                    },
+                    timebox_hours: {
+                      type: "number" as const,
+                      title: "Timebox Hours",
+                    },
+                    tags: {
+                      type: "array" as const,
+                      title: "Tags",
+                      items: {
+                        type: "string" as const,
+                      },
+                    },
+                  },
+                },
+                subSchema: {
+                  type: "object" as const,
+                  fields: [
+                    { key: "must_have", type: "string" as const, displayName: "Must Have" },
+                    {
+                      key: "needs_review",
+                      type: "boolean" as const,
+                      displayName: "Needs Review",
+                    },
+                    {
+                      key: "timebox_hours",
+                      type: "number" as const,
+                      displayName: "Timebox Hours",
+                    },
+                    {
+                      key: "tags",
+                      type: "string" as const,
+                      displayName: "Tags",
+                      cardinality: "many" as const,
+                    },
+                  ],
+                },
+              },
+              editorNestedFields: [
+                {
+                  key: "must_have",
+                  label: "Must Have",
+                  factType: "string" as const,
+                  cardinality: "one" as const,
+                  required: false,
+                },
+                {
+                  key: "needs_review",
+                  label: "Needs Review",
+                  factType: "boolean" as const,
+                  cardinality: "one" as const,
+                  required: false,
+                },
+                {
+                  key: "timebox_hours",
+                  label: "Timebox Hours",
+                  factType: "number" as const,
+                  cardinality: "one" as const,
+                  required: false,
+                },
+                {
+                  key: "tags",
+                  label: "Tags",
+                  factType: "string" as const,
+                  cardinality: "many" as const,
+                  required: false,
+                },
+              ],
+              sourceKind: "runtime" as const,
+              savedDraftValueJson: {
+                must_have: "Keep PCI scope narrow",
+                needs_review: true,
+                timebox_hours: 6,
+                tags: ["risk", "payments"],
+              },
+              resolvedValueJson: {
+                must_have: "Keep PCI scope narrow",
+                needs_review: true,
+                timebox_hours: 6,
+                tags: ["risk", "payments"],
+              },
+              requiresRuntimeValue: true,
+            },
+            {
+              destinationKind: "work_unit_fact" as const,
+              destinationDefinitionId: "fact-story-reviewers",
+              destinationLabel: "Reviewers",
+              destinationFactType: "string" as const,
+              destinationCardinality: "many" as const,
+              sourceKind: "runtime" as const,
+              savedDraftValueJson: ["Alex Reviewer"],
+              resolvedValueJson: ["Alex Reviewer"],
               requiresRuntimeValue: true,
             },
             {
@@ -975,6 +1097,13 @@ describe("runtime invoke step detail route", () => {
     expect(screen.getAllByText(/prefill/i).length).toBeGreaterThan(0);
     expect(screen.getByText("Saved direction")).toBeTruthy();
     expect(screen.getByText("Context direction")).toBeTruthy();
+    expect(screen.getAllByText("Story Constraints").length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("Must Have")).toBeTruthy();
+    expect(screen.getByLabelText("Needs Review")).toBeTruthy();
+    expect(screen.getByLabelText("Timebox Hours")).toBeTruthy();
+    expect(screen.getByDisplayValue("risk")).toBeTruthy();
+    expect(screen.getByDisplayValue("payments")).toBeTruthy();
+    expect(screen.getByDisplayValue("Alex Reviewer")).toBeTruthy();
     expect(
       screen.getByRole("combobox", {
         name: /artifact-files-invoke-work-unit-row-2:artifact-brainstorming-session/i,
@@ -1053,6 +1182,23 @@ describe("runtime invoke step detail route", () => {
     const overrideInput = screen.getByDisplayValue("Saved direction");
     await user.clear(overrideInput);
     await user.type(overrideInput, "Operator override");
+    const mustHaveInput = screen.getByLabelText("Must Have");
+    await user.clear(mustHaveInput);
+    await user.type(mustHaveInput, "Protect the checkout happy path");
+    const timeboxHoursInput = screen.getByLabelText("Timebox Hours");
+    await user.clear(timeboxHoursInput);
+    await user.type(timeboxHoursInput, "8");
+    const needsReviewInput = screen.getByLabelText("Needs Review");
+    await user.click(needsReviewInput);
+    const firstTagInput = screen.getByDisplayValue("risk");
+    await user.clear(firstTagInput);
+    await user.type(firstTagInput, "payments");
+    const secondTagInput = screen.getAllByDisplayValue("payments")[1]!;
+    await user.clear(secondTagInput);
+    await user.type(secondTagInput, "security");
+    const reviewerInput = screen.getByDisplayValue("Alex Reviewer");
+    await user.clear(reviewerInput);
+    await user.type(reviewerInput, "Taylor Reviewer");
     await user.click(screen.getAllByRole("button", { name: "Start work unit" }).at(1)!);
 
     await waitFor(() => expect(harness.startWorkUnitCalls).toHaveLength(1));
@@ -1065,6 +1211,19 @@ describe("runtime invoke step detail route", () => {
         {
           workUnitFactDefinitionId: "fact-story-direction",
           valueJson: "Operator override",
+        },
+        {
+          workUnitFactDefinitionId: "fact-story-constraints",
+          valueJson: {
+            must_have: "Protect the checkout happy path",
+            needs_review: false,
+            timebox_hours: 8,
+            tags: ["payments", "security"],
+          },
+        },
+        {
+          workUnitFactDefinitionId: "fact-story-reviewers",
+          valueJson: ["Taylor Reviewer"],
         },
       ]),
     });
