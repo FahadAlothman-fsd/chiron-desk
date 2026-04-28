@@ -271,6 +271,55 @@ const normalizeSourceDraftTemplate = (
 const isContextBackedSourceMode = (sourceMode: string): boolean =>
   sourceMode === "fact_backed" || sourceMode === "context_fact_backed";
 
+const buildEffectiveInvokeBindings = (params: {
+  invokeDefinition: {
+    payload: {
+      bindings: readonly any[];
+      sourceMode: string;
+      contextFactDefinitionId?: string;
+    };
+  };
+  sourceContextFact:
+    | {
+        kind?: string;
+        selectedWorkUnitFactDefinitionIds?: readonly string[];
+        selectedArtifactSlotDefinitionIds?: readonly string[];
+      }
+    | undefined;
+}): readonly any[] => {
+  if (
+    !isContextBackedSourceMode(params.invokeDefinition.payload.sourceMode) ||
+    typeof params.invokeDefinition.payload.contextFactDefinitionId !== "string" ||
+    params.sourceContextFact?.kind !== "work_unit_draft_spec_fact"
+  ) {
+    return params.invokeDefinition.payload.bindings;
+  }
+
+  const draftFactBindings =
+    params.sourceContextFact.selectedWorkUnitFactDefinitionIds?.map((workUnitFactDefinitionId) => ({
+      destination: { kind: "work_unit_fact" as const, workUnitFactDefinitionId },
+      source: {
+        kind: "context_fact" as const,
+        contextFactDefinitionId: params.invokeDefinition.payload.contextFactDefinitionId!,
+      },
+    })) ?? [];
+
+  const draftArtifactBindings =
+    params.sourceContextFact.selectedArtifactSlotDefinitionIds?.map((artifactSlotDefinitionId) => ({
+      destination: { kind: "artifact_slot" as const, artifactSlotDefinitionId },
+      source: {
+        kind: "context_fact" as const,
+        contextFactDefinitionId: params.invokeDefinition.payload.contextFactDefinitionId!,
+      },
+    })) ?? [];
+
+  return [
+    ...draftFactBindings,
+    ...draftArtifactBindings,
+    ...params.invokeDefinition.payload.bindings,
+  ];
+};
+
 const toTemplateValueFromInitialFactDefinition = (definition: {
   factDefinitionId: string;
   initialValueJson?: unknown;
@@ -416,6 +465,13 @@ const toInitialFactDefinition = (params: {
     return {
       factDefinitionId: params.factDefinitionId,
       initialReferencedProjectWorkUnitId: params.value.projectWorkUnitId,
+    };
+  }
+
+  if (typeof params.value === "string" && params.value.length > 0) {
+    return {
+      factDefinitionId: params.factDefinitionId,
+      initialReferencedProjectWorkUnitId: params.value,
     };
   }
 
@@ -686,7 +742,23 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
           return sourceDraftTemplates[0];
         };
 
-        const invokeBindings = invokeDefinition.payload.bindings;
+        const invokeSourceContextFact =
+          isContextBackedSourceMode(invokeDefinition.payload.sourceMode) &&
+          "contextFactDefinitionId" in invokeDefinition.payload
+            ? contextFactsByDefinitionId.get(invokeDefinition.payload.contextFactDefinitionId)
+            : undefined;
+        const invokeBindings = buildEffectiveInvokeBindings({
+          invokeDefinition: {
+            payload: {
+              bindings: invokeDefinition.payload.bindings,
+              sourceMode: invokeDefinition.payload.sourceMode,
+              ...("contextFactDefinitionId" in invokeDefinition.payload
+                ? { contextFactDefinitionId: invokeDefinition.payload.contextFactDefinitionId }
+                : {}),
+            },
+          },
+          sourceContextFact: invokeSourceContextFact,
+        });
         const workUnitFactDestinationIds = new Set(
           invokeBindings.flatMap((binding) =>
             binding.destination.kind === "work_unit_fact"
@@ -1254,7 +1326,23 @@ export const InvokeWorkUnitExecutionServiceLive = Layer.effect(
           return sourceDraftTemplates[0];
         };
 
-        const invokeBindings = invokeDefinition.payload.bindings;
+        const invokeSourceContextFact =
+          isContextBackedSourceMode(invokeDefinition.payload.sourceMode) &&
+          "contextFactDefinitionId" in invokeDefinition.payload
+            ? contextFactsByDefinitionId.get(invokeDefinition.payload.contextFactDefinitionId)
+            : undefined;
+        const invokeBindings = buildEffectiveInvokeBindings({
+          invokeDefinition: {
+            payload: {
+              bindings: invokeDefinition.payload.bindings,
+              sourceMode: invokeDefinition.payload.sourceMode,
+              ...("contextFactDefinitionId" in invokeDefinition.payload
+                ? { contextFactDefinitionId: invokeDefinition.payload.contextFactDefinitionId }
+                : {}),
+            },
+          },
+          sourceContextFact: invokeSourceContextFact,
+        });
         const workUnitFactDestinationIds = new Set(
           invokeBindings.flatMap((binding) =>
             binding.destination.kind === "work_unit_fact"

@@ -90,6 +90,8 @@ function createRuntime(options?: {
       | { kind: "literal"; value: string | number | boolean }
       | { kind: "runtime" };
   }>;
+  invokeSourceMode?: "fixed" | "fact_backed" | "context_fact_backed";
+  invokeSourceContextFactDefinitionId?: string;
   workflowContextFactInstances?: readonly RuntimeWorkflowExecutionContextFactRow[];
   workflowEditorContextFacts?: ReadonlyArray<{
     contextFactDefinitionId: string;
@@ -98,6 +100,8 @@ function createRuntime(options?: {
     cardinality: "one" | "many";
     valueType?: "string" | "number" | "boolean" | "json";
     label?: string;
+    selectedWorkUnitFactDefinitionIds?: readonly string[];
+    selectedArtifactSlotDefinitionIds?: readonly string[];
   }>;
   factSchemas?: ReadonlyArray<{
     id: string;
@@ -337,8 +341,11 @@ function createRuntime(options?: {
         payload: {
           key: "invoke-children",
           targetKind: "work_unit",
-          sourceMode: "fixed",
+          sourceMode: options?.invokeSourceMode ?? "fixed",
           workUnitDefinitionId: "wu-child",
+          ...(options?.invokeSourceContextFactDefinitionId
+            ? { contextFactDefinitionId: options.invokeSourceContextFactDefinitionId }
+            : {}),
           bindings: options?.invokeBindings ?? [],
           activationTransitions: options?.invokeActivationTransitions ?? [
             {
@@ -418,6 +425,28 @@ function createRuntime(options?: {
           };
           state.extraInvokeTargets.push(row);
           return row;
+        })(),
+      ),
+    saveInvokeWorkUnitTargetDraft: (params: {
+      invokeWorkUnitTargetExecutionId: string;
+      frozenDraftTemplateJson: unknown;
+    }) =>
+      Effect.succeed(
+        (() => {
+          const target = [state.invokeTarget, ...state.extraInvokeTargets].find(
+            (entry) => entry.id === params.invokeWorkUnitTargetExecutionId,
+          );
+          if (!target) {
+            throw new Error("invoke work-unit target execution not found");
+          }
+
+          target.frozenDraftTemplateJson = params.frozenDraftTemplateJson;
+          target.updatedAt = new Date("2026-04-14T00:02:30.000Z");
+
+          return {
+            invokeWorkUnitTargetExecutionId: params.invokeWorkUnitTargetExecutionId,
+            result: "saved" as const,
+          };
         })(),
       ),
     markInvokeWorkUnitTargetExecutionStarted: () => Effect.die("unused"),
@@ -628,7 +657,7 @@ function createRuntime(options?: {
     runtimeGateLayer,
   );
 
-  const layer = Layer.provide(InvokeWorkUnitExecutionServiceLive, dependencies);
+  const layer = InvokeWorkUnitExecutionServiceLive.pipe(Layer.provideMerge(dependencies));
 
   return { dependencies, layer, state };
 }
@@ -1320,6 +1349,122 @@ describe("InvokeWorkUnitExecutionService", () => {
         }),
       ]),
     );
+  });
+
+  it("saves draft-spec-derived overrides for generated invoke destinations", async () => {
+    const runtime = createRuntime({
+      invokeSourceMode: "context_fact_backed",
+      invokeSourceContextFactDefinitionId: "ctx-draft-spec",
+      invokeBindings: [],
+      workflowEditorContextFacts: [
+        {
+          contextFactDefinitionId: "ctx-draft-spec",
+          key: "draft_spec_ctx",
+          kind: "work_unit_draft_spec_fact",
+          cardinality: "many",
+          label: "Draft Spec",
+          selectedWorkUnitFactDefinitionIds: ["fact-link", "fact-objectives"],
+        },
+      ],
+      workflowContextFactInstances: [
+        {
+          id: "ctx-draft-instance-1",
+          workflowExecutionId: "wf-parent-exec-1",
+          contextFactDefinitionId: "ctx-draft-spec",
+          instanceOrder: 0,
+          valueJson: {
+            draftKey: "draft-story-1",
+            workUnitDefinitionId: "wu-child",
+            factValues: [
+              { workUnitFactDefinitionId: "fact-link", value: "setup-work-unit-1" },
+              {
+                workUnitFactDefinitionId: "fact-objectives",
+                value: [
+                  {
+                    title: "Define MVP boundary",
+                  },
+                ],
+              },
+            ],
+            artifactSlots: [],
+          },
+          sourceStepExecutionId: "form-step-1",
+          createdAt: new Date("2026-04-14T00:00:00.000Z"),
+          updatedAt: new Date("2026-04-14T00:00:00.000Z"),
+        },
+      ],
+      factSchemas: [
+        {
+          id: "fact-link",
+          methodologyVersionId: "version-1",
+          workUnitTypeId: "wu-child",
+          name: "Linked Setup",
+          key: "linked_setup",
+          factType: "work_unit",
+          cardinality: "one",
+          description: null,
+          defaultValueJson: null,
+          guidanceJson: null,
+          validationJson: { workUnitKey: "WU.PARENT" },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: "fact-objectives",
+          methodologyVersionId: "version-1",
+          workUnitTypeId: "wu-child",
+          name: "Objectives",
+          key: "objectives",
+          factType: "json",
+          cardinality: "many",
+          description: null,
+          defaultValueJson: null,
+          guidanceJson: null,
+          validationJson: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+    });
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* InvokeWorkUnitExecutionService;
+        return yield* service.saveInvokeWorkUnitTargetDraft({
+          projectId: "project-1",
+          stepExecutionId: "step-exec-1",
+          invokeWorkUnitTargetExecutionId: "invoke-wu-target-1",
+          workflowDefinitionId: "wf-child-primary",
+          runtimeFactValues: [
+            {
+              workUnitFactDefinitionId: "fact-link",
+              valueJson: { projectWorkUnitId: "wu-parent-1" },
+            },
+            {
+              workUnitFactDefinitionId: "fact-objectives",
+              valueJson: [{ title: "Sharpen MVP promise" }],
+            },
+          ],
+        });
+      }).pipe(Effect.provide(runtime.layer)),
+    );
+
+    expect(result.result).toBe("saved");
+    expect(runtime.state.invokeTarget.frozenDraftTemplateJson).toEqual({
+      draftKey: "draft-story-1",
+      workUnitDefinitionId: "wu-child",
+      factValues: [
+        {
+          workUnitFactDefinitionId: "fact-link",
+          value: { projectWorkUnitId: "wu-parent-1" },
+        },
+        {
+          workUnitFactDefinitionId: "fact-objectives",
+          value: [{ title: "Sharpen MVP promise" }],
+        },
+      ],
+      artifactSlots: [],
+    });
   });
 
   it("rejects starts when the parent invoke step is no longer active", async () => {
