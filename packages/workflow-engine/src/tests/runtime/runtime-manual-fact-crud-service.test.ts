@@ -492,7 +492,7 @@ const makeCrudTestLayer = () => {
             contextFactDefinitionId: "ctx-draft",
             cardinality: "one",
             workUnitDefinitionId: "story",
-            selectedWorkUnitFactDefinitionIds: ["wu-fact-title"],
+            selectedWorkUnitFactDefinitionIds: ["wu-fact-title", "wu-fact-constraints"],
             selectedArtifactSlotDefinitionIds: ["slot-story-doc"],
           },
           {
@@ -617,6 +617,39 @@ const makeCrudTestLayer = () => {
           defaultValueJson: null,
           guidanceJson: null,
           validationJson: { kind: "none" },
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: "wu-fact-constraints",
+          methodologyVersionId: "version-1",
+          workUnitTypeId: "story",
+          name: "Constraints",
+          key: "constraints",
+          factType: "json",
+          cardinality: "one",
+          description: null,
+          defaultValueJson: null,
+          guidanceJson: null,
+          validationJson: {
+            kind: "json-schema",
+            schemaDialect: "draft-2020-12",
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                must_have: { type: "string", cardinality: "many" },
+                must_avoid: { type: "string", cardinality: "many" },
+              },
+            },
+            subSchema: {
+              type: "object",
+              fields: [
+                { key: "must_have", type: "string", cardinality: "many" },
+                { key: "must_avoid", type: "string", cardinality: "many" },
+              ],
+            },
+          },
           createdAt: now,
           updatedAt: now,
         },
@@ -990,6 +1023,79 @@ describe("RuntimeManualFactCrudService", () => {
     expect((failure as { message?: string } | undefined)?.message).toContain(
       "require at least one fact value or artifact value",
     );
+  });
+
+  it("accepts draft spec json fields with nested many-valued string arrays", async () => {
+    const runtime = makeCrudTestLayer();
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* RuntimeManualFactCrudService;
+        return yield* service.apply({
+          scope: "workflow_context",
+          projectId: "project-1",
+          workflowExecutionId: "wfexec-1",
+          contextFactDefinitionId: "ctx-draft",
+          payload: {
+            verb: "create",
+            value: {
+              constraints: {
+                must_have: ["Keep the product simpler than Jira"],
+                must_avoid: ["Inventing enterprise-heavy workflow complexity"],
+              },
+            },
+          },
+        });
+      }).pipe(Effect.provide(runtime.layer)),
+    );
+
+    expect(result.affectedCount).toBe(1);
+    expect(runtime.state.workflowContextFacts.at(-1)?.valueJson).toEqual({
+      workUnitDefinitionId: "story",
+      factValues: [
+        {
+          workUnitFactDefinitionId: "wu-fact-constraints",
+          value: {
+            must_have: ["Keep the product simpler than Jira"],
+            must_avoid: ["Inventing enterprise-heavy workflow complexity"],
+          },
+        },
+      ],
+      artifactValues: [],
+    });
+  });
+
+  it("returns a draft spec validation error with field path context", async () => {
+    const runtime = makeCrudTestLayer();
+
+    const failure = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* RuntimeManualFactCrudService;
+        return yield* service.apply({
+          scope: "workflow_context",
+          projectId: "project-1",
+          workflowExecutionId: "wfexec-1",
+          contextFactDefinitionId: "ctx-draft",
+          payload: {
+            verb: "create",
+            value: {
+              constraints: {
+                must_have: [1],
+              },
+            },
+          },
+        });
+      }).pipe(
+        Effect.provide(runtime.layer),
+        Effect.catchAll((error) => Effect.succeed(error)),
+      ),
+    );
+
+    expect(failure?._tag).toBe("RuntimeFactValidationError");
+    expect((failure as { message?: string } | undefined)?.message).toContain(
+      "Draft spec fact 'constraints' is invalid",
+    );
+    expect((failure as { message?: string } | undefined)?.message).toContain("must_have[0]");
   });
 
   it("rejects bound fact instance ids that do not exist in the current source", async () => {

@@ -261,7 +261,26 @@ const matchesJsonSchemaType = (value: unknown, schemaType: unknown): boolean => 
   return schemaType === actualType;
 };
 
-const validateJsonSchemaValue = (value: unknown, schemaValue: unknown): string | null => {
+const formatJsonPath = (path: readonly string[]): string =>
+  path.length === 0 ? "value" : path.join(".");
+
+const matchesSubSchemaFieldType = (value: unknown, fieldType: unknown): boolean => {
+  if (fieldType === "json") {
+    return isJsonCompatible(value);
+  }
+
+  if (fieldType === "number") {
+    return typeof value === "number" && Number.isFinite(value);
+  }
+
+  return typeof value === fieldType;
+};
+
+const validateJsonSchemaValue = (
+  value: unknown,
+  schemaValue: unknown,
+  path: readonly string[] = [],
+): string | null => {
   if (!isRecord(schemaValue)) {
     return null;
   }
@@ -279,53 +298,62 @@ const validateJsonSchemaValue = (value: unknown, schemaValue: unknown): string |
       ? [schemaValue.type]
       : [];
 
-  if (
+  if (acceptedTypes.length > 0 && schemaValue.cardinality === "many" && Array.isArray(value)) {
+    for (const [index, entry] of value.entries()) {
+      if (!acceptedTypes.some((schemaType) => matchesJsonSchemaType(entry, schemaType))) {
+        return `${formatJsonPath(path)}[${index}] must be ${acceptedTypes.map(String).join(" or ")}.`;
+      }
+    }
+  } else if (
     acceptedTypes.length > 0 &&
     !acceptedTypes.some((schemaType) => matchesJsonSchemaType(value, schemaType))
   ) {
-    return `Value must be ${acceptedTypes.map(String).join(" or ")}.`;
+    return `${formatJsonPath(path)} must be ${acceptedTypes.map(String).join(" or ")}.`;
   }
 
   if (typeof value === "number") {
     if (typeof schemaValue.minimum === "number" && value < schemaValue.minimum) {
-      return `Value must be greater than or equal to ${schemaValue.minimum}.`;
+      return `${formatJsonPath(path)} must be greater than or equal to ${schemaValue.minimum}.`;
     }
 
     if (typeof schemaValue.maximum === "number" && value > schemaValue.maximum) {
-      return `Value must be less than or equal to ${schemaValue.maximum}.`;
+      return `${formatJsonPath(path)} must be less than or equal to ${schemaValue.maximum}.`;
     }
 
     if (typeof schemaValue.exclusiveMinimum === "number" && value <= schemaValue.exclusiveMinimum) {
-      return `Value must be greater than ${schemaValue.exclusiveMinimum}.`;
+      return `${formatJsonPath(path)} must be greater than ${schemaValue.exclusiveMinimum}.`;
     }
 
     if (typeof schemaValue.exclusiveMaximum === "number" && value >= schemaValue.exclusiveMaximum) {
-      return `Value must be less than ${schemaValue.exclusiveMaximum}.`;
+      return `${formatJsonPath(path)} must be less than ${schemaValue.exclusiveMaximum}.`;
     }
   }
 
   if (typeof value === "string") {
     if (typeof schemaValue.minLength === "number" && value.length < schemaValue.minLength) {
-      return `Value must be at least ${schemaValue.minLength} characters.`;
+      return `${formatJsonPath(path)} must be at least ${schemaValue.minLength} characters.`;
     }
 
     if (typeof schemaValue.maxLength === "number" && value.length > schemaValue.maxLength) {
-      return `Value must be at most ${schemaValue.maxLength} characters.`;
+      return `${formatJsonPath(path)} must be at most ${schemaValue.maxLength} characters.`;
     }
   }
 
   if (Array.isArray(value)) {
     if (typeof schemaValue.minItems === "number" && value.length < schemaValue.minItems) {
-      return `Value must contain at least ${schemaValue.minItems} item(s).`;
+      return `${formatJsonPath(path)} must contain at least ${schemaValue.minItems} item(s).`;
     }
 
     if (typeof schemaValue.maxItems === "number" && value.length > schemaValue.maxItems) {
-      return `Value must contain at most ${schemaValue.maxItems} item(s).`;
+      return `${formatJsonPath(path)} must contain at most ${schemaValue.maxItems} item(s).`;
     }
 
     if (schemaValue.items !== undefined) {
-      for (const entry of value) {
-        const itemError = validateJsonSchemaValue(entry, schemaValue.items);
+      for (const [index, entry] of value.entries()) {
+        const itemError = validateJsonSchemaValue(entry, schemaValue.items, [
+          ...path,
+          `[${index}]`,
+        ]);
         if (itemError) {
           return itemError;
         }
@@ -342,13 +370,13 @@ const validateJsonSchemaValue = (value: unknown, schemaValue: unknown): string |
     if (properties && schemaValue.additionalProperties === false) {
       const extraKeys = Object.keys(value).filter((key) => !(key in properties));
       if (extraKeys.length > 0) {
-        return "Value must match the exact key-shape defined by the schema.";
+        return `${formatJsonPath(path)} must match the exact key-shape defined by the schema.`;
       }
     }
 
     for (const requiredKey of requiredKeys) {
       if (!(requiredKey in value)) {
-        return `Field '${requiredKey}' is required.`;
+        return `${formatJsonPath([...path, requiredKey])} is required.`;
       }
     }
 
@@ -358,7 +386,7 @@ const validateJsonSchemaValue = (value: unknown, schemaValue: unknown): string |
           continue;
         }
 
-        const propertyError = validateJsonSchemaValue(value[key], propertySchema);
+        const propertyError = validateJsonSchemaValue(value[key], propertySchema, [...path, key]);
         if (propertyError) {
           return propertyError;
         }
@@ -372,6 +400,7 @@ const validateJsonSchemaValue = (value: unknown, schemaValue: unknown): string |
 const validateSubSchemaValue = (
   value: unknown,
   validation: NonNullable<JsonSchemaValidation["subSchema"]>,
+  requiredKeys: ReadonlySet<string>,
 ): unknown => {
   if (!isRecord(value)) {
     throw new Error("Value must be an object.");
@@ -382,22 +411,27 @@ const validateSubSchemaValue = (
   for (const field of validation.fields) {
     const fieldValue = normalized[field.key];
 
-    if (field.cardinality === "many") {
-      if (!Array.isArray(fieldValue)) {
-        throw new Error(`Field '${field.key}' must be an array.`);
-      }
-      const allValid = fieldValue.every((entry) => typeof entry === field.type);
-      if (!allValid) {
-        throw new Error(`Field '${field.key}' contains an invalid value type.`);
+    if (fieldValue === undefined) {
+      if (requiredKeys.has(field.key)) {
+        throw new Error(`Field '${field.key}' is required.`);
       }
       continue;
     }
 
-    if (fieldValue === undefined) {
-      throw new Error(`Field '${field.key}' is required.`);
+    if (field.cardinality === "many") {
+      if (!Array.isArray(fieldValue)) {
+        throw new Error(`Field '${field.key}' must be an array.`);
+      }
+      const allValid = fieldValue.every((entry) => matchesSubSchemaFieldType(entry, field.type));
+      if (!allValid) {
+        throw new Error(
+          `Field '${field.key}' contains a value that must be ${String(field.type)}.`,
+        );
+      }
+      continue;
     }
 
-    if (typeof fieldValue !== field.type) {
+    if (!matchesSubSchemaFieldType(fieldValue, field.type)) {
       throw new Error(`Field '${field.key}' must be a ${field.type}.`);
     }
   }
@@ -483,8 +517,13 @@ const validateValueAgainstDefinition = (params: {
     }
 
     if (subSchema?.type === "object") {
+      const requiredKeys = new Set(
+        isRecord(validation.schema) && Array.isArray(validation.schema.required)
+          ? validation.schema.required.filter((entry): entry is string => typeof entry === "string")
+          : [],
+      );
       return yield* Effect.try({
-        try: () => validateSubSchemaValue(normalized, subSchema),
+        try: () => validateSubSchemaValue(normalized, subSchema, requiredKeys),
         catch: (error) =>
           toCrudError(
             "create",
@@ -1106,7 +1145,12 @@ export const normalizeWorkflowContextFactValue = (
                 validationJson: factDefinition.validationJson,
               },
             }).pipe(
-              Effect.mapError((error) => toValidationError(params.definition.kind, error.message)),
+              Effect.mapError((error) =>
+                toValidationError(
+                  params.definition.kind,
+                  `Draft spec fact '${factDefinition.key}' is invalid: ${error.message}`,
+                ),
+              ),
             );
 
             return {
