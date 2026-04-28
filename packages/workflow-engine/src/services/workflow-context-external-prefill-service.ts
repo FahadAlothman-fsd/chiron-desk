@@ -128,7 +128,6 @@ export const WorkflowContextExternalPrefillServiceLive = Layer.effect(
         const externalContextFacts = workflowEditor.contextFacts.flatMap((fact) => {
           if (
             typeof fact.contextFactDefinitionId !== "string" ||
-            fact.cardinality !== "one" ||
             existingContextFactIds.has(fact.contextFactDefinitionId)
           ) {
             return [];
@@ -334,7 +333,7 @@ export const WorkflowContextExternalPrefillServiceLive = Layer.effect(
               ? projectFactDefinitionByKey
               : undefined;
 
-          if (workUnitFactSchema && workUnitFactSchema.cardinality === "one") {
+          if (workUnitFactSchema) {
             const targetResolution = contextFact.workUnitDefinitionId
               ? contextFact.workUnitDefinitionId === workflowDetail.workUnitTypeId
                 ? { projectWorkUnitId: workflowDetail.projectWorkUnitId, warning: null }
@@ -365,22 +364,30 @@ export const WorkflowContextExternalPrefillServiceLive = Layer.effect(
               return [];
             }
 
-            return [
-              {
-                contextFactDefinitionId: contextFact.contextFactDefinitionId,
-                instanceOrder: 0,
-                valueJson: toCanonicalRuntimeBoundFactEnvelope({
-                  instanceId: workUnitInstance.id,
-                  value: runtimeFactValueFromInstance({
-                    valueJson: workUnitInstance.valueJson,
-                    referencedProjectWorkUnitId: workUnitInstance.referencedProjectWorkUnitId,
-                  }),
-                }),
-              },
-            ];
+            const runtimeValue = runtimeFactValueFromInstance({
+              valueJson: workUnitInstance.valueJson,
+              referencedProjectWorkUnitId: workUnitInstance.referencedProjectWorkUnitId,
+            });
+            const values =
+              workUnitFactSchema.cardinality === "many"
+                ? Array.isArray(runtimeValue)
+                  ? runtimeValue
+                  : runtimeValue === null || typeof runtimeValue === "undefined"
+                    ? []
+                    : [runtimeValue]
+                : [runtimeValue];
+
+            return values.map((value, index) => ({
+              contextFactDefinitionId: contextFact.contextFactDefinitionId,
+              instanceOrder: index,
+              valueJson: toCanonicalRuntimeBoundFactEnvelope({
+                instanceId: workUnitInstance.id,
+                value,
+              }),
+            }));
           }
 
-          if (!projectFactDefinition || projectFactDefinition.cardinality !== "one") {
+          if (!projectFactDefinition) {
             return [];
           }
 
@@ -391,16 +398,24 @@ export const WorkflowContextExternalPrefillServiceLive = Layer.effect(
             return [];
           }
 
-          return [
-            {
-              contextFactDefinitionId: contextFact.contextFactDefinitionId,
-              instanceOrder: 0,
-              valueJson: toCanonicalRuntimeBoundFactEnvelope({
-                instanceId: projectFactInstance.id,
-                value: projectFactInstance.valueJson,
-              }),
-            },
-          ];
+          const values =
+            projectFactDefinition.cardinality === "many"
+              ? Array.isArray(projectFactInstance.valueJson)
+                ? projectFactInstance.valueJson
+                : projectFactInstance.valueJson === null ||
+                    typeof projectFactInstance.valueJson === "undefined"
+                  ? []
+                  : [projectFactInstance.valueJson]
+              : [projectFactInstance.valueJson];
+
+          return values.map((value, index) => ({
+            contextFactDefinitionId: contextFact.contextFactDefinitionId,
+            instanceOrder: index,
+            valueJson: toCanonicalRuntimeBoundFactEnvelope({
+              instanceId: projectFactInstance.id,
+              value,
+            }),
+          }));
         });
 
         const artifactValues = yield* Effect.forEach(

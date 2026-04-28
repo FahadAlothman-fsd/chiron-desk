@@ -267,7 +267,7 @@ describe("WorkflowContextExternalPrefillService", () => {
         expect.objectContaining({
           contextFactDefinitionId: "ctx-bound",
           valueJson: {
-            instanceId: "fact-instance-1",
+            factInstanceId: "fact-instance-1",
             value: { projectWorkUnitId: "wu-setup-1" },
           },
         }),
@@ -291,5 +291,187 @@ describe("WorkflowContextExternalPrefillService", () => {
         }),
       ]),
     );
+  });
+
+  it("prefills many-cardinality bound facts from array-valued project facts", async () => {
+    let replaced: {
+      affectedContextFactDefinitionIds: string[];
+      currentValues: Array<{
+        contextFactDefinitionId: string;
+        instanceOrder: number;
+        valueJson: unknown;
+      }>;
+    } | null = null;
+
+    const layer = Layer.provide(
+      WorkflowContextExternalPrefillServiceLive,
+      Layer.mergeAll(
+        Layer.succeed(ExecutionReadRepository, {
+          getTransitionExecutionDetail: () => Effect.succeed(null),
+          listTransitionExecutionsForWorkUnit: () => Effect.succeed([]),
+          getWorkflowExecutionDetail: () =>
+            Effect.succeed({
+              workflowExecution: {
+                id: "wf-exec-1",
+                transitionExecutionId: "tx-1",
+                workflowId: "wf-setup",
+                workflowRole: "primary",
+                status: "active",
+                currentStepExecutionId: null,
+                supersededByWorkflowExecutionId: null,
+                startedAt: new Date(),
+                completedAt: null,
+                supersededAt: null,
+              },
+              transitionExecution: {
+                id: "tx-1",
+                projectWorkUnitId: "wu-story-1",
+                transitionId: "tr-1",
+                status: "active",
+                primaryWorkflowExecutionId: "wf-exec-1",
+                supersededByTransitionExecutionId: null,
+                startedAt: new Date(),
+                completedAt: null,
+                supersededAt: null,
+              },
+              projectId: "project-1",
+              projectWorkUnitId: "wu-story-1",
+              workUnitTypeId: "wu-story",
+              currentStateId: "draft",
+            }),
+          listWorkflowExecutionsForTransition: () => Effect.succeed([]),
+          listActiveWorkflowExecutionsByProject: () => Effect.succeed([]),
+        } as unknown as Context.Tag.Service<typeof ExecutionReadRepository>),
+        Layer.succeed(StepExecutionRepository, {
+          listWorkflowExecutionContextFacts: () => Effect.succeed([]),
+          replaceWorkflowExecutionContextFacts: (params: {
+            affectedContextFactDefinitionIds: string[];
+            currentValues: Array<{
+              contextFactDefinitionId: string;
+              instanceOrder: number;
+              valueJson: unknown;
+            }>;
+          }) => {
+            replaced = params;
+            return Effect.void;
+          },
+        } as unknown as Context.Tag.Service<typeof StepExecutionRepository>),
+        Layer.succeed(ProjectContextRepository, {
+          findProjectPin: () =>
+            Effect.succeed({
+              projectId: "project-1",
+              methodologyVersionId: "version-1",
+              methodologyId: "methodology-1",
+              methodologyKey: "core",
+              publishedVersion: "1.0.0",
+              actorId: null,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            }),
+        } as unknown as Context.Tag.Service<typeof ProjectContextRepository>),
+        Layer.succeed(LifecycleRepository, {
+          findWorkUnitTypes: () =>
+            Effect.succeed([
+              {
+                id: "wu-story",
+                methodologyVersionId: "version-1",
+                key: "WU.STORY",
+                displayName: "Story",
+                descriptionJson: null,
+                guidanceJson: null,
+                cardinality: "many_per_project",
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ]),
+          findFactSchemas: () => Effect.succeed([]),
+        } as unknown as Context.Tag.Service<typeof LifecycleRepository>),
+        Layer.succeed(MethodologyRepository, {
+          getWorkflowEditorDefinition: () =>
+            Effect.succeed({
+              contextFacts: [
+                {
+                  kind: "bound_fact",
+                  key: "objectives",
+                  cardinality: "many",
+                  contextFactDefinitionId: "ctx-objectives",
+                  factDefinitionId: "project-objectives",
+                },
+              ],
+            }),
+          findFactDefinitionsByVersionId: () =>
+            Effect.succeed([
+              {
+                id: "project-objectives",
+                methodologyVersionId: "version-1",
+                key: "objectives",
+                name: "Objectives",
+                cardinality: "many",
+                valueType: "json",
+                validationJson: null,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ]),
+        } as unknown as Context.Tag.Service<typeof MethodologyRepository>),
+        Layer.succeed(ProjectFactRepository, {
+          listFactsByProject: () =>
+            Effect.succeed([
+              {
+                id: "project-fact-objectives-1",
+                projectId: "project-1",
+                factDefinitionId: "project-objectives",
+                valueJson: [
+                  { title: "Define the core promise and MVP boundary" },
+                  { title: "Keep the scope intentionally narrow" },
+                ],
+                status: "active",
+                supersededByFactInstanceId: null,
+                createdAt: new Date(),
+              },
+            ]),
+        } as unknown as Context.Tag.Service<typeof ProjectFactRepository>),
+        Layer.succeed(WorkUnitFactRepository, {
+          listFactsByWorkUnit: () => Effect.succeed([]),
+        } as unknown as Context.Tag.Service<typeof WorkUnitFactRepository>),
+        Layer.succeed(ProjectWorkUnitRepository, {
+          listProjectWorkUnitsByProject: () => Effect.succeed([]),
+        } as unknown as Context.Tag.Service<typeof ProjectWorkUnitRepository>),
+      ),
+    );
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* WorkflowContextExternalPrefillService;
+        return yield* service.prefillFromExternalBindings({
+          projectId: "project-1",
+          workflowExecutionId: "wf-exec-1",
+        });
+      }).pipe(Effect.provide(layer)),
+    );
+
+    expect(result.insertedCount).toBe(2);
+    expect(replaced?.affectedContextFactDefinitionIds).toEqual([
+      "ctx-objectives",
+      "ctx-objectives",
+    ]);
+    expect(replaced?.currentValues).toEqual([
+      {
+        contextFactDefinitionId: "ctx-objectives",
+        instanceOrder: 0,
+        valueJson: {
+          factInstanceId: "project-fact-objectives-1",
+          value: { title: "Define the core promise and MVP boundary" },
+        },
+      },
+      {
+        contextFactDefinitionId: "ctx-objectives",
+        instanceOrder: 1,
+        valueJson: {
+          factInstanceId: "project-fact-objectives-1",
+          value: { title: "Keep the scope intentionally narrow" },
+        },
+      },
+    ]);
   });
 });
