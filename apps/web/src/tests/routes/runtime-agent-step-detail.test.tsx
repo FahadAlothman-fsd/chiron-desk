@@ -1000,6 +1000,71 @@ describe("runtime agent step detail route", () => {
     expect(screen.queryByText(/\{"title":\s*"Pattern Analysis"/i)).toBeNull();
   });
 
+  it("renders bound-fact JSON write values as structured rows instead of raw JSON", async () => {
+    const user = userEvent.setup();
+
+    await renderRoute("active_idle", {
+      agentDetailTransform: (detail) => ({
+        ...detail,
+        body: {
+          ...detail.body,
+          writeItems: [
+            {
+              writeItemId: "write-techniques",
+              contextFactDefinitionId: "ctx-techniques",
+              contextFactKind: "bound_fact",
+              order: 600,
+              requirementContextFactDefinitionIds: [],
+              exposureMode: "requirements_only",
+            },
+          ],
+        },
+      }),
+      workflowDetailTransform: (detail) => ({
+        ...detail,
+        workflowContextFacts: {
+          ...detail.workflowContextFacts,
+          groups: [
+            {
+              contextFactDefinitionId: "ctx-techniques",
+              definitionKey: "selected_technique_workflows",
+              definitionLabel: "Selected Technique Workflows",
+              definitionDescriptionJson: { markdown: "Technique workflows" },
+              cardinality: "many" as const,
+              instances: [
+                {
+                  contextFactInstanceId: "ctx-inst-technique-1",
+                  instanceOrder: 0,
+                  valueJson: {
+                    factInstanceId: "bound-technique-1",
+                    value: {
+                      workflow_key: "first_principles_analysis",
+                      selected_via: "ai_recommended_techniques",
+                      reason: "Best for identifying the smallest useful workflow.",
+                      execution_order: 1,
+                    },
+                  },
+                  sourceStepExecutionId: "step-agent-1",
+                  recordedAt: "2026-04-09T12:15:00.000Z",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    });
+
+    await user.click(screen.getByRole("button", { name: /^write$/i }));
+
+    expect(screen.getByText("Selected Technique Workflows")).toBeTruthy();
+    expect(screen.getByText(/workflow key/i)).toBeTruthy();
+    expect(screen.getByText("first_principles_analysis")).toBeTruthy();
+    expect(screen.getByText(/selected via/i)).toBeTruthy();
+    expect(screen.getByText("ai_recommended_techniques")).toBeTruthy();
+    expect(screen.getByText(/execution order/i)).toBeTruthy();
+    expect(screen.queryByText(/\{"workflow_key":/i)).toBeNull();
+  });
+
   it("merges started and completed tool events into one expandable tool-call entry", async () => {
     const user = userEvent.setup();
 

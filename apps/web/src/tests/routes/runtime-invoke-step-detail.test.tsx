@@ -344,6 +344,27 @@ function buildDetail(): any {
           bindingPreview: [
             {
               destinationKind: "work_unit_fact" as const,
+              destinationDefinitionId: "fact-setup-work-unit",
+              destinationLabel: "Setup Work Unit",
+              destinationFactType: "work_unit" as const,
+              destinationCardinality: "one" as const,
+              editorWorkUnitTypeKey: "SETUP",
+              editorOptions: [
+                {
+                  value: { projectWorkUnitId: "setup-work-unit-1" },
+                  label: "Setup Parent Work Unit",
+                },
+              ],
+              sourceKind: "context_fact" as const,
+              sourceContextFactDefinitionId: "ctx-setup-work-unit",
+              sourceContextFactKey: "setup_work_unit",
+              sourceContextFactLabel: "Setup Work Unit",
+              authoredPrefillValueJson: { projectWorkUnitId: "setup-work-unit-1" },
+              resolvedValueJson: { projectWorkUnitId: "setup-work-unit-1" },
+              requiresRuntimeValue: false,
+            },
+            {
+              destinationKind: "work_unit_fact" as const,
               destinationDefinitionId: "fact-story-direction",
               destinationLabel: "Selected Direction",
               destinationFactType: "string" as const,
@@ -366,6 +387,106 @@ function buildDetail(): any {
               sourceKind: "literal" as const,
               authoredPrefillValueJson: "Literal outcome",
               resolvedValueJson: "Literal outcome",
+              requiresRuntimeValue: false,
+            },
+            {
+              destinationKind: "work_unit_fact" as const,
+              destinationDefinitionId: "fact-story-objectives",
+              destinationLabel: "Objectives",
+              destinationFactType: "json" as const,
+              destinationCardinality: "many" as const,
+              validation: {
+                kind: "json-schema" as const,
+                schema: {
+                  type: "object" as const,
+                  properties: {
+                    title: { type: "string" as const, title: "Title" },
+                    motivation: { type: "string" as const, title: "Motivation" },
+                    success_signal: { type: "string" as const, title: "Success Signal" },
+                    priority: { type: "string" as const, title: "Priority" },
+                    notes: { type: "string" as const, title: "Notes" },
+                  },
+                },
+                subSchema: {
+                  type: "object" as const,
+                  fields: [
+                    { key: "title", type: "string" as const, displayName: "Title" },
+                    {
+                      key: "motivation",
+                      type: "string" as const,
+                      displayName: "Motivation",
+                    },
+                    {
+                      key: "success_signal",
+                      type: "string" as const,
+                      displayName: "Success Signal",
+                    },
+                    { key: "priority", type: "string" as const, displayName: "Priority" },
+                    { key: "notes", type: "string" as const, displayName: "Notes" },
+                  ],
+                },
+              },
+              editorNestedFields: [
+                {
+                  key: "title",
+                  label: "Title",
+                  factType: "string" as const,
+                  cardinality: "one" as const,
+                  required: false,
+                },
+                {
+                  key: "motivation",
+                  label: "Motivation",
+                  factType: "string" as const,
+                  cardinality: "one" as const,
+                  required: false,
+                },
+                {
+                  key: "success_signal",
+                  label: "Success Signal",
+                  factType: "string" as const,
+                  cardinality: "one" as const,
+                  required: false,
+                },
+                {
+                  key: "priority",
+                  label: "Priority",
+                  factType: "string" as const,
+                  cardinality: "one" as const,
+                  required: false,
+                },
+                {
+                  key: "notes",
+                  label: "Notes",
+                  factType: "string" as const,
+                  cardinality: "one" as const,
+                  required: false,
+                },
+              ],
+              sourceKind: "context_fact" as const,
+              sourceContextFactDefinitionId: "ctx-objectives",
+              sourceContextFactKey: "objectives",
+              sourceContextFactLabel: "Objectives",
+              authoredPrefillValueJson: [
+                {
+                  title: "Define the core promise and MVP boundary",
+                  motivation:
+                    "Taskflow has a clear problem statement but still needs a tight v1 definition and explicit exclusions.",
+                  success_signal: "A concise product promise and a clear not-in-v1 list.",
+                  priority: "high",
+                  notes: "Keep the conversation product-focused.",
+                },
+              ],
+              resolvedValueJson: [
+                {
+                  title: "Define the core promise and MVP boundary",
+                  motivation:
+                    "Taskflow has a clear problem statement but still needs a tight v1 definition and explicit exclusions.",
+                  success_signal: "A concise product promise and a clear not-in-v1 list.",
+                  priority: "high",
+                  notes: "Keep the conversation product-focused.",
+                },
+              ],
               requiresRuntimeValue: false,
             },
             {
@@ -687,6 +808,28 @@ function buildDetail(): any {
               savedDraftValueJson: "Saved direction",
               actualChildValueJson: "Actual child direction",
               resolvedValueJson: "Actual child direction",
+              requiresRuntimeValue: false,
+            },
+            {
+              destinationKind: "work_unit_fact" as const,
+              destinationDefinitionId: "fact-story-objectives",
+              destinationLabel: "Objectives",
+              destinationFactType: "json" as const,
+              destinationCardinality: "many" as const,
+              sourceKind: "context_fact" as const,
+              sourceContextFactDefinitionId: "ctx-objectives",
+              sourceContextFactKey: "objectives",
+              sourceContextFactLabel: "Objectives",
+              actualChildValueJson: [
+                {
+                  title: "Define the core promise and MVP boundary",
+                },
+              ],
+              resolvedValueJson: [
+                {
+                  title: "Define the core promise and MVP boundary",
+                },
+              ],
               requiresRuntimeValue: false,
             },
           ],
@@ -1097,7 +1240,10 @@ describe("runtime invoke step detail route", () => {
     expect(screen.getAllByText(/prefill/i).length).toBeGreaterThan(0);
     expect(screen.getByText("Saved direction")).toBeTruthy();
     expect(screen.getByText("Context direction")).toBeTruthy();
+    expect(screen.getByDisplayValue("Setup Parent Work Unit")).toBeTruthy();
+    expect(screen.getByDisplayValue("Define the core promise and MVP boundary")).toBeTruthy();
     expect(screen.getAllByText("Story Constraints").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Must Have")).toHaveLength(1);
     expect(screen.getByLabelText("Must Have")).toBeTruthy();
     expect(screen.getByLabelText("Needs Review")).toBeTruthy();
     expect(screen.getByLabelText("Timebox Hours")).toBeTruthy();
@@ -1150,8 +1296,11 @@ describe("runtime invoke step detail route", () => {
     expect(screen.getAllByText("Story Payments 2").length).toBeGreaterThan(0);
     expect(screen.getByText("transition active")).toBeTruthy();
     expect(screen.getByText("workflow active")).toBeTruthy();
-    expect(screen.getByText("Current child value")).toBeTruthy();
+    expect(screen.getAllByText("Current child value").length).toBeGreaterThan(0);
     expect(screen.getByText("Actual child direction")).toBeTruthy();
+    expect(screen.getAllByText(/Define the core promise and MVP boundary/).length).toBeGreaterThan(
+      0,
+    );
   });
 
   it("starts workflow/work-unit targets, refetches detail, and completes the invoke step", async () => {
@@ -1182,6 +1331,11 @@ describe("runtime invoke step detail route", () => {
     const overrideInput = screen.getByDisplayValue("Saved direction");
     await user.clear(overrideInput);
     await user.type(overrideInput, "Operator override");
+    const objectiveTitleInput = screen.getByDisplayValue(
+      "Define the core promise and MVP boundary",
+    );
+    await user.clear(objectiveTitleInput);
+    await user.type(objectiveTitleInput, "Sharpen the MVP promise");
     const mustHaveInput = screen.getByLabelText("Must Have");
     await user.clear(mustHaveInput);
     await user.type(mustHaveInput, "Protect the checkout happy path");
@@ -1211,6 +1365,14 @@ describe("runtime invoke step detail route", () => {
         {
           workUnitFactDefinitionId: "fact-story-direction",
           valueJson: "Operator override",
+        },
+        {
+          workUnitFactDefinitionId: "fact-story-objectives",
+          valueJson: [
+            expect.objectContaining({
+              title: "Sharpen the MVP promise",
+            }),
+          ],
         },
         {
           workUnitFactDefinitionId: "fact-story-constraints",

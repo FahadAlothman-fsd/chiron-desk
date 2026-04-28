@@ -604,6 +604,70 @@ describe("runtime form step detail route", () => {
     expect(enabledOption.getAttribute("data-disabled")).toBe("false");
   });
 
+  it("renders many-json bound fact rows from prefilled objective objects", async () => {
+    const detail = buildDetail();
+
+    if (detail.body.stepType !== "form") {
+      throw new Error("expected form detail");
+    }
+
+    detail.body.page.fields.splice(5, 0, {
+      fieldKey: "objectives",
+      fieldLabel: "Objectives",
+      helpText: "Prefilled objectives from a bound fact envelope.",
+      required: false,
+      contextFactDefinitionId: "ctx-objectives-bound",
+      contextFactKey: "objectives",
+      contextFactKind: "bound_fact",
+      widget: {
+        control: "json",
+        valueType: "json",
+        cardinality: "many",
+        renderedMultiplicity: "many",
+        externalBindingKey: "objectives",
+        externalCardinality: "many",
+        bindingLabel: "Objectives",
+        boundValueWidget: {
+          control: "json",
+          valueType: "json",
+          cardinality: "many",
+          renderedMultiplicity: "many",
+          nestedFields: [
+            {
+              key: "title",
+              label: "Title",
+              factType: "string",
+              cardinality: "one",
+              required: false,
+            },
+            {
+              key: "priority",
+              label: "Priority",
+              factType: "string",
+              cardinality: "one",
+              required: false,
+            },
+          ],
+        },
+      },
+    });
+
+    detail.body.draft.payload = {
+      ...detail.body.draft.payload,
+      objectives: [
+        {
+          title: "Define the core promise and MVP boundary",
+          priority: "high",
+        },
+      ],
+    };
+
+    await renderHarness({ currentDetail: detail });
+
+    expect(screen.getByDisplayValue("Define the core promise and MVP boundary")).toBeTruthy();
+    expect(screen.getByDisplayValue("high")).toBeTruthy();
+  });
+
   it("locks singleton bound facts to the existing instance and preserves instance id on inline edit", async () => {
     const user = userEvent.setup();
     const { saveDraftCalls } = await renderHarness();

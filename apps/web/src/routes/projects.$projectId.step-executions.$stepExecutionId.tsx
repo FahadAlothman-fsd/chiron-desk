@@ -2355,6 +2355,7 @@ function renderContextFactInstanceValue(
 ): React.ReactNode {
   if (kind === "bound_fact" && isRecord(value)) {
     const deleted = value.deleted === true;
+    const boundValue = value.value;
     return (
       <div className="space-y-2">
         <div className="flex flex-wrap gap-2">
@@ -2373,7 +2374,35 @@ function renderContextFactInstanceValue(
             copyLabel="bound fact instance id"
           />
         ) : null}
-        <InstanceMetaRow label="Value" value={formatPrimitiveValue(value.value)} />
+        <div className="space-y-2">
+          <DetailLabel>Value</DetailLabel>
+          {isRecord(boundValue) && !Array.isArray(boundValue) ? (
+            <DraftSpecNestedValueTable values={boundValue} />
+          ) : Array.isArray(boundValue) ? (
+            <div className="space-y-2">
+              {boundValue.map((entry, index) => (
+                <div
+                  key={`bound-value-${index}`}
+                  className="space-y-2 border border-border/60 bg-background/35 px-2 py-2"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <DetailLabel>Item {index + 1}</DetailLabel>
+                    <ExecutionBadge label={getValueKindLabel(entry)} tone={getValueTone(entry)} />
+                  </div>
+                  {isRecord(entry) && !Array.isArray(entry) ? (
+                    <DraftSpecNestedValueTable values={entry} />
+                  ) : (
+                    <DetailPrimary className="break-words text-xs font-normal">
+                      {formatPrimitiveValue(entry)}
+                    </DetailPrimary>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <InstanceMetaRow label="Value" value={formatPrimitiveValue(boundValue)} />
+          )}
+        </div>
       </div>
     );
   }
@@ -2790,7 +2819,7 @@ function getBoundFactInstanceId(value: unknown): string {
 }
 
 function getBoundFactInlineValue(value: unknown): unknown {
-  return isPlainRecord(value) && "value" in value ? value.value : null;
+  return isPlainRecord(value) && "value" in value ? value.value : value;
 }
 
 function getBoundFactOptionValueByInstanceId(
@@ -2859,6 +2888,26 @@ function shouldDisallowNewBoundFactInstance(
 function normalizeInitialFieldValue(field: RuntimeFormResolvedField, value: unknown): unknown {
   if (field.contextFactKind !== "bound_fact") {
     return value;
+  }
+
+  if (field.widget.renderedMultiplicity === "many") {
+    if (Array.isArray(value)) {
+      return value.flatMap((entry) => {
+        if (Array.isArray(entry)) {
+          return entry;
+        }
+
+        if (isPlainRecord(entry) && "value" in entry && Array.isArray(entry.value)) {
+          return entry.value;
+        }
+
+        return [entry];
+      });
+    }
+
+    if (isPlainRecord(value) && "value" in value && Array.isArray(value.value)) {
+      return value.value;
+    }
   }
 
   return getLockedBoundFactEnvelope(field, value) ?? value;
@@ -3377,8 +3426,9 @@ function NestedFieldEditor(props: {
   value: unknown;
   onChange: (value: unknown) => void;
   disabled: boolean;
+  showHeader?: boolean;
 }) {
-  const { nestedField, value, onChange, disabled } = props;
+  const { nestedField, value, onChange, disabled, showHeader = true } = props;
   const options = nestedFieldOptions(nestedField);
 
   if (nestedField.cardinality === "many") {
@@ -3402,6 +3452,7 @@ function NestedFieldEditor(props: {
                 value={entry}
                 onChange={(nextValue) => onChange(updateArrayValue(items, index, nextValue))}
                 disabled={disabled}
+                showHeader={false}
               />
               <Button
                 type="button"
@@ -3511,7 +3562,7 @@ function NestedFieldEditor(props: {
   if (nestedField.factType === "work_unit" && (nestedField.options?.length ?? 0) > 0) {
     return (
       <Field>
-        <NestedFieldHeader nestedField={nestedField} />
+        {showHeader ? <NestedFieldHeader nestedField={nestedField} /> : null}
         <Select
           disabled={disabled}
           value={value == null ? "" : encodeOptionValue(value)}
@@ -3549,7 +3600,7 @@ function NestedFieldEditor(props: {
         orientation="horizontal"
         className="items-center justify-between border border-border/70 px-3 py-2"
       >
-        <NestedFieldHeader nestedField={nestedField} />
+        {showHeader ? <NestedFieldHeader nestedField={nestedField} /> : null}
         <Checkbox
           disabled={disabled}
           checked={value === true}
@@ -3563,7 +3614,7 @@ function NestedFieldEditor(props: {
   if (nestedField.factType === "number") {
     return (
       <Field>
-        <NestedFieldHeader nestedField={nestedField} />
+        {showHeader ? <NestedFieldHeader nestedField={nestedField} /> : null}
         <Input
           disabled={disabled}
           aria-label={nestedField.label}
@@ -3580,7 +3631,7 @@ function NestedFieldEditor(props: {
   if (options.length > 0) {
     return (
       <Field>
-        <NestedFieldHeader nestedField={nestedField} />
+        {showHeader ? <NestedFieldHeader nestedField={nestedField} /> : null}
         <Select
           disabled={disabled}
           value={value == null ? "" : encodeOptionValue(value)}
@@ -3639,7 +3690,7 @@ function NestedFieldEditor(props: {
 
     return (
       <Field>
-        <NestedFieldHeader nestedField={nestedField} />
+        {showHeader ? <NestedFieldHeader nestedField={nestedField} /> : null}
         <Textarea
           disabled={disabled}
           aria-label={nestedField.label}
@@ -3673,7 +3724,7 @@ function NestedFieldEditor(props: {
 
   return (
     <Field>
-      <NestedFieldHeader nestedField={nestedField} />
+      {showHeader ? <NestedFieldHeader nestedField={nestedField} /> : null}
       <Input
         disabled={disabled}
         aria-label={nestedField.label}
@@ -4181,7 +4232,13 @@ function BoundFactFieldRow(props: {
       ...field,
       fieldLabel: labelOverride ?? field.fieldLabel,
       contextFactKind: "plain_value_fact",
-      widget: field.widget.boundValueWidget ?? field.widget,
+      widget: {
+        ...(field.widget.boundValueWidget ?? field.widget),
+        renderedMultiplicity:
+          field.widget.renderedMultiplicity === "many"
+            ? ("one" as const)
+            : (field.widget.boundValueWidget ?? field.widget).renderedMultiplicity,
+      },
     }),
     [field, labelOverride],
   );
