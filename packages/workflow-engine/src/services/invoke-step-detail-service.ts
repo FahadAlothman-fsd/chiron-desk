@@ -410,6 +410,64 @@ const hasProjectWorkUnitId = (value: unknown): value is { projectWorkUnitId: str
   typeof value.projectWorkUnitId === "string" &&
   value.projectWorkUnitId.length > 0;
 
+const normalizeInvokeFactValue = (params: {
+  destinationFactType: FactType | undefined;
+  value: unknown;
+}): unknown => {
+  if (params.destinationFactType !== "work_unit") {
+    return params.value;
+  }
+
+  if (hasProjectWorkUnitId(params.value)) {
+    return params.value;
+  }
+
+  return typeof params.value === "string" && params.value.length > 0
+    ? { projectWorkUnitId: params.value }
+    : undefined;
+};
+
+const resolveInvokeDraftFactValue = (params: {
+  factValues: ReadonlyArray<{ workUnitFactDefinitionId: string; value: unknown }>;
+  destinationDefinitionId: string;
+  destinationFactType: FactType | undefined;
+  destinationCardinality: FactCardinality | undefined;
+}): unknown => {
+  const matchedEntries = params.factValues.filter(
+    (entry) => entry.workUnitFactDefinitionId === params.destinationDefinitionId,
+  );
+
+  if (matchedEntries.length === 0) {
+    return undefined;
+  }
+
+  const normalizedEntries = matchedEntries.flatMap((entry) => {
+    if (params.destinationCardinality === "many" && Array.isArray(entry.value)) {
+      return entry.value
+        .map((value) =>
+          normalizeInvokeFactValue({
+            destinationFactType: params.destinationFactType,
+            value,
+          }),
+        )
+        .filter((value) => typeof value !== "undefined");
+    }
+
+    const normalizedValue = normalizeInvokeFactValue({
+      destinationFactType: params.destinationFactType,
+      value: entry.value,
+    });
+
+    return typeof normalizedValue === "undefined" ? [] : [normalizedValue];
+  });
+
+  if (params.destinationCardinality === "many") {
+    return normalizedEntries;
+  }
+
+  return normalizedEntries[0];
+};
+
 const stableStringify = (value: unknown): string => {
   if (Array.isArray(value)) {
     return `[${value.map((item) => stableStringify(item)).join(",")}]`;
@@ -551,19 +609,25 @@ const toChildFactDisplayValue = (params: {
     valueJson: unknown;
   }[];
 }): unknown => {
-  const values = params.factInstances.map((factInstance) =>
-    params.destinationFactType === "work_unit"
-      ? factInstance.referencedProjectWorkUnitId !== null
-        ? { projectWorkUnitId: factInstance.referencedProjectWorkUnitId }
-        : null
-      : factInstance.valueJson,
-  );
+  const values = params.factInstances.flatMap((factInstance) => {
+    if (params.destinationFactType === "work_unit") {
+      return factInstance.referencedProjectWorkUnitId !== null
+        ? [{ projectWorkUnitId: factInstance.referencedProjectWorkUnitId }]
+        : [];
+    }
+
+    if (params.destinationCardinality === "many" && Array.isArray(factInstance.valueJson)) {
+      return factInstance.valueJson;
+    }
+
+    return typeof factInstance.valueJson === "undefined" ? [] : [factInstance.valueJson];
+  });
 
   if (params.destinationCardinality === "many") {
-    return values.filter((value) => value !== null);
+    return values;
   }
 
-  return values.find((value) => value !== null);
+  return values[0];
 };
 
 const toChildArtifactDisplayValue = (params: {
@@ -1333,9 +1397,6 @@ export const InvokeStepDetailServiceLive = Layer.effect(
             ? [
                 ...sourceContextFact.selectedWorkUnitFactDefinitionIds.flatMap((definitionId) => {
                   const destination = workUnitFactDefinitionsById.get(definitionId);
-                  const authoredPrefillValueJson = sourceDraftTemplate?.factValues.find(
-                    (entry) => entry.workUnitFactDefinitionId === definitionId,
-                  )?.value;
                   const bindingEditorOptions = optionListFromValidation(
                     destination?.validationJson,
                   );
@@ -1354,6 +1415,12 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                     workUnitEditorMetadata.editorWorkUnitTypeKey
                       ? ("work_unit" as const)
                       : destination?.factType;
+                  const authoredPrefillValueJson = resolveInvokeDraftFactValue({
+                    factValues: sourceDraftTemplate?.factValues ?? [],
+                    destinationDefinitionId: definitionId,
+                    destinationFactType,
+                    destinationCardinality: destination?.cardinality,
+                  });
                   const editorNestedFields = destination
                     ? editorNestedFieldsFromValidation({
                         validationJson: destination.validationJson,
@@ -1473,19 +1540,6 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                           )
                           .sort((left, right) => left.instanceOrder - right.instanceOrder)
                       : [];
-                    const authoredPrefillValueJson =
-                      binding.source.kind === "literal"
-                        ? binding.source.value
-                        : binding.source.kind === "context_fact"
-                          ? sourceContextFact?.kind === "work_unit_draft_spec_fact"
-                            ? sourceDraftTemplate?.factValues.find(
-                                (entry) =>
-                                  entry.workUnitFactDefinitionId ===
-                                  binding.destination.workUnitFactDefinitionId,
-                              )?.value
-                            : resolveBindingSourceValue({ sourceContextFact, sourceInstances })
-                          : undefined;
-
                     const bindingEditorOptions = optionListFromValidation(
                       destination?.validationJson,
                     );
@@ -1504,6 +1558,20 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                       workUnitEditorMetadata.editorWorkUnitTypeKey
                         ? ("work_unit" as const)
                         : destination?.factType;
+                    const authoredPrefillValueJson =
+                      binding.source.kind === "literal"
+                        ? binding.source.value
+                        : binding.source.kind === "context_fact"
+                          ? sourceContextFact?.kind === "work_unit_draft_spec_fact"
+                            ? resolveInvokeDraftFactValue({
+                                factValues: sourceDraftTemplate?.factValues ?? [],
+                                destinationDefinitionId:
+                                  binding.destination.workUnitFactDefinitionId,
+                                destinationFactType,
+                                destinationCardinality: destination?.cardinality,
+                              })
+                            : resolveBindingSourceValue({ sourceContextFact, sourceInstances })
+                          : undefined;
                     const editorNestedFields = destination
                       ? editorNestedFieldsFromValidation({
                           validationJson: destination.validationJson,
@@ -1935,14 +2003,17 @@ export const InvokeStepDetailServiceLive = Layer.effect(
             const rowBindingPreview = invokeBindingPreview.map((binding) => {
               if (!row.projectWorkUnitId && frozenDraftTemplate) {
                 if (binding.destinationKind === "work_unit_fact") {
-                  const savedFactValue = frozenDraftTemplate.factValues.find(
-                    (entry) => entry.workUnitFactDefinitionId === binding.destinationDefinitionId,
-                  );
-                  if (savedFactValue) {
+                  const savedFactValue = resolveInvokeDraftFactValue({
+                    factValues: frozenDraftTemplate.factValues,
+                    destinationDefinitionId: binding.destinationDefinitionId,
+                    destinationFactType: binding.destinationFactType,
+                    destinationCardinality: binding.destinationCardinality,
+                  });
+                  if (typeof savedFactValue !== "undefined") {
                     return {
                       ...binding,
-                      savedDraftValueJson: savedFactValue.value,
-                      resolvedValueJson: savedFactValue.value,
+                      savedDraftValueJson: savedFactValue,
+                      resolvedValueJson: savedFactValue,
                     };
                   }
                 } else {

@@ -599,7 +599,9 @@ function buildContextPrefillPayload(params: {
       return [
         [
           field.fieldKey,
-          field.widget.renderedMultiplicity === "many" ? values : (values[0] ?? null),
+          field.widget.renderedMultiplicity === "many"
+            ? values.flatMap((value) => (Array.isArray(value) ? value : [value]))
+            : (values[0] ?? null),
         ],
       ];
     }),
