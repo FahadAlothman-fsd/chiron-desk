@@ -61,11 +61,16 @@ tests/.auth
 # Misc
 *.tgz
 .cache
+.local/
 tmp
 temp
 apps/docs/.vitepress/cache/
 apps/docs/.vitepress/.temp/
 apps/docs/.turbo/
+
+# Academic report local artifacts
+academic_reports/figures/*.svg
+academic_reports/Chiron Project Proposal.pdf
 
 # db
 *.db
