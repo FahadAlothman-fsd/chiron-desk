@@ -1,0 +1,16 @@
+flowchart TD
+    M[Methodology Layer<br/>Defines reusable delivery method]
+    WU[Work Unit Layer<br/>Defines durable contract for a work type]
+    WF[Workflow Layer<br/>Defines operational progression]
+    S[Step Layer<br/>Defines executable workflow nodes]
+
+    M --> WU --> WF --> S
+
+    classDef layer1 fill:#f6f2df,stroke:#b59d3b,color:#5b4b16,stroke-width:2px;
+    classDef layer2 fill:#eaf7f4,stroke:#0f766e,color:#134e4a,stroke-width:2px;
+    classDef layer3 fill:#eef6ff,stroke:#2563eb,color:#1e3a8a,stroke-width:2px;
+    classDef layer4 fill:#fff7ed,stroke:#ea580c,color:#7c2d12,stroke-width:2px;
+    class M layer1;
+    class WU layer2;
+    class WF layer3;
+    class S layer4;
