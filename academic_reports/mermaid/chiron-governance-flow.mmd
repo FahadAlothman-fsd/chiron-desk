@@ -1,0 +1,20 @@
+flowchart LR
+    R[Method definition and requirements] --> W[Workflow execution]
+    W --> T[Deterministic validation]
+    T -->|pass| H[Human review]
+    T -->|fail| RW[Rework]
+    H --> A[Agent-assisted validation and analysis]
+    A --> N[Approved transition or next state]
+    H -->|changes required| RW
+    RW --> W
+
+    classDef source fill:#f6f2df,stroke:#b59d3b,color:#5b4b16,stroke-width:2px;
+    classDef execution fill:#eef6ff,stroke:#2563eb,color:#1e3a8a,stroke-width:2px;
+    classDef validation fill:#eaf7f4,stroke:#0f766e,color:#134e4a,stroke-width:2px;
+    classDef review fill:#fff7ed,stroke:#ea580c,color:#7c2d12,stroke-width:2px;
+    classDef rework fill:#fce7f3,stroke:#db2777,color:#831843,stroke-width:2px;
+    class R source;
+    class W,N execution;
+    class T,A validation;
+    class H review;
+    class RW rework;
