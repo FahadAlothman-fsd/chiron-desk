@@ -3,11 +3,24 @@ title: Mental Model
 ---
 Chiron teaches a public four-layer model for how agentic delivery is structured.
 
+That model exists to support a smaller operational idea: move work through a safe execution loop without losing context or evidence.
+
 The simplest way to hold the system in your head is this:
 
 - **Design Time** defines the method.
 - **Project Runtime** shows that method in motion.
 - **Taskflow** is the running example that keeps the explanation grounded.
+
+Before the four layers, keep this loop in view:
+
+1. **Intent**
+2. **Scope**
+3. **Pattern**
+4. **Build**
+5. **Verify**
+6. **Next**
+
+The layers explain how Chiron makes that loop inspectable. They are not meant to force heavyweight planning before work can start.
 
 ## The four public layers
 
@@ -17,7 +30,7 @@ The Methodology Layer defines the reusable operating model.
 
 It owns the methodology-wide vocabulary, the work-unit catalog, shared rules, and the relationships that give the rest of the system shape.
 
-In Taskflow, this is where you decide that work like onboarding, planning, implementation, and review exist at all.
+In Taskflow, this is where you decide that work like onboarding, architecture, implementation, and review exist at all.
 
 ### Work Unit Layer
 
@@ -33,7 +46,7 @@ The Workflow Layer defines how a specific piece of work runs.
 
 It is the layer that binds execution paths to transitions and makes the methodology operational instead of descriptive.
 
-In Taskflow, this is where onboarding can collect context, delegation can fan out, and review can route work toward approval or rework.
+In Taskflow, this is where onboarding can collect context, implementation can follow an existing pattern, and review can route work toward approval or rework.
 
 ### Step Layer
 
@@ -45,7 +58,6 @@ Chiron’s step taxonomy is:
 - `agent`
 - `action`
 - `invoke`
-- `display`
 - `branch`
 
 This layer is real in the product story, but parts of its deeper authoring and runtime depth are still not fully implemented.
@@ -76,17 +88,23 @@ That includes:
 
 ## Taskflow as the running example
 
-Taskflow is the single public example used throughout the docs. It anchors one intentionally limited public slice:
+Taskflow is the single public example used throughout the docs. It anchors one runtime slice that stays concrete all the way through implementation:
 
-- setup and onboarding into the `Architecture` work unit
+- `setup`
+- `brainstorming`
+- `research`
+- `product_brief`
+- `prd`
+- `implementation`
 
-That slice lets the docs teach one consistent story from method setup to the first concrete downstream work without pretending to cover the full delivery lifecycle.
+That slice lets the docs teach one consistent story from first runtime setup to validated delivery outputs.
 
 ### How the public slice connects
 
-1. **Setup and onboarding** shows the method being defined, then picked up by a real project.
-2. The resulting facts and artifacts give the project enough structure to produce or activate the `Architecture` work unit.
-3. The public docs stop there and leave deeper downstream flows to later implementation and internal references.
+1. **Setup and onboarding** creates the first durable baseline.
+2. **Brainstorming** and **Research** refine direction and gather evidence.
+3. **Product Brief** and **PRD** turn that signal into durable planning contracts.
+4. **Implementation** uses those contracts to plan, execute, and validate delivery.
 
 ## Why the split matters
 
@@ -99,7 +117,9 @@ Chiron keeps these concerns separate on purpose:
 - Workflow Layer
 - Step Layer
 
-That helps you keep planning structure, durable contracts, execution flow, branching, and review readable.
+That helps you keep scope, durable contracts, execution flow, branching, and review readable.
+
+It also makes optional branches easier to reason about. Research, brainstorming, or heavier planning can still exist, but they should appear when they unblock delivery, not as mandatory front-loaded ceremony.
 
 ## Terminology note
 

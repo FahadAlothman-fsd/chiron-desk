@@ -57,11 +57,16 @@ Taskflow is the one running example across the site.
 
 Keep this public slice in view as you move between pages:
 
-- setup and onboarding, where Design Time definitions become the first runtime work and the project reaches the `Architecture` work unit
+- setup
+- brainstorming
+- research
+- product brief
+- prd
+- implementation
 
 If a page feels abstract, jump back to [/taskflow/](/taskflow/) and re-anchor the layer explanation in the same Taskflow story.
 
-The public docs stop the Taskflow example at that architecture handoff on purpose. Deeper downstream delivery paths stay out of the main public narrative for now.
+If you need the seeded method behind that runtime story, read [/methodology/](/methodology/).
 
 ## Public vs internal docs
 
