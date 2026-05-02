@@ -3,6 +3,8 @@ title: Methodology Layer
 ---
 The Methodology Layer is the global design-time surface for a methodology version.
 
+Its job is to define reusable structure, not to force every possible work type into the default path.
+
 It answers questions like:
 
 - Which work-unit types exist?
@@ -60,13 +62,13 @@ The catalog tells you which work-unit types exist in the method and how they rel
 Typical catalog entries in Taskflow might include:
 
 - Setup
-- Brainstorming
-- Research
 - PRD
 - Architecture
 - Epic
 - Story
 - Review
+
+Additional work such as brainstorming or research can still exist here, but they are best treated as optional support branches unless the methodology truly depends on them.
 
 At this layer, you are still looking at the method as a whole. You can see the catalog and the broad topology, but you have not stepped into the contract of one selected work unit yet.
 
@@ -84,6 +86,8 @@ In Taskflow, the Methodology Layer might define:
 That global setup lets the rest of the method stay consistent.
 
 For example, both `PRD` and `Story` can reference the same dependency definition, while the exact blocking rule still lives later in each work unit's transition policy.
+
+The important design choice is proportionality. A good methodology catalog makes the common path obvious and keeps heavier planning or discovery work available without making it mandatory.
 
 ## What this layer does not own
 

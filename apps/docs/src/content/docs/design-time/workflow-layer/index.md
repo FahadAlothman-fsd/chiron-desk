@@ -57,7 +57,6 @@ Each workflow uses the same fixed step taxonomy:
 - `agent`
 - `action`
 - `invoke`
-- `display`
 - `branch`
 
 Those step types are explained in the [Step Layer overview](/design-time/step-layer/) and in the individual step pages.
@@ -76,16 +75,15 @@ In Taskflow, a story delivery workflow might:
 
 1. use a `form` step to capture implementation scope
 2. use an `agent` step to draft a plan
-3. use a `display` step to show the proposed plan for review
-4. use a `branch` step to choose rework or continue
-5. use an `invoke` step to fan out into child work when needed
+3. use a `branch` step to choose rework or continue
+4. use an `invoke` step to fan out into child work when needed
 
 The work unit still owns the story states and allowed transitions. The workflow owns the runnable graph inside one of those transitions.
 
 That same graph model carries all three Taskflow slices. Setup uses it to capture onboarding context, fan-out uses it to branch and invoke child work, and review uses it to route completion or rework while keeping artifact production visible.
 
 > **Screenshot placeholder**
-> Workflow editor view for a Taskflow workflow, showing graph nodes for form, agent, display, branch, invoke, and action.
+> Workflow editor view for a Taskflow workflow, showing graph nodes for form, agent, branch, invoke, and action.
 
 ## Current behavior and implementation status
 
@@ -94,7 +92,7 @@ Current contracts clearly support workflow ownership under a work unit, graph ed
 The deeper Step Layer is still uneven in implementation maturity.
 
 - `form`, `invoke`, and `branch` have concrete contract depth today
-- `agent` and `display` are still deferred in the runtime detail contract
+- `agent` is still deferred in some runtime detail contracts
 - `action` has concrete authoring and runtime detail contracts, but broader AX and runtime convergence is still not fully finished
 
 Public docs should treat the Workflow Layer as real and stable in concept, while avoiding any claim that every step family already has full end-to-end execution depth.
