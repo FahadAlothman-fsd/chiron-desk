@@ -33,10 +33,37 @@ export default defineConfig({
           items: [{ label: "Home", link: "/" }, "getting-started", "mental-model"],
         },
         {
-          label: "Taskflow Example",
+          label: "Taskflow Runtime",
           items: [
             { label: "Taskflow Overview", slug: "taskflow" },
             { label: "Setup And Onboarding", slug: "taskflow/setup-onboarding" },
+            { label: "Brainstorming", slug: "taskflow/brainstorming" },
+            { label: "Research", slug: "taskflow/research" },
+            { label: "Product Brief", slug: "taskflow/product-brief" },
+            { label: "PRD", slug: "taskflow/prd" },
+            { label: "Implementation", slug: "taskflow/implementation" },
+          ],
+        },
+        {
+          label: "Methodology",
+          items: [
+            { label: "Default Seeded Methodology", slug: "methodology" },
+            { label: "Augmented BMAD Overview", slug: "methodology/augmented-bmad-overview" },
+            { label: "Methodology Structure", slug: "methodology/structure" },
+            { label: "Project Facts And Durable Context", slug: "methodology/project-facts" },
+            {
+              label: "Work Units",
+              collapsed: true,
+              items: [
+                { label: "Overview", slug: "methodology/work-units" },
+                { label: "Setup", slug: "methodology/work-units/setup" },
+                { label: "Brainstorming", slug: "methodology/work-units/brainstorming" },
+                { label: "Research", slug: "methodology/work-units/research" },
+                { label: "Product Brief", slug: "methodology/work-units/product-brief" },
+                { label: "PRD", slug: "methodology/work-units/prd" },
+                { label: "Implementation", slug: "methodology/work-units/implementation" },
+              ],
+            },
           ],
         },
         {
@@ -61,7 +88,6 @@ export default defineConfig({
                 { label: "Agent", slug: "design-time/step-layer/agent" },
                 { label: "Action", slug: "design-time/step-layer/action" },
                 { label: "Invoke", slug: "design-time/step-layer/invoke" },
-                { label: "Display", slug: "design-time/step-layer/display" },
                 { label: "Branch", slug: "design-time/step-layer/branch" },
               ],
             },
