@@ -668,6 +668,111 @@ describe("runtime form step detail route", () => {
     expect(screen.getByDisplayValue("high")).toBeTruthy();
   });
 
+  it("hydrates many-json bound facts from an existing bound instance selection", async () => {
+    const user = userEvent.setup();
+    const detail = buildDetail();
+
+    if (detail.body.stepType !== "form") {
+      throw new Error("expected form detail");
+    }
+
+    detail.body.page.fields.splice(5, 0, {
+      fieldKey: "objectives",
+      fieldLabel: "Objectives",
+      helpText: "Select an existing objectives instance or create one inline.",
+      required: false,
+      contextFactDefinitionId: "ctx-objectives-bound",
+      contextFactKey: "objectives",
+      contextFactKind: "bound_fact",
+      widget: {
+        control: "json",
+        valueType: "json",
+        cardinality: "many",
+        renderedMultiplicity: "many",
+        externalBindingKey: "objectives",
+        externalCardinality: "many",
+        bindingLabel: "Objectives",
+        options: [
+          {
+            value: {
+              factInstanceId: "fact-objectives-1",
+              value: {
+                title: "Explore the strongest onboarding direction",
+                motivation: "Validate the fastest path to user activation",
+                priority: "high",
+              },
+            },
+            label: "Objectives",
+            description: "Existing objectives instance",
+          },
+        ],
+        boundValueWidget: {
+          control: "json",
+          valueType: "json",
+          cardinality: "one",
+          renderedMultiplicity: "one",
+          nestedFields: [
+            {
+              key: "title",
+              label: "Title",
+              factType: "string",
+              cardinality: "one",
+              required: true,
+            },
+            {
+              key: "motivation",
+              label: "Motivation",
+              factType: "string",
+              cardinality: "one",
+              required: false,
+            },
+            {
+              key: "priority",
+              label: "Priority",
+              factType: "string",
+              cardinality: "one",
+              required: true,
+            },
+          ],
+        },
+      },
+    });
+
+    detail.body.draft.payload = {
+      ...detail.body.draft.payload,
+      objectives: [null],
+    };
+
+    const { saveDraftCalls } = await renderHarness({ currentDetail: detail });
+
+    await user.click(screen.getByRole("combobox", { name: "Objectives 1" }));
+    await user.click(screen.getByRole("option", { name: /^Objectives$/i }));
+
+    expect(screen.getByDisplayValue("Explore the strongest onboarding direction")).toBeTruthy();
+    expect(screen.getByDisplayValue("Validate the fastest path to user activation")).toBeTruthy();
+    expect(screen.getByDisplayValue("high")).toBeTruthy();
+
+    await user.clear(screen.getByRole("textbox", { name: "Title" }));
+    await user.type(screen.getByRole("textbox", { name: "Title" }), "Refine TaskFlow onboarding");
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    await waitFor(() => expect(saveDraftCalls).toHaveLength(1));
+    expect(saveDraftCalls[0]).toMatchObject({
+      values: {
+        objectives: [
+          {
+            factInstanceId: "fact-objectives-1",
+            value: {
+              title: "Refine TaskFlow onboarding",
+              motivation: "Validate the fastest path to user activation",
+              priority: "high",
+            },
+          },
+        ],
+      },
+    });
+  });
+
   it("locks singleton bound facts to the existing instance and preserves instance id on inline edit", async () => {
     const user = userEvent.setup();
     const { saveDraftCalls } = await renderHarness();
