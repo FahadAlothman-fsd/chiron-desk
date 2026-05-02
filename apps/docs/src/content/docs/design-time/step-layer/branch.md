@@ -53,12 +53,12 @@ Branch steps are read-only evaluators.
 
 ## Taskflow example
 
-In the narrowed public Taskflow example, a `branch` step can check whether onboarding has enough context to continue directly into the `Architecture` work unit or whether more setup input is still required.
+In the public Taskflow example, a `branch` step can decide whether `setup` should create `brainstorming` or `research`, or whether `prd` should continue into `implementation`.
 
 That keeps the route choice attached to the workflow instead of hiding readiness decisions in tribal knowledge.
 
 > **Screenshot placeholder**
-> Taskflow branch step, showing evaluated routes for additional setup versus Architecture handoff.
+> Taskflow branch step, showing evaluated routes for downstream work creation.
 
 ## Current behavior and implementation status
 

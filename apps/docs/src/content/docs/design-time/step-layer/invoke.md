@@ -55,10 +55,10 @@ Invoke v1 is intentionally constrained.
 
 ## Taskflow example
 
-In the narrowed public Taskflow example, an `invoke` step could activate the `Architecture` work unit once onboarding has produced the required project context and starting artifacts.
+In the public Taskflow example, an `invoke` step shows up most clearly when `setup` creates downstream `brainstorming` and `research` work, or when `prd` creates `implementation` work from durable draft specs.
 
 > **Screenshot placeholder**
-> Taskflow invoke step, showing the Architecture work-unit target, activation transition, and propagated onboarding context.
+> Taskflow invoke step, showing the downstream work-unit target, activation transition, and propagated draft context.
 
 ## Current behavior and implementation status
 
