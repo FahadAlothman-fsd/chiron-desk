@@ -34,6 +34,7 @@ export const ReadStepSnapshotOutput = Schema.Struct({
   stepExecutionId: Schema.NonEmptyString,
   workflowExecutionId: Schema.NonEmptyString,
   state: AgentStepRuntimeState,
+  projectName: Schema.optional(Schema.String),
   objective: Schema.NonEmptyString,
   instructionsMarkdown: Schema.NonEmptyString,
   contractVersion: Schema.Literal("v1"),

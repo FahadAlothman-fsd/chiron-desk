@@ -67,6 +67,7 @@ export const AgentStepSnapshotServiceLive = Layer.effect(
           stepExecutionId: context.stepExecution.id,
           workflowExecutionId: context.workflowDetail.workflowExecution.id,
           state: context.runtimeState,
+          ...(context.projectName ? { projectName: context.projectName } : {}),
           objective: context.agentPayload.objective,
           instructionsMarkdown: context.agentPayload.instructionsMarkdown,
           contractVersion: "v1",

@@ -164,6 +164,7 @@ export type StepSnapshotCompletionSummary = typeof StepSnapshotCompletionSummary
 
 export const ReadStepExecutionSnapshotOutputV2 = Schema.Struct({
   state: AgentStepRuntimeState,
+  projectName: Schema.optional(Schema.String),
   objective: Schema.NonEmptyString,
   instructionsMarkdown: Schema.NonEmptyString,
   completion: StepSnapshotCompletionSummary,

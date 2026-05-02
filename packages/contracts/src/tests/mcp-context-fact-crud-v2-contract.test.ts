@@ -44,6 +44,7 @@ describe("mcp context fact CRUD v2 contracts", () => {
   it("locks the step snapshot overview shape", () => {
     const output = Schema.decodeUnknownSync(ReadStepExecutionSnapshotOutputV2)({
       state: "active_idle",
+      projectName: "Chiron Test",
       objective: "Draft setup outputs",
       instructionsMarkdown: "Use only facts in scope.",
       completion: {

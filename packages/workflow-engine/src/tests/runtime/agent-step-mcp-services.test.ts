@@ -76,6 +76,7 @@ describe("AgentStep MCP v2 services", () => {
     if (snapshot.response.toolName !== "read_step_execution_snapshot") {
       throw new Error("expected read_step_execution_snapshot response");
     }
+    expect(snapshot.response.output.projectName).toBe("Project 1");
     expect(snapshot.response.output.readSet[0]?.factKey).toBe("project-context");
     expect(snapshot.response.output.writeSet.map((item) => item.factKey)).toEqual([
       "review-notes",
