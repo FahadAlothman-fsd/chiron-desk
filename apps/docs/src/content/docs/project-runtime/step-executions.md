@@ -57,7 +57,6 @@ This page needs a clear maturity note.
 
 - `form`, `branch`, `invoke`, and `action` have concrete runtime detail contracts today.
 - `agent` has a dedicated runtime contract and a real operator surface, but the broader step-layer story is still being finished across the product.
-- `display` remains lighter. Public docs should not imply a deep standalone execution surface that current contracts do not show.
 - The repo still labels deeper workflow-step execution work as not yet fully implemented in some areas, especially around the full Step Layer story.
 
 That means step executions are real and inspectable now, but you should not assume every step family has reached the same depth.
@@ -79,7 +78,6 @@ Step executions come from the Step Layer and, for agent steps, the agent-step co
 - [Agent](/design-time/step-layer/agent)
 - [Action](/design-time/step-layer/action)
 - [Invoke](/design-time/step-layer/invoke)
-- [Display](/design-time/step-layer/display)
 - [Branch](/design-time/step-layer/branch)
 - Runtime contract authority: `packages/contracts/src/runtime/executions.ts`
 - Agent-step runtime authority: `packages/contracts/src/agent-step/runtime.ts`

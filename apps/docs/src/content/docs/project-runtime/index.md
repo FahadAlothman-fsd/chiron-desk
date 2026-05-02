@@ -35,19 +35,19 @@ Each page links back to the design-time layer that defines the runtime surface.
 
 The running example stays the same across the public docs.
 
-In the narrowed public Taskflow example, a live project might show:
+In the public Taskflow example, a live project might show:
 
-- project facts like repo path or delivery mode
-- work-unit instances like `PRD` and `Architecture`
-- the onboarding path that produced enough context for `Architecture` to begin
-- the runtime state that makes that handoff visible instead of implicit
+- methodology-level project facts like repo path or delivery mode
+- work-unit instances like `Setup`, `Brainstorming`, `Research`, `PRD`, and `Implementation`
+- the runtime outputs that moved the project from fuzzy onboarding into durable planning and code-oriented execution
+- the visible state and evidence behind each handoff
 
 ## What this track covers
 
 This track stays focused on what an operator can actually inspect or act on in the current product.
 
-- The public docs use this track mainly to make the setup-to-architecture handoff concrete.
-- Deeper downstream runtime paths exist, but they are not the main public teaching spine right now.
+- The public docs use this track to make the Taskflow runtime path concrete from setup through implementation.
+- The runtime pages stay operator-facing even when the example moves deeper into planning or execution.
 - Artifact behavior appears here when runtime pages show current snapshots, references, or gating evidence.
 
 If a deeper capability is still partial, the page labels it plainly.

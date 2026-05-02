@@ -47,7 +47,7 @@ This is where execution paths connect to transitions and runtime behavior.
 
 A node inside a workflow.
 
-Step types include `form`, `agent`, `action`, `invoke`, `display`, and `branch`.
+Step types include `form`, `agent`, `action`, `invoke`, and `branch`.
 
 ### Step Layer
 
