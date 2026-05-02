@@ -411,14 +411,21 @@ describe("methodology seed integration", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, 
     const activePrdWorkflow = methodologyCanonicalTableSeedRows.methodology_workflows.find(
       (row) => row.methodologyVersionId === "mver_bmad_v1_active" && row.key === "create_prd",
     );
+    const activeImplementationWorkflow =
+      methodologyCanonicalTableSeedRows.methodology_workflows.find(
+        (row) => row.methodologyVersionId === "mver_bmad_v1_active" && row.key === "implementation",
+      );
 
     expect(activeSetupWorkflow?.metadataJson).toMatchObject({
       entryStepId:
-        "seed:section-a:setup:setup-project:mver_bmad_v1_active:step:collect_setup_baseline",
+        "seed:section-a:setup:setup-project:mver_bmad_v1_active:step:greenfield_setup_agent",
     });
     expect(activePrdWorkflow?.metadataJson).toMatchObject({
+      entryStepId: "seed:section-a:prd:create-prd:mver_bmad_v1_active:step:prd_input_selection",
+    });
+    expect(activeImplementationWorkflow?.metadataJson).toMatchObject({
       entryStepId:
-        "seed:section-a:prd:create-prd:mver_bmad_v1_active:step:prd_input_initialization_agent",
+        "seed:section-a:implementation:implementation:mver_bmad_v1_active:step:implementation_planning_agent",
     });
   });
 });

@@ -68,15 +68,7 @@ export type MethodologyWorkflowContextFactDraftSpecSelectionSeedRow =
 export type MethodologyWorkflowContextFactDraftSpecFactSeedRow =
   typeof schema.methodologyWorkflowContextFactDraftSpecFields.$inferInsert;
 
-export const LOCKED_BMAD_SETUP_WORK_UNIT_FACT_KEYS = [
-  "workflow_mode",
-  "scan_level",
-  "requires_brainstorming",
-  "requires_research",
-  "branch_note",
-  "requires_product_brief",
-  "deep_dive_target",
-] as const;
+export const LOCKED_BMAD_SETUP_WORK_UNIT_FACT_KEYS = ["setup_path_summary"] as const;
 
 export const LOCKED_BMAD_METHODOLOGY_FACT_KEYS = [
   "project_knowledge_directory",
@@ -112,6 +104,7 @@ type WorkUnitKey =
   | "research"
   | "product_brief"
   | "prd"
+  | "implementation"
   | "ux_design"
   | "architecture";
 
@@ -318,8 +311,8 @@ const canonicalWorkUnitDefinitions = [
       "Initializes a BMAD project, captures durable setup context, and routes the next planning work.",
     ),
     guidanceJson: toGuidanceJson(
-      "Use Setup to establish the baseline project context and select the next BMAD path.",
-      "Setup is the canonical source of baseline project context. Downstream work should consume setup-owned facts and artifacts instead of re-deriving foundational assumptions.",
+      "Use Setup to establish the baseline project frame and select the next BMAD path.",
+      "Setup is the canonical source of baseline project framing. Downstream work should consume setup-owned facts and artifacts instead of re-deriving foundational assumptions.",
     ),
     cardinality: "one_per_project" as const,
   },
@@ -327,11 +320,11 @@ const canonicalWorkUnitDefinitions = [
     key: "brainstorming",
     displayName: "Brainstorming",
     descriptionJson: toDescriptionJson(
-      "Facilitates structured ideation, convergence, and follow-up recommendations for fuzzy or exploratory work.",
+      "Facilitates structured ideation and convergence for fuzzy or exploratory work.",
     ),
     guidanceJson: toGuidanceJson(
       "Use Brainstorming when the problem or solution space is still exploratory and multiple directions should be surfaced before commitment.",
-      "Brainstorming expands option space, captures technique outputs, and converges on selected directions plus optional research recommendations.",
+      "Brainstorming expands option space, captures technique outputs when needed, and converges on selected directions and priority directions.",
     ),
     cardinality: "many_per_project" as const,
   },
@@ -368,6 +361,18 @@ const canonicalWorkUnitDefinitions = [
     guidanceJson: toGuidanceJson(
       "Use PRD to turn a Product Brief or direct context into the downstream capability contract.",
       "PRD is the main planning contract for UX Design, Architecture, and later decomposition work.",
+    ),
+    cardinality: "many_per_project" as const,
+  },
+  {
+    key: "implementation",
+    displayName: "Implementation",
+    descriptionJson: toDescriptionJson(
+      "Executes bounded implementation work from approved implementation drafts and preserves planning, code-change, and validation outputs.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Use Implementation when requirements have been decomposed into execution-sized work that should now change code in the repository.",
+      "Implementation turns approved implementation drafts into a concrete plan, applied code changes, and durable validation outputs.",
     ),
     cardinality: "many_per_project" as const,
   },
@@ -420,12 +425,12 @@ const workUnitStateDefinitions = {
       "Setup has produced the durable project setup record and the project is ready to continue through the selected BMAD path.",
     ),
     guidanceJson: toGuidanceJson(
-      "Treat Setup as done only when the durable setup summary, next recommendation, and canonical overview artifact are available.",
+      "Treat Setup as done only when the durable setup summary and canonical overview artifact are available, and any required downstream work units have been created through the workflow.",
     ),
   },
   brainstorming: {
     descriptionJson: toDescriptionJson(
-      "Brainstorming has produced a session artifact plus converged directions and follow-up recommendations.",
+      "Brainstorming has produced a session artifact plus converged directions that are ready for downstream planning.",
     ),
     guidanceJson: toGuidanceJson(
       "Treat Brainstorming as done only when the session artifact and selected directions are durable.",
@@ -452,7 +457,15 @@ const workUnitStateDefinitions = {
       "The PRD artifact is complete and ready to feed UX Design, Architecture, and later planning work.",
     ),
     guidanceJson: toGuidanceJson(
-      "Treat PRD as done only when its requirement contract and next recommended work units are durable.",
+      "Treat PRD as done only when its requirement contract and canonical PRD artifact are durable.",
+    ),
+  },
+  implementation: {
+    descriptionJson: toDescriptionJson(
+      "Implementation has produced a bounded execution plan, applied code changes, and recorded validation results for the selected implementation drafts.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Treat Implementation as done only when the execution plan, implemented code changes, validation results, and implementation artifacts are durable.",
     ),
   },
   ux_design: {
@@ -509,6 +522,10 @@ export const productBriefLifecycleStateSeedRows: readonly MethodologyLifecycleSt
   );
 export const prdLifecycleStateSeedRows: readonly MethodologyLifecycleStateSeedRow[] =
   buildRowsForAllCanonicalVersions((versionId) => buildLifecycleStateSeedRowsFor("prd", versionId));
+export const implementationLifecycleStateSeedRows: readonly MethodologyLifecycleStateSeedRow[] =
+  buildRowsForAllCanonicalVersions((versionId) =>
+    buildLifecycleStateSeedRowsFor("implementation", versionId),
+  );
 export const uxDesignLifecycleStateSeedRows: readonly MethodologyLifecycleStateSeedRow[] =
   buildRowsForAllCanonicalVersions((versionId) =>
     buildLifecycleStateSeedRowsFor("ux_design", versionId),
@@ -520,7 +537,7 @@ export const architectureLifecycleStateSeedRows: readonly MethodologyLifecycleSt
 
 const workUnitTransitionDefinitions = {
   setup: toGuidanceJson(
-    "Use this transition to complete setup once the durable setup record and next recommendation have been propagated.",
+    "Use this transition to complete setup once the durable setup record and project overview artifact have been propagated.",
   ),
   brainstorming: toGuidanceJson(
     "Use this transition for the primary brainstorming workflow once the converged session outputs are durable.",
@@ -532,7 +549,10 @@ const workUnitTransitionDefinitions = {
     "Use this transition once Product Brief has produced its executive brief, synthesis, and next recommendation.",
   ),
   prd: toGuidanceJson(
-    "Use this transition once the PRD requirement contract and downstream recommendation set are durable.",
+    "Use this transition once the PRD requirement contract and canonical artifact are durable.",
+  ),
+  implementation: toGuidanceJson(
+    "Use this transition once Implementation has produced its execution plan, code-change record, validation outputs, and canonical implementation artifacts.",
   ),
   ux_design: toGuidanceJson(
     "Use this transition once the UX specification and UX requirement stream are durable.",
@@ -582,6 +602,10 @@ export const prdLifecycleTransitionSeedRows: readonly MethodologyLifecycleTransi
   buildRowsForAllCanonicalVersions((versionId) =>
     buildLifecycleTransitionSeedRowsFor("prd", versionId),
   );
+export const implementationLifecycleTransitionSeedRows: readonly MethodologyLifecycleTransitionSeedRow[] =
+  buildRowsForAllCanonicalVersions((versionId) =>
+    buildLifecycleTransitionSeedRowsFor("implementation", versionId),
+  );
 export const uxDesignLifecycleTransitionSeedRows: readonly MethodologyLifecycleTransitionSeedRow[] =
   buildRowsForAllCanonicalVersions((versionId) =>
     buildLifecycleTransitionSeedRowsFor("ux_design", versionId),
@@ -604,6 +628,25 @@ function factCondition(
       factKey,
       factDefinitionId: workUnitFactDefinitionId(workUnitKey, idSuffix, methodologyVersionId),
       operator: "exists",
+    },
+  } as const;
+}
+
+function factEqualsCondition(
+  workUnitKey: WorkUnitKey,
+  factKey: string,
+  idSuffix: string,
+  value: unknown,
+  methodologyVersionId: CanonicalMethodologyVersionId,
+) {
+  return {
+    kind: "work_unit_fact",
+    required: true,
+    config: {
+      factKey,
+      factDefinitionId: workUnitFactDefinitionId(workUnitKey, idSuffix, methodologyVersionId),
+      operator: "equals",
+      comparisonJson: { value },
     },
   } as const;
 }
@@ -635,6 +678,7 @@ function buildTransitionConditionSetSeedRowsFor(
     WorkUnitKey,
     {
       startGroupsJson: readonly { mode: "all" | "any"; conditions: readonly unknown[] }[];
+      completionMode?: "all" | "any";
       completionGroupsJson: readonly { mode: "all" | "any"; conditions: readonly unknown[] }[];
     }
   > = {
@@ -644,18 +688,10 @@ function buildTransitionConditionSetSeedRowsFor(
         {
           mode: "all",
           conditions: [
-            factCondition("setup", "initiative_name", "initiative-name", methodologyVersionId),
-            factCondition("setup", "project_kind", "project-kind", methodologyVersionId),
             factCondition(
               "setup",
               "setup_path_summary",
               "setup-path-summary",
-              methodologyVersionId,
-            ),
-            factCondition(
-              "setup",
-              "next_recommended_work_unit",
-              "next-recommended-work-unit",
               methodologyVersionId,
             ),
             artifactCondition(
@@ -676,10 +712,17 @@ function buildTransitionConditionSetSeedRowsFor(
           conditions: [
             factCondition(
               "brainstorming",
+              "brainstorming_focus",
+              "brainstorming-focus",
+              methodologyVersionId,
+            ),
+            factCondition(
+              "brainstorming",
               "desired_outcome",
               "desired-outcome",
               methodologyVersionId,
             ),
+            factCondition("brainstorming", "objectives", "objectives", methodologyVersionId),
             factCondition(
               "brainstorming",
               "selected_directions",
@@ -703,39 +746,95 @@ function buildTransitionConditionSetSeedRowsFor(
       ],
     },
     research: {
-      startGroupsJson: [
-        {
-          mode: "all",
-          conditions: [
-            factCondition("research", "research_type", "research-type", methodologyVersionId),
-            factCondition("research", "research_topic", "research-topic", methodologyVersionId),
-          ],
-        },
-        {
-          mode: "any",
-          conditions: [
-            factCondition("research", "setup_work_unit", "setup-work-unit", methodologyVersionId),
-            factCondition(
-              "research",
-              "brainstorming_work_unit",
-              "brainstorming-work-unit",
-              methodologyVersionId,
-            ),
-            factCondition("research", "research_goals", "research-goals", methodologyVersionId),
-          ],
-        },
-      ],
+      startGroupsJson: [],
+      completionMode: "any",
       completionGroupsJson: [
         {
           mode: "all",
           conditions: [
-            factCondition("research", "research_type", "research-type", methodologyVersionId),
+            factEqualsCondition(
+              "research",
+              "research_type",
+              "research-type",
+              "market",
+              methodologyVersionId,
+            ),
             factCondition("research", "research_topic", "research-topic", methodologyVersionId),
             factCondition("research", "research_goals", "research-goals", methodologyVersionId),
             factCondition(
               "research",
-              "research_synthesis",
-              "research-synthesis",
+              "market_source_inventory",
+              "market-source-inventory",
+              methodologyVersionId,
+            ),
+            factCondition(
+              "research",
+              "market_research_synthesis",
+              "market-research-synthesis",
+              methodologyVersionId,
+            ),
+            artifactCondition(
+              "research",
+              "RESEARCH_REPORT",
+              "research-report",
+              methodologyVersionId,
+            ),
+          ],
+        },
+        {
+          mode: "all",
+          conditions: [
+            factEqualsCondition(
+              "research",
+              "research_type",
+              "research-type",
+              "domain",
+              methodologyVersionId,
+            ),
+            factCondition("research", "research_topic", "research-topic", methodologyVersionId),
+            factCondition("research", "research_goals", "research-goals", methodologyVersionId),
+            factCondition(
+              "research",
+              "domain_source_inventory",
+              "domain-source-inventory",
+              methodologyVersionId,
+            ),
+            factCondition(
+              "research",
+              "domain_research_synthesis",
+              "domain-research-synthesis",
+              methodologyVersionId,
+            ),
+            artifactCondition(
+              "research",
+              "RESEARCH_REPORT",
+              "research-report",
+              methodologyVersionId,
+            ),
+          ],
+        },
+        {
+          mode: "all",
+          conditions: [
+            factEqualsCondition(
+              "research",
+              "research_type",
+              "research-type",
+              "technical",
+              methodologyVersionId,
+            ),
+            factCondition("research", "research_topic", "research-topic", methodologyVersionId),
+            factCondition("research", "research_goals", "research-goals", methodologyVersionId),
+            factCondition(
+              "research",
+              "technical_source_inventory",
+              "technical-source-inventory",
+              methodologyVersionId,
+            ),
+            factCondition(
+              "research",
+              "technical_research_synthesis",
+              "technical-research-synthesis",
               methodologyVersionId,
             ),
             artifactCondition(
@@ -754,7 +853,6 @@ function buildTransitionConditionSetSeedRowsFor(
         {
           mode: "all",
           conditions: [
-            factCondition("product_brief", "product_name", "product-name", methodologyVersionId),
             factCondition(
               "product_brief",
               "product_intent_summary",
@@ -765,12 +863,6 @@ function buildTransitionConditionSetSeedRowsFor(
               "product_brief",
               "brief_synthesis",
               "brief-synthesis",
-              methodologyVersionId,
-            ),
-            factCondition(
-              "product_brief",
-              "next_recommended_work_unit",
-              "next-recommended-work-unit",
               methodologyVersionId,
             ),
             artifactCondition(
@@ -789,13 +881,6 @@ function buildTransitionConditionSetSeedRowsFor(
         {
           mode: "all",
           conditions: [
-            factCondition("prd", "project_name", "project-name", methodologyVersionId),
-            factCondition(
-              "prd",
-              "project_classification",
-              "project-classification",
-              methodologyVersionId,
-            ),
             factCondition("prd", "product_vision", "product-vision", methodologyVersionId),
             factCondition("prd", "success_criteria", "success-criteria", methodologyVersionId),
             factCondition("prd", "user_journeys", "user-journeys", methodologyVersionId),
@@ -813,13 +898,73 @@ function buildTransitionConditionSetSeedRowsFor(
               methodologyVersionId,
             ),
             factCondition("prd", "prd_synthesis", "prd-synthesis", methodologyVersionId),
+            artifactCondition("prd", "PRD", "prd", methodologyVersionId),
+          ],
+        },
+      ],
+    },
+    implementation: {
+      startGroupsJson: [
+        {
+          mode: "all",
+          conditions: [
+            factCondition("implementation", "prd_work_unit", "prd-work-unit", methodologyVersionId),
+          ],
+        },
+      ],
+      completionGroupsJson: [
+        {
+          mode: "all",
+          conditions: [
             factCondition(
-              "prd",
-              "next_recommended_work_units",
-              "next-recommended-work-units",
+              "implementation",
+              "implementation_scope",
+              "implementation-scope",
               methodologyVersionId,
             ),
-            artifactCondition("prd", "PRD", "prd", methodologyVersionId),
+            factCondition(
+              "implementation",
+              "implementation_plan",
+              "implementation-plan",
+              methodologyVersionId,
+            ),
+            factCondition(
+              "implementation",
+              "code_change_summary",
+              "code-change-summary",
+              methodologyVersionId,
+            ),
+            factCondition(
+              "implementation",
+              "validation_summary",
+              "validation-summary",
+              methodologyVersionId,
+            ),
+            factCondition("implementation", "test_results", "test-results", methodologyVersionId),
+            factCondition(
+              "implementation",
+              "implementation_status_summary",
+              "implementation-status-summary",
+              methodologyVersionId,
+            ),
+            artifactCondition(
+              "implementation",
+              "IMPLEMENTATION_PLAN",
+              "implementation-plan",
+              methodologyVersionId,
+            ),
+            artifactCondition(
+              "implementation",
+              "IMPLEMENTED_CODE_CHANGES",
+              "implemented-code-changes",
+              methodologyVersionId,
+            ),
+            artifactCondition(
+              "implementation",
+              "IMPLEMENTATION_TEST_REPORT",
+              "implementation-test-report",
+              methodologyVersionId,
+            ),
           ],
         },
       ],
@@ -987,7 +1132,7 @@ function buildTransitionConditionSetSeedRowsFor(
       transitionId: transition,
       key: `wu.${workUnitKey}.activation_to_done.completion`,
       phase: "completion",
-      mode: "all",
+      mode: definition.completionMode ?? "all",
       groupsJson: definition.completionGroupsJson,
     },
   ];
@@ -1013,6 +1158,10 @@ export const prdTransitionConditionSetSeedRows: readonly MethodologyTransitionCo
   buildRowsForAllCanonicalVersions((versionId) =>
     buildTransitionConditionSetSeedRowsFor("prd", versionId),
   );
+export const implementationTransitionConditionSetSeedRows: readonly MethodologyTransitionConditionSetSeedRow[] =
+  buildRowsForAllCanonicalVersions((versionId) =>
+    buildTransitionConditionSetSeedRowsFor("implementation", versionId),
+  );
 export const uxDesignTransitionConditionSetSeedRows: readonly MethodologyTransitionConditionSetSeedRow[] =
   buildRowsForAllCanonicalVersions((versionId) =>
     buildTransitionConditionSetSeedRowsFor("ux_design", versionId),
@@ -1036,34 +1185,6 @@ type FactDefinitionConfig = {
 
 const setupFactDefinitions = [
   {
-    idSuffix: "initiative-name",
-    key: "initiative_name",
-    name: "Initiative Name",
-    factType: "string",
-    cardinality: "one",
-    descriptionJson: toDescriptionJson(
-      "Durable project or initiative label captured during setup intake.",
-    ),
-    guidanceJson: toGuidanceJson(
-      "Use the human-readable name that should appear in setup-owned artifacts.",
-    ),
-    validationJson: { kind: "none" as const },
-    defaultValueJson: null,
-  },
-  {
-    idSuffix: "project-kind",
-    key: "project_kind",
-    name: "Project Kind",
-    factType: "string",
-    cardinality: "one",
-    descriptionJson: toDescriptionJson(
-      "Durable greenfield/brownfield split selected during setup.",
-    ),
-    guidanceJson: toGuidanceJson("Allowed values: `greenfield`, `brownfield`."),
-    validationJson: toAllowedValuesValidation(["greenfield", "brownfield"]),
-    defaultValueJson: null,
-  },
-  {
     idSuffix: "setup-path-summary",
     key: "setup_path_summary",
     name: "Setup Path Summary",
@@ -1073,7 +1194,7 @@ const setupFactDefinitions = [
       "Structured record of the setup path selected, what was invoked, what was deferred, and what should happen next.",
     ),
     guidanceJson: toGuidanceJson(
-      "Persist the durable summary of setup decisions, propagation outputs, deferred items, and the next recommended work unit type.",
+      "Persist the durable summary of the setup path that was chosen, why it was chosen, and which work unit should come next.",
     ),
     validationJson: {
       kind: "json-schema" as const,
@@ -1081,38 +1202,13 @@ const setupFactDefinitions = [
       schema: {
         type: "object",
         additionalProperties: false,
-        required: [
-          "project_kind",
-          "selected_path",
-          "next_recommended_work_unit_type_key",
-          "rationale",
-        ],
+        required: ["selected_path", "rationale"],
         properties: {
-          project_kind: { type: "string", cardinality: "one" },
           selected_path: { type: "string", cardinality: "one" },
-          invoked_work_units: { type: "object", cardinality: "many" },
-          propagated_project_facts: { type: "object", cardinality: "many" },
-          deferred_items: { type: "object", cardinality: "many" },
-          next_recommended_work_unit_type_key: { type: "string", cardinality: "one" },
           rationale: { type: "string", cardinality: "one" },
         },
       },
     },
-    defaultValueJson: null,
-  },
-  {
-    idSuffix: "next-recommended-work-unit",
-    key: "next_recommended_work_unit",
-    name: "Next Recommended Work Unit",
-    factType: "work_unit",
-    cardinality: "one",
-    descriptionJson: toDescriptionJson(
-      "Durable pointer to the next recommended work unit after setup.",
-    ),
-    guidanceJson: toGuidanceJson(
-      "Usually points to Brainstorming, Research, or Product Brief depending on the selected setup path.",
-    ),
-    validationJson: { kind: "none" as const },
     defaultValueJson: null,
   },
 ] as const satisfies readonly FactDefinitionConfig[];
@@ -1144,9 +1240,11 @@ const brainstormingFactDefinitions = [
     factType: "string",
     cardinality: "one",
     descriptionJson: toDescriptionJson(
-      "The topic, problem, or opportunity the brainstorming session explores.",
+      "The core topic, problem, opportunity, or decision area the brainstorming session should explore.",
     ),
-    guidanceJson: toGuidanceJson("Capture the single focus statement that frames the session."),
+    guidanceJson: toGuidanceJson(
+      "Write this as a single clear focus statement so the session stays centered on one thing.",
+    ),
     validationJson: { kind: "none" as const },
     defaultValueJson: null,
   },
@@ -1157,10 +1255,10 @@ const brainstormingFactDefinitions = [
     factType: "string",
     cardinality: "one",
     descriptionJson: toDescriptionJson(
-      "What the user wants to get out of the brainstorming session.",
+      "What the user wants to leave the brainstorming session with.",
     ),
     guidanceJson: toGuidanceJson(
-      "Use this as the convergence target when deciding whether the session is complete.",
+      "Capture the concrete outcome the session should produce, such as clearer options, a shortlist of directions, a decision, or a refined concept.",
     ),
     validationJson: { kind: "none" as const },
     defaultValueJson: null,
@@ -1172,10 +1270,10 @@ const brainstormingFactDefinitions = [
     factType: "json",
     cardinality: "many",
     descriptionJson: toDescriptionJson(
-      "Specific brainstorming objectives or questions the session should explore.",
+      "The specific questions, goals, or angles the brainstorming session should explore in service of the desired outcome.",
     ),
     guidanceJson: toGuidanceJson(
-      "Capture one or more explicit brainstorming objectives with priority and success signal.",
+      "Capture the main things the session must investigate, compare, clarify, or generate.",
     ),
     validationJson: {
       kind: "json-schema" as const,
@@ -1237,92 +1335,6 @@ const brainstormingFactDefinitions = [
           { key: "must_avoid", type: "string", cardinality: "many" },
           { key: "timebox_notes", type: "string", cardinality: "many" },
           { key: "known_constraints", type: "string", cardinality: "many" },
-        ],
-      },
-    },
-    defaultValueJson: null,
-  },
-  {
-    idSuffix: "technique-plan",
-    key: "technique_plan",
-    name: "Technique Plan",
-    factType: "json",
-    cardinality: "one",
-    descriptionJson: toDescriptionJson(
-      "Selected technique workflows and why they were chosen for this session.",
-    ),
-    guidanceJson: toGuidanceJson(
-      "Persist which support techniques were used, skipped, or deferred and why.",
-    ),
-    validationJson: {
-      kind: "json-schema" as const,
-      schemaDialect: "draft-2020-12",
-      schema: {
-        type: "object",
-        additionalProperties: false,
-        required: ["mode", "sequence"],
-        properties: {
-          mode: { type: "string", cardinality: "one" },
-          rationale: { type: "string", cardinality: "one" },
-          sequence: {
-            type: "array",
-            items: {
-              type: "object",
-              additionalProperties: false,
-              required: ["workflow_key", "reason"],
-              properties: {
-                workflow_key: { type: "string", cardinality: "one" },
-                reason: { type: "string", cardinality: "one" },
-                order: { type: "number", cardinality: "one" },
-              },
-            },
-          },
-        },
-      },
-      subSchema: {
-        type: "object",
-        fields: [
-          { key: "mode", type: "string", cardinality: "one" },
-          { key: "rationale", type: "string", cardinality: "one" },
-          { key: "sequence", type: "json", cardinality: "many" },
-        ],
-      },
-    },
-    defaultValueJson: null,
-  },
-  {
-    idSuffix: "selected-technique-workflows",
-    key: "selected_technique_workflows",
-    name: "Selected Technique Workflows",
-    factType: "json",
-    cardinality: "many",
-    descriptionJson: toDescriptionJson(
-      "Selected support workflow keys used during this brainstorming session.",
-    ),
-    guidanceJson: toGuidanceJson(
-      "Persist the chosen support workflow keys so later review can understand how the session was run.",
-    ),
-    validationJson: {
-      kind: "json-schema" as const,
-      schemaDialect: "draft-2020-12",
-      schema: {
-        type: "object",
-        additionalProperties: false,
-        required: ["workflow_key"],
-        properties: {
-          workflow_key: { type: "string", cardinality: "one" },
-          selected_via: { type: "string", cardinality: "one" },
-          reason: { type: "string", cardinality: "one" },
-          execution_order: { type: "number", cardinality: "one" },
-        },
-      },
-      subSchema: {
-        type: "object",
-        fields: [
-          { key: "workflow_key", type: "string", cardinality: "one" },
-          { key: "selected_via", type: "string", cardinality: "one" },
-          { key: "reason", type: "string", cardinality: "one" },
-          { key: "execution_order", type: "number", cardinality: "one" },
         ],
       },
     },
@@ -1399,42 +1411,6 @@ const brainstormingFactDefinitions = [
           { key: "quick_wins", type: "string", cardinality: "many" },
           { key: "breakthrough_concepts", type: "string", cardinality: "many" },
           { key: "deferred_directions", type: "string", cardinality: "many" },
-        ],
-      },
-    },
-    defaultValueJson: null,
-  },
-  {
-    idSuffix: "follow-up-research-topics",
-    key: "follow_up_research_topics",
-    name: "Follow-up Research Topics",
-    factType: "json",
-    cardinality: "many",
-    descriptionJson: toDescriptionJson(
-      "Optional research topics recommended by the brainstorming session.",
-    ),
-    guidanceJson: toGuidanceJson(
-      "Use this when the session identifies open questions that should become Research work units.",
-    ),
-    validationJson: {
-      kind: "json-schema" as const,
-      schemaDialect: "draft-2020-12",
-      schema: {
-        type: "object",
-        additionalProperties: false,
-        required: ["topic", "reason"],
-        properties: {
-          topic: { type: "string", cardinality: "one" },
-          reason: { type: "string", cardinality: "one" },
-          priority: { type: "string", cardinality: "one" },
-        },
-      },
-      subSchema: {
-        type: "object",
-        fields: [
-          { key: "topic", type: "string", cardinality: "one" },
-          { key: "reason", type: "string", cardinality: "one" },
-          { key: "priority", type: "string", cardinality: "one" },
         ],
       },
     },
@@ -1576,16 +1552,16 @@ const researchFactDefinitions = [
     defaultValueJson: null,
   },
   {
-    idSuffix: "research-synthesis",
-    key: "research_synthesis",
-    name: "Research Synthesis",
+    idSuffix: "market-source-inventory",
+    key: "market_source_inventory",
+    name: "Market Source Inventory",
     factType: "json",
-    cardinality: "one",
+    cardinality: "many",
     descriptionJson: toDescriptionJson(
-      "Structured downstream-consumable summary of research findings, implications, and recommendations.",
+      "Inventory of sources used or considered during the market research effort.",
     ),
     guidanceJson: toGuidanceJson(
-      "Persist a durable synthesis with findings, risks, downstream implications, and verification notes.",
+      "Store credibility, relevance, and source type metadata for the market research inputs used.",
     ),
     validationJson: {
       kind: "json-schema" as const,
@@ -1595,16 +1571,92 @@ const researchFactDefinitions = [
     defaultValueJson: null,
   },
   {
-    idSuffix: "source-inventory",
-    key: "source_inventory",
-    name: "Source Inventory",
+    idSuffix: "market-research-synthesis",
+    key: "market_research_synthesis",
+    name: "Market Research Synthesis",
+    factType: "json",
+    cardinality: "one",
+    descriptionJson: toDescriptionJson(
+      "Structured downstream-consumable summary of market research findings, implications, and recommendations.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Persist a durable market synthesis with findings, risks, downstream implications, and verification notes.",
+    ),
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: { type: "object" },
+    },
+    defaultValueJson: null,
+  },
+  {
+    idSuffix: "domain-source-inventory",
+    key: "domain_source_inventory",
+    name: "Domain Source Inventory",
     factType: "json",
     cardinality: "many",
     descriptionJson: toDescriptionJson(
-      "Inventory of sources used or considered during the research effort.",
+      "Inventory of sources used or considered during the domain research effort.",
     ),
     guidanceJson: toGuidanceJson(
-      "Store credibility, relevance, and source type metadata for the research inputs used.",
+      "Store credibility, relevance, and source type metadata for the domain research inputs used.",
+    ),
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: { type: "object" },
+    },
+    defaultValueJson: null,
+  },
+  {
+    idSuffix: "domain-research-synthesis",
+    key: "domain_research_synthesis",
+    name: "Domain Research Synthesis",
+    factType: "json",
+    cardinality: "one",
+    descriptionJson: toDescriptionJson(
+      "Structured downstream-consumable summary of domain research findings, implications, and recommendations.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Persist a durable domain synthesis with findings, risks, downstream implications, and verification notes.",
+    ),
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: { type: "object" },
+    },
+    defaultValueJson: null,
+  },
+  {
+    idSuffix: "technical-source-inventory",
+    key: "technical_source_inventory",
+    name: "Technical Source Inventory",
+    factType: "json",
+    cardinality: "many",
+    descriptionJson: toDescriptionJson(
+      "Inventory of sources used or considered during the technical research effort.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Store credibility, relevance, and source type metadata for the technical research inputs used.",
+    ),
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: { type: "object" },
+    },
+    defaultValueJson: null,
+  },
+  {
+    idSuffix: "technical-research-synthesis",
+    key: "technical_research_synthesis",
+    name: "Technical Research Synthesis",
+    factType: "json",
+    cardinality: "one",
+    descriptionJson: toDescriptionJson(
+      "Structured downstream-consumable summary of technical research findings, implications, and recommendations.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Persist a durable technical synthesis with findings, risks, downstream implications, and verification notes.",
     ),
     validationJson: {
       kind: "json-schema" as const,
@@ -1638,12 +1690,12 @@ const productBriefFactDefinitions = [
     key: "brainstorming_work_unit",
     name: "Brainstorming Work Unit",
     factType: "work_unit",
-    cardinality: "one",
+    cardinality: "many",
     descriptionJson: toDescriptionJson(
-      "Optional Brainstorming reference whose outputs fed this Product Brief.",
+      "Optional Brainstorming references whose outputs fed this Product Brief.",
     ),
     guidanceJson: toGuidanceJson(
-      "Bind this explicitly when brainstorming outputs are an input to the brief.",
+      "Bind relevant brainstorming inputs explicitly when they materially shaped the brief.",
     ),
     validationJson: {
       kind: "none" as const,
@@ -1672,19 +1724,6 @@ const productBriefFactDefinitions = [
     defaultValueJson: null,
   },
   {
-    idSuffix: "product-name",
-    key: "product_name",
-    name: "Product Name",
-    factType: "string",
-    cardinality: "one",
-    descriptionJson: toDescriptionJson(
-      "Product or initiative name used in the Product Brief artifact.",
-    ),
-    guidanceJson: toGuidanceJson("Use the durable executive-facing product or initiative name."),
-    validationJson: { kind: "none" as const },
-    defaultValueJson: null,
-  },
-  {
     idSuffix: "product-intent-summary",
     key: "product_intent_summary",
     name: "Product Intent Summary",
@@ -1697,7 +1736,30 @@ const productBriefFactDefinitions = [
     validationJson: {
       kind: "json-schema" as const,
       schemaDialect: "draft-2020-12",
-      schema: { type: "object" },
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["core_idea", "target_users", "problem", "desired_outcome", "source_mode"],
+        properties: {
+          core_idea: { type: "string", cardinality: "one" },
+          target_users: { type: "string", cardinality: "many" },
+          problem: { type: "string", cardinality: "one" },
+          desired_outcome: { type: "string", cardinality: "one" },
+          constraints: { type: "string", cardinality: "many" },
+          source_mode: { type: "string", cardinality: "one" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "core_idea", type: "string", cardinality: "one" },
+          { key: "target_users", type: "string", cardinality: "many" },
+          { key: "problem", type: "string", cardinality: "one" },
+          { key: "desired_outcome", type: "string", cardinality: "one" },
+          { key: "constraints", type: "string", cardinality: "many" },
+          { key: "source_mode", type: "string", cardinality: "one" },
+        ],
+      },
     },
     defaultValueJson: null,
   },
@@ -1716,7 +1778,26 @@ const productBriefFactDefinitions = [
     validationJson: {
       kind: "json-schema" as const,
       schemaDialect: "draft-2020-12",
-      schema: { type: "object" },
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["key_inputs", "contradictions", "remaining_gaps"],
+        properties: {
+          key_inputs: { type: "string", cardinality: "many" },
+          contradictions: { type: "string", cardinality: "many" },
+          remaining_gaps: { type: "string", cardinality: "many" },
+          ignored_inputs: { type: "string", cardinality: "many" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "key_inputs", type: "string", cardinality: "many" },
+          { key: "contradictions", type: "string", cardinality: "many" },
+          { key: "remaining_gaps", type: "string", cardinality: "many" },
+          { key: "ignored_inputs", type: "string", cardinality: "many" },
+        ],
+      },
     },
     defaultValueJson: null,
   },
@@ -1735,7 +1816,30 @@ const productBriefFactDefinitions = [
     validationJson: {
       kind: "json-schema" as const,
       schemaDialect: "draft-2020-12",
-      schema: { type: "object" },
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["executive_summary", "problem", "solution", "scope", "prd_readiness"],
+        properties: {
+          executive_summary: { type: "string", cardinality: "one" },
+          problem: { type: "string", cardinality: "one" },
+          solution: { type: "string", cardinality: "one" },
+          differentiators: { type: "string", cardinality: "many" },
+          scope: { type: "string", cardinality: "many" },
+          prd_readiness: { type: "string", cardinality: "one" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "executive_summary", type: "string", cardinality: "one" },
+          { key: "problem", type: "string", cardinality: "one" },
+          { key: "solution", type: "string", cardinality: "one" },
+          { key: "differentiators", type: "string", cardinality: "many" },
+          { key: "scope", type: "string", cardinality: "many" },
+          { key: "prd_readiness", type: "string", cardinality: "one" },
+        ],
+      },
     },
     defaultValueJson: null,
   },
@@ -1754,7 +1858,28 @@ const productBriefFactDefinitions = [
     validationJson: {
       kind: "json-schema" as const,
       schemaDialect: "draft-2020-12",
-      schema: { type: "object" },
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["reviewer_type", "finding", "impact"],
+        properties: {
+          reviewer_type: { type: "string", cardinality: "one" },
+          finding: { type: "string", cardinality: "one" },
+          impact: { type: "string", cardinality: "one" },
+          recommendation: { type: "string", cardinality: "one" },
+          disposition: { type: "string", cardinality: "one" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "reviewer_type", type: "string", cardinality: "one" },
+          { key: "finding", type: "string", cardinality: "one" },
+          { key: "impact", type: "string", cardinality: "one" },
+          { key: "recommendation", type: "string", cardinality: "one" },
+          { key: "disposition", type: "string", cardinality: "one" },
+        ],
+      },
     },
     defaultValueJson: null,
   },
@@ -1771,45 +1896,32 @@ const productBriefFactDefinitions = [
     validationJson: {
       kind: "json-schema" as const,
       schemaDialect: "draft-2020-12",
-      schema: { type: "object" },
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["question", "reason"],
+        properties: {
+          question: { type: "string", cardinality: "one" },
+          reason: { type: "string", cardinality: "one" },
+          blocking: { type: "boolean", cardinality: "one" },
+          owner_hint: { type: "string", cardinality: "one" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "question", type: "string", cardinality: "one" },
+          { key: "reason", type: "string", cardinality: "one" },
+          { key: "blocking", type: "boolean", cardinality: "one" },
+          { key: "owner_hint", type: "string", cardinality: "one" },
+        ],
+      },
     },
-    defaultValueJson: null,
-  },
-  {
-    idSuffix: "next-recommended-work-unit",
-    key: "next_recommended_work_unit",
-    name: "Next Recommended Work Unit",
-    factType: "work_unit",
-    cardinality: "one",
-    descriptionJson: toDescriptionJson(
-      "Durable pointer to the next recommended work unit, normally PRD.",
-    ),
-    guidanceJson: toGuidanceJson(
-      "Usually points to the chosen PRD work unit created from this brief.",
-    ),
-    validationJson: { kind: "none" as const },
     defaultValueJson: null,
   },
 ] as const satisfies readonly FactDefinitionConfig[];
 
 const prdFactDefinitions = [
-  {
-    idSuffix: "setup-work-unit",
-    key: "setup_work_unit",
-    name: "Setup Work Unit",
-    factType: "work_unit",
-    cardinality: "one",
-    descriptionJson: toDescriptionJson("Optional Setup source reference for the PRD."),
-    guidanceJson: toGuidanceJson(
-      "Use when Setup still provides meaningful planning context for the PRD.",
-    ),
-    validationJson: {
-      kind: "none" as const,
-      dependencyType: "requires_setup_context",
-      workUnitKey: "setup",
-    },
-    defaultValueJson: null,
-  },
   {
     idSuffix: "product-brief-work-unit",
     key: "product_brief_work_unit",
@@ -1849,66 +1961,15 @@ const prdFactDefinitions = [
     key: "brainstorming_work_unit",
     name: "Brainstorming Work Unit",
     factType: "work_unit",
-    cardinality: "one",
+    cardinality: "many",
     descriptionJson: toDescriptionJson("Optional Brainstorming input used by the PRD."),
     guidanceJson: toGuidanceJson(
-      "Bind a Brainstorming work unit only when it directly shaped requirement framing or scope.",
+      "Bind Brainstorming work units only when they directly shaped requirement framing or scope.",
     ),
     validationJson: {
       kind: "none" as const,
       dependencyType: "informed_by_brainstorming",
       workUnitKey: "brainstorming",
-    },
-    defaultValueJson: null,
-  },
-  {
-    idSuffix: "project-name",
-    key: "project_name",
-    name: "Project Name",
-    factType: "string",
-    cardinality: "one",
-    descriptionJson: toDescriptionJson("Project or product name used in the PRD."),
-    guidanceJson: toGuidanceJson(
-      "Use the name that should anchor the requirement contract and artifact title.",
-    ),
-    validationJson: { kind: "none" as const },
-    defaultValueJson: null,
-  },
-  {
-    idSuffix: "input-context-inventory",
-    key: "input_context_inventory",
-    name: "Input Context Inventory",
-    factType: "json",
-    cardinality: "many",
-    descriptionJson: toDescriptionJson(
-      "Inventory of source inputs discovered or supplied for the PRD.",
-    ),
-    guidanceJson: toGuidanceJson(
-      "Track source provenance across briefs, research, docs, and direct inputs.",
-    ),
-    validationJson: {
-      kind: "json-schema" as const,
-      schemaDialect: "draft-2020-12",
-      schema: { type: "object" },
-    },
-    defaultValueJson: null,
-  },
-  {
-    idSuffix: "project-classification",
-    key: "project_classification",
-    name: "Project Classification",
-    factType: "json",
-    cardinality: "one",
-    descriptionJson: toDescriptionJson(
-      "Project type, domain, complexity, and greenfield/brownfield context.",
-    ),
-    guidanceJson: toGuidanceJson(
-      "Capture the classification signals that shape PRD structure and downstream work.",
-    ),
-    validationJson: {
-      kind: "json-schema" as const,
-      schemaDialect: "draft-2020-12",
-      schema: { type: "object" },
     },
     defaultValueJson: null,
   },
@@ -1927,7 +1988,30 @@ const prdFactDefinitions = [
     validationJson: {
       kind: "json-schema" as const,
       schemaDialect: "draft-2020-12",
-      schema: { type: "object" },
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["core_idea", "target_users", "problem", "desired_outcome"],
+        properties: {
+          core_idea: { type: "string", cardinality: "one" },
+          target_users: { type: "string", cardinality: "many" },
+          problem: { type: "string", cardinality: "one" },
+          desired_outcome: { type: "string", cardinality: "one" },
+          differentiators: { type: "string", cardinality: "many" },
+          constraints: { type: "string", cardinality: "many" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "core_idea", type: "string", cardinality: "one" },
+          { key: "target_users", type: "string", cardinality: "many" },
+          { key: "problem", type: "string", cardinality: "one" },
+          { key: "desired_outcome", type: "string", cardinality: "one" },
+          { key: "differentiators", type: "string", cardinality: "many" },
+          { key: "constraints", type: "string", cardinality: "many" },
+        ],
+      },
     },
     defaultValueJson: null,
   },
@@ -1944,7 +2028,26 @@ const prdFactDefinitions = [
     validationJson: {
       kind: "json-schema" as const,
       schemaDialect: "draft-2020-12",
-      schema: { type: "object" },
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["user_outcomes", "business_outcomes"],
+        properties: {
+          user_outcomes: { type: "string", cardinality: "many" },
+          business_outcomes: { type: "string", cardinality: "many" },
+          technical_outcomes: { type: "string", cardinality: "many" },
+          guardrails: { type: "string", cardinality: "many" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "user_outcomes", type: "string", cardinality: "many" },
+          { key: "business_outcomes", type: "string", cardinality: "many" },
+          { key: "technical_outcomes", type: "string", cardinality: "many" },
+          { key: "guardrails", type: "string", cardinality: "many" },
+        ],
+      },
     },
     defaultValueJson: null,
   },
@@ -1963,7 +2066,30 @@ const prdFactDefinitions = [
     validationJson: {
       kind: "json-schema" as const,
       schemaDialect: "draft-2020-12",
-      schema: { type: "object" },
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["journey_name", "actor", "goal"],
+        properties: {
+          journey_name: { type: "string", cardinality: "one" },
+          actor: { type: "string", cardinality: "one" },
+          goal: { type: "string", cardinality: "one" },
+          narrative: { type: "string", cardinality: "one" },
+          key_steps: { type: "string", cardinality: "many" },
+          edge_cases: { type: "string", cardinality: "many" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "journey_name", type: "string", cardinality: "one" },
+          { key: "actor", type: "string", cardinality: "one" },
+          { key: "goal", type: "string", cardinality: "one" },
+          { key: "narrative", type: "string", cardinality: "one" },
+          { key: "key_steps", type: "string", cardinality: "many" },
+          { key: "edge_cases", type: "string", cardinality: "many" },
+        ],
+      },
     },
     defaultValueJson: null,
   },
@@ -1982,7 +2108,26 @@ const prdFactDefinitions = [
     validationJson: {
       kind: "json-schema" as const,
       schemaDialect: "draft-2020-12",
-      schema: { type: "object" },
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["mvp_in_scope"],
+        properties: {
+          mvp_in_scope: { type: "string", cardinality: "many" },
+          explicitly_out_of_scope: { type: "string", cardinality: "many" },
+          phased_follow_ups: { type: "string", cardinality: "many" },
+          risk_notes: { type: "string", cardinality: "many" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "mvp_in_scope", type: "string", cardinality: "many" },
+          { key: "explicitly_out_of_scope", type: "string", cardinality: "many" },
+          { key: "phased_follow_ups", type: "string", cardinality: "many" },
+          { key: "risk_notes", type: "string", cardinality: "many" },
+        ],
+      },
     },
     defaultValueJson: null,
   },
@@ -2001,7 +2146,26 @@ const prdFactDefinitions = [
     validationJson: {
       kind: "json-schema" as const,
       schemaDialect: "draft-2020-12",
-      schema: { type: "object" },
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["requirement_id", "statement"],
+        properties: {
+          requirement_id: { type: "string", cardinality: "one" },
+          statement: { type: "string", cardinality: "one" },
+          rationale: { type: "string", cardinality: "one" },
+          related_journeys: { type: "string", cardinality: "many" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "requirement_id", type: "string", cardinality: "one" },
+          { key: "statement", type: "string", cardinality: "one" },
+          { key: "rationale", type: "string", cardinality: "one" },
+          { key: "related_journeys", type: "string", cardinality: "many" },
+        ],
+      },
     },
     defaultValueJson: null,
   },
@@ -2020,7 +2184,26 @@ const prdFactDefinitions = [
     validationJson: {
       kind: "json-schema" as const,
       schemaDialect: "draft-2020-12",
-      schema: { type: "object" },
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["category", "statement"],
+        properties: {
+          category: { type: "string", cardinality: "one" },
+          statement: { type: "string", cardinality: "one" },
+          rationale: { type: "string", cardinality: "one" },
+          measurable_criteria: { type: "string", cardinality: "many" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "category", type: "string", cardinality: "one" },
+          { key: "statement", type: "string", cardinality: "one" },
+          { key: "rationale", type: "string", cardinality: "one" },
+          { key: "measurable_criteria", type: "string", cardinality: "many" },
+        ],
+      },
     },
     defaultValueJson: null,
   },
@@ -2039,23 +2222,518 @@ const prdFactDefinitions = [
     validationJson: {
       kind: "json-schema" as const,
       schemaDialect: "draft-2020-12",
-      schema: { type: "object" },
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["summary", "implementation_readiness"],
+        properties: {
+          summary: { type: "string", cardinality: "one" },
+          key_decisions: { type: "string", cardinality: "many" },
+          implementation_readiness: { type: "string", cardinality: "one" },
+          major_open_questions: { type: "string", cardinality: "many" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "summary", type: "string", cardinality: "one" },
+          { key: "key_decisions", type: "string", cardinality: "many" },
+          { key: "implementation_readiness", type: "string", cardinality: "one" },
+          { key: "major_open_questions", type: "string", cardinality: "many" },
+        ],
+      },
+    },
+    defaultValueJson: null,
+  },
+] as const satisfies readonly FactDefinitionConfig[];
+
+const implementationFactDefinitions = [
+  {
+    idSuffix: "prd-work-unit",
+    key: "prd_work_unit",
+    name: "PRD Work Unit",
+    factType: "work_unit",
+    cardinality: "one",
+    descriptionJson: toDescriptionJson(
+      "Preferred PRD source reference for this Implementation work unit.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Implementation should bind exactly one chosen PRD that defined the approved execution boundary.",
+    ),
+    validationJson: {
+      kind: "none" as const,
+      dependencyType: "informed_by_prd",
+      workUnitKey: "prd",
     },
     defaultValueJson: null,
   },
   {
-    idSuffix: "next-recommended-work-units",
-    key: "next_recommended_work_units",
-    name: "Next Recommended Work Units",
+    idSuffix: "research-work-units",
+    key: "research_work_units",
+    name: "Research Work Units",
+    factType: "work_unit",
+    cardinality: "many",
+    descriptionJson: toDescriptionJson("Optional Research references that shaped implementation."),
+    guidanceJson: toGuidanceJson(
+      "Bind research explicitly when it affects implementation constraints, validation, or technical tradeoffs.",
+    ),
+    validationJson: {
+      kind: "none" as const,
+      dependencyType: "informed_by_research",
+      workUnitKey: "research",
+    },
+    defaultValueJson: null,
+  },
+  {
+    idSuffix: "brainstorming-work-units",
+    key: "brainstorming_work_units",
+    name: "Brainstorming Work Units",
     factType: "work_unit",
     cardinality: "many",
     descriptionJson: toDescriptionJson(
-      "Recommended next work units after PRD, typically UX Design and Architecture.",
+      "Optional Brainstorming references that shaped implementation slicing or constraints.",
     ),
     guidanceJson: toGuidanceJson(
-      "Persist downstream planning recommendations explicitly instead of leaving them only in the artifact text.",
+      "Bind brainstorming explicitly when implementation execution depends on those explored directions.",
     ),
-    validationJson: { kind: "none" as const },
+    validationJson: {
+      kind: "none" as const,
+      dependencyType: "informed_by_brainstorming",
+      workUnitKey: "brainstorming",
+    },
+    defaultValueJson: null,
+  },
+  {
+    idSuffix: "implementation-mode",
+    key: "implementation_mode",
+    name: "Implementation Mode",
+    factType: "string",
+    cardinality: "one",
+    descriptionJson: toDescriptionJson(
+      "Execution mode for this implementation run, used to distinguish small safe runs from fuller paths.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Use one_shot for small safe changes and full_path for larger or more guarded implementation runs.",
+    ),
+    validationJson: toAllowedValuesValidation(["one_shot", "full_path"]),
+    defaultValueJson: null,
+  },
+  {
+    idSuffix: "implementation-constraints",
+    key: "implementation_constraints",
+    name: "Implementation Constraints",
+    factType: "json",
+    cardinality: "many",
+    descriptionJson: toDescriptionJson(
+      "Implementation-specific constraints that should shape execution choices and validation.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Capture constraints only when they materially narrow or shape how implementation should proceed.",
+    ),
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["constraint", "reason"],
+        properties: {
+          constraint: { type: "string", cardinality: "one" },
+          reason: { type: "string", cardinality: "one" },
+          severity: {
+            type: "string",
+            cardinality: "one",
+            enum: ["low", "medium", "high", "blocker"],
+          },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "constraint", type: "string", cardinality: "one" },
+          { key: "reason", type: "string", cardinality: "one" },
+          { key: "severity", type: "string", cardinality: "one" },
+        ],
+      },
+    },
+    defaultValueJson: null,
+  },
+  {
+    idSuffix: "implementation-scope",
+    key: "implementation_scope",
+    name: "Implementation Scope",
+    factType: "json",
+    cardinality: "one",
+    descriptionJson: toDescriptionJson(
+      "Bounded scope definition for the implementation run created from one or more implementation drafts.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Persist the minimal execution scope that safely describes what this run will implement and what it will not.",
+    ),
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["title", "summary"],
+        properties: {
+          title: { type: "string", cardinality: "one" },
+          summary: { type: "string", cardinality: "one" },
+          included_changes: { type: "string", cardinality: "many" },
+          excluded_changes: { type: "string", cardinality: "many" },
+          acceptance_focus: { type: "string", cardinality: "many" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "title", type: "string", cardinality: "one" },
+          { key: "summary", type: "string", cardinality: "one" },
+          { key: "included_changes", type: "string", cardinality: "many" },
+          { key: "excluded_changes", type: "string", cardinality: "many" },
+          { key: "acceptance_focus", type: "string", cardinality: "many" },
+        ],
+      },
+    },
+    defaultValueJson: null,
+  },
+  {
+    idSuffix: "implementation-plan",
+    key: "implementation_plan",
+    name: "Implementation Plan",
+    factType: "json",
+    cardinality: "one",
+    descriptionJson: toDescriptionJson(
+      "Concrete execution plan for implementing the selected scope safely and efficiently.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Persist the execution plan in a way that downstream review can compare against the actual code changes.",
+    ),
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["execution_summary", "ordered_steps"],
+        properties: {
+          execution_summary: { type: "string", cardinality: "one" },
+          ordered_steps: { type: "string", cardinality: "many" },
+          risk_areas: { type: "string", cardinality: "many" },
+          validation_approach: { type: "string", cardinality: "many" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "execution_summary", type: "string", cardinality: "one" },
+          { key: "ordered_steps", type: "string", cardinality: "many" },
+          { key: "risk_areas", type: "string", cardinality: "many" },
+          { key: "validation_approach", type: "string", cardinality: "many" },
+        ],
+      },
+    },
+    defaultValueJson: null,
+  },
+  {
+    idSuffix: "files-to-change",
+    key: "files_to_change",
+    name: "Files to Change",
+    factType: "json",
+    cardinality: "many",
+    descriptionJson: toDescriptionJson(
+      "Likely file or module touch points identified during implementation planning.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Record likely touch points only when they are reasonably inferable from the codebase and approved implementation scope.",
+    ),
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["path", "reason"],
+        properties: {
+          path: { type: "string", cardinality: "one" },
+          reason: { type: "string", cardinality: "one" },
+          confidence: {
+            type: "string",
+            cardinality: "one",
+            enum: ["low", "medium", "high"],
+          },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "path", type: "string", cardinality: "one" },
+          { key: "reason", type: "string", cardinality: "one" },
+          { key: "confidence", type: "string", cardinality: "one" },
+        ],
+      },
+    },
+    defaultValueJson: null,
+  },
+  {
+    idSuffix: "code-change-summary",
+    key: "code_change_summary",
+    name: "Code Change Summary",
+    factType: "json",
+    cardinality: "one",
+    descriptionJson: toDescriptionJson(
+      "Durable summary of what code changes were actually implemented in this run.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Persist the final implementation summary so review can compare what was planned versus what changed.",
+    ),
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["summary"],
+        properties: {
+          summary: { type: "string", cardinality: "one" },
+          changed_areas: { type: "string", cardinality: "many" },
+          notable_decisions: { type: "string", cardinality: "many" },
+          deviations_from_plan: { type: "string", cardinality: "many" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "summary", type: "string", cardinality: "one" },
+          { key: "changed_areas", type: "string", cardinality: "many" },
+          { key: "notable_decisions", type: "string", cardinality: "many" },
+          { key: "deviations_from_plan", type: "string", cardinality: "many" },
+        ],
+      },
+    },
+    defaultValueJson: null,
+  },
+  {
+    idSuffix: "validation-summary",
+    key: "validation_summary",
+    name: "Validation Summary",
+    factType: "json",
+    cardinality: "one",
+    descriptionJson: toDescriptionJson(
+      "Durable summary of the validation outcome for the implemented changes.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Capture the overall validation result, what passed, what failed, and what remains unresolved.",
+    ),
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["overall_result", "summary"],
+        properties: {
+          overall_result: {
+            type: "string",
+            cardinality: "one",
+            enum: ["passed", "passed_with_follow_ups", "failed", "blocked"],
+          },
+          summary: { type: "string", cardinality: "one" },
+          passed_checks: { type: "string", cardinality: "many" },
+          failed_checks: { type: "string", cardinality: "many" },
+          unresolved_issues: { type: "string", cardinality: "many" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "overall_result", type: "string", cardinality: "one" },
+          { key: "summary", type: "string", cardinality: "one" },
+          { key: "passed_checks", type: "string", cardinality: "many" },
+          { key: "failed_checks", type: "string", cardinality: "many" },
+          { key: "unresolved_issues", type: "string", cardinality: "many" },
+        ],
+      },
+    },
+    defaultValueJson: null,
+  },
+  {
+    idSuffix: "test-results",
+    key: "test_results",
+    name: "Test Results",
+    factType: "json",
+    cardinality: "many",
+    descriptionJson: toDescriptionJson(
+      "Structured record of tests, checks, or validation commands run during implementation verification.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Persist enough detail for downstream review to understand what was verified and what the result was.",
+    ),
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["check_type", "result"],
+        properties: {
+          check_type: {
+            type: "string",
+            cardinality: "one",
+            enum: ["test", "typecheck", "build", "lint", "manual_verification", "other"],
+          },
+          command_or_method: { type: "string", cardinality: "one" },
+          result: {
+            type: "string",
+            cardinality: "one",
+            enum: ["passed", "failed", "skipped", "blocked"],
+          },
+          notes: { type: "string", cardinality: "one" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "check_type", type: "string", cardinality: "one" },
+          { key: "command_or_method", type: "string", cardinality: "one" },
+          { key: "result", type: "string", cardinality: "one" },
+          { key: "notes", type: "string", cardinality: "one" },
+        ],
+      },
+    },
+    defaultValueJson: null,
+  },
+  {
+    idSuffix: "review-findings",
+    key: "review_findings",
+    name: "Review Findings",
+    factType: "json",
+    cardinality: "many",
+    descriptionJson: toDescriptionJson(
+      "Findings captured during implementation review or validation triage.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Store findings that shaped acceptance, patching, deferral, or follow-up work.",
+    ),
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["reviewer_type", "finding", "impact"],
+        properties: {
+          reviewer_type: {
+            type: "string",
+            cardinality: "one",
+            enum: ["self_review", "automated_check", "qa", "security", "architecture", "product"],
+          },
+          finding: { type: "string", cardinality: "one" },
+          impact: {
+            type: "string",
+            cardinality: "one",
+            enum: ["low", "medium", "high"],
+          },
+          recommendation: { type: "string", cardinality: "one" },
+          disposition: {
+            type: "string",
+            cardinality: "one",
+            enum: ["patch_now", "defer", "reject", "follow_up"],
+          },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "reviewer_type", type: "string", cardinality: "one" },
+          { key: "finding", type: "string", cardinality: "one" },
+          { key: "impact", type: "string", cardinality: "one" },
+          { key: "recommendation", type: "string", cardinality: "one" },
+          { key: "disposition", type: "string", cardinality: "one" },
+        ],
+      },
+    },
+    defaultValueJson: null,
+  },
+  {
+    idSuffix: "open-implementation-questions",
+    key: "open_implementation_questions",
+    name: "Open Implementation Questions",
+    factType: "json",
+    cardinality: "many",
+    descriptionJson: toDescriptionJson(
+      "Unresolved implementation-specific questions that remain after planning, execution, or validation.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Use for unresolved implementation issues that matter for acceptance, follow-up work, or later decomposition.",
+    ),
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["question", "reason"],
+        properties: {
+          question: { type: "string", cardinality: "one" },
+          reason: { type: "string", cardinality: "one" },
+          blocking: { type: "boolean", cardinality: "one" },
+          owner_hint: { type: "string", cardinality: "one" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "question", type: "string", cardinality: "one" },
+          { key: "reason", type: "string", cardinality: "one" },
+          { key: "blocking", type: "boolean", cardinality: "one" },
+          { key: "owner_hint", type: "string", cardinality: "one" },
+        ],
+      },
+    },
+    defaultValueJson: null,
+  },
+  {
+    idSuffix: "implementation-status-summary",
+    key: "implementation_status_summary",
+    name: "Implementation Status Summary",
+    factType: "json",
+    cardinality: "one",
+    descriptionJson: toDescriptionJson(
+      "Durable summary of the final status of this implementation run.",
+    ),
+    guidanceJson: toGuidanceJson(
+      "Persist the final status, summary, blockers, and follow-up need in one compact downstream-readable record.",
+    ),
+    validationJson: {
+      kind: "json-schema" as const,
+      schemaDialect: "draft-2020-12",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["status", "summary"],
+        properties: {
+          status: {
+            type: "string",
+            cardinality: "one",
+            enum: ["completed", "completed_with_follow_ups", "blocked", "incomplete"],
+          },
+          summary: { type: "string", cardinality: "one" },
+          blockers: { type: "string", cardinality: "many" },
+          follow_up_needed: { type: "string", cardinality: "many" },
+        },
+      },
+      subSchema: {
+        type: "object",
+        fields: [
+          { key: "status", type: "string", cardinality: "one" },
+          { key: "summary", type: "string", cardinality: "one" },
+          { key: "blockers", type: "string", cardinality: "many" },
+          { key: "follow_up_needed", type: "string", cardinality: "many" },
+        ],
+      },
+    },
     defaultValueJson: null,
   },
 ] as const satisfies readonly FactDefinitionConfig[];
@@ -2574,6 +3252,7 @@ function buildWorkUnitFactDefinitionSeedRowsFor(
     research: researchFactDefinitions,
     product_brief: productBriefFactDefinitions,
     prd: prdFactDefinitions,
+    implementation: implementationFactDefinitions,
     ux_design: uxDesignFactDefinitions,
     architecture: architectureFactDefinitions,
   };
@@ -2613,6 +3292,10 @@ export const prdFactSchemaSeedRows: readonly MethodologyFactSchemaSeedRow[] =
   buildRowsForAllCanonicalVersions((versionId) =>
     buildWorkUnitFactDefinitionSeedRowsFor("prd", versionId),
   );
+export const implementationFactSchemaSeedRows: readonly MethodologyFactSchemaSeedRow[] =
+  buildRowsForAllCanonicalVersions((versionId) =>
+    buildWorkUnitFactDefinitionSeedRowsFor("implementation", versionId),
+  );
 export const uxDesignFactSchemaSeedRows: readonly MethodologyFactSchemaSeedRow[] =
   buildRowsForAllCanonicalVersions((versionId) =>
     buildWorkUnitFactDefinitionSeedRowsFor("ux_design", versionId),
@@ -2644,42 +3327,6 @@ const artifactSlotDefinitionsByWorkUnit: Record<WorkUnitKey, readonly ArtifactSl
       rulesJson: {
         pathStrategy: "project-knowledge",
         suggestedPath: "project-overview.md",
-        templateEngine: "handlebars",
-        maxFiles: 1,
-      },
-    },
-    {
-      idSuffix: "brownfield-docs-index",
-      key: "BROWNFIELD_DOCS_INDEX",
-      displayName: "Brownfield Docs Index",
-      descriptionJson: toDescriptionJson(
-        "Optional reference/index artifact created by brownfield documentation work.",
-      ),
-      guidanceJson: toGuidanceJson(
-        "Use when brownfield setup created or accepted a durable documentation index.",
-      ),
-      cardinality: "single",
-      rulesJson: {
-        pathStrategy: "project-knowledge",
-        suggestedPath: "brownfield/docs-index.md",
-        templateEngine: "handlebars",
-        maxFiles: 1,
-      },
-    },
-    {
-      idSuffix: "project-context",
-      key: "PROJECT_CONTEXT",
-      displayName: "Project Context",
-      descriptionJson: toDescriptionJson(
-        "Optional project-context artifact for downstream implementation agents.",
-      ),
-      guidanceJson: toGuidanceJson(
-        "Use when setup generated or accepted a project-context artifact.",
-      ),
-      cardinality: "single",
-      rulesJson: {
-        pathStrategy: "project-knowledge",
-        suggestedPath: "project-context.md",
         templateEngine: "handlebars",
         maxFiles: 1,
       },
@@ -2770,6 +3417,62 @@ const artifactSlotDefinitionsByWorkUnit: Record<WorkUnitKey, readonly ArtifactSl
       rulesJson: {
         pathStrategy: "planning-artifacts",
         suggestedPath: "prd/prd.md",
+        templateEngine: "handlebars",
+        maxFiles: 1,
+      },
+    },
+  ],
+  implementation: [
+    {
+      idSuffix: "implementation-plan",
+      key: "IMPLEMENTATION_PLAN",
+      displayName: "Implementation Plan",
+      descriptionJson: toDescriptionJson(
+        "Canonical execution plan artifact for the implementation run.",
+      ),
+      guidanceJson: toGuidanceJson(
+        "Use this as the durable implementation plan that defines scope, order, and validation intent.",
+      ),
+      cardinality: "single",
+      rulesJson: {
+        pathStrategy: "implementation-artifacts",
+        suggestedPath: "implementation/implementation-plan.md",
+        templateEngine: "handlebars",
+        maxFiles: 1,
+      },
+    },
+    {
+      idSuffix: "implemented-code-changes",
+      key: "IMPLEMENTED_CODE_CHANGES",
+      displayName: "Implemented Code Changes",
+      descriptionJson: toDescriptionJson(
+        "Canonical durable record of the code changes applied for this implementation run.",
+      ),
+      guidanceJson: toGuidanceJson(
+        "Use this as the durable implementation record of what changed and why.",
+      ),
+      cardinality: "single",
+      rulesJson: {
+        pathStrategy: "implementation-artifacts",
+        suggestedPath: "implementation/implemented-code-changes.md",
+        templateEngine: "handlebars",
+        maxFiles: 1,
+      },
+    },
+    {
+      idSuffix: "implementation-test-report",
+      key: "IMPLEMENTATION_TEST_REPORT",
+      displayName: "Implementation Test Report",
+      descriptionJson: toDescriptionJson(
+        "Canonical validation and testing artifact for the implementation run.",
+      ),
+      guidanceJson: toGuidanceJson(
+        "Use this as the durable validation report for the implemented changes.",
+      ),
+      cardinality: "single",
+      rulesJson: {
+        pathStrategy: "implementation-artifacts",
+        suggestedPath: "implementation/implementation-test-report.md",
         templateEngine: "handlebars",
         maxFiles: 1,
       },
@@ -2896,6 +3599,10 @@ export const prdArtifactSlotDefinitionSeedRows: readonly MethodologyArtifactSlot
   buildRowsForAllCanonicalVersions((versionId) =>
     buildArtifactSlotDefinitionSeedRowsFor("prd", versionId),
   );
+export const implementationArtifactSlotDefinitionSeedRows: readonly MethodologyArtifactSlotDefinitionSeedRow[] =
+  buildRowsForAllCanonicalVersions((versionId) =>
+    buildArtifactSlotDefinitionSeedRowsFor("implementation", versionId),
+  );
 export const uxDesignArtifactSlotDefinitionSeedRows: readonly MethodologyArtifactSlotDefinitionSeedRow[] =
   buildRowsForAllCanonicalVersions((versionId) =>
     buildArtifactSlotDefinitionSeedRowsFor("ux_design", versionId),
@@ -2930,35 +3637,7 @@ const artifactTemplateDefinitionsByWorkUnit: Record<
       ),
       guidanceJson: toGuidanceJson("Keep this concise and durable."),
       content:
-        "# {{workUnit.facts.initiative_name}}\n\n- Project kind: {{workUnit.facts.project_kind}}\n{{#if methodology.facts.project_knowledge_directory}}- Knowledge directory: {{methodology.facts.project_knowledge_directory}}\n{{/if}}{{#if methodology.facts.planning_artifacts_directory}}- Planning artifacts: {{methodology.facts.planning_artifacts_directory}}\n{{/if}}",
-    },
-    {
-      idSuffix: "project-context",
-      slotSuffix: "project-context",
-      key: "project_context",
-      displayName: "Project Context Template",
-      descriptionJson: toDescriptionJson(
-        "Default template for an optional setup project-context artifact.",
-      ),
-      guidanceJson: toGuidanceJson(
-        "Use only when setup chooses to persist project-context guidance.",
-      ),
-      content:
-        "# Project Context\n\n## Initiative\n{{workUnit.facts.initiative_name}}\n\n## Setup Summary\n{{#if workUnit.facts.setup_path_summary}}{{workUnit.facts.setup_path_summary.rationale}}{{/if}}",
-    },
-    {
-      idSuffix: "brownfield-docs-index",
-      slotSuffix: "brownfield-docs-index",
-      key: "brownfield_docs_index",
-      displayName: "Brownfield Docs Index Template",
-      descriptionJson: toDescriptionJson(
-        "Default template for the optional brownfield docs index artifact.",
-      ),
-      guidanceJson: toGuidanceJson(
-        "Use when setup surfaces a stable brownfield documentation index.",
-      ),
-      content:
-        "# Brownfield Documentation Index\n\n{{#if methodology.facts.existing_documentation_inventory}}{{#each methodology.facts.existing_documentation_inventory}}- {{path}}\n{{/each}}{{/if}}",
+        "# Project Overview\n\n{{#if workUnit.facts.setup_path_summary}}## Setup Summary\n{{workUnit.facts.setup_path_summary.rationale}}\n\n- Selected path: {{workUnit.facts.setup_path_summary.selected_path}}\n{{/if}}{{#if methodology.facts.project_knowledge_directory}}- Knowledge directory: {{methodology.facts.project_knowledge_directory}}\n{{/if}}{{#if methodology.facts.planning_artifacts_directory}}- Planning artifacts: {{methodology.facts.planning_artifacts_directory}}\n{{/if}}",
     },
   ],
   brainstorming: [
@@ -2972,7 +3651,7 @@ const artifactTemplateDefinitionsByWorkUnit: Record<
       ),
       guidanceJson: toGuidanceJson("Persist framing, techniques, and selected directions clearly."),
       content:
-        "# Brainstorming Session\n\n## Focus\n{{workUnit.facts.brainstorming_focus}}\n\n## Desired Outcome\n{{workUnit.facts.desired_outcome}}\n\n{{#if workUnit.facts.objectives}}## Objectives\n{{workUnit.facts.objectives}}\n{{/if}}\n\n{{#if workUnit.facts.constraints}}## Constraints\n{{workUnit.facts.constraints}}\n{{/if}}\n\n{{#if workUnit.facts.technique_plan}}## Technique Plan\n{{workUnit.facts.technique_plan}}\n{{/if}}\n\n{{#if workUnit.facts.technique_outputs}}## Technique Outputs\n{{workUnit.facts.technique_outputs}}\n{{/if}}\n\n{{#if workUnit.facts.selected_directions}}## Selected Directions\n{{workUnit.facts.selected_directions}}\n{{/if}}\n\n{{#if workUnit.facts.priority_directions}}## Priority Directions\n{{workUnit.facts.priority_directions}}\n{{/if}}\n\n{{#if workUnit.facts.follow_up_research_topics}}## Follow-up Research Topics\n{{workUnit.facts.follow_up_research_topics}}\n{{/if}}",
+        "# Brainstorming Session\n\n## Focus\n{{workUnit.facts.brainstorming_focus}}\n\n## Desired Outcome\n{{workUnit.facts.desired_outcome}}\n\n{{#if workUnit.facts.objectives}}## Objectives\n{{workUnit.facts.objectives}}\n{{/if}}\n\n{{#if workUnit.facts.constraints}}## Constraints\n{{workUnit.facts.constraints}}\n{{/if}}\n\n{{#if workUnit.facts.technique_outputs}}## Technique Outputs\n{{workUnit.facts.technique_outputs}}\n{{/if}}\n\n{{#if workUnit.facts.selected_directions}}## Selected Directions\n{{workUnit.facts.selected_directions}}\n{{/if}}\n\n{{#if workUnit.facts.priority_directions}}## Priority Directions\n{{workUnit.facts.priority_directions}}\n{{/if}}",
     },
   ],
   research: [
@@ -3007,34 +3686,7 @@ const artifactTemplateDefinitionsByWorkUnit: Record<
         "# Technical Research\n\n## Topic\n{{workUnit.facts.research_topic}}\n\n{{#if workUnit.facts.research_synthesis}}## Synthesis\n{{workUnit.facts.research_synthesis}}\n{{/if}}",
     },
   ],
-  product_brief: [
-    {
-      idSuffix: "default",
-      slotSuffix: "product-brief",
-      key: "default",
-      displayName: "Product Brief Template",
-      descriptionJson: toDescriptionJson(
-        "Default template for the executive Product Brief artifact.",
-      ),
-      guidanceJson: toGuidanceJson("Keep this concise and executive-facing."),
-      content:
-        "# {{workUnit.facts.product_name}}\n\n## Executive Summary\n{{#if workUnit.facts.brief_synthesis.executive_summary}}{{workUnit.facts.brief_synthesis.executive_summary}}{{/if}}\n\n## Problem\n{{#if workUnit.facts.brief_synthesis.problem}}{{workUnit.facts.brief_synthesis.problem}}{{/if}}\n\n## Solution\n{{#if workUnit.facts.brief_synthesis.solution}}{{workUnit.facts.brief_synthesis.solution}}{{/if}}",
-    },
-    {
-      idSuffix: "distillate",
-      slotSuffix: "product-brief-distillate",
-      key: "distillate",
-      displayName: "Product Brief Detail Pack Template",
-      descriptionJson: toDescriptionJson(
-        "Default template for the optional Product Brief detail pack.",
-      ),
-      guidanceJson: toGuidanceJson(
-        "Use when the brief has overflow detail worth preserving for PRD creation.",
-      ),
-      content:
-        "# Product Brief Detail Pack\n\n{{#if workUnit.facts.source_context_summary}}## Source Context\n{{workUnit.facts.source_context_summary}}\n{{/if}}{{#if workUnit.facts.open_questions}}\n## Open Questions\n{{workUnit.facts.open_questions}}\n{{/if}}",
-    },
-  ],
+  product_brief: [],
   prd: [
     {
       idSuffix: "default",
@@ -3046,7 +3698,49 @@ const artifactTemplateDefinitionsByWorkUnit: Record<
         "Cover the core PRD sections and preserve requirement traceability.",
       ),
       content:
-        "# {{workUnit.facts.project_name}} PRD\n\n## Vision\n{{workUnit.facts.product_vision}}\n\n## Success Criteria\n{{workUnit.facts.success_criteria}}\n\n## Functional Requirements\n{{workUnit.facts.functional_requirements}}\n\n## Non-Functional Requirements\n{{workUnit.facts.non_functional_requirements}}",
+        "# Product Requirements Document\n\n## Vision\n{{workUnit.facts.product_vision}}\n\n## Success Criteria\n{{workUnit.facts.success_criteria}}\n\n## Functional Requirements\n{{workUnit.facts.functional_requirements}}\n\n## Non-Functional Requirements\n{{workUnit.facts.non_functional_requirements}}",
+    },
+  ],
+  implementation: [
+    {
+      idSuffix: "default-plan",
+      slotSuffix: "implementation-plan",
+      key: "default_plan",
+      displayName: "Implementation Plan Template",
+      descriptionJson: toDescriptionJson("Default template for the implementation plan artifact."),
+      guidanceJson: toGuidanceJson(
+        "Keep the implementation plan artifact structured around scope, plan, and likely touch points.",
+      ),
+      content:
+        "# Implementation Plan\n\n## Scope\n{{workUnit.facts.implementation_scope}}\n\n## Plan\n{{workUnit.facts.implementation_plan}}\n\n## Likely Files to Change\n{{workUnit.facts.files_to_change}}",
+    },
+    {
+      idSuffix: "default-code-changes",
+      slotSuffix: "implemented-code-changes",
+      key: "default_code_changes",
+      displayName: "Implemented Code Changes Template",
+      descriptionJson: toDescriptionJson(
+        "Default template for the implemented code changes artifact.",
+      ),
+      guidanceJson: toGuidanceJson(
+        "Keep the implementation record focused on the actual code changes and noteworthy execution outcomes.",
+      ),
+      content:
+        "# Implemented Code Changes\n\n## Summary\n{{workUnit.facts.code_change_summary}}\n\n## Final Status\n{{workUnit.facts.implementation_status_summary}}",
+    },
+    {
+      idSuffix: "default-test-report",
+      slotSuffix: "implementation-test-report",
+      key: "default_test_report",
+      displayName: "Implementation Test Report Template",
+      descriptionJson: toDescriptionJson(
+        "Default template for the implementation test report artifact.",
+      ),
+      guidanceJson: toGuidanceJson(
+        "Keep the implementation validation record structured around validation summary, tests, and findings.",
+      ),
+      content:
+        "# Implementation Test Report\n\n## Validation Summary\n{{workUnit.facts.validation_summary}}\n\n## Test Results\n{{workUnit.facts.test_results}}\n\n## Review Findings\n{{workUnit.facts.review_findings}}",
     },
   ],
   ux_design: [
@@ -3156,6 +3850,10 @@ export const prdArtifactSlotTemplateSeedRows: readonly MethodologyArtifactSlotTe
   buildRowsForAllCanonicalVersions((versionId) =>
     buildArtifactSlotTemplateSeedRowsFor("prd", versionId),
   );
+export const implementationArtifactSlotTemplateSeedRows: readonly MethodologyArtifactSlotTemplateSeedRow[] =
+  buildRowsForAllCanonicalVersions((versionId) =>
+    buildArtifactSlotTemplateSeedRowsFor("implementation", versionId),
+  );
 export const uxDesignArtifactSlotTemplateSeedRows: readonly MethodologyArtifactSlotTemplateSeedRow[] =
   buildRowsForAllCanonicalVersions((versionId) =>
     buildArtifactSlotTemplateSeedRowsFor("ux_design", versionId),
@@ -3182,48 +3880,14 @@ const workflowsByWorkUnit: Record<WorkUnitKey, readonly WorkflowConfig[]> = {
       displayName: "Setup Project",
       descriptionJson: toDescriptionJson("Primary setup orchestration workflow."),
       guidanceJson: toGuidanceJson(
-        "Use this workflow to capture setup intake, select the path, invoke early units when needed, and propagate durable setup outputs.",
+        "Use this workflow to understand the project, author the minimum setup baseline, invoke early units when needed, and propagate durable setup outputs.",
       ),
       metadataJson: {
         family: "setup",
         intent: "primary_setup_orchestration",
-        supports_modes: ["greenfield", "brownfield"],
+        supports_modes: ["greenfield"],
         bound_by_default: true,
         primary_transition_key: "activation_to_done",
-      },
-    },
-    {
-      idSuffix: "document-project",
-      key: "document_project",
-      displayName: "Document Project",
-      descriptionJson: toDescriptionJson(
-        "Support workflow for brownfield project documentation and baseline discovery.",
-      ),
-      guidanceJson: toGuidanceJson(
-        "Use only on the brownfield setup path to scan and document the existing project baseline.",
-      ),
-      metadataJson: {
-        family: "setup",
-        intent: "supporting_brownfield_documentation",
-        supports_modes: ["brownfield"],
-        bound_by_default: false,
-      },
-    },
-    {
-      idSuffix: "generate-project-context",
-      key: "generate_project_context",
-      displayName: "Generate Project Context",
-      descriptionJson: toDescriptionJson(
-        "Support workflow for generating or refreshing project-context artifacts during setup.",
-      ),
-      guidanceJson: toGuidanceJson(
-        "Use only as a supporting setup workflow when project-context generation is needed.",
-      ),
-      metadataJson: {
-        family: "setup",
-        intent: "supporting_context_generation",
-        supports_modes: ["greenfield", "brownfield"],
-        bound_by_default: false,
       },
     },
   ],
@@ -3342,48 +4006,18 @@ const workflowsByWorkUnit: Record<WorkUnitKey, readonly WorkflowConfig[]> = {
   ],
   research: [
     {
-      idSuffix: "market-research",
-      key: "market_research",
-      displayName: "Market Research",
-      descriptionJson: toDescriptionJson("Primary workflow for market analysis."),
+      idSuffix: "research",
+      key: "research",
+      displayName: "Research",
+      descriptionJson: toDescriptionJson(
+        "Primary workflow for running market, domain, or technical research through a branched path.",
+      ),
       guidanceJson: toGuidanceJson(
-        "Use for market-focused research on customers, alternatives, competition, and opportunity framing.",
+        "Use this workflow to confirm the research scope, branch into the correct research path, run the path-specific research agent, and propagate durable outputs.",
       ),
       metadataJson: {
         family: "research",
-        intent: "market_analysis",
-        supports_modes: ["new", "continue"],
-        bound_by_default: true,
-        primary_transition_key: "activation_to_done",
-      },
-    },
-    {
-      idSuffix: "domain-research",
-      key: "domain_research",
-      displayName: "Domain Research",
-      descriptionJson: toDescriptionJson("Primary workflow for domain analysis."),
-      guidanceJson: toGuidanceJson(
-        "Use for domain-focused research on industry structure, actors, compliance, and trends.",
-      ),
-      metadataJson: {
-        family: "research",
-        intent: "domain_analysis",
-        supports_modes: ["new", "continue"],
-        bound_by_default: true,
-        primary_transition_key: "activation_to_done",
-      },
-    },
-    {
-      idSuffix: "technical-research",
-      key: "technical_research",
-      displayName: "Technical Research",
-      descriptionJson: toDescriptionJson("Primary workflow for technical analysis."),
-      guidanceJson: toGuidanceJson(
-        "Use for technical research on feasibility, architecture tradeoffs, tooling, and implementation constraints.",
-      ),
-      metadataJson: {
-        family: "research",
-        intent: "technical_analysis",
+        intent: "branched_research_execution",
         supports_modes: ["new", "continue"],
         bound_by_default: true,
         primary_transition_key: "activation_to_done",
@@ -3425,6 +4059,26 @@ const workflowsByWorkUnit: Record<WorkUnitKey, readonly WorkflowConfig[]> = {
         family: "prd",
         intent: "create_product_requirements_document",
         supports_modes: ["guided", "autonomous"],
+        bound_by_default: true,
+        primary_transition_key: "activation_to_done",
+      },
+    },
+  ],
+  implementation: [
+    {
+      idSuffix: "implementation",
+      key: "implementation",
+      displayName: "Implementation",
+      descriptionJson: toDescriptionJson(
+        "Primary workflow for planning, executing, and validating bounded implementation work.",
+      ),
+      guidanceJson: toGuidanceJson(
+        "Use this workflow to turn approved implementation drafts into a concrete plan, code changes, validation results, and durable implementation artifacts.",
+      ),
+      metadataJson: {
+        family: "implementation",
+        intent: "bounded_code_implementation_execution",
+        supports_modes: ["autonomous"],
         bound_by_default: true,
         primary_transition_key: "activation_to_done",
       },
@@ -3491,9 +4145,7 @@ const workflowsByWorkUnit: Record<WorkUnitKey, readonly WorkflowConfig[]> = {
 
 const workflowEntryStepKeys: Partial<Record<WorkUnitKey, Record<string, string>>> = {
   setup: {
-    "setup-project": "collect_setup_baseline",
-    "document-project": "document_project_agent",
-    "generate-project-context": "scan_project_context_sources",
+    "setup-project": "greenfield_setup_agent",
   },
   brainstorming: {
     brainstorming: "session_setup",
@@ -3504,15 +4156,16 @@ const workflowEntryStepKeys: Partial<Record<WorkUnitKey, Record<string, string>>
     "critique-and-refine": "select_ideas_for_critique",
   },
   research: {
-    "market-research": "research_scope_confirmation",
-    "domain-research": "research_scope_confirmation",
-    "technical-research": "research_scope_confirmation",
+    research: "research_scope_confirmation",
   },
   product_brief: {
     "create-product-brief": "brief_intent_agent",
   },
   prd: {
-    "create-prd": "prd_input_initialization_agent",
+    "create-prd": "prd_input_selection",
+  },
+  implementation: {
+    implementation: "implementation_planning_agent",
   },
   ux_design: {
     "create-ux-design": "ux_input_initialization_agent",
@@ -3556,6 +4209,10 @@ export const productBriefWorkflowSeedRows: readonly MethodologyWorkflowSeedRow[]
   );
 export const prdWorkflowSeedRows: readonly MethodologyWorkflowSeedRow[] =
   buildRowsForAllCanonicalVersions((versionId) => buildWorkflowSeedRowsFor("prd", versionId));
+export const implementationWorkflowSeedRows: readonly MethodologyWorkflowSeedRow[] =
+  buildRowsForAllCanonicalVersions((versionId) =>
+    buildWorkflowSeedRowsFor("implementation", versionId),
+  );
 export const uxDesignWorkflowSeedRows: readonly MethodologyWorkflowSeedRow[] =
   buildRowsForAllCanonicalVersions((versionId) => buildWorkflowSeedRowsFor("ux_design", versionId));
 export const architectureWorkflowSeedRows: readonly MethodologyWorkflowSeedRow[] =
@@ -3609,8 +4266,9 @@ type SectionAFormFieldSpec = {
   readonly key: string;
   readonly label: string;
   readonly contextFactKey: string;
-  readonly valueType: "string" | "number" | "boolean" | "json";
+  readonly valueType: "string" | "number" | "boolean" | "json" | "work_unit";
   readonly required?: boolean;
+  readonly descriptionMarkdown?: string;
 };
 
 type SectionAStepSpec = {
@@ -3739,115 +4397,8 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
     workflowSuffix: "setup-project",
     contextFacts: [
       {
-        key: "initiative_name_ctx",
-        label: "Initiative Name",
-        kind: "bound_fact",
-        cardinality: "one",
-        bindingKey: "initiative_name",
-      },
-      {
-        key: "project_kind_ctx",
-        label: "Project Kind",
-        kind: "bound_fact",
-        cardinality: "one",
-        bindingKey: "project_kind",
-      },
-      {
-        key: "project_knowledge_directory_ctx",
-        label: "Project Knowledge Directory",
-        kind: "bound_fact",
-        cardinality: "one",
-        bindingKey: "project_knowledge_directory",
-      },
-      {
-        key: "planning_artifacts_directory_ctx",
-        label: "Planning Artifacts Directory",
-        kind: "bound_fact",
-        cardinality: "one",
-        bindingKey: "planning_artifacts_directory",
-      },
-      {
-        key: "communication_language_ctx",
-        label: "Communication Language",
-        kind: "bound_fact",
-        cardinality: "one",
-        bindingKey: "communication_language",
-      },
-      {
-        key: "document_output_language_ctx",
-        label: "Document Output Language",
-        kind: "bound_fact",
-        cardinality: "one",
-        bindingKey: "document_output_language",
-      },
-      {
-        key: "workflow_mode_ctx",
-        label: "Workflow Mode",
-        kind: "plain_fact",
-        cardinality: "one",
-        valueType: "string",
-        validation: toAllowedValuesValidation(["initial_scan", "full_rescan", "deep_dive"]),
-      },
-      {
-        key: "scan_level_ctx",
-        label: "Scan Level",
-        kind: "plain_fact",
-        cardinality: "one",
-        valueType: "string",
-        validation: toAllowedValuesValidation(["quick", "deep", "exhaustive"]),
-      },
-      {
-        key: "deep_dive_target_ctx",
-        label: "Deep Dive Target",
-        kind: "plain_fact",
-        cardinality: "one",
-        valueType: "string",
-      },
-      {
-        key: "repository_type_ctx",
-        label: "Repository Type",
-        kind: "bound_fact",
-        cardinality: "one",
-        bindingKey: "repository_type",
-      },
-      {
-        key: "project_parts_ctx",
-        label: "Project Parts",
-        kind: "bound_fact",
-        cardinality: "many",
-        bindingKey: "project_parts",
-      },
-      {
-        key: "technology_stack_by_part_ctx",
-        label: "Technology Stack By Part",
-        kind: "bound_fact",
-        cardinality: "many",
-        bindingKey: "technology_stack_by_part",
-      },
-      {
-        key: "existing_documentation_inventory_ctx",
-        label: "Existing Documentation Inventory",
-        kind: "bound_fact",
-        cardinality: "many",
-        bindingKey: "existing_documentation_inventory",
-      },
-      {
-        key: "integration_points_ctx",
-        label: "Integration Points",
-        kind: "bound_fact",
-        cardinality: "many",
-        bindingKey: "integration_points",
-      },
-      {
         key: "requires_brainstorming_ctx",
         label: "Requires Brainstorming",
-        kind: "plain_fact",
-        cardinality: "one",
-        valueType: "boolean",
-      },
-      {
-        key: "requires_product_brief_ctx",
-        label: "Requires Product Brief",
         kind: "plain_fact",
         cardinality: "one",
         valueType: "boolean",
@@ -3867,13 +4418,6 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
         bindingKey: "setup_path_summary",
       },
       {
-        key: "next_recommended_work_unit_ctx",
-        label: "Next Recommended Work Unit",
-        kind: "bound_fact",
-        cardinality: "one",
-        bindingKey: "next_recommended_work_unit",
-      },
-      {
         key: "project_overview_artifact_ctx",
         label: "Project Overview Artifact",
         kind: "artifact_slot_reference_fact",
@@ -3887,7 +4431,7 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
         kind: "work_unit_draft_spec_fact",
         cardinality: "many",
         targetWorkUnitKey: "brainstorming",
-        selectedFactKeys: ["setup_work_unit", "desired_outcome", "objectives", "constraints"],
+        selectedFactKeys: ["brainstorming_focus", "desired_outcome", "objectives"],
         selectedArtifactSlotSuffixes: ["brainstorming-session"],
       },
       {
@@ -3896,140 +4440,24 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
         kind: "work_unit_draft_spec_fact",
         cardinality: "many",
         targetWorkUnitKey: "research",
-        selectedFactKeys: ["setup_work_unit", "research_topic", "research_goals"],
-        selectedArtifactSlotSuffixes: ["research-report"],
+        selectedFactKeys: ["research_type", "research_topic", "research_goals"],
       },
     ],
     steps: [
-      {
-        key: "collect_setup_baseline",
-        type: "form",
-        displayName: "Collect Setup Baseline",
-        formFields: [
-          {
-            key: "initiative_name",
-            label: "Initiative Name",
-            contextFactKey: "initiative_name_ctx",
-            valueType: "string",
-            required: true,
-          },
-          {
-            key: "project_kind",
-            label: "Project Kind",
-            contextFactKey: "project_kind_ctx",
-            valueType: "string",
-            required: true,
-          },
-          {
-            key: "project_knowledge_directory",
-            label: "Project Knowledge Directory",
-            contextFactKey: "project_knowledge_directory_ctx",
-            valueType: "string",
-            required: false,
-          },
-          {
-            key: "planning_artifacts_directory",
-            label: "Planning Artifacts Directory",
-            contextFactKey: "planning_artifacts_directory_ctx",
-            valueType: "string",
-            required: false,
-          },
-          {
-            key: "communication_language",
-            label: "Communication Language",
-            contextFactKey: "communication_language_ctx",
-            valueType: "string",
-            required: false,
-          },
-          {
-            key: "document_output_language",
-            label: "Document Output Language",
-            contextFactKey: "document_output_language_ctx",
-            valueType: "string",
-            required: false,
-          },
-        ],
-      },
-      {
-        key: "branch_project_kind",
-        type: "branch",
-        displayName: "Branch Project Kind",
-        branchConfig: {
-          defaultTargetStepKey: null,
-          routes: [
-            {
-              routeId: "greenfield_route",
-              targetStepKey: "greenfield_setup_agent",
-              conditionMode: "all",
-              groups: [
-                {
-                  groupId: "greenfield_group",
-                  mode: "all",
-                  conditions: [
-                    {
-                      conditionId: "project_kind_greenfield",
-                      contextFactKey: "project_kind_ctx",
-                      operator: "equals",
-                      comparisonJson: { value: "greenfield" },
-                    },
-                  ],
-                },
-              ],
-            },
-            {
-              routeId: "brownfield_route",
-              targetStepKey: "brownfield_scan_preferences",
-              conditionMode: "all",
-              groups: [
-                {
-                  groupId: "brownfield_group",
-                  mode: "all",
-                  conditions: [
-                    {
-                      conditionId: "project_kind_brownfield",
-                      contextFactKey: "project_kind_ctx",
-                      operator: "equals",
-                      comparisonJson: { value: "brownfield" },
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      },
       {
         key: "greenfield_setup_agent",
         type: "agent",
         displayName: "Greenfield Setup Agent",
         agentConfig: {
           objective:
-            "Discuss the project, clarify what is being built, and emit routing signals for greenfield downstream work.",
+            "Understand the project the user wants to build, coherently define the initial setup baseline, and author any Brainstorming and Research work-unit drafts needed for the next planning steps.",
           instructionsMarkdown:
-            "Use the setup baseline to understand the project at a high level. Decide whether brainstorming, research, and product brief work should be created. Produce the project overview artifact and setup routing outputs without inventing detailed requirements.",
-          readContextFactKeys: [
-            "initiative_name_ctx",
-            "project_kind_ctx",
-            "project_knowledge_directory_ctx",
-            "planning_artifacts_directory_ctx",
-            "communication_language_ctx",
-            "document_output_language_ctx",
-          ],
+            "You are operating in Chiron with access to MCP tools. Available tools:\n- chiron_read_step_snapshot: read the current step execution context, including objective, instructions, and runtime state\n- chiron_read_context_value: read the current value of a context fact before deciding whether to create or update it\n- chiron_write_context_value: create or update a setup-owned context fact or artifact reference by write item id\n\nStart by calling `chiron_read_step_snapshot`, then ask the user to explain the project they want to build. Critically engage with the user until the project is defined coherently enough for setup to proceed.\n\nUse the MCP tools deliberately:\n- read a context fact before updating it when you need to check whether a value already exists\n- create a value when the context fact is still empty\n- update a value when later user clarification makes the earlier draft incomplete or wrong\n- only write setup-owned workflow context and artifact references that this step is responsible for\n\nThese setup-owned context facts are writable in this step and each has a specific purpose:\n- `requires_brainstorming_ctx`: boolean routing signal; set it only when the project needs ideation, feature shaping, or decision exploration\n- `requires_research_ctx`: boolean routing signal; set it only when the project has open questions, feasibility uncertainty, or knowledge gaps that need evidence\n- `setup_path_summary_ctx`: durable summary of what setup learned, which path setup selected, and why\n- `project_overview_artifact_ctx`: artifact reference for the canonical setup overview document created from the conversation\n- `brainstorming_draft_spec_ctx`: draft spec used by invoke to create Brainstorming work units; write it only when `requires_brainstorming_ctx` is true\n- `research_draft_spec_ctx`: draft spec used by invoke to create Research work units; write it only when `requires_research_ctx` is true\n\nWhen you write `brainstorming_draft_spec_ctx`, shape it around the minimum framing the Brainstorming workflow now expects: `brainstorming_focus`, `desired_outcome`, and `objectives`. Write those only when they are supported by the conversation, but make them clear enough that Brainstorming can start with a coherent frame even if it later refines them further.\n\nWhen you write `research_draft_spec_ctx`, shape it around the minimum framing the Research workflow now expects: `research_type`, `research_topic`, and `research_goals`. Use `research_type` to choose whether the follow-up research should run as market, domain, or technical research. Make `research_topic` concrete and make `research_goals` specific enough that the downstream research path can execute against them without re-deriving the whole purpose from scratch.\n\nYour job is to understand the project at a high level, create the project overview artifact, capture the setup summary, and decide whether Brainstorming and/or Research work units should be authored for follow-up through invoke.\n\nDo not invent detailed requirements, implementation structure, or technical decisions that the user has not actually described. Do not treat temporary workflow context as durable project truth unless it is explicitly being promoted into setup-owned outputs.",
+          readContextFactKeys: [],
           writeContextFactKeys: [
-            "project_knowledge_directory_ctx",
-            "planning_artifacts_directory_ctx",
-            "communication_language_ctx",
-            "document_output_language_ctx",
-            "repository_type_ctx",
-            "project_parts_ctx",
-            "technology_stack_by_part_ctx",
-            "existing_documentation_inventory_ctx",
-            "integration_points_ctx",
             "requires_brainstorming_ctx",
-            "requires_product_brief_ctx",
             "requires_research_ctx",
             "setup_path_summary_ctx",
-            "next_recommended_work_unit_ctx",
             "project_overview_artifact_ctx",
             "brainstorming_draft_spec_ctx",
             "research_draft_spec_ctx",
@@ -4040,50 +4468,49 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
           },
           completionRequirementContextFactKeys: [
             "requires_brainstorming_ctx",
-            "requires_product_brief_ctx",
             "requires_research_ctx",
             "setup_path_summary_ctx",
-            "next_recommended_work_unit_ctx",
             "project_overview_artifact_ctx",
           ],
         },
       },
       {
-        key: "brownfield_scan_preferences",
-        type: "form",
-        displayName: "Brownfield Scan Preferences",
-        formFields: [
-          {
-            key: "workflow_mode",
-            label: "Workflow Mode",
-            contextFactKey: "workflow_mode_ctx",
-            valueType: "string",
-            required: true,
-          },
-          {
-            key: "scan_level",
-            label: "Scan Level",
-            contextFactKey: "scan_level_ctx",
-            valueType: "string",
-            required: true,
-          },
-          {
-            key: "deep_dive_target",
-            label: "Deep Dive Target",
-            contextFactKey: "deep_dive_target_ctx",
-            valueType: "string",
-            required: false,
-          },
-        ],
-      },
-      {
-        key: "invoke_document_project",
-        type: "invoke",
-        displayName: "Invoke Document Project",
-        invokeConfig: {
-          targetKind: "workflow",
-          sourceMode: "fixed_set",
-          workflowSuffixes: ["document-project"],
+        key: "propagate_setup_outputs",
+        type: "action",
+        displayName: "Propagate Setup Outputs",
+        actionConfig: {
+          actions: [
+            {
+              actionId: "propagate_setup_bound_facts",
+              actionKey: "propagate_setup_bound_facts",
+              label: "Propagate Setup Bound Facts",
+              contextFactKey: "setup_path_summary_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "setup_path_summary",
+                  itemKey: "setup.setup_path_summary",
+                  label: "Setup Path Summary",
+                  targetContextFactKey: "setup_path_summary_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_project_overview",
+              actionKey: "propagate_project_overview",
+              label: "Propagate Project Overview",
+              contextFactKey: "project_overview_artifact_ctx",
+              contextFactKind: "artifact_slot_reference_fact",
+              items: [
+                {
+                  itemId: "project_overview_artifact",
+                  itemKey: "setup.project_overview",
+                  label: "Project Overview Artifact",
+                  targetContextFactKey: "project_overview_artifact_ctx",
+                },
+              ],
+            },
+          ],
         },
       },
       {
@@ -4123,6 +4550,14 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
           targetKind: "work_unit",
           sourceMode: "context_fact_backed",
           contextFactKey: "brainstorming_draft_spec_ctx",
+          bindings: [
+            {
+              destinationKind: "work_unit_fact",
+              destinationWorkUnitKey: "brainstorming",
+              destinationFactKey: "setup_work_unit",
+              sourceKind: "runtime",
+            },
+          ],
           activationTransitions: [
             {
               workUnitKey: "brainstorming",
@@ -4137,7 +4572,7 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
         type: "branch",
         displayName: "Branch Need Research",
         branchConfig: {
-          defaultTargetStepKey: "branch_need_product_brief",
+          defaultTargetStepKey: null,
           routes: [
             {
               routeId: "needs_research",
@@ -4181,335 +4616,16 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
             {
               workUnitKey: "research",
               transitionSuffix: "activation-to-done",
-              workflowSuffixes: ["market-research", "domain-research", "technical-research"],
-            },
-          ],
-        },
-      },
-      {
-        key: "branch_need_product_brief",
-        type: "branch",
-        displayName: "Branch Need Product Brief",
-        branchConfig: {
-          defaultTargetStepKey: "propagate_setup_outputs",
-          routes: [
-            {
-              routeId: "needs_product_brief",
-              targetStepKey: "invoke_product_brief_work",
-              conditionMode: "all",
-              groups: [
-                {
-                  groupId: "needs_product_brief_group",
-                  mode: "all",
-                  conditions: [
-                    {
-                      conditionId: "requires_product_brief_true",
-                      contextFactKey: "requires_product_brief_ctx",
-                      operator: "equals",
-                      comparisonJson: { value: true },
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      },
-      {
-        key: "invoke_product_brief_work",
-        type: "invoke",
-        displayName: "Invoke Product Brief Work",
-        invokeConfig: {
-          targetKind: "work_unit",
-          sourceMode: "fixed_set",
-          workUnitKey: "product_brief",
-          bindings: [
-            {
-              destinationKind: "work_unit_fact",
-              destinationWorkUnitKey: "product_brief",
-              destinationFactKey: "setup_work_unit",
-              sourceKind: "runtime",
-            },
-          ],
-          activationTransitions: [
-            {
-              workUnitKey: "product_brief",
-              transitionSuffix: "activation-to-done",
-              workflowSuffixes: ["create-product-brief"],
-            },
-          ],
-        },
-      },
-      {
-        key: "propagate_setup_outputs",
-        type: "action",
-        displayName: "Propagate Setup Outputs",
-        actionConfig: {
-          actions: [
-            {
-              actionId: "propagate_setup_bound_facts",
-              actionKey: "propagate_setup_bound_facts",
-              label: "Propagate Setup Bound Facts",
-              contextFactKey: "initiative_name_ctx",
-              contextFactKind: "bound_fact",
-              items: [
-                {
-                  itemId: "initiative_name",
-                  itemKey: "setup.initiative_name",
-                  label: "Initiative Name",
-                  targetContextFactKey: "initiative_name_ctx",
-                },
-                {
-                  itemId: "project_kind",
-                  itemKey: "setup.project_kind",
-                  label: "Project Kind",
-                  targetContextFactKey: "project_kind_ctx",
-                },
-                {
-                  itemId: "project_knowledge_directory",
-                  itemKey: "setup.project_knowledge_directory",
-                  label: "Project Knowledge Directory",
-                  targetContextFactKey: "project_knowledge_directory_ctx",
-                },
-                {
-                  itemId: "planning_artifacts_directory",
-                  itemKey: "setup.planning_artifacts_directory",
-                  label: "Planning Artifacts Directory",
-                  targetContextFactKey: "planning_artifacts_directory_ctx",
-                },
-                {
-                  itemId: "communication_language",
-                  itemKey: "setup.communication_language",
-                  label: "Communication Language",
-                  targetContextFactKey: "communication_language_ctx",
-                },
-                {
-                  itemId: "document_output_language",
-                  itemKey: "setup.document_output_language",
-                  label: "Document Output Language",
-                  targetContextFactKey: "document_output_language_ctx",
-                },
-                {
-                  itemId: "workflow_mode",
-                  itemKey: "setup.workflow_mode",
-                  label: "Workflow Mode",
-                  targetContextFactKey: "workflow_mode_ctx",
-                },
-                {
-                  itemId: "scan_level",
-                  itemKey: "setup.scan_level",
-                  label: "Scan Level",
-                  targetContextFactKey: "scan_level_ctx",
-                },
-                {
-                  itemId: "deep_dive_target",
-                  itemKey: "setup.deep_dive_target",
-                  label: "Deep Dive Target",
-                  targetContextFactKey: "deep_dive_target_ctx",
-                },
-                {
-                  itemId: "repository_type",
-                  itemKey: "setup.repository_type",
-                  label: "Repository Type",
-                  targetContextFactKey: "repository_type_ctx",
-                },
-                {
-                  itemId: "project_parts",
-                  itemKey: "setup.project_parts",
-                  label: "Project Parts",
-                  targetContextFactKey: "project_parts_ctx",
-                },
-                {
-                  itemId: "technology_stack_by_part",
-                  itemKey: "setup.technology_stack_by_part",
-                  label: "Technology Stack By Part",
-                  targetContextFactKey: "technology_stack_by_part_ctx",
-                },
-                {
-                  itemId: "existing_documentation_inventory",
-                  itemKey: "setup.existing_documentation_inventory",
-                  label: "Existing Documentation Inventory",
-                  targetContextFactKey: "existing_documentation_inventory_ctx",
-                },
-                {
-                  itemId: "integration_points",
-                  itemKey: "setup.integration_points",
-                  label: "Integration Points",
-                  targetContextFactKey: "integration_points_ctx",
-                },
-                {
-                  itemId: "setup_path_summary",
-                  itemKey: "setup.setup_path_summary",
-                  label: "Setup Path Summary",
-                  targetContextFactKey: "setup_path_summary_ctx",
-                },
-                {
-                  itemId: "next_recommended_work_unit",
-                  itemKey: "setup.next_recommended_work_unit",
-                  label: "Next Recommended Work Unit",
-                  targetContextFactKey: "next_recommended_work_unit_ctx",
-                },
-              ],
-            },
-            {
-              actionId: "propagate_project_overview",
-              actionKey: "propagate_project_overview",
-              label: "Propagate Project Overview",
-              contextFactKey: "project_overview_artifact_ctx",
-              contextFactKind: "artifact_slot_reference_fact",
-              items: [
-                {
-                  itemId: "project_overview_artifact",
-                  itemKey: "setup.project_overview",
-                  label: "Project Overview Artifact",
-                  targetContextFactKey: "project_overview_artifact_ctx",
-                },
-              ],
+              workflowSuffixes: ["research"],
             },
           ],
         },
       },
     ],
     explicitEdges: [
-      { fromStepKey: "collect_setup_baseline", toStepKey: "branch_project_kind" },
-      { fromStepKey: "greenfield_setup_agent", toStepKey: "branch_need_brainstorming" },
-      { fromStepKey: "brownfield_scan_preferences", toStepKey: "invoke_document_project" },
-      { fromStepKey: "invoke_document_project", toStepKey: "propagate_setup_outputs" },
+      { fromStepKey: "greenfield_setup_agent", toStepKey: "propagate_setup_outputs" },
+      { fromStepKey: "propagate_setup_outputs", toStepKey: "branch_need_brainstorming" },
       { fromStepKey: "invoke_brainstorming_work", toStepKey: "branch_need_research" },
-      { fromStepKey: "invoke_research_work", toStepKey: "branch_need_product_brief" },
-      { fromStepKey: "invoke_product_brief_work", toStepKey: "propagate_setup_outputs" },
-    ],
-  },
-  {
-    workUnitKey: "setup",
-    workflowSuffix: "document-project",
-    contextFacts: [
-      {
-        key: "workflow_mode_ctx",
-        label: "Workflow Mode",
-        kind: "plain_fact",
-        cardinality: "one",
-        valueType: "string",
-        validation: toAllowedValuesValidation(["initial_scan", "full_rescan", "deep_dive"]),
-      },
-      {
-        key: "scan_level_ctx",
-        label: "Scan Level",
-        kind: "plain_fact",
-        cardinality: "one",
-        valueType: "string",
-        validation: toAllowedValuesValidation(["quick", "deep", "exhaustive"]),
-      },
-      {
-        key: "deep_dive_target_ctx",
-        label: "Deep Dive Target",
-        kind: "plain_fact",
-        cardinality: "one",
-        valueType: "string",
-      },
-      {
-        key: "repository_type_ctx",
-        label: "Repository Type",
-        kind: "bound_fact",
-        cardinality: "one",
-        bindingKey: "repository_type",
-      },
-      {
-        key: "project_parts_ctx",
-        label: "Project Parts",
-        kind: "bound_fact",
-        cardinality: "many",
-        bindingKey: "project_parts",
-      },
-      {
-        key: "technology_stack_by_part_ctx",
-        label: "Technology Stack By Part",
-        kind: "bound_fact",
-        cardinality: "many",
-        bindingKey: "technology_stack_by_part",
-      },
-      {
-        key: "existing_documentation_inventory_ctx",
-        label: "Existing Documentation Inventory",
-        kind: "bound_fact",
-        cardinality: "many",
-        bindingKey: "existing_documentation_inventory",
-      },
-      {
-        key: "integration_points_ctx",
-        label: "Integration Points",
-        kind: "bound_fact",
-        cardinality: "many",
-        bindingKey: "integration_points",
-      },
-      {
-        key: "brownfield_docs_index_artifact_ctx",
-        label: "Brownfield Docs Index Artifact",
-        kind: "artifact_slot_reference_fact",
-        cardinality: "one",
-        slotWorkUnitKey: "setup",
-        slotSuffix: "brownfield-docs-index",
-      },
-    ],
-    steps: [
-      {
-        key: "document_project_agent",
-        type: "agent",
-        displayName: "Document Project Agent",
-        agentConfig: {
-          objective:
-            "Scan and document the brownfield project baseline based on the selected scan settings.",
-          instructionsMarkdown:
-            "Use the selected scan mode and level to inspect the existing project and write the brownfield docs index artifact along with repository baseline facts.",
-          readContextFactKeys: ["workflow_mode_ctx", "scan_level_ctx", "deep_dive_target_ctx"],
-          writeContextFactKeys: [
-            "project_knowledge_directory_ctx",
-            "planning_artifacts_directory_ctx",
-            "communication_language_ctx",
-            "document_output_language_ctx",
-            "repository_type_ctx",
-            "project_parts_ctx",
-            "technology_stack_by_part_ctx",
-            "existing_documentation_inventory_ctx",
-            "integration_points_ctx",
-            "brownfield_docs_index_artifact_ctx",
-          ],
-          completionRequirementContextFactKeys: ["brownfield_docs_index_artifact_ctx"],
-        },
-      },
-    ],
-  },
-  {
-    workUnitKey: "setup",
-    workflowSuffix: "generate-project-context",
-    contextFacts: [
-      {
-        key: "project_context_notes_ctx",
-        label: "Project Context Notes",
-        kind: "plain_fact",
-        cardinality: "one",
-        valueType: "json",
-      },
-      {
-        key: "project_context_artifact_ctx",
-        label: "Project Context Artifact",
-        kind: "artifact_slot_reference_fact",
-        cardinality: "one",
-        slotWorkUnitKey: "setup",
-        slotSuffix: "project-context",
-      },
-    ],
-    steps: [
-      {
-        key: "scan_project_context_sources",
-        type: "agent",
-        displayName: "Scan Project Context Sources",
-      },
-      {
-        key: "write_project_context_artifact",
-        type: "agent",
-        displayName: "Write Project Context Artifact",
-      },
     ],
   },
   {
@@ -4545,45 +4661,11 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
         bindingKey: "constraints",
       },
       {
-        key: "session_mode_ctx",
-        label: "Session Mode",
-        kind: "plain_fact",
-        cardinality: "one",
-        valueType: "string",
-        validation: {
-          kind: "allowed-values" as const,
-          values: ["new", "continue"],
-        },
-      },
-      {
-        key: "facilitation_mode_ctx",
-        label: "Facilitation Mode",
-        kind: "plain_fact",
-        cardinality: "one",
-        valueType: "string",
-        validation: {
-          kind: "allowed-values" as const,
-          values: [
-            "user_selected_techniques",
-            "ai_recommended_techniques",
-            "random_selection",
-            "progressive_flow",
-          ],
-        },
-      },
-      {
         key: "need_specialist_techniques_ctx",
         label: "Need Specialist Techniques",
         kind: "plain_fact",
         cardinality: "one",
         valueType: "boolean",
-      },
-      {
-        key: "technique_plan_ctx",
-        label: "Technique Plan",
-        kind: "bound_fact",
-        cardinality: "one",
-        bindingKey: "technique_plan",
       },
       {
         key: "selected_technique_workflow_refs_ctx",
@@ -4598,13 +4680,6 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
           "stakeholder-round-table",
           "critique-and-refine",
         ],
-      },
-      {
-        key: "selected_technique_workflows_payload_ctx",
-        label: "Selected Technique Workflows Payload",
-        kind: "bound_fact",
-        cardinality: "many",
-        bindingKey: "selected_technique_workflows",
       },
       {
         key: "technique_outputs_ctx",
@@ -4635,13 +4710,6 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
         bindingKey: "priority_directions",
       },
       {
-        key: "follow_up_research_topics_ctx",
-        label: "Follow-up Research Topics",
-        kind: "bound_fact",
-        cardinality: "many",
-        bindingKey: "follow_up_research_topics",
-      },
-      {
         key: "brainstorming_session_artifact_ctx",
         label: "Brainstorming Session Artifact",
         kind: "artifact_slot_reference_fact",
@@ -4661,41 +4729,30 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
             label: "Brainstorming Focus",
             contextFactKey: "brainstorming_focus_ctx",
             valueType: "string",
-            required: true,
+            descriptionMarkdown:
+              "The core topic, problem, opportunity, or decision area the brainstorming session should explore. Write this as a single clear focus statement so the session stays centered on one thing.",
           },
           {
             key: "desired_outcome",
             label: "Desired Outcome",
             contextFactKey: "desired_outcome_ctx",
             valueType: "string",
-            required: true,
+            descriptionMarkdown:
+              "What the user wants to leave the brainstorming session with. Capture the concrete outcome the session should produce, such as clearer options, a shortlist of directions, a decision, or a refined concept.",
           },
           {
             key: "objectives",
             label: "Objectives",
             contextFactKey: "objectives_ctx",
             valueType: "json",
-            required: true,
+            descriptionMarkdown:
+              "The specific questions, goals, or angles the brainstorming session should explore in service of the desired outcome. Capture the main things the session must investigate, compare, clarify, or generate.",
           },
           {
             key: "constraints",
             label: "Constraints",
             contextFactKey: "constraints_ctx",
             valueType: "json",
-          },
-          {
-            key: "session_mode",
-            label: "Session Mode",
-            contextFactKey: "session_mode_ctx",
-            valueType: "string",
-            required: true,
-          },
-          {
-            key: "facilitation_mode",
-            label: "Facilitation Mode",
-            contextFactKey: "facilitation_mode_ctx",
-            valueType: "string",
-            required: true,
           },
         ],
       },
@@ -4705,38 +4762,31 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
         displayName: "Facilitate Brainstorming Session",
         agentConfig: {
           objective:
-            "Facilitate the brainstorming session, produce the technique plan, decide whether specialist techniques are needed, and write the canonical brainstorming session artifact.",
+            "Facilitate the brainstorming session, decide whether specialist techniques are needed, and write the canonical brainstorming session artifact.",
           instructionsMarkdown:
-            "Use the brainstorming focus, desired outcome, objectives, constraints, session mode, and facilitation mode to run the main brainstorming facilitation. First decide the technique plan and whether specialist technique workflows are needed. Then write both the invokeable workflow refs and the durable selected-techniques payload. After the plan is established, write or update the brainstorming session artifact and capture any preliminary follow-up research topics that emerge from the core facilitation pass.",
+            "Use any existing brainstorming focus, desired outcome, objectives, and constraints as the starting frame for the main brainstorming facilitation. If any of those framing facts are missing, unclear, or incomplete, clarify them through the conversation and create or update them before moving deeper into ideation. Help the user explore options, compare directions, and sharpen unclear ideas without converging too early. Decide whether specialist technique workflows are needed only when deeper structured probing would materially improve the session before synthesis, and write or update the canonical brainstorming session artifact as the session develops.",
           readContextFactKeys: [
             "brainstorming_focus_ctx",
             "desired_outcome_ctx",
             "objectives_ctx",
             "constraints_ctx",
-            "session_mode_ctx",
-            "facilitation_mode_ctx",
           ],
           writeContextFactKeys: [
-            "technique_plan_ctx",
-            "selected_technique_workflow_refs_ctx",
-            "selected_technique_workflows_payload_ctx",
+            "brainstorming_focus_ctx",
+            "desired_outcome_ctx",
+            "objectives_ctx",
+            "constraints_ctx",
             "need_specialist_techniques_ctx",
+            "selected_technique_workflow_refs_ctx",
             "brainstorming_session_artifact_ctx",
-            "follow_up_research_topics_ctx",
           ],
           writeItemRequirementContextFactKeysByWriteKey: {
-            selected_technique_workflow_refs_ctx: ["technique_plan_ctx"],
-            selected_technique_workflows_payload_ctx: ["technique_plan_ctx"],
-            need_specialist_techniques_ctx: ["technique_plan_ctx"],
-            brainstorming_session_artifact_ctx: [
-              "technique_plan_ctx",
-              "selected_technique_workflows_payload_ctx",
-            ],
-            follow_up_research_topics_ctx: ["brainstorming_session_artifact_ctx"],
+            selected_technique_workflow_refs_ctx: ["need_specialist_techniques_ctx"],
           },
           completionRequirementContextFactKeys: [
-            "technique_plan_ctx",
-            "selected_technique_workflows_payload_ctx",
+            "brainstorming_focus_ctx",
+            "desired_outcome_ctx",
+            "objectives_ctx",
             "need_specialist_techniques_ctx",
             "brainstorming_session_artifact_ctx",
           ],
@@ -4751,7 +4801,7 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
           routes: [
             {
               routeId: "needs_specialist_techniques",
-              targetStepKey: "invoke_specialist_techniques",
+              targetStepKey: "propagate_facilitation_outputs",
               conditionMode: "all",
               groups: [
                 {
@@ -4765,6 +4815,90 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
                       comparisonJson: { value: true },
                     },
                   ],
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        key: "propagate_facilitation_outputs",
+        type: "action",
+        displayName: "Propagate Facilitation Outputs",
+        actionConfig: {
+          actions: [
+            {
+              actionId: "propagate_brainstorming_focus",
+              actionKey: "propagate_brainstorming_focus",
+              label: "Propagate Brainstorming Focus",
+              contextFactKey: "brainstorming_focus_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "brainstorming_focus",
+                  itemKey: "brainstorming.brainstorming_focus",
+                  label: "Brainstorming Focus",
+                  targetContextFactKey: "brainstorming_focus_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_desired_outcome",
+              actionKey: "propagate_desired_outcome",
+              label: "Propagate Desired Outcome",
+              contextFactKey: "desired_outcome_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "desired_outcome",
+                  itemKey: "brainstorming.desired_outcome",
+                  label: "Desired Outcome",
+                  targetContextFactKey: "desired_outcome_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_objectives",
+              actionKey: "propagate_objectives",
+              label: "Propagate Objectives",
+              contextFactKey: "objectives_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "objectives",
+                  itemKey: "brainstorming.objectives",
+                  label: "Objectives",
+                  targetContextFactKey: "objectives_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_constraints",
+              actionKey: "propagate_constraints",
+              label: "Propagate Constraints",
+              contextFactKey: "constraints_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "constraints",
+                  itemKey: "brainstorming.constraints",
+                  label: "Constraints",
+                  targetContextFactKey: "constraints_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_brainstorming_session_artifact_before_invoke",
+              actionKey: "propagate_brainstorming_session_artifact_before_invoke",
+              label: "Propagate Brainstorming Session Artifact",
+              contextFactKey: "brainstorming_session_artifact_ctx",
+              contextFactKind: "artifact_slot_reference_fact",
+              items: [
+                {
+                  itemId: "brainstorming_session_artifact_before_invoke",
+                  itemKey: "brainstorming.brainstorming_session",
+                  label: "Brainstorming Session Artifact",
+                  targetContextFactKey: "brainstorming_session_artifact_ctx",
                 },
               ],
             },
@@ -4817,24 +4951,33 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
         displayName: "Synthesize Session Outputs",
         agentConfig: {
           objective:
-            "Synthesize the brainstorming session and any specialist-technique outputs into durable selected directions, priority directions, and follow-up research topics.",
+            "Synthesize the brainstorming session and any specialist-technique outputs into durable selected directions and priority directions, and update the canonical brainstorming session artifact to reflect the converged outcome.",
           instructionsMarkdown:
-            "Review the brainstorming session artifact, the technique plan, and any specialist-technique outputs. Group ideas into clusters, select the most actionable directions, prioritize them, and write durable downstream-usable outputs into bound facts.",
+            "You are operating in Chiron with access to MCP tools. Start by reading the provided brainstorming context and treat it as the full working frame for this step. Use the brainstorming session artifact as the main record of the session so far. Also read any available specialist-technique outputs and the framing facts that define what the session was trying to achieve: the brainstorming focus, desired outcome, objectives, and any constraints.\n\nYour job in this step is convergence, not exploration. Evaluate the ideas captured so far against the brainstorming focus, desired outcome, objectives, and constraints. Be judgmental: reject weak, repetitive, unfocused, or low-value ideas instead of preserving them just because they were mentioned. Group the meaningful ideas into clear clusters when clustering helps explain the landscape, identify the strongest directions that actually deserve to survive, and prioritize the directions that should carry forward into downstream planning.\n\nWrite durable selected directions and priority directions that reflect the best converged outcome of the session rather than raw brainstorming noise. Then update the canonical brainstorming session artifact so it reflects the converged state of the session, including the main clusters when useful, the selected directions, and the priority directions. The artifact and the structured facts must agree with each other. Do not reopen broad ideation, do not invent new framing that the session does not support, and do not leave the artifact in a pre-convergence state after the structured outputs are written.",
           readContextFactKeys: [
             "brainstorming_session_artifact_ctx",
-            "technique_plan_ctx",
             "technique_outputs_ctx",
+            "brainstorming_focus_ctx",
             "desired_outcome_ctx",
+            "objectives_ctx",
+            "constraints_ctx",
           ],
           writeContextFactKeys: [
             "idea_clusters_ctx",
             "selected_directions_ctx",
             "priority_directions_ctx",
-            "follow_up_research_topics_ctx",
+            "brainstorming_session_artifact_ctx",
           ],
+          writeItemRequirementContextFactKeysByWriteKey: {
+            brainstorming_session_artifact_ctx: [
+              "selected_directions_ctx",
+              "priority_directions_ctx",
+            ],
+          },
           completionRequirementContextFactKeys: [
             "selected_directions_ctx",
             "priority_directions_ctx",
+            "brainstorming_session_artifact_ctx",
           ],
         },
       },
@@ -4844,6 +4987,66 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
         displayName: "Propagate Brainstorming Outputs",
         actionConfig: {
           actions: [
+            {
+              actionId: "propagate_brainstorming_focus_final",
+              actionKey: "propagate_brainstorming_focus_final",
+              label: "Propagate Brainstorming Focus",
+              contextFactKey: "brainstorming_focus_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "brainstorming_focus_final",
+                  itemKey: "brainstorming.brainstorming_focus",
+                  label: "Brainstorming Focus",
+                  targetContextFactKey: "brainstorming_focus_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_desired_outcome_final",
+              actionKey: "propagate_desired_outcome_final",
+              label: "Propagate Desired Outcome",
+              contextFactKey: "desired_outcome_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "desired_outcome_final",
+                  itemKey: "brainstorming.desired_outcome",
+                  label: "Desired Outcome",
+                  targetContextFactKey: "desired_outcome_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_objectives_final",
+              actionKey: "propagate_objectives_final",
+              label: "Propagate Objectives",
+              contextFactKey: "objectives_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "objectives_final",
+                  itemKey: "brainstorming.objectives",
+                  label: "Objectives",
+                  targetContextFactKey: "objectives_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_constraints_final",
+              actionKey: "propagate_constraints_final",
+              label: "Propagate Constraints",
+              contextFactKey: "constraints_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "constraints_final",
+                  itemKey: "brainstorming.constraints",
+                  label: "Constraints",
+                  targetContextFactKey: "constraints_ctx",
+                },
+              ],
+            },
             {
               actionId: "propagate_selected_directions",
               actionKey: "propagate_selected_directions",
@@ -4875,21 +5078,6 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
               ],
             },
             {
-              actionId: "propagate_follow_up_research_topics",
-              actionKey: "propagate_follow_up_research_topics",
-              label: "Propagate Follow-up Research Topics",
-              contextFactKey: "follow_up_research_topics_ctx",
-              contextFactKind: "bound_fact",
-              items: [
-                {
-                  itemId: "follow_up_research_topics",
-                  itemKey: "brainstorming.follow_up_research_topics",
-                  label: "Follow-up Research Topics",
-                  targetContextFactKey: "follow_up_research_topics_ctx",
-                },
-              ],
-            },
-            {
               actionId: "propagate_brainstorming_session_artifact",
               actionKey: "propagate_brainstorming_session_artifact",
               label: "Propagate Brainstorming Session Artifact",
@@ -4913,6 +5101,10 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
       {
         fromStepKey: "facilitate_brainstorming_session",
         toStepKey: "branch_need_specialist_techniques",
+      },
+      {
+        fromStepKey: "propagate_facilitation_outputs",
+        toStepKey: "invoke_specialist_techniques",
       },
       { fromStepKey: "invoke_specialist_techniques", toStepKey: "synthesize_session_outputs" },
       { fromStepKey: "synthesize_session_outputs", toStepKey: "propagate_brainstorming_outputs" },
@@ -5061,119 +5253,668 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
       },
     ],
   })),
-  ...(["market-research", "domain-research", "technical-research"] as const).map(
-    (workflowSuffix) => ({
-      workUnitKey: "research" as const,
-      workflowSuffix,
-      contextFacts: [
-        {
-          key: "research_type_ctx",
-          label: "Research Type",
-          kind: "bound_fact",
-          cardinality: "one",
-          bindingKey: "research_type",
-        },
-        {
-          key: "research_topic_ctx",
-          label: "Research Topic",
-          kind: "bound_fact",
-          cardinality: "one",
-          bindingKey: "research_topic",
-        },
-        {
-          key: "research_goals_ctx",
-          label: "Research Goals",
-          kind: "bound_fact",
-          cardinality: "many",
-          bindingKey: "research_goals",
-        },
-        {
-          key: "scope_notes_ctx",
-          label: "Scope Notes",
-          kind: "plain_fact",
-          cardinality: "one",
-          valueType: "string",
-        },
-        {
-          key: "research_synthesis_ctx",
-          label: "Research Synthesis",
-          kind: "bound_fact",
-          cardinality: "one",
-          bindingKey: "research_synthesis",
-        },
-        {
-          key: "research_report_artifact_ctx",
-          label: "Research Report Artifact",
-          kind: "artifact_slot_reference_fact",
-          cardinality: "one",
-          slotWorkUnitKey: "research",
-          slotSuffix: "research-report",
-        },
-      ],
-      steps: [
-        {
-          key: "research_scope_confirmation",
-          type: "form",
-          displayName: "Research Scope Confirmation",
-          formFields: [
+  {
+    workUnitKey: "research",
+    workflowSuffix: "research",
+    contextFacts: [
+      {
+        key: "research_type_ctx",
+        label: "Research Type",
+        kind: "bound_fact",
+        cardinality: "one",
+        bindingKey: "research_type",
+      },
+      {
+        key: "research_topic_ctx",
+        label: "Research Topic",
+        kind: "bound_fact",
+        cardinality: "one",
+        bindingKey: "research_topic",
+      },
+      {
+        key: "research_goals_ctx",
+        label: "Research Goals",
+        kind: "bound_fact",
+        cardinality: "many",
+        bindingKey: "research_goals",
+      },
+      {
+        key: "scope_notes_ctx",
+        label: "Scope Notes",
+        kind: "bound_fact",
+        cardinality: "one",
+        bindingKey: "scope_notes",
+      },
+      {
+        key: "market_source_inventory_ctx",
+        label: "Market Source Inventory",
+        kind: "bound_fact",
+        cardinality: "many",
+        bindingKey: "market_source_inventory",
+      },
+      {
+        key: "market_research_synthesis_ctx",
+        label: "Market Research Synthesis",
+        kind: "bound_fact",
+        cardinality: "one",
+        bindingKey: "market_research_synthesis",
+      },
+      {
+        key: "domain_source_inventory_ctx",
+        label: "Domain Source Inventory",
+        kind: "bound_fact",
+        cardinality: "many",
+        bindingKey: "domain_source_inventory",
+      },
+      {
+        key: "domain_research_synthesis_ctx",
+        label: "Domain Research Synthesis",
+        kind: "bound_fact",
+        cardinality: "one",
+        bindingKey: "domain_research_synthesis",
+      },
+      {
+        key: "technical_source_inventory_ctx",
+        label: "Technical Source Inventory",
+        kind: "bound_fact",
+        cardinality: "many",
+        bindingKey: "technical_source_inventory",
+      },
+      {
+        key: "technical_research_synthesis_ctx",
+        label: "Technical Research Synthesis",
+        kind: "bound_fact",
+        cardinality: "one",
+        bindingKey: "technical_research_synthesis",
+      },
+      {
+        key: "research_report_artifact_ctx",
+        label: "Research Report Artifact",
+        kind: "artifact_slot_reference_fact",
+        cardinality: "one",
+        slotWorkUnitKey: "research",
+        slotSuffix: "research-report",
+      },
+    ],
+    steps: [
+      {
+        key: "research_scope_confirmation",
+        type: "form",
+        displayName: "Research Scope Confirmation",
+        formFields: [
+          {
+            key: "research_type",
+            label: "Research Type",
+            contextFactKey: "research_type_ctx",
+            valueType: "string",
+            required: true,
+          },
+          {
+            key: "research_topic",
+            label: "Research Topic",
+            contextFactKey: "research_topic_ctx",
+            valueType: "string",
+            required: true,
+          },
+          {
+            key: "research_goals",
+            label: "Research Goals",
+            contextFactKey: "research_goals_ctx",
+            valueType: "json",
+            required: true,
+          },
+        ],
+      },
+      {
+        key: "propagate_research_scope_inputs",
+        type: "action",
+        displayName: "Propagate Research Scope Inputs",
+        actionConfig: {
+          actions: [
             {
-              key: "research_type",
-              label: "Research Type",
+              actionId: "propagate_research_type",
+              actionKey: "propagate_research_type",
+              label: "Propagate Research Type",
               contextFactKey: "research_type_ctx",
-              valueType: "string",
-              required: true,
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "research_type",
+                  itemKey: "research.research_type",
+                  label: "Research Type",
+                  targetContextFactKey: "research_type_ctx",
+                },
+              ],
             },
             {
-              key: "research_topic",
-              label: "Research Topic",
+              actionId: "propagate_research_topic",
+              actionKey: "propagate_research_topic",
+              label: "Propagate Research Topic",
               contextFactKey: "research_topic_ctx",
-              valueType: "string",
-              required: true,
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "research_topic",
+                  itemKey: "research.research_topic",
+                  label: "Research Topic",
+                  targetContextFactKey: "research_topic_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_research_goals_initial",
+              actionKey: "propagate_research_goals_initial",
+              label: "Propagate Research Goals",
+              contextFactKey: "research_goals_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "research_goals_initial",
+                  itemKey: "research.research_goals",
+                  label: "Research Goals",
+                  targetContextFactKey: "research_goals_ctx",
+                },
+              ],
             },
           ],
         },
-        { key: "research_execution_agent", type: "agent", displayName: "Research Execution Agent" },
-      ],
-    }),
-  ),
+      },
+      {
+        key: "branch_research_kind",
+        type: "branch",
+        displayName: "Branch Research Kind",
+        branchConfig: {
+          defaultTargetStepKey: null,
+          routes: [
+            {
+              routeId: "market_research_path",
+              targetStepKey: "market_research_agent",
+              conditionMode: "all",
+              groups: [
+                {
+                  groupId: "market_research_group",
+                  mode: "all",
+                  conditions: [
+                    {
+                      conditionId: "research_type_market",
+                      contextFactKey: "research_type_ctx",
+                      operator: "equals",
+                      comparisonJson: { value: "market" },
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              routeId: "domain_research_path",
+              targetStepKey: "domain_research_agent",
+              conditionMode: "all",
+              groups: [
+                {
+                  groupId: "domain_research_group",
+                  mode: "all",
+                  conditions: [
+                    {
+                      conditionId: "research_type_domain",
+                      contextFactKey: "research_type_ctx",
+                      operator: "equals",
+                      comparisonJson: { value: "domain" },
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              routeId: "technical_research_path",
+              targetStepKey: "technical_research_agent",
+              conditionMode: "all",
+              groups: [
+                {
+                  groupId: "technical_research_group",
+                  mode: "all",
+                  conditions: [
+                    {
+                      conditionId: "research_type_technical",
+                      contextFactKey: "research_type_ctx",
+                      operator: "equals",
+                      comparisonJson: { value: "technical" },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        key: "market_research_agent",
+        type: "agent",
+        displayName: "Market Research Agent",
+        agentConfig: {
+          objective:
+            "Conduct market research on the approved topic, produce a durable market source inventory and market research synthesis, and update the canonical research report artifact with the market-focused findings.",
+          instructionsMarkdown:
+            "You are operating in Chiron with access to MCP tools. Start by reading the provided research context and treat it as the full working frame for this step. Use the current research type, research topic, research goals, and any scope notes as the governing frame for the work. If the topic or goals are ambiguous, refine them through the research process and update them so the work unit ends with a clearer research frame than it started with.\n\nThis path is specifically for market research. Conduct the work with a market-analysis lens: identify customer or user demand signals, competing or adjacent alternatives, market expectations, positioning opportunities, adoption barriers, and any meaningful evidence about the problem space or opportunity space. Favor evidence that helps downstream planning understand whether the idea is attractive, differentiated, crowded, underserved, urgent, or commercially unclear.\n\nUse sources that are appropriate for market analysis and record them carefully. Build a durable market source inventory that captures what sources were used, why they matter, and how trustworthy or relevant they are. Then produce a durable market research synthesis that explains the most important findings, the implications for product and planning decisions, the strongest opportunities, the biggest risks or unknowns, and the recommendations that should carry forward.\n\nWrite or update the canonical research report artifact so it reflects the final market findings, not just raw notes. The artifact and the structured facts must agree with each other. Do not drift into generic product ideation, domain theory, or implementation design unless those are directly necessary to explain a market conclusion.",
+          readContextFactKeys: [
+            "research_type_ctx",
+            "research_topic_ctx",
+            "research_goals_ctx",
+            "scope_notes_ctx",
+          ],
+          writeContextFactKeys: [
+            "research_topic_ctx",
+            "research_goals_ctx",
+            "scope_notes_ctx",
+            "market_source_inventory_ctx",
+            "market_research_synthesis_ctx",
+            "research_report_artifact_ctx",
+          ],
+          completionRequirementContextFactKeys: [
+            "research_topic_ctx",
+            "research_goals_ctx",
+            "market_source_inventory_ctx",
+            "market_research_synthesis_ctx",
+            "research_report_artifact_ctx",
+          ],
+        },
+      },
+      {
+        key: "propagate_market_research_outputs",
+        type: "action",
+        displayName: "Propagate Market Research Outputs",
+        actionConfig: {
+          actions: [
+            {
+              actionId: "propagate_market_research_topic",
+              actionKey: "propagate_market_research_topic",
+              label: "Propagate Research Topic",
+              contextFactKey: "research_topic_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "market_research_topic",
+                  itemKey: "research.research_topic",
+                  label: "Research Topic",
+                  targetContextFactKey: "research_topic_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_market_research_goals",
+              actionKey: "propagate_market_research_goals",
+              label: "Propagate Research Goals",
+              contextFactKey: "research_goals_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "market_research_goals",
+                  itemKey: "research.research_goals",
+                  label: "Research Goals",
+                  targetContextFactKey: "research_goals_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_market_scope_notes",
+              actionKey: "propagate_market_scope_notes",
+              label: "Propagate Scope Notes",
+              contextFactKey: "scope_notes_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "market_scope_notes",
+                  itemKey: "research.scope_notes",
+                  label: "Scope Notes",
+                  targetContextFactKey: "scope_notes_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_market_source_inventory",
+              actionKey: "propagate_market_source_inventory",
+              label: "Propagate Source Inventory",
+              contextFactKey: "market_source_inventory_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "market_source_inventory",
+                  itemKey: "research.market_source_inventory",
+                  label: "Market Source Inventory",
+                  targetContextFactKey: "market_source_inventory_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_market_research_synthesis",
+              actionKey: "propagate_market_research_synthesis",
+              label: "Propagate Research Synthesis",
+              contextFactKey: "market_research_synthesis_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "market_research_synthesis",
+                  itemKey: "research.market_research_synthesis",
+                  label: "Market Research Synthesis",
+                  targetContextFactKey: "market_research_synthesis_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_market_research_report_artifact",
+              actionKey: "propagate_market_research_report_artifact",
+              label: "Propagate Research Report Artifact",
+              contextFactKey: "research_report_artifact_ctx",
+              contextFactKind: "artifact_slot_reference_fact",
+              items: [
+                {
+                  itemId: "market_research_report_artifact",
+                  itemKey: "research.research_report",
+                  label: "Research Report Artifact",
+                  targetContextFactKey: "research_report_artifact_ctx",
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        key: "domain_research_agent",
+        type: "agent",
+        displayName: "Domain Research Agent",
+        agentConfig: {
+          objective:
+            "Conduct domain research on the approved topic, produce a durable domain source inventory and domain research synthesis, and update the canonical research report artifact with the domain-focused findings.",
+          instructionsMarkdown:
+            "You are operating in Chiron with access to MCP tools. Start by reading the provided research context and treat it as the full working frame for this step. Use the current research type, research topic, research goals, and any scope notes as the governing frame for the work. If the topic or goals are ambiguous, refine them through the research process and update them so the work unit ends with a clearer research frame than it started with.\n\nThis path is specifically for domain research. Conduct the work with a domain-analysis lens: identify the important actors, workflows, concepts, constraints, norms, rules, regulations, dependencies, and structural realities that define this space. Focus on understanding how the domain actually works, what assumptions are safe or unsafe, what language or concepts matter, and what downstream planning must respect in order to stay grounded in reality.\n\nUse sources that are appropriate for domain understanding and record them carefully. Build a durable domain source inventory that captures what sources were used, why they matter, and how trustworthy or relevant they are. Then produce a durable domain research synthesis that explains the most important findings, the domain constraints and truths that downstream work must respect, the implications for product and planning decisions, the major unknowns, and the recommendations that should carry forward.\n\nWrite or update the canonical research report artifact so it reflects the final domain findings, not just raw notes. The artifact and the structured facts must agree with each other. Do not drift into speculative market positioning or technical architecture unless those are directly necessary to explain a domain conclusion.",
+          readContextFactKeys: [
+            "research_type_ctx",
+            "research_topic_ctx",
+            "research_goals_ctx",
+            "scope_notes_ctx",
+          ],
+          writeContextFactKeys: [
+            "research_topic_ctx",
+            "research_goals_ctx",
+            "scope_notes_ctx",
+            "domain_source_inventory_ctx",
+            "domain_research_synthesis_ctx",
+            "research_report_artifact_ctx",
+          ],
+          completionRequirementContextFactKeys: [
+            "research_topic_ctx",
+            "research_goals_ctx",
+            "domain_source_inventory_ctx",
+            "domain_research_synthesis_ctx",
+            "research_report_artifact_ctx",
+          ],
+        },
+      },
+      {
+        key: "propagate_domain_research_outputs",
+        type: "action",
+        displayName: "Propagate Domain Research Outputs",
+        actionConfig: {
+          actions: [
+            {
+              actionId: "propagate_domain_research_topic",
+              actionKey: "propagate_domain_research_topic",
+              label: "Propagate Research Topic",
+              contextFactKey: "research_topic_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "domain_research_topic",
+                  itemKey: "research.research_topic",
+                  label: "Research Topic",
+                  targetContextFactKey: "research_topic_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_domain_research_goals",
+              actionKey: "propagate_domain_research_goals",
+              label: "Propagate Research Goals",
+              contextFactKey: "research_goals_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "domain_research_goals",
+                  itemKey: "research.research_goals",
+                  label: "Research Goals",
+                  targetContextFactKey: "research_goals_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_domain_scope_notes",
+              actionKey: "propagate_domain_scope_notes",
+              label: "Propagate Scope Notes",
+              contextFactKey: "scope_notes_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "domain_scope_notes",
+                  itemKey: "research.scope_notes",
+                  label: "Scope Notes",
+                  targetContextFactKey: "scope_notes_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_domain_source_inventory",
+              actionKey: "propagate_domain_source_inventory",
+              label: "Propagate Source Inventory",
+              contextFactKey: "domain_source_inventory_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "domain_source_inventory",
+                  itemKey: "research.domain_source_inventory",
+                  label: "Domain Source Inventory",
+                  targetContextFactKey: "domain_source_inventory_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_domain_research_synthesis",
+              actionKey: "propagate_domain_research_synthesis",
+              label: "Propagate Research Synthesis",
+              contextFactKey: "domain_research_synthesis_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "domain_research_synthesis",
+                  itemKey: "research.domain_research_synthesis",
+                  label: "Domain Research Synthesis",
+                  targetContextFactKey: "domain_research_synthesis_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_domain_research_report_artifact",
+              actionKey: "propagate_domain_research_report_artifact",
+              label: "Propagate Research Report Artifact",
+              contextFactKey: "research_report_artifact_ctx",
+              contextFactKind: "artifact_slot_reference_fact",
+              items: [
+                {
+                  itemId: "domain_research_report_artifact",
+                  itemKey: "research.research_report",
+                  label: "Research Report Artifact",
+                  targetContextFactKey: "research_report_artifact_ctx",
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        key: "technical_research_agent",
+        type: "agent",
+        displayName: "Technical Research Agent",
+        agentConfig: {
+          objective:
+            "Conduct technical research on the approved topic, produce a durable technical source inventory and technical research synthesis, and update the canonical research report artifact with the technical findings.",
+          instructionsMarkdown:
+            "You are operating in Chiron with access to MCP tools. Start by reading the provided research context and treat it as the full working frame for this step. Use the current research type, research topic, research goals, and any scope notes as the governing frame for the work. If the topic or goals are ambiguous, refine them through the research process and update them so the work unit ends with a clearer research frame than it started with.\n\nThis path is specifically for technical research. Conduct the work with a technical-analysis lens: evaluate feasibility, architecture options, implementation constraints, integration points, tooling choices, operational implications, complexity drivers, and technical risks. Focus on what is realistically buildable, what tradeoffs matter, what approaches are stronger or weaker, and what engineering constraints downstream planning must take seriously.\n\nUse sources that are appropriate for technical research and record them carefully. Build a durable technical source inventory that captures what sources were used, why they matter, and how trustworthy or relevant they are. Then produce a durable technical research synthesis that explains the most important findings, the strongest feasible approaches, the key tradeoffs, the major risks or unknowns, the downstream implementation implications, and the recommendations that should carry forward.\n\nWrite or update the canonical research report artifact so it reflects the final technical findings, not just raw notes. The artifact and the structured facts must agree with each other. Do not drift into generic market analysis or broad domain theory unless those are directly necessary to explain a technical conclusion.",
+          readContextFactKeys: [
+            "research_type_ctx",
+            "research_topic_ctx",
+            "research_goals_ctx",
+            "scope_notes_ctx",
+          ],
+          writeContextFactKeys: [
+            "research_topic_ctx",
+            "research_goals_ctx",
+            "scope_notes_ctx",
+            "technical_source_inventory_ctx",
+            "technical_research_synthesis_ctx",
+            "research_report_artifact_ctx",
+          ],
+          completionRequirementContextFactKeys: [
+            "research_topic_ctx",
+            "research_goals_ctx",
+            "technical_source_inventory_ctx",
+            "technical_research_synthesis_ctx",
+            "research_report_artifact_ctx",
+          ],
+        },
+      },
+      {
+        key: "propagate_technical_research_outputs",
+        type: "action",
+        displayName: "Propagate Technical Research Outputs",
+        actionConfig: {
+          actions: [
+            {
+              actionId: "propagate_technical_research_topic",
+              actionKey: "propagate_technical_research_topic",
+              label: "Propagate Research Topic",
+              contextFactKey: "research_topic_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "technical_research_topic",
+                  itemKey: "research.research_topic",
+                  label: "Research Topic",
+                  targetContextFactKey: "research_topic_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_technical_research_goals",
+              actionKey: "propagate_technical_research_goals",
+              label: "Propagate Research Goals",
+              contextFactKey: "research_goals_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "technical_research_goals",
+                  itemKey: "research.research_goals",
+                  label: "Research Goals",
+                  targetContextFactKey: "research_goals_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_technical_scope_notes",
+              actionKey: "propagate_technical_scope_notes",
+              label: "Propagate Scope Notes",
+              contextFactKey: "scope_notes_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "technical_scope_notes",
+                  itemKey: "research.scope_notes",
+                  label: "Scope Notes",
+                  targetContextFactKey: "scope_notes_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_technical_source_inventory",
+              actionKey: "propagate_technical_source_inventory",
+              label: "Propagate Source Inventory",
+              contextFactKey: "technical_source_inventory_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "technical_source_inventory",
+                  itemKey: "research.technical_source_inventory",
+                  label: "Technical Source Inventory",
+                  targetContextFactKey: "technical_source_inventory_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_technical_research_synthesis",
+              actionKey: "propagate_technical_research_synthesis",
+              label: "Propagate Research Synthesis",
+              contextFactKey: "technical_research_synthesis_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "technical_research_synthesis",
+                  itemKey: "research.technical_research_synthesis",
+                  label: "Technical Research Synthesis",
+                  targetContextFactKey: "technical_research_synthesis_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_technical_research_report_artifact",
+              actionKey: "propagate_technical_research_report_artifact",
+              label: "Propagate Research Report Artifact",
+              contextFactKey: "research_report_artifact_ctx",
+              contextFactKind: "artifact_slot_reference_fact",
+              items: [
+                {
+                  itemId: "technical_research_report_artifact",
+                  itemKey: "research.research_report",
+                  label: "Research Report Artifact",
+                  targetContextFactKey: "research_report_artifact_ctx",
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ],
+    explicitEdges: [
+      { fromStepKey: "research_scope_confirmation", toStepKey: "propagate_research_scope_inputs" },
+      { fromStepKey: "propagate_research_scope_inputs", toStepKey: "branch_research_kind" },
+      { fromStepKey: "market_research_agent", toStepKey: "propagate_market_research_outputs" },
+      { fromStepKey: "domain_research_agent", toStepKey: "propagate_domain_research_outputs" },
+      {
+        fromStepKey: "technical_research_agent",
+        toStepKey: "propagate_technical_research_outputs",
+      },
+    ],
+  },
   {
     workUnitKey: "product_brief",
     workflowSuffix: "create-product-brief",
     contextFacts: [
       {
-        key: "brief_mode_ctx",
-        label: "Brief Mode",
-        kind: "plain_fact",
-        cardinality: "one",
-        valueType: "string",
-      },
-      {
-        key: "setup_input_summary_ctx",
-        label: "Setup Input Summary",
-        kind: "plain_fact",
-        cardinality: "one",
-        valueType: "json",
-      },
-      {
-        key: "brainstorming_input_summary_ctx",
-        label: "Brainstorming Input Summary",
-        kind: "plain_fact",
-        cardinality: "one",
-        valueType: "json",
-      },
-      {
-        key: "research_input_summary_ctx",
-        label: "Research Input Summary",
-        kind: "plain_fact",
-        cardinality: "many",
-        valueType: "json",
-      },
-      {
-        key: "product_name_ctx",
-        label: "Product Name",
+        key: "setup_work_unit_ctx",
+        label: "Setup Work Unit",
         kind: "bound_fact",
         cardinality: "one",
-        bindingKey: "product_name",
+        bindingKey: "setup_work_unit",
+      },
+      {
+        key: "brainstorming_work_unit_ctx",
+        label: "Brainstorming Work Units",
+        kind: "bound_fact",
+        cardinality: "many",
+        bindingKey: "brainstorming_work_unit",
+      },
+      {
+        key: "research_work_units_ctx",
+        label: "Research Work Units",
+        kind: "bound_fact",
+        cardinality: "many",
+        bindingKey: "research_work_units",
       },
       {
         key: "product_intent_summary_ctx",
@@ -5185,9 +5926,9 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
       {
         key: "source_context_summary_ctx",
         label: "Source Context Summary",
-        kind: "plain_fact",
+        kind: "bound_fact",
         cardinality: "one",
-        valueType: "json",
+        bindingKey: "source_context_summary",
       },
       {
         key: "brief_synthesis_ctx",
@@ -5206,16 +5947,9 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
       {
         key: "open_questions_ctx",
         label: "Open Questions",
-        kind: "plain_fact",
-        cardinality: "many",
-        valueType: "json",
-      },
-      {
-        key: "next_work_unit_ref_ctx",
-        label: "Next Recommended Work Unit",
         kind: "bound_fact",
-        cardinality: "one",
-        bindingKey: "next_recommended_work_unit",
+        cardinality: "many",
+        bindingKey: "open_questions",
       },
       {
         key: "product_brief_artifact_ctx",
@@ -5235,16 +5969,237 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
       },
     ],
     steps: [
-      { key: "brief_intent_agent", type: "agent", displayName: "Brief Intent Agent" },
+      {
+        key: "brief_input_selection",
+        type: "form",
+        displayName: "Brief Input Selection",
+        formFields: [
+          {
+            key: "setup_work_unit",
+            label: "Setup Work Unit",
+            contextFactKey: "setup_work_unit_ctx",
+            valueType: "work_unit",
+            required: true,
+            descriptionMarkdown:
+              "Select the Setup work unit that provides the baseline project framing for this Product Brief.",
+          },
+          {
+            key: "brainstorming_work_unit",
+            label: "Brainstorming Work Units",
+            contextFactKey: "brainstorming_work_unit_ctx",
+            valueType: "work_unit",
+            descriptionMarkdown:
+              "Select any Brainstorming work units whose converged directions should influence this Product Brief.",
+          },
+          {
+            key: "research_work_units",
+            label: "Research Work Units",
+            contextFactKey: "research_work_units_ctx",
+            valueType: "work_unit",
+            descriptionMarkdown:
+              "Select any Research work units whose findings should inform this Product Brief.",
+          },
+        ],
+      },
       {
         key: "product_brief_authoring_agent",
         type: "agent",
         displayName: "Product Brief Authoring Agent",
+        agentConfig: {
+          objective:
+            "Use the selected setup, brainstorming, and research inputs to produce the durable Product Brief outputs and update the canonical Product Brief artifact.",
+          instructionsMarkdown:
+            "You are operating in Chiron with access to MCP tools. Start by reading the selected upstream work-unit references and treat them as the approved input set for this Product Brief. Setup is required and provides the baseline project framing. Brainstorming and Research inputs are optional, but when they are present you should use them explicitly rather than ignoring them or collapsing them into vague summaries.\n\nYour job is to synthesize the selected inputs into a concise Product Brief that is useful for downstream planning. Write a structured product intent summary, a structured source context summary, a durable brief synthesis, any meaningful review findings, and any open questions that still matter. Then write or update the canonical Product Brief artifact so it reflects the same final conclusions as the structured facts. Use the distillate artifact only when overflow detail is genuinely worth preserving separately.\n\nDo not invent unsupported detail, do not duplicate entire upstream work units into the brief, and do not treat optional Brainstorming or Research inputs as required if they were not selected.",
+          readContextFactKeys: [
+            "setup_work_unit_ctx",
+            "brainstorming_work_unit_ctx",
+            "research_work_units_ctx",
+          ],
+          writeContextFactKeys: [
+            "setup_work_unit_ctx",
+            "brainstorming_work_unit_ctx",
+            "research_work_units_ctx",
+            "product_intent_summary_ctx",
+            "source_context_summary_ctx",
+            "brief_synthesis_ctx",
+            "review_findings_ctx",
+            "open_questions_ctx",
+            "product_brief_artifact_ctx",
+            "product_brief_distillate_artifact_ctx",
+          ],
+          completionRequirementContextFactKeys: [
+            "setup_work_unit_ctx",
+            "product_intent_summary_ctx",
+            "brief_synthesis_ctx",
+            "product_brief_artifact_ctx",
+          ],
+        },
       },
       {
         key: "propagate_product_brief_outputs",
         type: "action",
         displayName: "Propagate Product Brief Outputs",
+        actionConfig: {
+          actions: [
+            {
+              actionId: "propagate_product_brief_setup_work_unit",
+              actionKey: "propagate_product_brief_setup_work_unit",
+              label: "Propagate Setup Work Unit",
+              contextFactKey: "setup_work_unit_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "product_brief_setup_work_unit",
+                  itemKey: "product_brief.setup_work_unit",
+                  label: "Setup Work Unit",
+                  targetContextFactKey: "setup_work_unit_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_product_brief_brainstorming_work_units",
+              actionKey: "propagate_product_brief_brainstorming_work_units",
+              label: "Propagate Brainstorming Work Units",
+              contextFactKey: "brainstorming_work_unit_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "product_brief_brainstorming_work_units",
+                  itemKey: "product_brief.brainstorming_work_unit",
+                  label: "Brainstorming Work Units",
+                  targetContextFactKey: "brainstorming_work_unit_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_product_brief_research_work_units",
+              actionKey: "propagate_product_brief_research_work_units",
+              label: "Propagate Research Work Units",
+              contextFactKey: "research_work_units_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "product_brief_research_work_units",
+                  itemKey: "product_brief.research_work_units",
+                  label: "Research Work Units",
+                  targetContextFactKey: "research_work_units_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_product_intent_summary",
+              actionKey: "propagate_product_intent_summary",
+              label: "Propagate Product Intent Summary",
+              contextFactKey: "product_intent_summary_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "product_intent_summary",
+                  itemKey: "product_brief.product_intent_summary",
+                  label: "Product Intent Summary",
+                  targetContextFactKey: "product_intent_summary_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_source_context_summary",
+              actionKey: "propagate_source_context_summary",
+              label: "Propagate Source Context Summary",
+              contextFactKey: "source_context_summary_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "source_context_summary",
+                  itemKey: "product_brief.source_context_summary",
+                  label: "Source Context Summary",
+                  targetContextFactKey: "source_context_summary_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_brief_synthesis",
+              actionKey: "propagate_brief_synthesis",
+              label: "Propagate Brief Synthesis",
+              contextFactKey: "brief_synthesis_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "brief_synthesis",
+                  itemKey: "product_brief.brief_synthesis",
+                  label: "Brief Synthesis",
+                  targetContextFactKey: "brief_synthesis_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_review_findings",
+              actionKey: "propagate_review_findings",
+              label: "Propagate Review Findings",
+              contextFactKey: "review_findings_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "review_findings",
+                  itemKey: "product_brief.review_findings",
+                  label: "Review Findings",
+                  targetContextFactKey: "review_findings_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_open_questions",
+              actionKey: "propagate_open_questions",
+              label: "Propagate Open Questions",
+              contextFactKey: "open_questions_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "open_questions",
+                  itemKey: "product_brief.open_questions",
+                  label: "Open Questions",
+                  targetContextFactKey: "open_questions_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_product_brief_artifact",
+              actionKey: "propagate_product_brief_artifact",
+              label: "Propagate Product Brief Artifact",
+              contextFactKey: "product_brief_artifact_ctx",
+              contextFactKind: "artifact_slot_reference_fact",
+              items: [
+                {
+                  itemId: "product_brief_artifact",
+                  itemKey: "product_brief.product_brief",
+                  label: "Product Brief Artifact",
+                  targetContextFactKey: "product_brief_artifact_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_product_brief_distillate_artifact",
+              actionKey: "propagate_product_brief_distillate_artifact",
+              label: "Propagate Product Brief Distillate Artifact",
+              contextFactKey: "product_brief_distillate_artifact_ctx",
+              contextFactKind: "artifact_slot_reference_fact",
+              items: [
+                {
+                  itemId: "product_brief_distillate_artifact",
+                  itemKey: "product_brief.product_brief_distillate",
+                  label: "Product Brief Distillate Artifact",
+                  targetContextFactKey: "product_brief_distillate_artifact_ctx",
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ],
+    explicitEdges: [
+      { fromStepKey: "brief_input_selection", toStepKey: "product_brief_authoring_agent" },
+      {
+        fromStepKey: "product_brief_authoring_agent",
+        toStepKey: "propagate_product_brief_outputs",
       },
     ],
   },
@@ -5253,53 +6208,25 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
     workflowSuffix: "create-prd",
     contextFacts: [
       {
-        key: "setup_input_summary_ctx",
-        label: "Setup Input Summary",
-        kind: "plain_fact",
-        cardinality: "one",
-        valueType: "json",
-      },
-      {
-        key: "product_brief_input_summary_ctx",
-        label: "Product Brief Input Summary",
-        kind: "plain_fact",
-        cardinality: "one",
-        valueType: "json",
-      },
-      {
-        key: "research_input_summary_ctx",
-        label: "Research Input Summary",
-        kind: "plain_fact",
-        cardinality: "many",
-        valueType: "json",
-      },
-      {
-        key: "brainstorming_input_summary_ctx",
-        label: "Brainstorming Input Summary",
-        kind: "plain_fact",
-        cardinality: "one",
-        valueType: "json",
-      },
-      {
-        key: "project_name_ctx",
-        label: "Project Name",
+        key: "product_brief_work_unit_ctx",
+        label: "Product Brief Work Unit",
         kind: "bound_fact",
         cardinality: "one",
-        bindingKey: "project_name",
+        bindingKey: "product_brief_work_unit",
       },
       {
-        key: "input_context_inventory_ctx",
-        label: "Input Context Inventory",
-        kind: "plain_fact",
-        cardinality: "many",
-        valueType: "json",
-      },
-      {
-        key: "project_classification_ctx",
-        label: "Project Classification",
+        key: "research_work_units_ctx",
+        label: "Research Work Units",
         kind: "bound_fact",
-        cardinality: "one",
-        bindingKey: "project_classification",
+        cardinality: "many",
+        bindingKey: "research_work_units",
+      },
+      {
+        key: "brainstorming_work_unit_ctx",
+        label: "Brainstorming Work Units",
+        kind: "bound_fact",
+        cardinality: "many",
+        bindingKey: "brainstorming_work_unit",
       },
       {
         key: "product_vision_ctx",
@@ -5321,27 +6248,6 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
         kind: "bound_fact",
         cardinality: "many",
         bindingKey: "user_journeys",
-      },
-      {
-        key: "domain_requirements_ctx",
-        label: "Domain Requirements",
-        kind: "plain_fact",
-        cardinality: "one",
-        valueType: "json",
-      },
-      {
-        key: "innovation_analysis_ctx",
-        label: "Innovation Analysis",
-        kind: "plain_fact",
-        cardinality: "one",
-        valueType: "json",
-      },
-      {
-        key: "project_type_requirements_ctx",
-        label: "Project Type Requirements",
-        kind: "plain_fact",
-        cardinality: "one",
-        valueType: "json",
       },
       {
         key: "scope_plan_ctx",
@@ -5372,11 +6278,24 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
         bindingKey: "prd_synthesis",
       },
       {
-        key: "next_work_unit_refs_ctx",
-        label: "Next Recommended Work Units",
-        kind: "bound_fact",
+        key: "start_implementation_ctx",
+        label: "Start Implementation",
+        kind: "plain_fact",
+        cardinality: "one",
+        valueType: "boolean",
+      },
+      {
+        key: "implementation_draft_specs_ctx",
+        label: "Implementation Draft Specs",
+        kind: "work_unit_draft_spec_fact",
         cardinality: "many",
-        bindingKey: "next_recommended_work_units",
+        targetWorkUnitKey: "implementation",
+        selectedFactKeys: [
+          "implementation_mode",
+          "implementation_constraints",
+          "implementation_scope",
+          "files_to_change",
+        ],
       },
       {
         key: "prd_artifact_ctx",
@@ -5389,36 +6308,776 @@ const sectionAWorkflowAuthoringSpecs: readonly SectionAWorkflowAuthoringSpec[] =
     ],
     steps: [
       {
-        key: "prd_input_initialization_agent",
-        type: "agent",
-        displayName: "PRD Input Initialization Agent",
+        key: "prd_input_selection",
+        type: "form",
+        displayName: "PRD Input Selection",
+        formFields: [
+          {
+            key: "product_brief_work_unit",
+            label: "Product Brief Work Unit",
+            contextFactKey: "product_brief_work_unit_ctx",
+            valueType: "work_unit",
+            required: true,
+            descriptionMarkdown:
+              "Select the Product Brief work unit that provides the authoritative framing for this PRD.",
+          },
+          {
+            key: "brainstorming_work_unit",
+            label: "Brainstorming Work Units",
+            contextFactKey: "brainstorming_work_unit_ctx",
+            valueType: "work_unit",
+            descriptionMarkdown:
+              "Select any Brainstorming work units whose converged directions should shape this PRD.",
+          },
+          {
+            key: "research_work_units",
+            label: "Research Work Units",
+            contextFactKey: "research_work_units_ctx",
+            valueType: "work_unit",
+            descriptionMarkdown:
+              "Select any Research work units whose findings should inform this PRD.",
+          },
+        ],
       },
       {
-        key: "prd_discovery_and_vision_agent",
+        key: "prd_requirements_authoring_agent",
         type: "agent",
-        displayName: "PRD Discovery and Vision Agent",
+        displayName: "PRD Requirements Authoring Agent",
+        agentConfig: {
+          objective:
+            "Use the selected upstream planning work units to author the durable PRD requirement contract facts.",
+          instructionsMarkdown:
+            "You are operating in Chiron with access to MCP tools. Start by reading the selected upstream work-unit references and treat them as the approved source context for this PRD. The Product Brief is required and provides the primary product framing. Research and Brainstorming inputs are optional, but when they are present you should use them explicitly rather than collapsing them into vague assumptions.\n\nYour job is to author the durable requirement contract for this PRD. Write a structured product vision, structured success criteria, durable user journeys, a scoped plan, functional requirements, and non-functional requirements that are implementation-agnostic but specific enough to guide downstream planning. Favor clarity, boundedness, and traceability over volume.\n\nDo not invent unsupported detail, do not duplicate entire upstream work units into the PRD, and do not drift into implementation planning yet. This step is for authoring the requirement contract itself.",
+          readContextFactKeys: [
+            "product_brief_work_unit_ctx",
+            "brainstorming_work_unit_ctx",
+            "research_work_units_ctx",
+          ],
+          writeContextFactKeys: [
+            "product_vision_ctx",
+            "success_criteria_ctx",
+            "user_journeys_ctx",
+            "scope_plan_ctx",
+            "functional_requirements_ctx",
+            "non_functional_requirements_ctx",
+          ],
+          completionRequirementContextFactKeys: [
+            "product_vision_ctx",
+            "success_criteria_ctx",
+            "user_journeys_ctx",
+            "scope_plan_ctx",
+            "functional_requirements_ctx",
+            "non_functional_requirements_ctx",
+          ],
+        },
       },
       {
-        key: "prd_success_and_journeys_agent",
+        key: "prd_finalize_agent",
         type: "agent",
-        displayName: "PRD Success and Journeys Agent",
+        displayName: "PRD Finalize Agent",
+        agentConfig: {
+          objective:
+            "Finalize the PRD by writing a durable PRD synthesis and updating the canonical PRD artifact so it matches the structured requirement facts.",
+          instructionsMarkdown:
+            "You are operating in Chiron with access to MCP tools. Start by reading the authored PRD requirement facts and treat them as the authoritative requirement contract for this step.\n\nYour job is to finalize the PRD into a concise durable synthesis and the canonical PRD artifact. Write a PRD synthesis that captures the most important downstream planning signal, then write or update the PRD artifact so it reflects the same final conclusions as the structured facts. The artifact and the structured facts must agree.\n\nDo not reopen upstream discovery unless the current PRD facts are internally inconsistent. Do not start implementation planning in this step. Keep the final PRD useful for downstream decomposition rather than verbose for its own sake.",
+          readContextFactKeys: [
+            "product_vision_ctx",
+            "success_criteria_ctx",
+            "user_journeys_ctx",
+            "scope_plan_ctx",
+            "functional_requirements_ctx",
+            "non_functional_requirements_ctx",
+          ],
+          writeContextFactKeys: ["prd_synthesis_ctx", "prd_artifact_ctx"],
+          completionRequirementContextFactKeys: ["prd_synthesis_ctx", "prd_artifact_ctx"],
+        },
       },
       {
-        key: "prd_context_requirements_agent",
+        key: "prd_implementation_spec_authoring_agent",
         type: "agent",
-        displayName: "PRD Context Requirements Agent",
+        displayName: "PRD Implementation Spec Authoring Agent",
+        agentConfig: {
+          objective:
+            "Use the finalized PRD outputs to decide whether implementation work units should be created now, and if so, author one or more bounded implementation draft specs that are ready for downstream execution.",
+          instructionsMarkdown:
+            "You are operating in Chiron with access to MCP tools. Start by reading the finalized PRD context and treat it as the authoritative downstream implementation frame for this step.\n\nYour job is not to re-author the PRD. Your job is to decide whether the current PRD is mature enough to create downstream Implementation work units now. If the answer is no, write a durable false decision and do not create draft specs. If the answer is yes, decompose the approved PRD into one or more implementation-sized units that are coherent, bounded, and independently actionable.\n\nFor each implementation draft, define only what the downstream Implementation work unit needs in order to execute safely: the scope of the change, the intended outcome, key constraints, likely files or system areas affected when that is reasonably inferable, and the recommended implementation mode when that matters. Prefer smaller, clearer implementation slices over large ambiguous ones.\n\nDo not duplicate the entire PRD into each draft spec. Do not invent implementation details that are not supported by the PRD or selected upstream context. Do not create implementation drafts when the PRD still has blocking ambiguity that would make execution unsafe. The implementation draft specs should be compact, explicit, and ready to become downstream work units.",
+          readContextFactKeys: [
+            "product_brief_work_unit_ctx",
+            "brainstorming_work_unit_ctx",
+            "research_work_units_ctx",
+            "product_vision_ctx",
+            "success_criteria_ctx",
+            "user_journeys_ctx",
+            "scope_plan_ctx",
+            "functional_requirements_ctx",
+            "non_functional_requirements_ctx",
+            "prd_synthesis_ctx",
+          ],
+          writeContextFactKeys: ["start_implementation_ctx", "implementation_draft_specs_ctx"],
+          completionRequirementContextFactKeys: ["start_implementation_ctx"],
+        },
       },
       {
-        key: "prd_capability_contract_agent",
-        type: "agent",
-        displayName: "PRD Capability Contract Agent",
+        key: "branch_need_implementation",
+        type: "branch",
+        displayName: "Branch Need Implementation",
+        branchConfig: {
+          defaultTargetStepKey: "propagate_prd_outputs",
+          routes: [
+            {
+              routeId: "start_implementation",
+              targetStepKey: "invoke_implementation_work",
+              conditionMode: "all",
+              groups: [
+                {
+                  groupId: "start_implementation_group",
+                  mode: "all",
+                  conditions: [
+                    {
+                      conditionId: "start_implementation_true",
+                      contextFactKey: "start_implementation_ctx",
+                      operator: "equals",
+                      comparisonJson: { value: true },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
       },
       {
-        key: "prd_polish_and_completion_agent",
-        type: "agent",
-        displayName: "PRD Polish and Completion Agent",
+        key: "invoke_implementation_work",
+        type: "invoke",
+        displayName: "Invoke Implementation Work",
+        invokeConfig: {
+          targetKind: "work_unit",
+          sourceMode: "context_fact_backed",
+          contextFactKey: "implementation_draft_specs_ctx",
+          bindings: [
+            {
+              destinationKind: "work_unit_fact",
+              destinationWorkUnitKey: "implementation",
+              destinationFactKey: "prd_work_unit",
+              sourceKind: "runtime",
+            },
+            {
+              destinationKind: "work_unit_fact",
+              destinationWorkUnitKey: "implementation",
+              destinationFactKey: "research_work_units",
+              sourceKind: "context_fact",
+              contextFactKey: "research_work_units_ctx",
+            },
+            {
+              destinationKind: "work_unit_fact",
+              destinationWorkUnitKey: "implementation",
+              destinationFactKey: "brainstorming_work_units",
+              sourceKind: "context_fact",
+              contextFactKey: "brainstorming_work_unit_ctx",
+            },
+          ],
+          activationTransitions: [
+            {
+              workUnitKey: "implementation",
+              transitionSuffix: "activation-to-done",
+              workflowSuffixes: ["implementation"],
+            },
+          ],
+        },
       },
-      { key: "propagate_prd_outputs", type: "action", displayName: "Propagate PRD Outputs" },
+      {
+        key: "propagate_prd_outputs",
+        type: "action",
+        displayName: "Propagate PRD Outputs",
+        actionConfig: {
+          actions: [
+            {
+              actionId: "propagate_prd_product_brief_work_unit",
+              actionKey: "propagate_prd_product_brief_work_unit",
+              label: "Propagate Product Brief Work Unit",
+              contextFactKey: "product_brief_work_unit_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "prd_product_brief_work_unit",
+                  itemKey: "prd.product_brief_work_unit",
+                  label: "Product Brief Work Unit",
+                  targetContextFactKey: "product_brief_work_unit_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_prd_research_work_units",
+              actionKey: "propagate_prd_research_work_units",
+              label: "Propagate Research Work Units",
+              contextFactKey: "research_work_units_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "prd_research_work_units",
+                  itemKey: "prd.research_work_units",
+                  label: "Research Work Units",
+                  targetContextFactKey: "research_work_units_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_prd_brainstorming_work_units",
+              actionKey: "propagate_prd_brainstorming_work_units",
+              label: "Propagate Brainstorming Work Units",
+              contextFactKey: "brainstorming_work_unit_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "prd_brainstorming_work_units",
+                  itemKey: "prd.brainstorming_work_unit",
+                  label: "Brainstorming Work Units",
+                  targetContextFactKey: "brainstorming_work_unit_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_prd_product_vision",
+              actionKey: "propagate_prd_product_vision",
+              label: "Propagate Product Vision",
+              contextFactKey: "product_vision_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "prd_product_vision",
+                  itemKey: "prd.product_vision",
+                  label: "Product Vision",
+                  targetContextFactKey: "product_vision_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_prd_success_criteria",
+              actionKey: "propagate_prd_success_criteria",
+              label: "Propagate Success Criteria",
+              contextFactKey: "success_criteria_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "prd_success_criteria",
+                  itemKey: "prd.success_criteria",
+                  label: "Success Criteria",
+                  targetContextFactKey: "success_criteria_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_prd_user_journeys",
+              actionKey: "propagate_prd_user_journeys",
+              label: "Propagate User Journeys",
+              contextFactKey: "user_journeys_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "prd_user_journeys",
+                  itemKey: "prd.user_journeys",
+                  label: "User Journeys",
+                  targetContextFactKey: "user_journeys_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_prd_scope_plan",
+              actionKey: "propagate_prd_scope_plan",
+              label: "Propagate Scope Plan",
+              contextFactKey: "scope_plan_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "prd_scope_plan",
+                  itemKey: "prd.scope_plan",
+                  label: "Scope Plan",
+                  targetContextFactKey: "scope_plan_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_prd_functional_requirements",
+              actionKey: "propagate_prd_functional_requirements",
+              label: "Propagate Functional Requirements",
+              contextFactKey: "functional_requirements_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "prd_functional_requirements",
+                  itemKey: "prd.functional_requirements",
+                  label: "Functional Requirements",
+                  targetContextFactKey: "functional_requirements_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_prd_non_functional_requirements",
+              actionKey: "propagate_prd_non_functional_requirements",
+              label: "Propagate Non-Functional Requirements",
+              contextFactKey: "non_functional_requirements_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "prd_non_functional_requirements",
+                  itemKey: "prd.non_functional_requirements",
+                  label: "Non-Functional Requirements",
+                  targetContextFactKey: "non_functional_requirements_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_prd_synthesis",
+              actionKey: "propagate_prd_synthesis",
+              label: "Propagate PRD Synthesis",
+              contextFactKey: "prd_synthesis_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "prd_synthesis",
+                  itemKey: "prd.prd_synthesis",
+                  label: "PRD Synthesis",
+                  targetContextFactKey: "prd_synthesis_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_prd_artifact",
+              actionKey: "propagate_prd_artifact",
+              label: "Propagate PRD Artifact",
+              contextFactKey: "prd_artifact_ctx",
+              contextFactKind: "artifact_slot_reference_fact",
+              items: [
+                {
+                  itemId: "prd_artifact",
+                  itemKey: "prd.prd",
+                  label: "PRD Artifact",
+                  targetContextFactKey: "prd_artifact_ctx",
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ],
+    explicitEdges: [
+      { fromStepKey: "prd_input_selection", toStepKey: "prd_requirements_authoring_agent" },
+      { fromStepKey: "prd_requirements_authoring_agent", toStepKey: "prd_finalize_agent" },
+      { fromStepKey: "prd_finalize_agent", toStepKey: "prd_implementation_spec_authoring_agent" },
+      {
+        fromStepKey: "prd_implementation_spec_authoring_agent",
+        toStepKey: "branch_need_implementation",
+      },
+      { fromStepKey: "invoke_implementation_work", toStepKey: "propagate_prd_outputs" },
+    ],
+  },
+  {
+    workUnitKey: "implementation",
+    workflowSuffix: "implementation",
+    contextFacts: [
+      {
+        key: "prd_work_unit_ctx",
+        label: "PRD Work Unit",
+        kind: "bound_fact",
+        cardinality: "one",
+        bindingKey: "prd_work_unit",
+      },
+      {
+        key: "research_work_units_ctx",
+        label: "Research Work Units",
+        kind: "bound_fact",
+        cardinality: "many",
+        bindingKey: "research_work_units",
+      },
+      {
+        key: "brainstorming_work_units_ctx",
+        label: "Brainstorming Work Units",
+        kind: "bound_fact",
+        cardinality: "many",
+        bindingKey: "brainstorming_work_units",
+      },
+      {
+        key: "implementation_mode_ctx",
+        label: "Implementation Mode",
+        kind: "bound_fact",
+        cardinality: "one",
+        bindingKey: "implementation_mode",
+      },
+      {
+        key: "implementation_constraints_ctx",
+        label: "Implementation Constraints",
+        kind: "bound_fact",
+        cardinality: "many",
+        bindingKey: "implementation_constraints",
+      },
+      {
+        key: "implementation_scope_ctx",
+        label: "Implementation Scope",
+        kind: "bound_fact",
+        cardinality: "one",
+        bindingKey: "implementation_scope",
+      },
+      {
+        key: "implementation_plan_ctx",
+        label: "Implementation Plan",
+        kind: "bound_fact",
+        cardinality: "one",
+        bindingKey: "implementation_plan",
+      },
+      {
+        key: "files_to_change_ctx",
+        label: "Files to Change",
+        kind: "bound_fact",
+        cardinality: "many",
+        bindingKey: "files_to_change",
+      },
+      {
+        key: "code_change_summary_ctx",
+        label: "Code Change Summary",
+        kind: "bound_fact",
+        cardinality: "one",
+        bindingKey: "code_change_summary",
+      },
+      {
+        key: "validation_summary_ctx",
+        label: "Validation Summary",
+        kind: "bound_fact",
+        cardinality: "one",
+        bindingKey: "validation_summary",
+      },
+      {
+        key: "test_results_ctx",
+        label: "Test Results",
+        kind: "bound_fact",
+        cardinality: "many",
+        bindingKey: "test_results",
+      },
+      {
+        key: "review_findings_ctx",
+        label: "Review Findings",
+        kind: "bound_fact",
+        cardinality: "many",
+        bindingKey: "review_findings",
+      },
+      {
+        key: "open_implementation_questions_ctx",
+        label: "Open Implementation Questions",
+        kind: "bound_fact",
+        cardinality: "many",
+        bindingKey: "open_implementation_questions",
+      },
+      {
+        key: "implementation_status_summary_ctx",
+        label: "Implementation Status Summary",
+        kind: "bound_fact",
+        cardinality: "one",
+        bindingKey: "implementation_status_summary",
+      },
+      {
+        key: "implementation_plan_artifact_ctx",
+        label: "Implementation Plan Artifact",
+        kind: "artifact_slot_reference_fact",
+        cardinality: "one",
+        slotWorkUnitKey: "implementation",
+        slotSuffix: "implementation-plan",
+      },
+      {
+        key: "implemented_code_changes_artifact_ctx",
+        label: "Implemented Code Changes Artifact",
+        kind: "artifact_slot_reference_fact",
+        cardinality: "one",
+        slotWorkUnitKey: "implementation",
+        slotSuffix: "implemented-code-changes",
+      },
+      {
+        key: "implementation_test_report_artifact_ctx",
+        label: "Implementation Test Report Artifact",
+        kind: "artifact_slot_reference_fact",
+        cardinality: "one",
+        slotWorkUnitKey: "implementation",
+        slotSuffix: "implementation-test-report",
+      },
+    ],
+    steps: [
+      {
+        key: "implementation_planning_agent",
+        type: "agent",
+        displayName: "Implementation Planning Agent",
+        agentConfig: {
+          objective:
+            "Use the selected implementation drafts and upstream planning context to produce a bounded implementation scope, a concrete execution plan, and the canonical implementation plan artifact for this Implementation work unit.",
+          instructionsMarkdown:
+            "You are operating in Chiron with access to MCP tools. Start by reading the selected implementation draft outputs already bound into this Implementation work unit and any selected upstream context references, and treat them as the approved execution boundary for this run.\n\nYour first responsibility is to turn those inputs into a concrete implementation plan that is safe to execute. Clarify the scope of this implementation run, identify the main code areas likely to change, capture important constraints, and define the validation approach that should be used after implementation. If the bound implementation data contains multiple slices, unify them into one coherent execution plan only when they belong together operationally; otherwise preserve their boundaries clearly inside the plan.\n\nWrite a durable implementation scope, a durable implementation plan, and a durable files-to-change summary when the likely touch points are inferable from the codebase. Then write or update the canonical implementation plan artifact so it reflects the same plan as the structured facts.\n\nDo not start implementation in this step. Do not drift into code changes or testing execution yet. Do not expand scope beyond the approved implementation inputs. Keep the plan concrete, minimal, and executable.",
+          readContextFactKeys: [
+            "prd_work_unit_ctx",
+            "research_work_units_ctx",
+            "brainstorming_work_units_ctx",
+            "implementation_mode_ctx",
+            "implementation_constraints_ctx",
+            "implementation_scope_ctx",
+            "files_to_change_ctx",
+          ],
+          writeContextFactKeys: [
+            "implementation_scope_ctx",
+            "implementation_plan_ctx",
+            "files_to_change_ctx",
+            "implementation_plan_artifact_ctx",
+          ],
+          completionRequirementContextFactKeys: [
+            "implementation_scope_ctx",
+            "implementation_plan_ctx",
+            "implementation_plan_artifact_ctx",
+          ],
+        },
+      },
+      {
+        key: "implementation_execution_agent",
+        type: "agent",
+        displayName: "Implementation Execution Agent",
+        agentConfig: {
+          objective:
+            "Execute the approved implementation plan by making the required repository changes, then write a durable summary of the implemented code changes and update the implemented code changes artifact.",
+          instructionsMarkdown:
+            "You are operating in Chiron with access to MCP tools. Start by reading the approved implementation scope, implementation plan, files-to-change summary, and any bound implementation constraints. Treat them as the execution boundary for this step.\n\nYour job is to implement the required changes in the repository. Inspect the existing codebase before changing anything. Match existing patterns and conventions. Keep the diff scoped to the approved implementation plan. If the plan identifies multiple implementation slices, execute them in a coherent order while preserving bounded scope.\n\nAfter making code changes, write a durable code change summary that explains what was implemented, what code areas changed, and any meaningful deviations from the original plan. Then write or update the implemented code changes artifact so it records the final implementation outcome in a durable, reviewable way.\n\nDo not invent work that was not requested by the approved implementation inputs. Do not treat unresolved ambiguity as permission to expand scope. If a blocking ambiguity is discovered, reflect it in the implementation status summary rather than improvising a large unsupported solution.",
+          readContextFactKeys: [
+            "prd_work_unit_ctx",
+            "implementation_mode_ctx",
+            "implementation_constraints_ctx",
+            "implementation_scope_ctx",
+            "implementation_plan_ctx",
+            "files_to_change_ctx",
+            "implementation_plan_artifact_ctx",
+          ],
+          writeContextFactKeys: [
+            "code_change_summary_ctx",
+            "implementation_status_summary_ctx",
+            "implemented_code_changes_artifact_ctx",
+          ],
+          completionRequirementContextFactKeys: [
+            "code_change_summary_ctx",
+            "implemented_code_changes_artifact_ctx",
+          ],
+        },
+      },
+      {
+        key: "implementation_validation_agent",
+        type: "agent",
+        displayName: "Implementation Validation Agent",
+        agentConfig: {
+          objective:
+            "Validate the implemented changes, record durable test and review outcomes, and update the canonical implementation test report artifact.",
+          instructionsMarkdown:
+            "You are operating in Chiron with access to MCP tools. Start by reading the implementation scope, implementation plan, code change summary, and implemented code changes artifact. Treat them as the implementation result that must now be validated.\n\nYour job is to validate the implementation thoroughly enough for downstream review. Run the most relevant available checks for the affected code: targeted tests, type checks, builds, or other directly relevant validation steps. Record the results in a durable validation summary and a durable test results structure. Capture any meaningful review findings that should influence acceptance, patching, or follow-up work.\n\nThen write or update the canonical implementation test report artifact so it reflects the real validation outcome of this implementation run. The structured facts and artifact must agree.\n\nDo not silently ignore failures. Do not broaden scope into new implementation work during validation. If the implementation is incomplete or blocked, record that clearly in the implementation status summary and review findings.",
+          readContextFactKeys: [
+            "implementation_scope_ctx",
+            "implementation_plan_ctx",
+            "code_change_summary_ctx",
+            "implemented_code_changes_artifact_ctx",
+          ],
+          writeContextFactKeys: [
+            "validation_summary_ctx",
+            "test_results_ctx",
+            "review_findings_ctx",
+            "open_implementation_questions_ctx",
+            "implementation_status_summary_ctx",
+            "implementation_test_report_artifact_ctx",
+          ],
+          completionRequirementContextFactKeys: [
+            "validation_summary_ctx",
+            "test_results_ctx",
+            "implementation_test_report_artifact_ctx",
+          ],
+        },
+      },
+      {
+        key: "propagate_implementation_outputs",
+        type: "action",
+        displayName: "Propagate Implementation Outputs",
+        actionConfig: {
+          actions: [
+            {
+              actionId: "propagate_implementation_scope",
+              actionKey: "propagate_implementation_scope",
+              label: "Propagate Implementation Scope",
+              contextFactKey: "implementation_scope_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "implementation_scope",
+                  itemKey: "implementation.implementation_scope",
+                  label: "Implementation Scope",
+                  targetContextFactKey: "implementation_scope_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_implementation_plan",
+              actionKey: "propagate_implementation_plan",
+              label: "Propagate Implementation Plan",
+              contextFactKey: "implementation_plan_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "implementation_plan",
+                  itemKey: "implementation.implementation_plan",
+                  label: "Implementation Plan",
+                  targetContextFactKey: "implementation_plan_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_files_to_change",
+              actionKey: "propagate_files_to_change",
+              label: "Propagate Files to Change",
+              contextFactKey: "files_to_change_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "files_to_change",
+                  itemKey: "implementation.files_to_change",
+                  label: "Files to Change",
+                  targetContextFactKey: "files_to_change_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_code_change_summary",
+              actionKey: "propagate_code_change_summary",
+              label: "Propagate Code Change Summary",
+              contextFactKey: "code_change_summary_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "code_change_summary",
+                  itemKey: "implementation.code_change_summary",
+                  label: "Code Change Summary",
+                  targetContextFactKey: "code_change_summary_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_validation_summary",
+              actionKey: "propagate_validation_summary",
+              label: "Propagate Validation Summary",
+              contextFactKey: "validation_summary_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "validation_summary",
+                  itemKey: "implementation.validation_summary",
+                  label: "Validation Summary",
+                  targetContextFactKey: "validation_summary_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_test_results",
+              actionKey: "propagate_test_results",
+              label: "Propagate Test Results",
+              contextFactKey: "test_results_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "test_results",
+                  itemKey: "implementation.test_results",
+                  label: "Test Results",
+                  targetContextFactKey: "test_results_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_implementation_review_findings",
+              actionKey: "propagate_implementation_review_findings",
+              label: "Propagate Review Findings",
+              contextFactKey: "review_findings_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "implementation_review_findings",
+                  itemKey: "implementation.review_findings",
+                  label: "Review Findings",
+                  targetContextFactKey: "review_findings_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_open_implementation_questions",
+              actionKey: "propagate_open_implementation_questions",
+              label: "Propagate Open Implementation Questions",
+              contextFactKey: "open_implementation_questions_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "open_implementation_questions",
+                  itemKey: "implementation.open_implementation_questions",
+                  label: "Open Implementation Questions",
+                  targetContextFactKey: "open_implementation_questions_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_implementation_status_summary",
+              actionKey: "propagate_implementation_status_summary",
+              label: "Propagate Implementation Status Summary",
+              contextFactKey: "implementation_status_summary_ctx",
+              contextFactKind: "bound_fact",
+              items: [
+                {
+                  itemId: "implementation_status_summary",
+                  itemKey: "implementation.implementation_status_summary",
+                  label: "Implementation Status Summary",
+                  targetContextFactKey: "implementation_status_summary_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_implementation_plan_artifact",
+              actionKey: "propagate_implementation_plan_artifact",
+              label: "Propagate Implementation Plan Artifact",
+              contextFactKey: "implementation_plan_artifact_ctx",
+              contextFactKind: "artifact_slot_reference_fact",
+              items: [
+                {
+                  itemId: "implementation_plan_artifact",
+                  itemKey: "implementation.implementation_plan",
+                  label: "Implementation Plan Artifact",
+                  targetContextFactKey: "implementation_plan_artifact_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_implemented_code_changes_artifact",
+              actionKey: "propagate_implemented_code_changes_artifact",
+              label: "Propagate Implemented Code Changes Artifact",
+              contextFactKey: "implemented_code_changes_artifact_ctx",
+              contextFactKind: "artifact_slot_reference_fact",
+              items: [
+                {
+                  itemId: "implemented_code_changes_artifact",
+                  itemKey: "implementation.implemented_code_changes",
+                  label: "Implemented Code Changes Artifact",
+                  targetContextFactKey: "implemented_code_changes_artifact_ctx",
+                },
+              ],
+            },
+            {
+              actionId: "propagate_implementation_test_report_artifact",
+              actionKey: "propagate_implementation_test_report_artifact",
+              label: "Propagate Implementation Test Report Artifact",
+              contextFactKey: "implementation_test_report_artifact_ctx",
+              contextFactKind: "artifact_slot_reference_fact",
+              items: [
+                {
+                  itemId: "implementation_test_report_artifact",
+                  itemKey: "implementation.implementation_test_report",
+                  label: "Implementation Test Report Artifact",
+                  targetContextFactKey: "implementation_test_report_artifact_ctx",
+                },
+              ],
+            },
+          ],
+        },
+      },
     ],
   },
   {
@@ -6015,7 +7674,9 @@ function buildSectionAWorkflowFixtureBundle(
               methodologyVersionId,
             ),
           },
-          descriptionJson: toDescriptionJson(`${field.label} field for ${step.displayName}.`),
+          descriptionJson: toDescriptionJson(
+            field.descriptionMarkdown ?? `${field.label} field for ${step.displayName}.`,
+          ),
           sortOrder: (fieldIndex + 1) * 10,
         });
       }
@@ -6410,13 +8071,10 @@ const transitionBindingsByWorkUnit: Record<
 > = {
   setup: [{ idSuffix: "activation-to-done", workflowSuffix: "setup-project" }],
   brainstorming: [{ idSuffix: "activation-to-done", workflowSuffix: "brainstorming" }],
-  research: [
-    { idSuffix: "market-research", workflowSuffix: "market-research" },
-    { idSuffix: "domain-research", workflowSuffix: "domain-research" },
-    { idSuffix: "technical-research", workflowSuffix: "technical-research" },
-  ],
+  research: [{ idSuffix: "activation-to-done", workflowSuffix: "research" }],
   product_brief: [{ idSuffix: "activation-to-done", workflowSuffix: "create-product-brief" }],
   prd: [{ idSuffix: "activation-to-done", workflowSuffix: "create-prd" }],
+  implementation: [{ idSuffix: "activation-to-done", workflowSuffix: "implementation" }],
   ux_design: [{ idSuffix: "activation-to-done", workflowSuffix: "create-ux-design" }],
   architecture: [{ idSuffix: "activation-to-done", workflowSuffix: "create-architecture" }],
 };
@@ -6452,6 +8110,10 @@ export const productBriefTransitionWorkflowBindingSeedRows: readonly Methodology
 export const prdTransitionWorkflowBindingSeedRows: readonly MethodologyTransitionWorkflowBindingSeedRow[] =
   buildRowsForAllCanonicalVersions((versionId) =>
     buildTransitionWorkflowBindingSeedRowsFor("prd", versionId),
+  );
+export const implementationTransitionWorkflowBindingSeedRows: readonly MethodologyTransitionWorkflowBindingSeedRow[] =
+  buildRowsForAllCanonicalVersions((versionId) =>
+    buildTransitionWorkflowBindingSeedRowsFor("implementation", versionId),
   );
 export const uxDesignTransitionWorkflowBindingSeedRows: readonly MethodologyTransitionWorkflowBindingSeedRow[] =
   buildRowsForAllCanonicalVersions((versionId) =>
@@ -6792,7 +8454,7 @@ export const setupSeedMetadata = {
   methodologyVersionIds,
   slice: "slice_a_setup",
   workUnitKeys: ["setup"] as const,
-  workflowKeys: ["setup_project", "generate_project_context"] as const,
+  workflowKeys: ["setup_project"] as const,
   lockedDesignTimeFactDefinitionKeys: LOCKED_BMAD_DESIGN_TIME_FACT_KEYS,
   sourceRefs,
 } as const;
@@ -6818,7 +8480,7 @@ export const researchSeedMetadata = {
   methodologyVersionIds,
   slice: "slice_a_research",
   workUnitKeys: ["research"] as const,
-  workflowKeys: ["market_research", "domain_research", "technical_research"] as const,
+  workflowKeys: ["research"] as const,
   sourceRefs,
 } as const;
 
@@ -6837,6 +8499,15 @@ export const prdSeedMetadata = {
   slice: "slice_a_prd",
   workUnitKeys: ["prd"] as const,
   workflowKeys: ["create_prd"] as const,
+  sourceRefs,
+} as const;
+
+export const implementationSeedMetadata = {
+  methodologyDefinitionId,
+  methodologyVersionIds,
+  slice: "slice_a_implementation",
+  workUnitKeys: ["implementation"] as const,
+  workflowKeys: ["implementation"] as const,
   sourceRefs,
 } as const;
 

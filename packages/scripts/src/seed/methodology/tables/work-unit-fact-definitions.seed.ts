@@ -3,6 +3,7 @@ import { schema } from "@chiron/db";
 import {
   architectureFactSchemaSeedRows,
   brainstormingFactSchemaSeedRows,
+  implementationFactSchemaSeedRows,
   prdFactSchemaSeedRows,
   productBriefFactSchemaSeedRows,
   researchFactSchemaSeedRows,
@@ -18,6 +19,7 @@ export const workUnitFactDefinitionSeedRows: readonly WorkUnitFactDefinitionSeed
   ...researchFactSchemaSeedRows,
   ...productBriefFactSchemaSeedRows,
   ...prdFactSchemaSeedRows,
+  ...implementationFactSchemaSeedRows,
   ...uxDesignFactSchemaSeedRows,
   ...architectureFactSchemaSeedRows,
 ];

@@ -3,6 +3,7 @@ import { schema } from "@chiron/db";
 import {
   architectureWorkflowSeedRows,
   brainstormingWorkflowSeedRows,
+  implementationWorkflowSeedRows,
   prdWorkflowSeedRows,
   productBriefWorkflowSeedRows,
   researchWorkflowSeedRows,
@@ -18,6 +19,7 @@ export const methodologyWorkflowSeedRows: readonly MethodologyWorkflowSeedRow[] 
   ...researchWorkflowSeedRows,
   ...productBriefWorkflowSeedRows,
   ...prdWorkflowSeedRows,
+  ...implementationWorkflowSeedRows,
   ...uxDesignWorkflowSeedRows,
   ...architectureWorkflowSeedRows,
 ];
