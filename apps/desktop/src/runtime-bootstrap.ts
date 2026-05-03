@@ -22,6 +22,9 @@ type BootstrapRuntimeStateOptions = {
   writeText: (path: string, value: string) => Promise<void>;
   writeJson: (path: string, value: unknown) => Promise<void>;
   ensureDir: (path: string) => Promise<void>;
+  databaseExists?: (path: string) => Promise<boolean>;
+  requiresDatabaseSeed?: (path: string) => Promise<boolean>;
+  seedDatabase?: (path: string) => Promise<void>;
 };
 
 export type BootstrapRuntimeState = {
@@ -49,6 +52,7 @@ export async function bootstrapRuntimeState(
   await options.ensureDir(paths.runtimeRoot);
   await options.ensureDir(paths.dataDir);
   await options.ensureDir(paths.logsDir);
+  await ensureSeedDatabase(options, paths);
 
   const config = await loadConfig(options, paths);
   const secrets = await loadSecrets(options, paths);
@@ -58,6 +62,24 @@ export async function bootstrapRuntimeState(
     config,
     secrets,
   };
+}
+
+async function ensureSeedDatabase(
+  options: BootstrapRuntimeStateOptions,
+  paths: RuntimePaths,
+): Promise<void> {
+  if (!options.seedDatabase) {
+    return;
+  }
+
+  const databaseExists = options.databaseExists ?? (async () => false);
+  const requiresDatabaseSeed =
+    options.requiresDatabaseSeed ?? (async (path: string) => !(await databaseExists(path)));
+  if (!(await requiresDatabaseSeed(paths.databaseFile))) {
+    return;
+  }
+
+  await options.seedDatabase(paths.databaseFile);
 }
 
 async function loadConfig(

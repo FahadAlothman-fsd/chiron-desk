@@ -20,12 +20,12 @@ describe("renderer target resolution in packaged mode", () => {
         resourcesPath: "/opt/Chiron/resources",
       }),
     ).toEqual({
-      mode: "file",
-      target: "/opt/Chiron/resources/web-dist/index.html",
+      mode: "url",
+      target: "chiron://app/",
     });
   });
 
-  it("derives a packaged renderer origin from the bundled file target", async () => {
+  it("derives a packaged renderer origin from the bundled app protocol", async () => {
     const runtime = await resolvePackagedRuntimeContext({
       appRoot: "/opt/Chiron/resources/app.asar",
       resourcesPath: "/opt/Chiron/resources",
@@ -52,7 +52,7 @@ describe("renderer target resolution in packaged mode", () => {
       }),
     });
 
-    expect(resolveRendererOrigin(runtime.rendererTarget)).toBe("null");
-    expect(runtime.runtimeEnv.CORS_ORIGIN).toBe("http://127.0.0.1:43110");
+    expect(resolveRendererOrigin(runtime.rendererTarget)).toBe("chiron://app");
+    expect(runtime.runtimeEnv.CORS_ORIGIN).toBe("chiron://app");
   });
 });

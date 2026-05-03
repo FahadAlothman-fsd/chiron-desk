@@ -205,18 +205,9 @@ describe("setup invoke phase-1 fixture", () => {
         expect.objectContaining({
           invokeStepId:
             "seed:l3-setup-invoke:setup:mver_bmad_v1_active:step:invoke-brainstorming-fixed",
-          destinationKey: "desired_outcome",
-          sourceKind: "context_fact",
-          contextFactDefinitionId:
-            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-brainstorming-desired-outcome",
-        }),
-        expect.objectContaining({
-          invokeStepId:
-            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:step:invoke-brainstorming-fixed",
-          destinationKey: "selected_direction",
-          sourceKind: "context_fact",
-          contextFactDefinitionId:
-            "seed:l3-setup-invoke:setup:mver_bmad_v1_active:ctx:cf-setup-brainstorming-selected-direction",
+          destinationKey: "setup_work_unit",
+          destinationKind: "work_unit_fact",
+          sourceKind: "runtime",
         }),
         expect.objectContaining({
           invokeStepId:
@@ -486,12 +477,12 @@ describe("setup invoke phase-1 fixture", () => {
           .map((row) => row.key),
       ),
     ).toEqual([
-      "collect_setup_baseline",
-      "synthesize_setup_for_invoke",
-      "propagate_setup_context",
-      "route_setup_followups",
-      "invoke_brainstorming_fixed",
-      "invoke_research_from_draft_spec",
+      "greenfield_setup_agent",
+      "propagate_setup_outputs",
+      "branch_need_brainstorming",
+      "invoke_brainstorming_work",
+      "branch_need_research",
+      "invoke_research_work",
     ]);
   });
 });

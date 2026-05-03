@@ -1,24 +1,34 @@
 {
   "name": "desktop",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "private": true,
+  "description": "Chiron is a project management and guidance application that lets users create development methodologies they can follow to plan and execute projects.",
+  "author": "Fahad Alothman",
   "type": "module",
   "main": "dist/desktop/main.js",
   "scripts": {
+    "build:icon:mac": "bun ./scripts/build-mac-icon.mjs",
+    "build:runtime-db-template": "bun ./scripts/build-runtime-db-template.mjs",
     "build": "bun --filter \"@chiron/contracts\" build && bun -e \"import { rmSync } from 'node:fs'; rmSync('dist/desktop', { recursive: true, force: true });\" && tsc -p tsconfig.build.json && bun build preload.ts --target=node --format=cjs --external electron --outfile dist/desktop/preload.cjs",
-    "build:release": "bun --filter web build && bun --filter server build && bun --filter server bundle:desktop && bun run build",
+    "build:release": "CHIRON_DESKTOP_BUILD=true bun --filter web build && bun run build:runtime-db-template && bun --filter server build && bun --filter server bundle:desktop && bun run build",
     "dev": "bun run build && NODE_OPTIONS='--import tsx' ELECTRON_RENDERER_URL=${ELECTRON_RENDERER_URL:-http://localhost:3001} electron ./main.ts",
     "package:linux": "bun run build:release && electron-builder --linux AppImage",
+    "package:mac": "bun run build:icon:mac && bun run build:release && electron-builder --mac dmg zip",
+    "package:mac:dmg": "bun run package:mac",
+    "package:mac:dir": "bun run build:icon:mac && bun run build:release && electron-builder --mac dir",
+    "package:mac:public": "bun run package:mac",
     "start": "bun run build && electron .",
     "test": "vitest run",
     "check-types": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@chiron/contracts": "workspace:*",
+    "@libsql/client": "catalog:",
     "better-result": "^2.7.0"
   },
   "devDependencies": {
     "@chiron/config": "workspace:*",
+    "@electron/notarize": "^3.1.0",
     "@types/bun": "catalog:",
     "electron": "^37.4.0",
     "electron-builder": "^26.0.12",
@@ -27,7 +37,9 @@
     "vitest": "catalog:"
   },
   "build": {
-    "appId": "local.chiron.desktop",
+    "appId": "com.fahadalothman.chiron",
+    "artifactName": "Chiron-${version}-${arch}.${ext}",
+    "afterSign": "scripts/notarize.mjs",
     "directories": {
       "output": "dist-electron"
     },
@@ -51,12 +63,29 @@
       {
         "from": "../server/dist/node_modules",
         "to": "server-dist/node_modules"
+      },
+      {
+        "from": "build/runtime-template/chiron.db",
+        "to": "runtime-template/chiron.db"
       }
     ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "gatekeeperAssess": false,
+      "hardenedRuntime": true,
+      "icon": "build/icon.png",
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
     "linux": {
       "target": [
         "AppImage"
       ]
     }
-  }
+  },
+  "productName": "Chiron"
 }

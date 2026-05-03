@@ -142,16 +142,22 @@ describe("l3 slice-1 demo fixture", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, () =>
       methodologyCanonicalTableSeedRows.work_unit_fact_definitions.map((row) => row.key),
     );
 
-    expect(slice1FixtureOnlyFactExamples.definitionBackedExternalFacts).toHaveLength(
-      methodologyDesignTimeSeedFacts.setupWorkUnitFactDefinitionKeys.length,
-    );
+    expect(slice1FixtureOnlyFactExamples.definitionBackedExternalFacts).toHaveLength(7);
     expect(slice1FixtureOnlyFactExamples.boundExternalFacts).toHaveLength(
       methodologyDesignTimeSeedFacts.methodologyFactDefinitionKeys.length,
     );
 
     expect(
       slice1FixtureOnlyFactExamples.definitionBackedExternalFacts.map((row) => row.factKey),
-    ).toEqual([...methodologyDesignTimeSeedFacts.setupWorkUnitFactDefinitionKeys]);
+    ).toEqual([
+      "workflow_mode",
+      "scan_level",
+      "requires_brainstorming",
+      "requires_research",
+      "branch_note",
+      "requires_product_brief",
+      "deep_dive_target",
+    ]);
     expect(slice1FixtureOnlyFactExamples.boundExternalFacts.map((row) => row.factKey)).toEqual([
       ...methodologyDesignTimeSeedFacts.methodologyFactDefinitionKeys,
     ]);
@@ -160,9 +166,7 @@ describe("l3 slice-1 demo fixture", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, () =>
       expect(example.seedSource).toBe("work_unit_fact_definition");
       expect(example.workflowContextFactKind).toBe("bound_fact");
       expect(example.permanence).toBe("fixture_only");
-      expect(permanentWorkUnitFactKeys.has(example.factKey)).toBe(
-        example.factKey === "requires_product_brief" ? false : true,
-      );
+      expect(permanentWorkUnitFactKeys.has(example.factKey)).toBe(false);
       expect(permanentMethodologyFactKeys.has(example.factKey)).toBe(false);
     }
 

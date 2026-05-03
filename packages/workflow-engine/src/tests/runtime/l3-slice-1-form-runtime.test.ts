@@ -781,7 +781,7 @@ function makeRuntimeLayer(options?: { secondStepType?: RuntimeWorkflowStepDefini
   );
   const stepDetail = Layer.provide(
     StepExecutionDetailServiceLive,
-    Layer.mergeAll(base, contextQuery, actionDetail, invokeStepDetail),
+    Layer.mergeAll(base, progression, contextQuery, actionDetail, invokeStepDetail),
   );
   const workflowCommand = Layer.provide(
     WorkflowExecutionCommandServiceLive,
@@ -977,6 +977,9 @@ describe("l3 slice-1 form runtime services", () => {
       const existingRepositoryTypeField = result.detailAfterDraft.body.page.fields.find(
         (field) => field.fieldKey === "existingRepositoryType",
       );
+      expect(existingRepositoryTypeField?.widget.control).toBe("reference");
+      expect(existingRepositoryTypeField?.widget.boundValueWidget?.control).toBe("select");
+      expect(existingRepositoryTypeField?.widget.boundValueWidget?.valueType).toBe("string");
       expect(existingRepositoryTypeField?.widget.externalCardinality).toBe("one");
       expect(existingRepositoryTypeField?.widget.options).toEqual([
         {

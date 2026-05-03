@@ -5,6 +5,7 @@ import { HeadContent, Outlet, createRootRouteWithContext } from "@tanstack/react
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
 import AppShell from "@/components/app-shell";
+import { resolvePublicAsset } from "@/lib/public-asset";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { orpc } from "@/utils/orpc";
@@ -32,16 +33,16 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
       {
         rel: "icon",
         type: "image/svg+xml",
-        href: "/favicon.svg",
+        href: resolvePublicAsset("favicon.svg"),
       },
       {
         rel: "icon",
-        href: "/favicon.ico",
+        href: resolvePublicAsset("favicon.ico"),
         sizes: "32x32",
       },
       {
         rel: "apple-touch-icon",
-        href: "/apple-touch-icon.png",
+        href: resolvePublicAsset("apple-touch-icon.png"),
       },
     ],
   }),

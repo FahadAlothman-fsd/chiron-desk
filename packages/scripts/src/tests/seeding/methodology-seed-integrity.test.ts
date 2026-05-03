@@ -85,6 +85,7 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
       "slice_a_research",
       "slice_a_product_brief",
       "slice_a_prd",
+      "slice_a_implementation",
       "slice_a_ux_design",
       "slice_a_architecture",
     ]);
@@ -97,16 +98,16 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
     );
 
     expect(tableCounts).toMatchObject({
-      methodology_work_unit_types: 14,
+      methodology_work_unit_types: 16,
       methodology_agent_types: 6,
-      work_unit_lifecycle_states: 14,
-      work_unit_lifecycle_transitions: 14,
-      transition_condition_sets: 28,
-      methodology_artifact_slot_definitions: 26,
-      methodology_artifact_slot_templates: 30,
+      work_unit_lifecycle_states: 16,
+      work_unit_lifecycle_transitions: 16,
+      transition_condition_sets: 32,
+      methodology_artifact_slot_definitions: 28,
+      methodology_artifact_slot_templates: 28,
       methodology_link_type_definitions: 12,
-      methodology_workflows: 34,
-      methodology_transition_workflow_bindings: 18,
+      methodology_workflows: 28,
+      methodology_transition_workflow_bindings: 16,
       methodology_fact_definitions: 20,
     });
     expect(tableCounts.work_unit_fact_definitions).toBeGreaterThan(0);
@@ -119,15 +120,7 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
     expect(tableCounts.methodology_workflow_edges).toBeGreaterThan(0);
 
     expect(methodologyDesignTimeSeedFacts).toEqual({
-      setupWorkUnitFactDefinitionKeys: [
-        "workflow_mode",
-        "scan_level",
-        "requires_brainstorming",
-        "requires_research",
-        "branch_note",
-        "requires_product_brief",
-        "deep_dive_target",
-      ],
+      setupWorkUnitFactDefinitionKeys: ["setup_path_summary"],
       methodologyFactDefinitionKeys: [
         "project_knowledge_directory",
         "planning_artifacts_directory",
@@ -139,13 +132,7 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
         "integration_points",
       ],
       lockedBmadDerivedFactDefinitionKeys: [
-        "workflow_mode",
-        "scan_level",
-        "requires_brainstorming",
-        "requires_research",
-        "branch_note",
-        "requires_product_brief",
-        "deep_dive_target",
+        "setup_path_summary",
         "project_knowledge_directory",
         "planning_artifacts_directory",
         "implementation_artifacts_directory",
@@ -169,6 +156,7 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
         "research",
         "product_brief",
         "prd",
+        "implementation",
         "ux_design",
         "architecture",
       ]),
@@ -186,25 +174,18 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
     const workflowRows = methodologyCanonicalTableSeedRows.methodology_workflows;
     const conditionSets = methodologyCanonicalTableSeedRows.transition_condition_sets;
 
-    expect(factRows.filter((row) => row.workUnitTypeId.includes(":wut:setup:"))).toHaveLength(8);
+    expect(factRows.filter((row) => row.workUnitTypeId.includes(":wut:setup:"))).toHaveLength(2);
     expect(
       new Set(
         factRows.filter((row) => row.workUnitTypeId.includes(":wut:setup:")).map((row) => row.key),
       ),
-    ).toEqual(
-      new Set([
-        "initiative_name",
-        "project_kind",
-        "setup_path_summary",
-        "next_recommended_work_unit",
-      ]),
-    );
+    ).toEqual(new Set(["setup_path_summary"]));
 
     expect(
       new Set(
         slotRows.filter((row) => row.workUnitTypeId.includes(":wut:setup:")).map((row) => row.key),
       ),
-    ).toEqual(new Set(["PROJECT_OVERVIEW", "BROWNFIELD_DOCS_INDEX", "PROJECT_CONTEXT"]));
+    ).toEqual(new Set(["PROJECT_OVERVIEW"]));
 
     const setupCompletion = conditionSets.find(
       (row) =>
@@ -216,14 +197,7 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
         mode: "all",
         conditions: [
           expect.objectContaining({
-            config: expect.objectContaining({ factKey: "initiative_name" }),
-          }),
-          expect.objectContaining({ config: expect.objectContaining({ factKey: "project_kind" }) }),
-          expect.objectContaining({
             config: expect.objectContaining({ factKey: "setup_path_summary" }),
-          }),
-          expect.objectContaining({
-            config: expect.objectContaining({ factKey: "next_recommended_work_unit" }),
           }),
           expect.objectContaining({
             config: expect.objectContaining({ slotKey: "PROJECT_OVERVIEW" }),
@@ -245,11 +219,9 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
         "desired_outcome",
         "objectives",
         "constraints",
-        "technique_plan",
-        "selected_technique_workflows",
         "technique_outputs",
         "selected_directions",
-        "follow_up_research_topics",
+        "priority_directions",
       ]),
     );
     expect(workflowRows.some((row) => row.key === "brainstorming_primary")).toBe(false);
@@ -286,8 +258,12 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
         "research_topic",
         "research_goals",
         "scope_notes",
-        "research_synthesis",
-        "source_inventory",
+        "market_source_inventory",
+        "market_research_synthesis",
+        "domain_source_inventory",
+        "domain_research_synthesis",
+        "technical_source_inventory",
+        "technical_research_synthesis",
       ]),
     );
     expect(
@@ -304,7 +280,7 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
           .filter((row) => row.workUnitTypeId.includes(":wut:research:"))
           .map((row) => row.key),
       ),
-    ).toEqual(new Set(["market_research", "domain_research", "technical_research"]));
+    ).toEqual(new Set(["research"]));
   });
 
   it("adds Product Brief, PRD, UX Design, and Architecture with required bindings and artifacts", async () => {
@@ -326,13 +302,11 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
         "setup_work_unit",
         "brainstorming_work_unit",
         "research_work_units",
-        "product_name",
         "product_intent_summary",
         "source_context_summary",
         "brief_synthesis",
         "review_findings",
         "open_questions",
-        "next_recommended_work_unit",
       ]),
     );
     expect(
@@ -350,13 +324,9 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
       ),
     ).toEqual(
       new Set([
-        "setup_work_unit",
         "product_brief_work_unit",
         "research_work_units",
         "brainstorming_work_unit",
-        "project_name",
-        "input_context_inventory",
-        "project_classification",
         "product_vision",
         "success_criteria",
         "user_journeys",
@@ -364,13 +334,47 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
         "functional_requirements",
         "non_functional_requirements",
         "prd_synthesis",
-        "next_recommended_work_units",
       ]),
     );
     expect(
       slotRows.filter((row) => row.workUnitTypeId.includes(":wut:prd:")).map((row) => row.key),
     ).toEqual(["PRD", "PRD"]);
     expect(workflowRows.filter((row) => row.key === "create_prd")).toHaveLength(2);
+
+    expect(
+      new Set(
+        factRows
+          .filter((row) => row.workUnitTypeId.includes(":wut:implementation:"))
+          .map((row) => row.key),
+      ),
+    ).toEqual(
+      new Set([
+        "prd_work_unit",
+        "research_work_units",
+        "brainstorming_work_units",
+        "implementation_mode",
+        "implementation_constraints",
+        "implementation_scope",
+        "implementation_plan",
+        "files_to_change",
+        "code_change_summary",
+        "validation_summary",
+        "test_results",
+        "review_findings",
+        "open_implementation_questions",
+        "implementation_status_summary",
+      ]),
+    );
+    expect(
+      new Set(
+        slotRows
+          .filter((row) => row.workUnitTypeId.includes(":wut:implementation:"))
+          .map((row) => row.key),
+      ),
+    ).toEqual(
+      new Set(["IMPLEMENTATION_PLAN", "IMPLEMENTED_CODE_CHANGES", "IMPLEMENTATION_TEST_REPORT"]),
+    );
+    expect(workflowRows.filter((row) => row.key === "implementation")).toHaveLength(2);
 
     expect(
       new Set(
@@ -450,30 +454,18 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
         .filter((row) => row.workflowId.includes(":workflow:setup:setup-project:"))
         .map((row) => row.key),
     ).toEqual([
-      "collect_setup_baseline",
-      "branch_project_kind",
       "greenfield_setup_agent",
-      "brownfield_scan_preferences",
-      "invoke_document_project",
+      "propagate_setup_outputs",
       "branch_need_brainstorming",
       "invoke_brainstorming_work",
       "branch_need_research",
       "invoke_research_work",
-      "branch_need_product_brief",
-      "invoke_product_brief_work",
-      "propagate_setup_outputs",
-      "collect_setup_baseline",
-      "branch_project_kind",
       "greenfield_setup_agent",
-      "brownfield_scan_preferences",
-      "invoke_document_project",
+      "propagate_setup_outputs",
       "branch_need_brainstorming",
       "invoke_brainstorming_work",
       "branch_need_research",
       "invoke_research_work",
-      "branch_need_product_brief",
-      "invoke_product_brief_work",
-      "propagate_setup_outputs",
     ]);
 
     expect(
@@ -481,20 +473,35 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
         .filter((row) => row.workflowId.includes(":workflow:prd:create-prd:"))
         .map((row) => row.key),
     ).toEqual([
-      "prd_input_initialization_agent",
-      "prd_discovery_and_vision_agent",
-      "prd_success_and_journeys_agent",
-      "prd_context_requirements_agent",
-      "prd_capability_contract_agent",
-      "prd_polish_and_completion_agent",
+      "prd_input_selection",
+      "prd_requirements_authoring_agent",
+      "prd_finalize_agent",
+      "prd_implementation_spec_authoring_agent",
+      "branch_need_implementation",
+      "invoke_implementation_work",
       "propagate_prd_outputs",
-      "prd_input_initialization_agent",
-      "prd_discovery_and_vision_agent",
-      "prd_success_and_journeys_agent",
-      "prd_context_requirements_agent",
-      "prd_capability_contract_agent",
-      "prd_polish_and_completion_agent",
+      "prd_input_selection",
+      "prd_requirements_authoring_agent",
+      "prd_finalize_agent",
+      "prd_implementation_spec_authoring_agent",
+      "branch_need_implementation",
+      "invoke_implementation_work",
       "propagate_prd_outputs",
+    ]);
+
+    expect(
+      workflowSteps
+        .filter((row) => row.workflowId.includes(":workflow:implementation:implementation:"))
+        .map((row) => row.key),
+    ).toEqual([
+      "implementation_planning_agent",
+      "implementation_execution_agent",
+      "implementation_validation_agent",
+      "propagate_implementation_outputs",
+      "implementation_planning_agent",
+      "implementation_execution_agent",
+      "implementation_validation_agent",
+      "propagate_implementation_outputs",
     ]);
 
     expect(
@@ -502,10 +509,10 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
         .filter((row) => row.workflowId.includes(":workflow:product_brief:create-product-brief:"))
         .map((row) => row.key),
     ).toEqual([
-      "brief_intent_agent",
+      "brief_input_selection",
       "product_brief_authoring_agent",
       "propagate_product_brief_outputs",
-      "brief_intent_agent",
+      "brief_input_selection",
       "product_brief_authoring_agent",
       "propagate_product_brief_outputs",
     ]);
@@ -553,20 +560,12 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
         .filter((row) => row.workflowId.includes(":workflow:setup:setup-project:"))
         .map((row) => row.edgeKey),
     ).toEqual([
-      "collect_setup_baseline_to_branch_project_kind",
-      "greenfield_setup_agent_to_branch_need_brainstorming",
-      "brownfield_scan_preferences_to_invoke_document_project",
-      "invoke_document_project_to_propagate_setup_outputs",
+      "greenfield_setup_agent_to_propagate_setup_outputs",
+      "propagate_setup_outputs_to_branch_need_brainstorming",
       "invoke_brainstorming_work_to_branch_need_research",
-      "invoke_research_work_to_branch_need_product_brief",
-      "invoke_product_brief_work_to_propagate_setup_outputs",
-      "collect_setup_baseline_to_branch_project_kind",
-      "greenfield_setup_agent_to_branch_need_brainstorming",
-      "brownfield_scan_preferences_to_invoke_document_project",
-      "invoke_document_project_to_propagate_setup_outputs",
+      "greenfield_setup_agent_to_propagate_setup_outputs",
+      "propagate_setup_outputs_to_branch_need_brainstorming",
       "invoke_brainstorming_work_to_branch_need_research",
-      "invoke_research_work_to_branch_need_product_brief",
-      "invoke_product_brief_work_to_propagate_setup_outputs",
     ]);
 
     const setupActionRows =
@@ -585,23 +584,44 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
         setupActionItemRows
           .filter((row) => row.actionRowId === action.id)
           .map((row) => row.itemKey),
+      ).toEqual(["setup.setup_path_summary"]);
+
+      expect(
+        workflowSteps
+          .filter((row) => row.workflowId.includes(":workflow:brainstorming:brainstorming:"))
+          .map((row) => row.key),
       ).toEqual([
-        "setup.initiative_name",
-        "setup.project_kind",
-        "setup.project_knowledge_directory",
-        "setup.planning_artifacts_directory",
-        "setup.communication_language",
-        "setup.document_output_language",
-        "setup.workflow_mode",
-        "setup.scan_level",
-        "setup.deep_dive_target",
-        "setup.repository_type",
-        "setup.project_parts",
-        "setup.technology_stack_by_part",
-        "setup.existing_documentation_inventory",
-        "setup.integration_points",
-        "setup.setup_path_summary",
-        "setup.next_recommended_work_unit",
+        "session_setup",
+        "facilitate_brainstorming_session",
+        "branch_need_specialist_techniques",
+        "propagate_facilitation_outputs",
+        "invoke_specialist_techniques",
+        "synthesize_session_outputs",
+        "propagate_brainstorming_outputs",
+        "session_setup",
+        "facilitate_brainstorming_session",
+        "branch_need_specialist_techniques",
+        "propagate_facilitation_outputs",
+        "invoke_specialist_techniques",
+        "synthesize_session_outputs",
+        "propagate_brainstorming_outputs",
+      ]);
+
+      expect(
+        workflowEdges
+          .filter((row) => row.workflowId.includes(":workflow:brainstorming:brainstorming:"))
+          .map((row) => row.edgeKey),
+      ).toEqual([
+        "session_setup_to_facilitate_brainstorming_session",
+        "facilitate_brainstorming_session_to_branch_need_specialist_techniques",
+        "propagate_facilitation_outputs_to_invoke_specialist_techniques",
+        "invoke_specialist_techniques_to_synthesize_session_outputs",
+        "synthesize_session_outputs_to_propagate_brainstorming_outputs",
+        "session_setup_to_facilitate_brainstorming_session",
+        "facilitate_brainstorming_session_to_branch_need_specialist_techniques",
+        "propagate_facilitation_outputs_to_invoke_specialist_techniques",
+        "invoke_specialist_techniques_to_synthesize_session_outputs",
+        "synthesize_session_outputs_to_propagate_brainstorming_outputs",
       ]);
     }
 
@@ -613,17 +633,14 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
       ),
     ).toEqual(
       new Set([
-        "brief_mode_ctx",
-        "setup_input_summary_ctx",
-        "brainstorming_input_summary_ctx",
-        "research_input_summary_ctx",
-        "product_name_ctx",
+        "setup_work_unit_ctx",
+        "brainstorming_work_unit_ctx",
+        "research_work_units_ctx",
         "product_intent_summary_ctx",
         "source_context_summary_ctx",
         "brief_synthesis_ctx",
         "review_findings_ctx",
         "open_questions_ctx",
-        "next_work_unit_ref_ctx",
         "product_brief_artifact_ctx",
         "product_brief_distillate_artifact_ctx",
       ]),
@@ -637,25 +654,47 @@ describe("methodology seed integrity", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, ()
       ),
     ).toEqual(
       new Set([
-        "setup_input_summary_ctx",
-        "product_brief_input_summary_ctx",
-        "research_input_summary_ctx",
-        "brainstorming_input_summary_ctx",
-        "project_name_ctx",
-        "input_context_inventory_ctx",
-        "project_classification_ctx",
+        "product_brief_work_unit_ctx",
+        "research_work_units_ctx",
+        "brainstorming_work_unit_ctx",
         "product_vision_ctx",
         "success_criteria_ctx",
         "user_journeys_ctx",
-        "domain_requirements_ctx",
-        "innovation_analysis_ctx",
-        "project_type_requirements_ctx",
         "scope_plan_ctx",
         "functional_requirements_ctx",
         "non_functional_requirements_ctx",
         "prd_synthesis_ctx",
-        "next_work_unit_refs_ctx",
+        "start_implementation_ctx",
+        "implementation_draft_specs_ctx",
         "prd_artifact_ctx",
+      ]),
+    );
+
+    expect(
+      new Set(
+        contextFacts
+          .filter((row) => row.workflowId.includes(":workflow:implementation:implementation:"))
+          .map((row) => row.factKey),
+      ),
+    ).toEqual(
+      new Set([
+        "prd_work_unit_ctx",
+        "research_work_units_ctx",
+        "brainstorming_work_units_ctx",
+        "implementation_mode_ctx",
+        "implementation_constraints_ctx",
+        "implementation_scope_ctx",
+        "implementation_plan_ctx",
+        "files_to_change_ctx",
+        "code_change_summary_ctx",
+        "validation_summary_ctx",
+        "test_results_ctx",
+        "review_findings_ctx",
+        "open_implementation_questions_ctx",
+        "implementation_status_summary_ctx",
+        "implementation_plan_artifact_ctx",
+        "implemented_code_changes_artifact_ctx",
+        "implementation_test_report_artifact_ctx",
       ]),
     );
   });

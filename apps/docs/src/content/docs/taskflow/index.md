@@ -1,71 +1,73 @@
 ---
-title: Taskflow
+title: Taskflow Overview
 ---
-Taskflow is the single running example used across the public docs.
+Taskflow is the public runtime example used across the docs.
 
-It is not a hardcoded product requirement. It is a representative method that makes Chiron easier to explain.
+It is the product being initialized, refined, planned, and implemented while Chiron runs the method underneath it.
 
-## Why Taskflow is the example
+## What Taskflow is
 
-Taskflow gives the docs one stable story that can cover:
+Taskflow is a lightweight task-management product for small software teams.
 
-- method setup
-- project onboarding
-- fan-out and delegation
-- branching decisions
-- artifact production
-- review and rework
+In the public example, it sits between overly heavy planning tools and overly simple shared checklists. The product needs enough structure for sprint planning, collaboration, and developer workflows, but it also needs to stay approachable for a small team.
 
-That lets the site teach the product mental model without jumping between unrelated examples.
+That makes it a good example for Chiron because the work naturally moves through setup, discovery, planning, and implementation.
 
-## Taskflow in one pass
+## The Taskflow runtime journey
 
-At **Design Time**, you define a Taskflow method. You shape the work-unit catalog, decide which facts and artifact slots matter, and bind workflows to transitions.
+The public Taskflow section follows one concrete path.
 
-At **Project Runtime**, a real project picks up that method. Work starts moving, artifacts appear, delegated work fans out into more focused work units, and review loops decide whether work advances or returns for rework.
+The first responsibility of the overview is simple: get the project to the point where the `Setup` transition can begin cleanly.
 
-> **Screenshot placeholder**
-> End-to-end Taskflow storyline, showing the handoff from shared intro to Design Time to Project Runtime, with the three scenario slices called out in sequence.
+That means the early part of the story is about:
 
-## The three scenario slices
+- creating the operator account
+- seeding the default methodology
+- creating the Taskflow project
+- pinning it to the methodology version
+- opening runtime guidance
+- launching the first `Setup` transition
 
-### Setup and onboarding
+Only after that does the first real runtime step begin.
 
-This slice shows the starting point.
+From there, the runtime story continues like this:
 
-It covers how a method is set up, what the first project needs to provide, and how the first durable artifacts and facts appear.
+1. **Setup and Onboarding** creates the initial durable baseline.
+2. **Brainstorming** refines possible directions.
+3. **Research** gathers evidence about the market, domain, and technical constraints.
+4. **Product Brief** turns those upstream signals into a concise product framing.
+5. **PRD** produces the requirement contract and implementation draft specs.
+6. **Implementation** plans, executes, and validates code-oriented delivery.
 
-It also introduces the first branch, such as a greenfield path versus an existing-project path, so branching does not appear out of nowhere later.
+Each page in this section shows what is happening in the example at runtime, what work exists, what outputs become durable, and what gets created next.
 
-- Read: [/taskflow/setup-onboarding](/taskflow/setup-onboarding)
+So the boundary is:
 
-### Fan-out and delegation
+- **Taskflow Overview** gets the project ready to start the `Setup` transition
+- **Taskflow Setup And Onboarding** shows the first real runtime step once that transition is launched
 
-This slice shows how Taskflow handles expansion.
+![Taskflow project overview before setup starts](/screenshots/taskflow/setup-onboarding/taskflow-project-overview-start.png)
 
-It covers how a parent work unit can branch into delegated work while keeping ownership, structure, and expected outputs clear.
+This is the moment where the example stops being abstract. The project exists, the methodology is pinned, and the runtime is ready to start the first `Setup` transition.
 
-This is where artifact production becomes multi-path, because each delegated child can return its own durable outputs for the parent to review.
+## Read the runtime walkthrough
 
-- Read: [/taskflow/fan-out-delegation](/taskflow/fan-out-delegation)
+- [/taskflow/setup-onboarding](/taskflow/setup-onboarding)
+- [/taskflow/brainstorming](/taskflow/brainstorming)
+- [/taskflow/research](/taskflow/research)
+- [/taskflow/product-brief](/taskflow/product-brief)
+- [/taskflow/prd](/taskflow/prd)
+- [/taskflow/implementation](/taskflow/implementation)
 
-### Review and rework
+## Taskflow versus Methodology
 
-This slice shows the control loop.
+Taskflow pages stay concrete. They explain what happens while this example project moves through runtime.
 
-It covers how evidence is reviewed, how approval or rejection affects progress, and how rework stays visible instead of turning into a side conversation.
+The separate [Methodology](/methodology/) section explains the default seeded method behind that runtime path: the simplified augmented BMAD structure, its work units, its durable facts, and its workflow contracts.
 
-The same branch and artifact story continues here. Review routes work toward completion or rework, and revised artifacts stay attached to the same work instead of disappearing into chat.
+## Related pages
 
-- Read: [/taskflow/review-rework](/taskflow/review-rework)
-
-## How Taskflow maps to the layer model
-
-- **Methodology Layer** decides what kinds of Taskflow work exist.
-- **Work Unit Layer** defines the contract for each kind of Taskflow work.
-- **Workflow Layer** defines how each Taskflow path runs.
-- **Step Layer** defines the nodes inside those workflows.
-
-If you need the full layer explanation, go back to the [mental model](/mental-model).
-
-If you want the page-by-page coverage check for Taskflow consistency, read [/reference/taskflow-consistency-check](/reference/taskflow-consistency-check).
+- [/mental-model](/mental-model)
+- [/project-runtime/](/project-runtime/)
+- [/methodology/](/methodology/)
+- [/reference/taskflow-consistency-check](/reference/taskflow-consistency-check)

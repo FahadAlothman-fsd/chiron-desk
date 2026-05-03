@@ -19,7 +19,7 @@ import {
   type FactSchemaRow,
 } from "@chiron/methodology-engine";
 import { ProjectContextRepository } from "@chiron/project-context";
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, Option } from "effect";
 
 import { RepositoryError } from "../errors";
 import { ExecutionReadRepository } from "../repositories/execution-read-repository";
@@ -322,6 +322,8 @@ function resolveBoundExternalFactOptions(params: {
     key: string;
     name: string | null;
     cardinality: string | null;
+    valueType: string | null;
+    validationJson: unknown;
   }[];
   workUnitFactSchemas: readonly FactSchemaRow[];
   projectFactInstances: readonly {
@@ -597,7 +599,9 @@ function buildContextPrefillPayload(params: {
       return [
         [
           field.fieldKey,
-          field.widget.renderedMultiplicity === "many" ? values : (values[0] ?? null),
+          field.widget.renderedMultiplicity === "many"
+            ? values.flatMap((value) => (Array.isArray(value) ? value : [value]))
+            : (values[0] ?? null),
         ],
       ];
     }),
@@ -613,6 +617,8 @@ function buildResolvedField(params: {
     key: string;
     name: string | null;
     cardinality: string | null;
+    valueType: string | null;
+    validationJson: unknown;
   }[];
   artifactSlotDefinitions: readonly { id: string; key: string; displayName: string | null }[];
   projectFactInstances: readonly { id: string; factDefinitionId: string; valueJson: unknown }[];
@@ -676,6 +682,11 @@ function buildResolvedField(params: {
         external?.cardinality === "many" || externalDefinition?.cardinality === "many"
           ? "many"
           : "one";
+      const boundValueType = (params.contextFact.valueType ??
+        external?.factType ??
+        externalDefinition?.valueType ??
+        "json") as FactType;
+      const boundValidation = external?.validationJson ?? externalDefinition?.validationJson;
       const isReferenceFact =
         params.contextFact.valueType === "work_unit" ||
         typeof params.contextFact.workUnitDefinitionId === "string";
@@ -688,10 +699,10 @@ function buildResolvedField(params: {
         projectWorkUnits: params.projectWorkUnits,
       });
       const boundValueWidget = buildPrimitiveWidget({
-        valueType: (params.contextFact.valueType ?? external?.factType ?? "json") as FactType,
+        valueType: boundValueType,
         cardinality: params.contextFact.cardinality,
         renderedMultiplicity,
-        validation: external?.validationJson,
+        validation: boundValidation,
       });
 
       return {
@@ -699,7 +710,7 @@ function buildResolvedField(params: {
         widget: isReferenceFact
           ? {
               control: "reference",
-              valueType: (params.contextFact.valueType ?? external?.factType ?? "json") as FactType,
+              valueType: boundValueType,
               cardinality: params.contextFact.cardinality,
               renderedMultiplicity,
               boundValueWidget,
@@ -717,12 +728,10 @@ function buildResolvedField(params: {
             }
           : {
               ...buildPrimitiveWidget({
-                valueType: (params.contextFact.valueType ??
-                  external?.factType ??
-                  "json") as FactType,
+                valueType: boundValueType,
                 cardinality: params.contextFact.cardinality,
                 renderedMultiplicity,
-                validation: external?.validationJson,
+                validation: boundValidation,
                 externalBindingKey: externalBindingId,
               }),
               externalCardinality,
@@ -837,7 +846,7 @@ export const StepExecutionDetailServiceLive = Layer.effect(
     const branchRuntimeRepo = yield* BranchStepRuntimeRepository;
     const lifecycleRepo = yield* LifecycleRepository;
     const methodologyRepo = yield* MethodologyRepository;
-    const projectContextRepo = yield* ProjectContextRepository;
+    const projectContextRepo = yield* Effect.serviceOption(ProjectContextRepository);
     const projectFactRepo = yield* ProjectFactRepository;
     const projectWorkUnitRepo = yield* ProjectWorkUnitRepository;
     const workUnitFactRepo = yield* WorkUnitFactRepository;
@@ -900,7 +909,13 @@ export const StepExecutionDetailServiceLive = Layer.effect(
         const body: GetRuntimeStepExecutionDetailOutput["body"] =
           stepExecution.stepType === "form"
             ? yield* Effect.gen(function* () {
-                const projectPin = yield* projectContextRepo.findProjectPin(
+                if (Option.isNone(projectContextRepo)) {
+                  return yield* makeDetailError(
+                    "project context repository missing for form step detail",
+                  );
+                }
+
+                const projectPin = yield* projectContextRepo.value.findProjectPin(
                   workflowDetail.projectId,
                 );
                 if (!projectPin) {
@@ -917,7 +932,7 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                   currentWorkUnitFactInstances,
                   workflowExecutionContextFacts,
                 ] = yield* Effect.all([
-                  projectContextRepo.getProjectById({ projectId: workflowDetail.projectId }),
+                  projectContextRepo.value.getProjectById({ projectId: workflowDetail.projectId }),
                   lifecycleRepo.findWorkUnitTypes(projectPin.methodologyVersionId),
                   lifecycleRepo.findFactSchemas(projectPin.methodologyVersionId),
                   methodologyRepo.findFactDefinitionsByVersionId(projectPin.methodologyVersionId),
@@ -1090,7 +1105,13 @@ export const StepExecutionDetailServiceLive = Layer.effect(
                 }
               : stepExecution.stepType === "branch"
                 ? yield* Effect.gen(function* () {
-                    const projectPin = yield* projectContextRepo.findProjectPin(
+                    if (Option.isNone(projectContextRepo)) {
+                      return yield* makeDetailError(
+                        "project context repository missing for branch step detail",
+                      );
+                    }
+
+                    const projectPin = yield* projectContextRepo.value.findProjectPin(
                       workflowDetail.projectId,
                     );
                     if (!projectPin) {

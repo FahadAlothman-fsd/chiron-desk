@@ -1,0 +1,20 @@
+flowchart TD
+    ST[Chiron Step Model]
+    ST --> AG[agent<br/>Primary productive AI step<br/>Reads scoped context and produces governed outputs]
+    ST --> F[form<br/>Capture structured authored input]
+    ST --> AC[action<br/>Propagate bound facts and artifact references]
+    ST --> I[invoke<br/>Invoke workflows and delegate child work units]
+    ST --> D[display<br/>Present state and outputs]
+    ST --> B[branch<br/>Evaluate explicit route conditions]
+
+    classDef root fill:#f6f2df,stroke:#b59d3b,color:#5b4b16,stroke-width:2px;
+    classDef input fill:#eaf7f4,stroke:#0f766e,color:#134e4a,stroke-width:2px;
+    classDef reasoning fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a,stroke-width:4px;
+    classDef action fill:#fff7ed,stroke:#ea580c,color:#7c2d12,stroke-width:2px;
+    classDef control fill:#f5f3ff,stroke:#7c3aed,color:#4c1d95,stroke-width:2px;
+    class ST root;
+    class F,D input;
+    class AG reasoning;
+    class I control;
+    class AC action;
+    class B control;

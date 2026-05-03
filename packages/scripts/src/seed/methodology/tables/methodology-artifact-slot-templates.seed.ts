@@ -3,6 +3,7 @@ import { schema } from "@chiron/db";
 import {
   architectureArtifactSlotTemplateSeedRows,
   brainstormingArtifactSlotTemplateSeedRows,
+  implementationArtifactSlotTemplateSeedRows,
   prdArtifactSlotTemplateSeedRows,
   productBriefArtifactSlotTemplateSeedRows,
   researchArtifactSlotTemplateSeedRows,
@@ -20,6 +21,7 @@ export const methodologyArtifactSlotTemplateSeedRows: readonly MethodologyArtifa
     ...researchArtifactSlotTemplateSeedRows,
     ...productBriefArtifactSlotTemplateSeedRows,
     ...prdArtifactSlotTemplateSeedRows,
+    ...implementationArtifactSlotTemplateSeedRows,
     ...uxDesignArtifactSlotTemplateSeedRows,
     ...architectureArtifactSlotTemplateSeedRows,
   ];

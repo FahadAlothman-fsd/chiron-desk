@@ -67,7 +67,7 @@ export function MethodologiesRoute() {
       onSuccess: async (result) => {
         await queryClient.invalidateQueries({ queryKey: listQueryOptions.queryKey });
         toast.success(
-          `BMAD seeded (${result.versionCount} versions, ${result.insertedCanonicalRowCount} canonical rows).`,
+          `Default methodology seeded (${result.versionCount} versions, ${result.insertedCanonicalRowCount} canonical rows).`,
         );
       },
     }),
@@ -101,26 +101,27 @@ export function MethodologiesRoute() {
           <p className="text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground">
             Catalog Actions
           </p>
-          <h2 className="text-lg font-semibold">Register a methodology in the catalog</h2>
+          <h2 className="text-lg font-semibold">Seed the default method or add a custom one</h2>
           <p className="text-sm text-muted-foreground">
-            Provide a stable key and human-readable name. Draft versions are created from details or
-            versions views.
+            Start by seeding Chiron&apos;s default methodology. Create a custom methodology only
+            when you need a different runtime method.
           </p>
           <p className="text-sm text-muted-foreground">
-            Need the canonical baseline? Seed or refresh BMAD in place without resetting runtime or
-            project data.
+            Seeding BMAD refreshes the default baseline without touching existing project runtime
+            data.
           </p>
         </div>
 
         <div className="flex flex-wrap items-start justify-end gap-2">
           <Button
             type="button"
-            variant="outline"
             disabled={seedCanonicalBmadMutation.isPending}
             className="rounded-none uppercase tracking-[0.12em]"
             onClick={() => seedCanonicalBmadMutation.mutate({})}
           >
-            {seedCanonicalBmadMutation.isPending ? "Seeding BMAD..." : "Seed / Update BMAD"}
+            {seedCanonicalBmadMutation.isPending
+              ? "Seeding default method..."
+              : "Seed default methodology"}
           </Button>
           <DialogPrimitive.Root
             open={isCreateDialogOpen}
@@ -139,7 +140,7 @@ export function MethodologiesRoute() {
             <DialogPrimitive.Trigger
               render={
                 <Button className="rounded-none uppercase tracking-[0.12em]">
-                  Create Methodology
+                  Create custom methodology
                 </Button>
               }
             />

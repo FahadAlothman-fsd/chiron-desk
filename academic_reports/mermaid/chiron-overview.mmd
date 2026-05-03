@@ -1,0 +1,17 @@
+flowchart TB
+    A[AI-assisted SDLC challenges<br/>Ambiguous requirements<br/>Black-box generation<br/>Traceability gaps<br/>Weak governance] --> B[Chiron]
+    B --> C[Methodology-first structure]
+    B --> D[Durable work contracts and artifacts]
+    B --> E[Inspectable workflows and state transitions]
+    B --> F[Human-in-the-loop review boundaries]
+    C --> G[More robust and coherent SDLC mental model]
+    D --> G
+    E --> G
+    F --> G
+
+    classDef problem fill:#fff7ed,stroke:#ea580c,color:#7c2d12,stroke-width:2px;
+    classDef core fill:#eaf7f4,stroke:#0f766e,color:#134e4a,stroke-width:2px;
+    classDef outcome fill:#f6f2df,stroke:#b59d3b,color:#5b4b16,stroke-width:2px;
+    class A problem;
+    class B,C,D,E,F core;
+    class G outcome;

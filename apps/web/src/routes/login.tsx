@@ -3,13 +3,14 @@ import { useState } from "react";
 
 import { LoginForm } from "@/components/login-form";
 import { Card, CardContent } from "@/components/ui/card";
+import { resolvePublicAsset } from "@/lib/public-asset";
 
 export const Route = createFileRoute("/login")({
   component: RouteComponent,
 });
 
 function RouteComponent() {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup">("signup");
 
   return (
     <div className="grid min-h-svh bg-[var(--chiron-carbon-1)] lg:grid-cols-[1fr_1fr]">
@@ -34,8 +35,9 @@ function RouteComponent() {
               Operator Authentication
             </p>
             <p className="text-pretty text-sm text-[var(--chiron-frost-2)]">
-              Sign in to access methodology controls, deterministic routing, and guarded runtime
-              surfaces.
+              {mode === "signin"
+                ? "Sign in to continue into Chiron runtime and methodology work."
+                : "Create your operator account to start seeding methods and launching runtime work."}
             </p>
             <LoginForm
               mode={mode}
@@ -56,7 +58,7 @@ function RouteComponent() {
 
         <div className="relative z-10 flex flex-1 items-center justify-center px-8 pb-44 pt-8">
           <img
-            src="/visuals/chiron-brand/asset-41.svg"
+            src={resolvePublicAsset("visuals/chiron-brand/asset-41.svg")}
             alt=""
             aria-hidden="true"
             className="h-[min(52vh,29rem)] w-[min(52vh,29rem)] object-contain opacity-95 saturate-125 contrast-125 drop-shadow-[0_0_34px_color-mix(in_srgb,var(--chiron-fluo-3)_32%,transparent)]"
@@ -71,17 +73,14 @@ function RouteComponent() {
         >
           <CardContent className="px-5 py-5">
             <p className="text-[0.68rem] uppercase tracking-[0.18em] text-[var(--chiron-dawn-1)]">
-              Command Deck
+              Operator Deck
             </p>
             <p className="mt-3 text-lg font-semibold uppercase tracking-[0.08em] text-[var(--chiron-fluo-1)]">
-              Prepare workflow context before execution.
+              Start with a clear runtime path.
             </p>
             <p className="mt-2 text-sm text-[var(--chiron-frost-2)]">
-              Methodology governance, deterministic routing, and runtime safety checks stay behind
-              operator authentication.
-            </p>
-            <p className="mt-4 text-[0.62rem] uppercase tracking-[0.16em] text-[var(--chiron-fluo-3)]">
-              Appendix Asset: Bitmap Dreams asset-41
+              Authentication protects methodology seeding, project setup, and guarded runtime
+              transitions.
             </p>
           </CardContent>
         </Card>

@@ -1,7 +1,7 @@
 ---
 title: Getting Started
 ---
-Chiron is for practitioners who want methodology, execution, review, and evidence to stay connected instead of drifting across docs, chats, and ad-hoc tools.
+Chiron is for practitioners who want methodology, execution, and durable work context to stay connected instead of drifting across docs, chats, and ad-hoc tools.
 
 ## What you get today
 
@@ -55,13 +55,18 @@ bun run preview:docs
 
 Taskflow is the one running example across the site.
 
-Keep these three slices in view as you move between pages:
+Keep this public slice in view as you move between pages:
 
-- setup and onboarding, where Design Time definitions become the first runtime work and artifacts
-- fan-out and delegation, where workflows branch and child work picks up scoped outputs
-- review and rework, where evidence, approval, rejection, and revised artifacts stay visible
+- setup
+- brainstorming
+- research
+- product brief
+- prd
+- implementation
 
 If a page feels abstract, jump back to [/taskflow/](/taskflow/) and re-anchor the layer explanation in the same Taskflow story.
+
+If you need the seeded method behind that runtime story, read [/methodology/](/methodology/).
 
 ## Public vs internal docs
 

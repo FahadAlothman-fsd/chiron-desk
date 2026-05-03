@@ -487,14 +487,16 @@ export function ProjectTransitionsRoute() {
     : null;
   const isLaunchingTransition =
     startTransitionExecutionMutation.isPending || switchActiveTransitionExecutionMutation.isPending;
+  const selectedWorkUnitName =
+    startGateSelection?.card.workUnitContext.workUnitTypeName ?? "workflow";
   const launchLabel =
     startGateSelection?.card.workUnitContext.projectWorkUnitId &&
     activeCards.some(
       (card) =>
         card.projectWorkUnitId === startGateSelection.card.workUnitContext.projectWorkUnitId,
     )
-      ? "Switch active transition"
-      : "Start transition";
+      ? `Switch ${selectedWorkUnitName} transition`
+      : `Launch ${selectedWorkUnitName}`;
 
   return (
     <MethodologyWorkspaceShell

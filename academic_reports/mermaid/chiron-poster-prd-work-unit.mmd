@@ -1,0 +1,22 @@
+%%{init: {"theme":"neutral","themeVariables":{"fontFamily":"Arial","fontSize":"26px","lineColor":"#111827","arrowheadColor":"#111827","edgeLabelBackground":"#f8fafc"},"flowchart":{"curve":"linear","nodeSpacing":85,"rankSpacing":70,"padding":24,"htmlLabels":true},"themeCSS":".marker path{transform:scale(2.1);transform-origin:center;fill:#111827 !important;stroke:#111827 !important;} .edge-thickness-thick{stroke-width:7px !important;} .edge-thickness-normal{stroke-width:6px !important;}"}}%%
+flowchart LR
+    A[PRD FACTS<br/>vision • success criteria • journeys<br/>scope • functional reqs • NFRs]
+    B[WORKFLOW<br/>create_prd]
+    C[COMPLETION GATE<br/>prd_synthesis + PRD artifact]
+    D[DONE STATE<br/>feeds UX / Architecture / Implementation]
+
+    A ==> B
+    B ==> C
+    C ==> D
+
+    linkStyle 0,1,2 stroke:#111827,stroke-width:7px;
+
+    classDef facts fill:#f6f2df,stroke:#b59d3b,color:#5b4b16,stroke-width:5px,font-size:30px;
+    classDef flow fill:#dbeafe,stroke:#2563eb,color:#1e3a8a,stroke-width:5px,font-size:30px;
+    classDef gate fill:#ffedd5,stroke:#ea580c,color:#7c2d12,stroke-width:5px,font-size:30px;
+    classDef done fill:#ccfbf1,stroke:#0f766e,color:#134e4a,stroke-width:5px,font-size:30px;
+
+    class A facts;
+    class B flow;
+    class C gate;
+    class D done;

@@ -22,6 +22,46 @@ type CanonicalSeedState = {
   [K in CanonicalTableName]: Array<CanonicalSeedRows[K][number]>;
 };
 
+const CANONICAL_PRIMARY_KEY: Record<CanonicalTableName, "id" | "stepId"> = {
+  methodology_work_unit_types: "id",
+  methodology_agent_types: "id",
+  work_unit_lifecycle_states: "id",
+  work_unit_lifecycle_transitions: "id",
+  transition_condition_sets: "id",
+  work_unit_fact_definitions: "id",
+  methodology_artifact_slot_definitions: "id",
+  methodology_artifact_slot_templates: "id",
+  methodology_link_type_definitions: "id",
+  methodology_workflows: "id",
+  methodology_workflow_steps: "id",
+  methodology_workflow_context_fact_definitions: "id",
+  methodology_workflow_context_fact_plain_values: "id",
+  methodology_workflow_context_fact_external_bindings: "id",
+  methodology_workflow_context_fact_workflow_references: "id",
+  methodology_workflow_context_fact_artifact_references: "id",
+  methodology_workflow_context_fact_draft_specs: "id",
+  methodology_workflow_context_fact_draft_spec_selections: "id",
+  methodology_workflow_context_fact_draft_spec_facts: "id",
+  methodology_workflow_form_fields: "id",
+  methodology_workflow_agent_steps: "stepId",
+  methodology_workflow_agent_step_explicit_read_grants: "id",
+  methodology_workflow_agent_step_write_items: "id",
+  methodology_workflow_agent_step_write_item_requirements: "id",
+  methodology_workflow_action_steps: "stepId",
+  methodology_workflow_action_step_actions: "id",
+  methodology_workflow_action_step_action_items: "id",
+  methodology_workflow_invoke_steps: "stepId",
+  methodology_workflow_invoke_bindings: "id",
+  methodology_workflow_invoke_transitions: "id",
+  methodology_workflow_branch_steps: "stepId",
+  methodology_workflow_branch_routes: "id",
+  methodology_workflow_branch_route_groups: "id",
+  methodology_workflow_branch_route_conditions: "id",
+  methodology_workflow_edges: "id",
+  methodology_transition_workflow_bindings: "id",
+  methodology_fact_definitions: "id",
+};
+
 const FORBIDDEN_EXTENSION_KEYS = [
   "workUnitTypes",
   "agentTypes",
@@ -153,48 +193,50 @@ const initializeCanonicalSeedState = (seedRows: CanonicalSeedRows): CanonicalSee
   ...Object.fromEntries(Object.keys(seedRows).map((tableName) => [tableName, []])),
 });
 
-const stableSortRows = <TRow extends { id: string }>(rows: TRow[]) =>
-  rows.toSorted((a, b) => a.id.localeCompare(b.id));
+function getRowPrimaryKey<TTableName extends CanonicalTableName>(
+  tableName: TTableName,
+  row: CanonicalSeedState[TTableName][number],
+): string {
+  const primaryKey = CANONICAL_PRIMARY_KEY[tableName];
+  return row[primaryKey];
+}
+
+const stableSortRows = <TTableName extends CanonicalTableName>(
+  tableName: TTableName,
+  rows: CanonicalSeedState[TTableName],
+) =>
+  rows.toSorted((a, b) =>
+    getRowPrimaryKey(tableName, a).localeCompare(getRowPrimaryKey(tableName, b)),
+  );
 
 const canonicalSnapshot = (order: readonly CanonicalTableName[], state: CanonicalSeedState) =>
   Object.fromEntries(
-    order.map((tableName) => [
-      tableName,
-      stableSortRows(state[tableName] as Array<{ id: string }>),
-    ]),
+    order.map((tableName) => [tableName, stableSortRows(tableName, state[tableName])]),
   );
 
-const assertNoDuplicateIds = <TRow extends { id: string }>(
+const assertNoDuplicateIds = <TTableName extends CanonicalTableName>(
   tableName: CanonicalTableName,
-  rows: TRow[],
+  rows: CanonicalSeedState[TTableName],
 ) => {
-  const ids = rows.map((row) => row.id);
+  const ids = rows.map((row) => getRowPrimaryKey(tableName as TTableName, row));
   expect(new Set(ids).size, `duplicate ids in ${tableName}`).toBe(ids.length);
 };
 
-const applyCanonicalReseed = (
+const applyCanonicalUpsert = (
   order: readonly CanonicalTableName[],
   seedRows: CanonicalSeedRows,
   state: CanonicalSeedState,
-  versionIds: Set<string>,
 ): CanonicalSeedState => {
   const nextState = { ...state } as CanonicalSeedState;
 
-  for (const tableName of [...order].reverse()) {
-    nextState[tableName] = nextState[tableName].filter(
-      (row) => !versionIds.has(row.methodologyVersionId),
-    ) as CanonicalSeedState[typeof tableName];
-  }
-
   for (const tableName of order) {
-    const incomingRows = seedRows[tableName].filter((row) =>
-      versionIds.has(row.methodologyVersionId),
-    );
+    const incomingRows = seedRows[tableName];
+    const incomingIds = new Set(incomingRows.map((row) => getRowPrimaryKey(tableName, row)));
     const mergedRows = [
-      ...nextState[tableName],
+      ...nextState[tableName].filter((row) => !incomingIds.has(getRowPrimaryKey(tableName, row))),
       ...incomingRows,
     ] as CanonicalSeedState[typeof tableName];
-    assertNoDuplicateIds(tableName, mergedRows as Array<{ id: string }>);
+    assertNoDuplicateIds(tableName, mergedRows);
     nextState[tableName] = mergedRows;
   }
 
@@ -293,19 +335,14 @@ describe("methodology seed integration", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, 
     }
   });
 
-  it("applies deterministic reseed semantics for canonical table rows", async () => {
+  it("applies deterministic upsert semantics for canonical table rows", async () => {
     const { METHODOLOGY_CANONICAL_TABLE_SEED_ORDER, methodologyCanonicalTableSeedRows } =
       await loadMethodologySeedArtifacts();
 
-    const versionIds = new Set(
-      BASELINE_MANUAL_SEED_PLAN.methodologyVersions.map((version) => version.id),
-    );
-
-    const firstSeededState = applyCanonicalReseed(
+    const firstSeededState = applyCanonicalUpsert(
       METHODOLOGY_CANONICAL_TABLE_SEED_ORDER,
       methodologyCanonicalTableSeedRows,
       initializeCanonicalSeedState(methodologyCanonicalTableSeedRows),
-      versionIds,
     );
     const firstSnapshot = canonicalSnapshot(
       METHODOLOGY_CANONICAL_TABLE_SEED_ORDER,
@@ -331,27 +368,31 @@ describe("methodology seed integration", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, 
       ],
     };
 
-    const reseededState = applyCanonicalReseed(
+    const reseededState = applyCanonicalUpsert(
       METHODOLOGY_CANONICAL_TABLE_SEED_ORDER,
       methodologyCanonicalTableSeedRows,
       driftedState,
-      versionIds,
     );
     const reseededSnapshot = canonicalSnapshot(
       METHODOLOGY_CANONICAL_TABLE_SEED_ORDER,
       reseededState,
     );
 
-    expect(reseededSnapshot).toEqual(firstSnapshot);
+    expect(reseededSnapshot).toEqual({
+      ...firstSnapshot,
+      methodology_workflows: stableSortRows("methodology_workflows", [
+        ...firstSnapshot.methodology_workflows,
+        driftedState.methodology_workflows.at(-1)!,
+      ]),
+    });
 
-    const reseededAgainState = applyCanonicalReseed(
+    const reseededAgainState = applyCanonicalUpsert(
       METHODOLOGY_CANONICAL_TABLE_SEED_ORDER,
       methodologyCanonicalTableSeedRows,
       reseededState,
-      versionIds,
     );
     expect(canonicalSnapshot(METHODOLOGY_CANONICAL_TABLE_SEED_ORDER, reseededAgainState)).toEqual(
-      firstSnapshot,
+      reseededSnapshot,
     );
   });
 
@@ -370,14 +411,21 @@ describe("methodology seed integration", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, 
     const activePrdWorkflow = methodologyCanonicalTableSeedRows.methodology_workflows.find(
       (row) => row.methodologyVersionId === "mver_bmad_v1_active" && row.key === "create_prd",
     );
+    const activeImplementationWorkflow =
+      methodologyCanonicalTableSeedRows.methodology_workflows.find(
+        (row) => row.methodologyVersionId === "mver_bmad_v1_active" && row.key === "implementation",
+      );
 
     expect(activeSetupWorkflow?.metadataJson).toMatchObject({
       entryStepId:
-        "seed:section-a:setup:setup-project:mver_bmad_v1_active:step:collect_setup_baseline",
+        "seed:section-a:setup:setup-project:mver_bmad_v1_active:step:greenfield_setup_agent",
     });
     expect(activePrdWorkflow?.metadataJson).toMatchObject({
+      entryStepId: "seed:section-a:prd:create-prd:mver_bmad_v1_active:step:prd_input_selection",
+    });
+    expect(activeImplementationWorkflow?.metadataJson).toMatchObject({
       entryStepId:
-        "seed:section-a:prd:create-prd:mver_bmad_v1_active:step:prd_input_initialization_agent",
+        "seed:section-a:implementation:implementation:mver_bmad_v1_active:step:implementation_planning_agent",
     });
   });
 });

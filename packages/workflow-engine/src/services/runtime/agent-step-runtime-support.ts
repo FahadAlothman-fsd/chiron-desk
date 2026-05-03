@@ -65,6 +65,7 @@ export interface AgentStepRuntimeResolvedContext {
     readonly projectId: string;
     readonly methodologyVersionId: string;
   };
+  readonly projectName: string | null;
   readonly projectRootPath: string | null;
   readonly workUnitType: WorkUnitTypeRow;
   readonly workflowEditor: WorkflowEditorDefinitionReadModel;
@@ -95,7 +96,10 @@ export interface AgentStepRuntimeResolutionDeps {
     ) => Effect.Effect<AgentStepRuntimeResolvedContext["projectPin"] | null, RepositoryError>;
     readonly getProjectById: (params: {
       projectId: string;
-    }) => Effect.Effect<{ projectRootPath: string | null } | null, RepositoryError>;
+    }) => Effect.Effect<
+      { projectRootPath: string | null; name?: string | null } | null,
+      RepositoryError
+    >;
   };
   readonly lifecycleRepo: {
     readonly findWorkUnitTypes: (
@@ -637,6 +641,10 @@ export function ensureAgentStepRuntimeContext(
       stepExecution,
       workflowDetail,
       projectPin,
+      projectName:
+        typeof project?.name === "string" && project.name.trim().length > 0
+          ? project.name.trim()
+          : null,
       projectRootPath: project?.projectRootPath ?? null,
       workUnitType,
       workflowEditor,

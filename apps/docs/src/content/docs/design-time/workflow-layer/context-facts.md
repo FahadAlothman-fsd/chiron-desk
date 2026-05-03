@@ -73,7 +73,6 @@ Different step types interact with workflow context facts in different ways:
 - `branch` reads context facts to decide routing
 - `invoke` can read context facts as workflow or work-unit targets and can preview propagation outputs
 - `action` currently uses allow-listed context-fact kinds for propagation work
-- `display` may read context values for interpolation, but remains read-only
 - `agent` is intended to read and write only within declared bounds
 
 ## What not to assume
@@ -96,7 +95,7 @@ In Taskflow, a planning workflow could define context facts such as:
 - `storyDocSlot`, as an artifact slot reference fact
 - `implementationNotes`, as a plain fact
 
-A `form` step can capture `implementationNotes`, an `invoke` step can use `selectedStories`, and a later `display` step can show the captured context back to the reviewer.
+A `form` step can capture `implementationNotes`, an `invoke` step can use `selectedStories`, and a later `branch` or `agent` step can reuse the captured context during review.
 
 That lets Taskflow carry one coherent thread from setup inputs, to delegation targets, to review context, without renaming the same data differently on each page.
 

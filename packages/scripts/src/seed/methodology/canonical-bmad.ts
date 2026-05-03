@@ -65,6 +65,46 @@ const CANONICAL_TABLES = {
   methodology_fact_definitions: schema.methodologyFactDefinitions,
 } as const;
 
+const TABLE_PRIMARY_KEY_COLUMNS = {
+  methodology_work_unit_types: "id",
+  methodology_agent_types: "id",
+  work_unit_lifecycle_states: "id",
+  work_unit_lifecycle_transitions: "id",
+  transition_condition_sets: "id",
+  work_unit_fact_definitions: "id",
+  methodology_artifact_slot_definitions: "id",
+  methodology_artifact_slot_templates: "id",
+  methodology_link_type_definitions: "id",
+  methodology_workflows: "id",
+  methodology_workflow_steps: "id",
+  methodology_workflow_context_fact_definitions: "id",
+  methodology_workflow_context_fact_plain_values: "id",
+  methodology_workflow_context_fact_external_bindings: "id",
+  methodology_workflow_context_fact_workflow_references: "id",
+  methodology_workflow_context_fact_artifact_references: "id",
+  methodology_workflow_context_fact_draft_specs: "id",
+  methodology_workflow_context_fact_draft_spec_selections: "id",
+  methodology_workflow_context_fact_draft_spec_facts: "id",
+  methodology_workflow_form_fields: "id",
+  methodology_workflow_agent_steps: "stepId",
+  methodology_workflow_agent_step_explicit_read_grants: "id",
+  methodology_workflow_agent_step_write_items: "id",
+  methodology_workflow_agent_step_write_item_requirements: "id",
+  methodology_workflow_action_steps: "stepId",
+  methodology_workflow_action_step_actions: "id",
+  methodology_workflow_action_step_action_items: "id",
+  methodology_workflow_invoke_steps: "stepId",
+  methodology_workflow_invoke_bindings: "id",
+  methodology_workflow_invoke_transitions: "id",
+  methodology_workflow_branch_steps: "stepId",
+  methodology_workflow_branch_routes: "id",
+  methodology_workflow_branch_route_groups: "id",
+  methodology_workflow_branch_route_conditions: "id",
+  methodology_workflow_edges: "id",
+  methodology_transition_workflow_bindings: "id",
+  methodology_fact_definitions: "id",
+} as const;
+
 type Database = typeof defaultDb;
 type CanonicalTableName = (typeof METHODOLOGY_CANONICAL_TABLE_SEED_ORDER)[number];
 type CanonicalSeedRows = typeof methodologyCanonicalTableSeedRows;
@@ -72,6 +112,10 @@ type ExistingMethodologyVersion = Pick<
   typeof schema.methodologyVersions.$inferSelect,
   "id" | "methodologyId" | "version"
 >;
+type CanonicalPrimaryKeyName<TName extends CanonicalTableName> =
+  (typeof TABLE_PRIMARY_KEY_COLUMNS)[TName];
+type CanonicalRow<TName extends CanonicalTableName> =
+  CanonicalBmadSeedPayload["canonicalRows"][TName][number];
 
 export type CanonicalBmadSeedPayload = {
   readonly definition: ManualSeedMethodologyDefinition;
@@ -118,27 +162,110 @@ function buildSeedRowsForResolvedVersions(versionIdMap: ReadonlyMap<string, stri
   ) as CanonicalBmadSeedPayload["canonicalRows"];
 }
 
-function deleteCanonicalRowsForTable(
+function omitPrimaryKey<TRow extends Record<string, unknown>, TKey extends keyof TRow>(
+  row: TRow,
+  key: TKey,
+) {
+  const { [key]: _omitted, ...rest } = row;
+  return rest;
+}
+
+async function upsertCanonicalRowsForTable<TName extends CanonicalTableName>(
   tx: Parameters<Database["transaction"]>[0] extends (arg: infer T) => unknown ? T : never,
-  tableName: CanonicalTableName,
-  reseedVersionIds: readonly string[],
-  rows: ReadonlyArray<{ readonly id: string } | { readonly methodologyVersionId: string }>,
+  tableName: TName,
+  rows: ReadonlyArray<CanonicalRow<TName>>,
 ) {
   const table = CANONICAL_TABLES[tableName];
+  const primaryKey = TABLE_PRIMARY_KEY_COLUMNS[tableName] as CanonicalPrimaryKeyName<TName>;
 
-  if ("methodologyVersionId" in table) {
-    return tx.delete(table).where(inArray(table.methodologyVersionId, [...reseedVersionIds]));
+  for (const row of rows) {
+    await tx
+      .insert(table)
+      .values(row)
+      .onConflictDoUpdate({
+        target: table[primaryKey],
+        set: omitPrimaryKey(row, primaryKey),
+      });
+  }
+}
+
+async function resyncContextFactSubtypeRows(
+  tx: Parameters<Database["transaction"]>[0] extends (arg: infer T) => unknown ? T : never,
+  payload: CanonicalBmadSeedPayload,
+) {
+  const contextFactIds = payload.canonicalRows.methodology_workflow_context_fact_definitions.map(
+    (row) => row.id,
+  );
+
+  if (contextFactIds.length === 0) {
+    return;
   }
 
-  const rowIds = rows
-    .map((row) => ("id" in row && typeof row.id === "string" ? row.id : null))
-    .filter((rowId): rowId is string => rowId !== null);
+  const draftSpecRows = await tx
+    .select({ id: schema.methodologyWorkflowContextFactDraftSpecs.id })
+    .from(schema.methodologyWorkflowContextFactDraftSpecs)
+    .where(
+      inArray(
+        schema.methodologyWorkflowContextFactDraftSpecs.contextFactDefinitionId,
+        contextFactIds,
+      ),
+    );
 
-  if (rowIds.length === 0) {
-    return Promise.resolve();
+  if (draftSpecRows.length > 0) {
+    await tx.delete(schema.methodologyWorkflowContextFactDraftSpecSelections).where(
+      inArray(
+        schema.methodologyWorkflowContextFactDraftSpecSelections.draftSpecId,
+        draftSpecRows.map((row) => row.id),
+      ),
+    );
+    await tx.delete(schema.methodologyWorkflowContextFactDraftSpecFields).where(
+      inArray(
+        schema.methodologyWorkflowContextFactDraftSpecFields.draftSpecId,
+        draftSpecRows.map((row) => row.id),
+      ),
+    );
   }
 
-  return tx.delete(table).where(inArray(table.id, rowIds));
+  await tx
+    .delete(schema.methodologyWorkflowContextFactDraftSpecs)
+    .where(
+      inArray(
+        schema.methodologyWorkflowContextFactDraftSpecs.contextFactDefinitionId,
+        contextFactIds,
+      ),
+    );
+  await tx
+    .delete(schema.methodologyWorkflowContextFactPlainValues)
+    .where(
+      inArray(
+        schema.methodologyWorkflowContextFactPlainValues.contextFactDefinitionId,
+        contextFactIds,
+      ),
+    );
+  await tx
+    .delete(schema.methodologyWorkflowContextFactExternalBindings)
+    .where(
+      inArray(
+        schema.methodologyWorkflowContextFactExternalBindings.contextFactDefinitionId,
+        contextFactIds,
+      ),
+    );
+  await tx
+    .delete(schema.methodologyWorkflowContextFactWorkflowReferences)
+    .where(
+      inArray(
+        schema.methodologyWorkflowContextFactWorkflowReferences.contextFactDefinitionId,
+        contextFactIds,
+      ),
+    );
+  await tx
+    .delete(schema.methodologyWorkflowContextFactArtifactReferences)
+    .where(
+      inArray(
+        schema.methodologyWorkflowContextFactArtifactReferences.contextFactDefinitionId,
+        contextFactIds,
+      ),
+    );
 }
 
 export function buildCanonicalBmadSeedPayload(options?: {
@@ -230,26 +357,18 @@ export async function seedCanonicalBmadMethodology(database: Database = defaultD
         },
       });
 
-    for (const tableName of [...METHODOLOGY_CANONICAL_TABLE_SEED_ORDER].reverse()) {
-      await deleteCanonicalRowsForTable(
-        tx,
-        tableName,
-        payload.reseedVersionIds,
-        payload.canonicalRows[tableName],
-      );
-    }
+    await resyncContextFactSubtypeRows(tx, payload);
 
     let seededTableCount = 0;
     let insertedCanonicalRowCount = 0;
 
     for (const tableName of METHODOLOGY_CANONICAL_TABLE_SEED_ORDER) {
-      const table = CANONICAL_TABLES[tableName];
       const rows = payload.canonicalRows[tableName];
       if (rows.length === 0) {
         continue;
       }
 
-      await tx.insert(table).values(rows);
+      await upsertCanonicalRowsForTable(tx, tableName, rows);
       seededTableCount += 1;
       insertedCanonicalRowCount += rows.length;
     }
@@ -260,7 +379,7 @@ export async function seedCanonicalBmadMethodology(database: Database = defaultD
       displayName: payload.definition.name,
       versionIds: payload.versions.map((version) => version.id),
       versionCount: payload.versions.length,
-      clearedTableCount: METHODOLOGY_CANONICAL_TABLE_SEED_ORDER.length,
+      clearedTableCount: 0,
       seededTableCount,
       insertedCanonicalRowCount,
     };

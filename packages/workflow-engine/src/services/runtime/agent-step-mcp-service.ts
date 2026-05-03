@@ -674,6 +674,7 @@ export const AgentStepMcpServiceLive = Layer.effect(
         const withInstances = writeSet.filter((item) => item.hasInstances).length;
         return {
           state: context.runtimeState,
+          ...(context.projectName ? { projectName: context.projectName } : {}),
           objective: context.agentPayload.objective,
           instructionsMarkdown: context.agentPayload.instructionsMarkdown,
           completion: {

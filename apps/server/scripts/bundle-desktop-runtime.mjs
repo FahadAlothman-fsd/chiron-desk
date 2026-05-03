@@ -10,7 +10,7 @@ const workspaceRoot = dirname(dirname(serverRoot));
 const distDir = join(serverRoot, "dist");
 const bundledNodeModulesDir = join(distDir, "node_modules");
 const nativePackageNamespace = "@libsql";
-const nativePackageName = "linux-x64-gnu";
+const nativePackageName = resolveNativeLibsqlPackageName();
 const desktopDbPackageDir = join(distDir, "node_modules", "@chiron", "db");
 const serverNodeModulesDir = join(serverRoot, "node_modules");
 const serverPackage = JSON.parse(await readFile(join(serverRoot, "package.json"), "utf8"));
@@ -76,6 +76,45 @@ const bundledNativeDir = join(distDir, "node_modules", nativePackageNamespace, n
 await rm(bundledNativeDir, { force: true, recursive: true });
 await mkdir(dirname(bundledNativeDir), { recursive: true });
 await cp(join(nativeNamespaceDir, nativeCacheEntry), bundledNativeDir, { recursive: true });
+
+function resolveNativeLibsqlPackageName() {
+  if (process.platform === "darwin") {
+    if (process.arch === "arm64") {
+      return "darwin-arm64";
+    }
+
+    if (process.arch === "x64") {
+      return "darwin-x64";
+    }
+  }
+
+  if (process.platform === "linux") {
+    const libcFamily = detectLinuxLibcFamily();
+
+    if (process.arch === "arm") {
+      return libcFamily === "musl" ? "linux-arm-musleabihf" : "linux-arm-gnueabihf";
+    }
+
+    if (process.arch === "arm64") {
+      return libcFamily === "musl" ? "linux-arm64-musl" : "linux-arm64-gnu";
+    }
+
+    if (process.arch === "x64") {
+      return libcFamily === "musl" ? "linux-x64-musl" : "linux-x64-gnu";
+    }
+  }
+
+  if (process.platform === "win32" && process.arch === "x64") {
+    return "win32-x64-msvc";
+  }
+
+  throw new Error(`Unsupported libsql native target for ${process.platform}/${process.arch}`);
+}
+
+function detectLinuxLibcFamily() {
+  const runtimeReport = process.report?.getReport?.();
+  return runtimeReport?.header?.glibcVersionRuntime ? "glibc" : "musl";
+}
 
 async function copyRuntimePackage(packagePath) {
   const packageDir = await realpath(packagePath);

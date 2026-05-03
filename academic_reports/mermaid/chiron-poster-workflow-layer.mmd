@@ -1,0 +1,26 @@
+%%{init: {"theme":"neutral","themeVariables":{"fontFamily":"Arial","fontSize":"28px","lineColor":"#111827","arrowheadColor":"#111827","edgeLabelBackground":"#f8fafc"},"flowchart":{"curve":"linear","nodeSpacing":75,"rankSpacing":70,"padding":26,"htmlLabels":true},"themeCSS":".marker path{transform:scale(2.2);transform-origin:center;fill:#111827 !important;stroke:#111827 !important;} .edge-thickness-thick{stroke-width:7px !important;} .edge-thickness-normal{stroke-width:6px !important;}"}}%%
+flowchart TB
+    W[WORKFLOW]
+    CF[WORKFLOW CONTEXT FACTS]
+    A[agent]
+    F[form]
+    B[branch]
+    AC[action]
+    I[invoke]
+
+    W ==> CF
+    CF ==> A
+    CF ==> F
+    CF ==> B
+    CF ==> AC
+    CF ==> I
+
+    linkStyle 0,1,2,3,4,5 stroke:#111827,stroke-width:7px;
+
+    classDef workflow fill:#dbeafe,stroke:#2563eb,color:#1e3a8a,stroke-width:5px,font-size:34px;
+    classDef facts fill:#ccfbf1,stroke:#0f766e,color:#134e4a,stroke-width:5px,font-size:30px;
+    classDef step fill:#ffedd5,stroke:#ea580c,color:#7c2d12,stroke-width:4px,font-size:26px;
+
+    class W workflow;
+    class CF facts;
+    class A,F,B,AC,I step;

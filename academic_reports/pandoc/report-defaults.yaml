@@ -1,0 +1,15 @@
+from: markdown+raw_tex
+to: pdf
+standalone: true
+input-files:
+  - academic_reports/report.md
+output-file: academic_reports/report.pdf
+pdf-engine: xelatex
+resource-path:
+  - .
+  - academic_reports
+toc: true
+number-sections: true
+metadata:
+  linkcolor: blue
+  urlcolor: blue

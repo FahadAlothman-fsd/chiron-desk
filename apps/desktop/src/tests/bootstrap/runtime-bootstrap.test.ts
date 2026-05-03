@@ -64,6 +64,41 @@ describe("bootstrapRuntimeState", () => {
     expect(writeText).not.toHaveBeenCalled();
   });
 
+  it("seeds the packaged database on first run when a template is provided", async () => {
+    const seedDatabase = vi.fn().mockResolvedValue(undefined);
+
+    await bootstrapRuntimeState({
+      userDataPath: "/tmp/chiron",
+      choosePort: vi.fn().mockResolvedValue(43110),
+      readJson: vi.fn().mockResolvedValueOnce(undefined).mockResolvedValueOnce(undefined),
+      writeText: vi.fn().mockResolvedValue(undefined),
+      writeJson: vi.fn().mockResolvedValue(undefined),
+      ensureDir: vi.fn().mockResolvedValue(undefined),
+      databaseExists: vi.fn().mockResolvedValue(false),
+      seedDatabase,
+    });
+
+    expect(seedDatabase).toHaveBeenCalledWith("/tmp/chiron/runtime/data/chiron.db");
+  });
+
+  it("reseeds an invalid packaged database when required tables are missing", async () => {
+    const seedDatabase = vi.fn().mockResolvedValue(undefined);
+
+    await bootstrapRuntimeState({
+      userDataPath: "/tmp/chiron",
+      choosePort: vi.fn().mockResolvedValue(43110),
+      readJson: vi.fn().mockResolvedValueOnce(undefined).mockResolvedValueOnce(undefined),
+      writeText: vi.fn().mockResolvedValue(undefined),
+      writeJson: vi.fn().mockResolvedValue(undefined),
+      ensureDir: vi.fn().mockResolvedValue(undefined),
+      databaseExists: vi.fn().mockResolvedValue(true),
+      requiresDatabaseSeed: vi.fn().mockResolvedValue(true),
+      seedDatabase,
+    });
+
+    expect(seedDatabase).toHaveBeenCalledWith("/tmp/chiron/runtime/data/chiron.db");
+  });
+
   it("reuses persisted config and secrets without rewriting", async () => {
     const persistedConfig = {
       version: 1 as const,

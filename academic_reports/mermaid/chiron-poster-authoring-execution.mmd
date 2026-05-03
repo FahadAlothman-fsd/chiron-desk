@@ -1,0 +1,40 @@
+%%{init: {"theme":"neutral","themeVariables":{"fontFamily":"Arial","fontSize":"28px","primaryColor":"#eaf7f4","primaryTextColor":"#0f172a","primaryBorderColor":"#0f766e","secondaryColor":"#fff7ed","secondaryTextColor":"#7c2d12","secondaryBorderColor":"#ea580c","tertiaryColor":"#f6f2df","tertiaryTextColor":"#5b4b16","tertiaryBorderColor":"#b59d3b","lineColor":"#475569","edgeLabelBackground":"#ffffff"},"flowchart":{"curve":"linear","nodeSpacing":65,"rankSpacing":85,"padding":26,"htmlLabels":true}}}%%
+flowchart LR
+    subgraph A[**METHODOLOGY AUTHORING**]
+        direction TB
+        A1[**Methodology**<br/>Reusable delivery model]
+        A2[**Work Unit Types**<br/>State-bearing work contracts]
+        A3[**Transitions & Gates**<br/>Authored movement policy]
+        A4[**Workflows**<br/>Execution paths bound to transitions]
+        A5[**Facts & Artifact Slots**<br/>Durable context and output contracts]
+        A1 --> A2
+        A2 --> A3
+        A2 --> A4
+        A2 --> A5
+        A3 --> A4
+    end
+
+    subgraph B[**PROJECT EXECUTION**]
+        direction TB
+        B1[**Project Runtime**<br/>Instantiated methodology version]
+        B2[**Work Unit Instances**<br/>Current state, possible transitions]
+        B3[**Active Transition Execution**<br/>Readiness and completion inspection]
+        B4[**Workflow Execution**<br/>Step-by-step governed progression]
+        B5[**Human Review & Evidence**<br/>Inspectable outputs and runtime surfaces]
+        B1 --> B2
+        B2 --> B3
+        B3 --> B4
+        B4 --> B5
+    end
+
+    A4 ==> |**instantiates execution logic**| B4
+    A3 ==> |**governs runtime movement**| B3
+    A5 ==> |**supplies context and evidence model**| B5
+    A2 ==> |**defines instance contract**| B2
+
+    classDef authoring fill:#eaf7f4,stroke:#0f766e,color:#134e4a,stroke-width:4px,font-size:30px,font-weight:bold;
+    classDef runtime fill:#fff7ed,stroke:#ea580c,color:#7c2d12,stroke-width:4px,font-size:30px,font-weight:bold;
+    classDef bridge fill:#f6f2df,stroke:#b59d3b,color:#5b4b16,stroke-width:4px,font-size:30px,font-weight:bold;
+    class A1,A2,A3,A4,A5 authoring;
+    class B1,B2,B3,B4,B5 runtime;
+    class A,B bridge;

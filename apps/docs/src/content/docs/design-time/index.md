@@ -3,6 +3,8 @@ title: Design Time
 ---
 Design Time is the public entry point for methodology authoring in Chiron.
 
+It should be read as a way to author a safe delivery method, not as a requirement to front-load every project with heavyweight planning.
+
 ## What Design Time owns
 
 Design Time explains how a reusable method is shaped before a project starts running it.
@@ -13,6 +15,8 @@ That includes:
 - work-unit contract boundaries
 - workflow ownership inside a work unit
 - the public framing for the Step Layer
+
+The default goal is simple: give work a clear path from intent to verification. More elaborate branches only make sense when they help a project move.
 
 ## Read this track when you are
 
@@ -31,12 +35,13 @@ When deeper implementation detail matters, the public site links outward to inte
 
 Taskflow keeps the Design Time story concrete.
 
-- setup and onboarding starts here, where the method, work-unit contracts, workflows, branches, and first artifact slots are defined
-- fan-out and delegation is prepared here, where parent-child work-unit relationships, invoke paths, and returned artifact expectations are authored
-- review and rework is prepared here, where approval routes, review evidence, and rework branches become part of the method instead of an improvised side loop
+- the seeded method is authored here
+- the Taskflow runtime pages later show that method in motion from setup through implementation
+
+That split is deliberate. Design Time explains how the contract is authored. Taskflow Runtime explains what the resulting work looks like when a project actually runs it.
 
 > **Screenshot placeholder**
-> Design Time landing view, showing the four public layers and how the three Taskflow slices map onto them.
+> Design Time landing view, showing the four public layers and how the default seeded method shapes the Taskflow runtime journey.
 
 ## Next move
 

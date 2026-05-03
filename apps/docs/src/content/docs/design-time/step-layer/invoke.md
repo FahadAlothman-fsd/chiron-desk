@@ -55,10 +55,10 @@ Invoke v1 is intentionally constrained.
 
 ## Taskflow example
 
-In Taskflow fan-out and delegation, an epic-level workflow can use an `invoke` step to activate child story work units from a selected set of story draft specs, then expose the created child references for later review.
+In the public Taskflow example, an `invoke` step shows up most clearly when `setup` creates downstream `brainstorming` and `research` work, or when `prd` creates `implementation` work from durable draft specs.
 
 > **Screenshot placeholder**
-> Taskflow invoke step, showing child story targets, activation transition, propagation preview, and returned work-unit references.
+> Taskflow invoke step, showing the downstream work-unit target, activation transition, and propagated draft context.
 
 ## Current behavior and implementation status
 

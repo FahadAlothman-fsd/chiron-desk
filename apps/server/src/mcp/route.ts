@@ -21,6 +21,7 @@ const readStepExecutionSnapshotOutputSchema = z.object({
     "disconnected_or_error",
     "completed",
   ]),
+  projectName: z.string().optional(),
   objective: z.string().min(1),
   instructionsMarkdown: z.string().min(1),
   completion: z.object({

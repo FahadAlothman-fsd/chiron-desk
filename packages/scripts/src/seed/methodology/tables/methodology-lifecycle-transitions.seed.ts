@@ -3,6 +3,7 @@ import { schema } from "@chiron/db";
 import {
   architectureLifecycleTransitionSeedRows,
   brainstormingLifecycleTransitionSeedRows,
+  implementationLifecycleTransitionSeedRows,
   prdLifecycleTransitionSeedRows,
   productBriefLifecycleTransitionSeedRows,
   researchLifecycleTransitionSeedRows,
@@ -20,6 +21,7 @@ export const methodologyLifecycleTransitionSeedRows: readonly MethodologyLifecyc
     ...researchLifecycleTransitionSeedRows,
     ...productBriefLifecycleTransitionSeedRows,
     ...prdLifecycleTransitionSeedRows,
+    ...implementationLifecycleTransitionSeedRows,
     ...uxDesignLifecycleTransitionSeedRows,
     ...architectureLifecycleTransitionSeedRows,
   ];

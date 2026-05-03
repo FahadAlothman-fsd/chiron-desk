@@ -2,6 +2,7 @@ import type { FactCardinality, FactType } from "@chiron/contracts/methodology/fa
 import type { RuntimeConditionTree } from "@chiron/contracts/runtime/conditions";
 import type {
   RuntimeFormFieldOption,
+  RuntimeFormNestedField,
   RuntimeInvokeStepExecutionDetailBody,
   RuntimeInvokeTargetStatus,
 } from "@chiron/contracts/runtime/executions";
@@ -12,7 +13,7 @@ import type {
 import { LifecycleRepository, MethodologyRepository } from "@chiron/methodology-engine";
 import { ProjectContextRepository } from "@chiron/project-context";
 import { SandboxGitService } from "@chiron/sandbox-engine";
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, Option } from "effect";
 import type { ArtifactCurrentState } from "../repositories/artifact-repository";
 
 import { RepositoryError } from "../errors";
@@ -164,6 +165,175 @@ const optionListFromValidation = (
   return enumValues.map((entry) => ({ value: entry, label: stringifyOptionLabel(entry) }));
 };
 
+const extractMarkdown = (value: unknown): string | undefined =>
+  isPlainRecord(value) && typeof value.markdown === "string" ? value.markdown : undefined;
+
+const getJsonSchemaPropertyValidation = (property: unknown): unknown => {
+  if (!isPlainRecord(property)) {
+    return undefined;
+  }
+
+  if ("x-validation" in property) {
+    return property["x-validation"];
+  }
+
+  return property.validation;
+};
+
+const editorNestedFieldsFromValidation = (params: {
+  validationJson: unknown;
+  workUnitTypes: readonly WorkUnitTypeSummary[];
+  projectWorkUnits: readonly RuntimeProjectWorkUnitOption[];
+}): RuntimeFormNestedField[] | undefined => {
+  if (!isPlainRecord(params.validationJson) || params.validationJson.kind !== "json-schema") {
+    return undefined;
+  }
+
+  const schema = isPlainRecord(params.validationJson.schema) ? params.validationJson.schema : null;
+  const schemaProperties = isPlainRecord(schema?.properties) ? schema.properties : null;
+  const required = Array.isArray(schema?.required)
+    ? new Set(schema.required.filter((entry): entry is string => typeof entry === "string"))
+    : new Set<string>();
+  const subSchema = isPlainRecord(params.validationJson.subSchema)
+    ? params.validationJson.subSchema
+    : null;
+
+  const buildNestedField = (params: {
+    key: string;
+    label?: string;
+    factType: FactType;
+    cardinality: FactCardinality;
+    required: boolean;
+    description?: string;
+    validation?: unknown;
+  }): RuntimeFormNestedField => {
+    const validationOptions = optionListFromValidation(params.validation);
+    const workUnitMetadata =
+      params.factType === "work_unit" || hasWorkUnitValidationKey(params.validation)
+        ? workUnitOptionsFromValidation({
+            validationJson: params.validation,
+            workUnitTypes: params.workUnitTypes,
+            projectWorkUnits: params.projectWorkUnits,
+          })
+        : {};
+
+    return {
+      key: params.key,
+      label: params.label ?? humanizeKey(params.key),
+      factType: params.factType,
+      cardinality: params.cardinality,
+      required: params.required,
+      ...(params.description ? { description: params.description } : {}),
+      ...(typeof params.validation !== "undefined" ? { validation: params.validation } : {}),
+      ...(workUnitMetadata.editorOptions
+        ? { options: workUnitMetadata.editorOptions }
+        : validationOptions
+          ? { options: validationOptions }
+          : {}),
+      ...(workUnitMetadata.editorEmptyState
+        ? { emptyState: workUnitMetadata.editorEmptyState }
+        : {}),
+      ...(workUnitMetadata.editorWorkUnitTypeKey
+        ? { workUnitTypeKey: workUnitMetadata.editorWorkUnitTypeKey }
+        : {}),
+    };
+  };
+
+  if (subSchema && subSchema.type === "object" && Array.isArray(subSchema.fields)) {
+    return subSchema.fields.flatMap((field) => {
+      if (!isPlainRecord(field) || typeof field.key !== "string") {
+        return [];
+      }
+
+      if (
+        field.type !== "string" &&
+        field.type !== "number" &&
+        field.type !== "boolean" &&
+        field.type !== "json" &&
+        field.type !== "work_unit"
+      ) {
+        return [];
+      }
+
+      const propertyValidation = schemaProperties
+        ? getJsonSchemaPropertyValidation(schemaProperties[field.key])
+        : undefined;
+
+      return [
+        buildNestedField({
+          key: field.key,
+          label: typeof field.displayName === "string" ? field.displayName : undefined,
+          factType: field.type,
+          cardinality: field.cardinality === "many" ? "many" : "one",
+          required: required.has(field.key),
+          description: extractMarkdown(field.description),
+          validation: field.validation ?? propertyValidation,
+        }),
+      ];
+    });
+  }
+
+  if (!schemaProperties) {
+    return undefined;
+  }
+
+  const nestedFields = Object.entries(schemaProperties).flatMap(([key, property]) => {
+    if (!isPlainRecord(property)) {
+      return [];
+    }
+
+    const propertyType = property.type;
+    const factType =
+      propertyType === "string" ||
+      propertyType === "number" ||
+      propertyType === "boolean" ||
+      propertyType === "json" ||
+      propertyType === "work_unit"
+        ? (propertyType as FactType)
+        : propertyType === "object"
+          ? ("json" as const)
+          : null;
+
+    if (!factType) {
+      return [];
+    }
+
+    const cardinality =
+      property.cardinality === "many" || property.cardinality === "one"
+        ? (property.cardinality as FactCardinality)
+        : propertyType === "array"
+          ? ("many" as const)
+          : ("one" as const);
+
+    const propertyValidation =
+      propertyType === "array" && isPlainRecord(property.items)
+        ? (getJsonSchemaPropertyValidation(property.items) ??
+          getJsonSchemaPropertyValidation(property))
+        : getJsonSchemaPropertyValidation(property);
+
+    return [
+      buildNestedField({
+        key,
+        label: typeof property.title === "string" ? property.title : undefined,
+        factType:
+          propertyType === "array" &&
+          isPlainRecord(property.items) &&
+          (property.items.type === "string" ||
+            property.items.type === "number" ||
+            property.items.type === "boolean")
+            ? (property.items.type as FactType)
+            : factType,
+        cardinality,
+        required: required.has(key),
+        description: typeof property.description === "string" ? property.description : undefined,
+        validation: propertyValidation,
+      }),
+    ];
+  });
+
+  return nestedFields.length > 0 ? nestedFields : undefined;
+};
+
 const workUnitOptionsFromValidation = (params: {
   validationJson: unknown;
   workUnitTypes: readonly WorkUnitTypeSummary[];
@@ -239,6 +409,64 @@ const hasProjectWorkUnitId = (value: unknown): value is { projectWorkUnitId: str
   isPlainRecord(value) &&
   typeof value.projectWorkUnitId === "string" &&
   value.projectWorkUnitId.length > 0;
+
+const normalizeInvokeFactValue = (params: {
+  destinationFactType: FactType | undefined;
+  value: unknown;
+}): unknown => {
+  if (params.destinationFactType !== "work_unit") {
+    return params.value;
+  }
+
+  if (hasProjectWorkUnitId(params.value)) {
+    return params.value;
+  }
+
+  return typeof params.value === "string" && params.value.length > 0
+    ? { projectWorkUnitId: params.value }
+    : undefined;
+};
+
+const resolveInvokeDraftFactValue = (params: {
+  factValues: ReadonlyArray<{ workUnitFactDefinitionId: string; value: unknown }>;
+  destinationDefinitionId: string;
+  destinationFactType: FactType | undefined;
+  destinationCardinality: FactCardinality | undefined;
+}): unknown => {
+  const matchedEntries = params.factValues.filter(
+    (entry) => entry.workUnitFactDefinitionId === params.destinationDefinitionId,
+  );
+
+  if (matchedEntries.length === 0) {
+    return undefined;
+  }
+
+  const normalizedEntries = matchedEntries.flatMap((entry) => {
+    if (params.destinationCardinality === "many" && Array.isArray(entry.value)) {
+      return entry.value
+        .map((value) =>
+          normalizeInvokeFactValue({
+            destinationFactType: params.destinationFactType,
+            value,
+          }),
+        )
+        .filter((value) => typeof value !== "undefined");
+    }
+
+    const normalizedValue = normalizeInvokeFactValue({
+      destinationFactType: params.destinationFactType,
+      value: entry.value,
+    });
+
+    return typeof normalizedValue === "undefined" ? [] : [normalizedValue];
+  });
+
+  if (params.destinationCardinality === "many") {
+    return normalizedEntries;
+  }
+
+  return normalizedEntries[0];
+};
 
 const stableStringify = (value: unknown): string => {
   if (Array.isArray(value)) {
@@ -381,19 +609,25 @@ const toChildFactDisplayValue = (params: {
     valueJson: unknown;
   }[];
 }): unknown => {
-  const values = params.factInstances.map((factInstance) =>
-    params.destinationFactType === "work_unit"
-      ? factInstance.referencedProjectWorkUnitId !== null
-        ? { projectWorkUnitId: factInstance.referencedProjectWorkUnitId }
-        : null
-      : factInstance.valueJson,
-  );
+  const values = params.factInstances.flatMap((factInstance) => {
+    if (params.destinationFactType === "work_unit") {
+      return factInstance.referencedProjectWorkUnitId !== null
+        ? [{ projectWorkUnitId: factInstance.referencedProjectWorkUnitId }]
+        : [];
+    }
+
+    if (params.destinationCardinality === "many" && Array.isArray(factInstance.valueJson)) {
+      return factInstance.valueJson;
+    }
+
+    return typeof factInstance.valueJson === "undefined" ? [] : [factInstance.valueJson];
+  });
 
   if (params.destinationCardinality === "many") {
-    return values.filter((value) => value !== null);
+    return values;
   }
 
-  return values.find((value) => value !== null);
+  return values[0];
 };
 
 const toChildArtifactDisplayValue = (params: {
@@ -853,7 +1087,7 @@ export class InvokeStepDetailService extends Context.Tag(
 export const InvokeStepDetailServiceLive = Layer.effect(
   InvokeStepDetailService,
   Effect.gen(function* () {
-    const projectContextRepo = yield* ProjectContextRepository;
+    const projectContextRepo = yield* Effect.serviceOption(ProjectContextRepository);
     const sandboxGit = yield* SandboxGitService;
     const lifecycleRepo = yield* LifecycleRepository;
     const methodologyRepo = yield* MethodologyRepository;
@@ -873,11 +1107,24 @@ export const InvokeStepDetailServiceLive = Layer.effect(
       workflowDetail,
     }: BuildInvokeStepExecutionDetailBodyParams) =>
       Effect.gen(function* () {
-        const projectPin = yield* projectContextRepo.findProjectPin(projectId);
+        const projectPin = Option.isSome(projectContextRepo)
+          ? yield* projectContextRepo.value.findProjectPin(projectId)
+          : {
+              projectId,
+              methodologyVersionId: "unknown-version",
+              methodologyId: "unknown-methodology",
+              methodologyKey: "unknown",
+              publishedVersion: "unknown",
+              actorId: null,
+              createdAt: new Date(0),
+              updatedAt: new Date(0),
+            };
         if (!projectPin) {
           return yield* makeDetailError("project methodology pin missing for invoke step detail");
         }
-        const project = yield* projectContextRepo.getProjectById({ projectId });
+        const project = Option.isSome(projectContextRepo)
+          ? yield* projectContextRepo.value.getProjectById({ projectId })
+          : null;
 
         const workUnitTypes = yield* lifecycleRepo.findWorkUnitTypes(
           projectPin.methodologyVersionId,
@@ -1139,45 +1386,17 @@ export const InvokeStepDetailServiceLive = Layer.effect(
               .filter((fact) => fact.contextFactDefinitionId === sourceContextFactDefinitionId)
               .sort((left, right) => left.instanceOrder - right.instanceOrder)
           : [];
+        const sourceDraftTemplate = resolveDraftTemplateFromContextInstances({
+          sourceContextFact,
+          sourceInstances: sourceContextFactInstances,
+        });
 
-        const invokeBindingPreview: RuntimeInvokeStepExecutionDetailBody["workUnitTargets"][number]["bindingPreview"] =
-          invokeTargetKind === "work_unit"
-            ? (workUnitInvokePayload?.bindings ?? []).map((binding) => {
-                if (binding.destination.kind === "work_unit_fact") {
-                  const destination = workUnitFactDefinitionsById.get(
-                    binding.destination.workUnitFactDefinitionId,
-                  );
-                  const sourceContextFactDefinitionId =
-                    binding.source.kind === "context_fact"
-                      ? binding.source.contextFactDefinitionId
-                      : undefined;
-                  const sourceContextFact = sourceContextFactDefinitionId
-                    ? contextFactsByDefinitionId.get(sourceContextFactDefinitionId)
-                    : undefined;
-                  const sourceInstances = sourceContextFactDefinitionId
-                    ? workflowContextFacts
-                        .filter(
-                          (fact) => fact.contextFactDefinitionId === sourceContextFactDefinitionId,
-                        )
-                        .sort((left, right) => left.instanceOrder - right.instanceOrder)
-                    : [];
-                  const sourceDraftTemplate = resolveDraftTemplateFromContextInstances({
-                    sourceContextFact,
-                    sourceInstances,
-                  });
-                  const authoredPrefillValueJson =
-                    binding.source.kind === "literal"
-                      ? binding.source.value
-                      : binding.source.kind === "context_fact"
-                        ? sourceContextFact?.kind === "work_unit_draft_spec_fact"
-                          ? sourceDraftTemplate?.factValues.find(
-                              (entry) =>
-                                entry.workUnitFactDefinitionId ===
-                                binding.destination.workUnitFactDefinitionId,
-                            )?.value
-                          : resolveBindingSourceValue({ sourceContextFact, sourceInstances })
-                        : undefined;
-
+        const draftSpecBindingPreview: RuntimeInvokeStepExecutionDetailBody["workUnitTargets"][number]["bindingPreview"] =
+          invokeTargetKind === "work_unit" &&
+          sourceContextFact?.kind === "work_unit_draft_spec_fact"
+            ? [
+                ...sourceContextFact.selectedWorkUnitFactDefinitionIds.flatMap((definitionId) => {
+                  const destination = workUnitFactDefinitionsById.get(definitionId);
                   const bindingEditorOptions = optionListFromValidation(
                     destination?.validationJson,
                   );
@@ -1196,25 +1415,280 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                     workUnitEditorMetadata.editorWorkUnitTypeKey
                       ? ("work_unit" as const)
                       : destination?.factType;
-
-                  return {
-                    destinationKind: "work_unit_fact",
-                    destinationDefinitionId: binding.destination.workUnitFactDefinitionId,
-                    destinationLabel:
-                      destination?.label ??
-                      humanizeKey(binding.destination.workUnitFactDefinitionId),
+                  const authoredPrefillValueJson = resolveInvokeDraftFactValue({
+                    factValues: sourceDraftTemplate?.factValues ?? [],
+                    destinationDefinitionId: definitionId,
                     destinationFactType,
                     destinationCardinality: destination?.cardinality,
-                    ...(workUnitEditorMetadata.editorOptions
-                      ? { editorOptions: workUnitEditorMetadata.editorOptions }
-                      : bindingEditorOptions
-                        ? { editorOptions: bindingEditorOptions }
+                  });
+                  const editorNestedFields = destination
+                    ? editorNestedFieldsFromValidation({
+                        validationJson: destination.validationJson,
+                        workUnitTypes: [...workUnitTypeById.values()],
+                        projectWorkUnits,
+                      })
+                    : undefined;
+
+                  return [
+                    {
+                      destinationKind: "work_unit_fact" as const,
+                      destinationDefinitionId: definitionId,
+                      destinationLabel: destination?.label ?? humanizeKey(definitionId),
+                      destinationFactType,
+                      destinationCardinality: destination?.cardinality,
+                      ...(destination?.validationJson
+                        ? { validation: destination.validationJson }
                         : {}),
-                    ...(workUnitEditorMetadata.editorEmptyState
-                      ? { editorEmptyState: workUnitEditorMetadata.editorEmptyState }
+                      ...(workUnitEditorMetadata.editorOptions
+                        ? { editorOptions: workUnitEditorMetadata.editorOptions }
+                        : bindingEditorOptions
+                          ? { editorOptions: bindingEditorOptions }
+                          : {}),
+                      ...(editorNestedFields && editorNestedFields.length > 0
+                        ? { editorNestedFields }
+                        : {}),
+                      ...(workUnitEditorMetadata.editorEmptyState
+                        ? { editorEmptyState: workUnitEditorMetadata.editorEmptyState }
+                        : {}),
+                      ...(workUnitEditorMetadata.editorWorkUnitTypeKey
+                        ? { editorWorkUnitTypeKey: workUnitEditorMetadata.editorWorkUnitTypeKey }
+                        : {}),
+                      sourceKind: "context_fact" as const,
+                      sourceContextFactDefinitionId,
+                      sourceContextFactKey: sourceContextFact.key,
+                      sourceContextFactLabel: getContextFactLabel(sourceContextFact),
+                      sourceContextFactKind: sourceContextFact.kind,
+                      sourceContextFactCardinality: sourceContextFact.cardinality,
+                      sourceContextFactValueType: getContextFactValueTypeLabel(sourceContextFact),
+                      ...(typeof authoredPrefillValueJson !== "undefined"
+                        ? {
+                            authoredPrefillValueJson,
+                            resolvedValueJson: authoredPrefillValueJson,
+                          }
+                        : {}),
+                      requiresRuntimeValue: false,
+                    },
+                  ];
+                }),
+                ...sourceContextFact.selectedArtifactSlotDefinitionIds.map((definitionId) => {
+                  const destination = artifactSlotDefinitionsById.get(definitionId);
+                  const authoredPrefillValueJson = sourceDraftTemplate?.artifactSlots
+                    .find((entry) => entry.artifactSlotDefinitionId === definitionId)
+                    ?.files.find((file) => file.clear !== true)?.relativePath;
+                  const artifactEditorMetadata = artifactOptionsFromContextFacts({
+                    destinationArtifactSlotDefinitionId: definitionId,
+                    workflowContextFacts,
+                    workflowEditorContextFacts: workflowEditor.contextFacts,
+                    projectRootPath: project?.projectRootPath ?? undefined,
+                    sandboxGit,
+                  });
+
+                  return {
+                    destinationKind: "artifact_slot" as const,
+                    destinationDefinitionId: definitionId,
+                    destinationLabel: destination?.label ?? humanizeKey(definitionId),
+                    destinationCardinality: destination?.cardinality,
+                    ...(artifactEditorMetadata.editorOptions
+                      ? { editorOptions: artifactEditorMetadata.editorOptions }
                       : {}),
-                    ...(workUnitEditorMetadata.editorWorkUnitTypeKey
-                      ? { editorWorkUnitTypeKey: workUnitEditorMetadata.editorWorkUnitTypeKey }
+                    ...(artifactEditorMetadata.editorEmptyState
+                      ? { editorEmptyState: artifactEditorMetadata.editorEmptyState }
+                      : {}),
+                    sourceKind: "context_fact" as const,
+                    sourceContextFactDefinitionId,
+                    sourceContextFactKey: sourceContextFact.key,
+                    sourceContextFactLabel: getContextFactLabel(sourceContextFact),
+                    sourceContextFactKind: sourceContextFact.kind,
+                    sourceContextFactCardinality: sourceContextFact.cardinality,
+                    sourceContextFactValueType: getContextFactValueTypeLabel(sourceContextFact),
+                    ...(artifactEditorMetadata.sourceWarnings?.length
+                      ? { sourceWarnings: artifactEditorMetadata.sourceWarnings }
+                      : {}),
+                    ...(typeof authoredPrefillValueJson !== "undefined"
+                      ? {
+                          authoredPrefillValueJson: { relativePath: authoredPrefillValueJson },
+                          resolvedValueJson: { relativePath: authoredPrefillValueJson },
+                        }
+                      : {}),
+                    requiresRuntimeValue: false,
+                  };
+                }),
+              ]
+            : [];
+
+        const invokeBindingPreview: RuntimeInvokeStepExecutionDetailBody["workUnitTargets"][number]["bindingPreview"] =
+          invokeTargetKind === "work_unit"
+            ? [
+                ...draftSpecBindingPreview,
+                ...(workUnitInvokePayload?.bindings ?? []).map((binding) => {
+                  if (binding.destination.kind === "work_unit_fact") {
+                    const destination = workUnitFactDefinitionsById.get(
+                      binding.destination.workUnitFactDefinitionId,
+                    );
+                    const sourceContextFactDefinitionId =
+                      binding.source.kind === "context_fact"
+                        ? binding.source.contextFactDefinitionId
+                        : undefined;
+                    const sourceContextFact = sourceContextFactDefinitionId
+                      ? contextFactsByDefinitionId.get(sourceContextFactDefinitionId)
+                      : undefined;
+                    const sourceInstances = sourceContextFactDefinitionId
+                      ? workflowContextFacts
+                          .filter(
+                            (fact) =>
+                              fact.contextFactDefinitionId === sourceContextFactDefinitionId,
+                          )
+                          .sort((left, right) => left.instanceOrder - right.instanceOrder)
+                      : [];
+                    const bindingEditorOptions = optionListFromValidation(
+                      destination?.validationJson,
+                    );
+                    const workUnitEditorMetadata =
+                      destination &&
+                      (destination.factType === "work_unit" ||
+                        hasWorkUnitValidationKey(destination.validationJson))
+                        ? workUnitOptionsFromValidation({
+                            validationJson: destination.validationJson,
+                            workUnitTypes: [...workUnitTypeById.values()],
+                            projectWorkUnits,
+                          })
+                        : {};
+                    const destinationFactType =
+                      destination?.factType === "string" &&
+                      workUnitEditorMetadata.editorWorkUnitTypeKey
+                        ? ("work_unit" as const)
+                        : destination?.factType;
+                    const authoredPrefillValueJson =
+                      binding.source.kind === "literal"
+                        ? binding.source.value
+                        : binding.source.kind === "context_fact"
+                          ? sourceContextFact?.kind === "work_unit_draft_spec_fact"
+                            ? resolveInvokeDraftFactValue({
+                                factValues: sourceDraftTemplate?.factValues ?? [],
+                                destinationDefinitionId:
+                                  binding.destination.workUnitFactDefinitionId,
+                                destinationFactType,
+                                destinationCardinality: destination?.cardinality,
+                              })
+                            : resolveBindingSourceValue({ sourceContextFact, sourceInstances })
+                          : undefined;
+                    const editorNestedFields = destination
+                      ? editorNestedFieldsFromValidation({
+                          validationJson: destination.validationJson,
+                          workUnitTypes: [...workUnitTypeById.values()],
+                          projectWorkUnits,
+                        })
+                      : undefined;
+
+                    return {
+                      destinationKind: "work_unit_fact",
+                      destinationDefinitionId: binding.destination.workUnitFactDefinitionId,
+                      destinationLabel:
+                        destination?.label ??
+                        humanizeKey(binding.destination.workUnitFactDefinitionId),
+                      destinationFactType,
+                      destinationCardinality: destination?.cardinality,
+                      ...(destination?.validationJson
+                        ? { validation: destination.validationJson }
+                        : {}),
+                      ...(workUnitEditorMetadata.editorOptions
+                        ? { editorOptions: workUnitEditorMetadata.editorOptions }
+                        : bindingEditorOptions
+                          ? { editorOptions: bindingEditorOptions }
+                          : {}),
+                      ...(editorNestedFields && editorNestedFields.length > 0
+                        ? { editorNestedFields }
+                        : {}),
+                      ...(workUnitEditorMetadata.editorEmptyState
+                        ? { editorEmptyState: workUnitEditorMetadata.editorEmptyState }
+                        : {}),
+                      ...(workUnitEditorMetadata.editorWorkUnitTypeKey
+                        ? { editorWorkUnitTypeKey: workUnitEditorMetadata.editorWorkUnitTypeKey }
+                        : {}),
+                      sourceKind: binding.source.kind,
+                      sourceContextFactDefinitionId: sourceContextFactDefinitionId,
+                      sourceContextFactKey: sourceContextFact?.key,
+                      sourceContextFactLabel: sourceContextFact
+                        ? getContextFactLabel(sourceContextFact)
+                        : undefined,
+                      sourceContextFactKind: sourceContextFact?.kind,
+                      sourceContextFactCardinality: sourceContextFact?.cardinality,
+                      sourceContextFactValueType: getContextFactValueTypeLabel(sourceContextFact),
+                      ...(typeof authoredPrefillValueJson !== "undefined"
+                        ? {
+                            authoredPrefillValueJson,
+                            resolvedValueJson: authoredPrefillValueJson,
+                          }
+                        : {}),
+                      requiresRuntimeValue: binding.source.kind === "runtime",
+                    };
+                  }
+
+                  const destination = artifactSlotDefinitionsById.get(
+                    binding.destination.artifactSlotDefinitionId,
+                  );
+                  const sourceContextFactDefinitionId =
+                    binding.source.kind === "context_fact"
+                      ? binding.source.contextFactDefinitionId
+                      : undefined;
+                  const sourceContextFact = sourceContextFactDefinitionId
+                    ? contextFactsByDefinitionId.get(sourceContextFactDefinitionId)
+                    : undefined;
+                  const sourceInstances = sourceContextFactDefinitionId
+                    ? workflowContextFacts
+                        .filter(
+                          (fact) => fact.contextFactDefinitionId === sourceContextFactDefinitionId,
+                        )
+                        .sort((left, right) => left.instanceOrder - right.instanceOrder)
+                    : [];
+                  const authoredPrefillValueJson =
+                    binding.source.kind === "literal"
+                      ? binding.source.value
+                      : binding.source.kind === "context_fact"
+                        ? sourceContextFact?.kind === "artifact_slot_reference_fact" &&
+                          sourceContextFact.slotDefinitionId ===
+                            binding.destination.artifactSlotDefinitionId
+                          ? sourceInstances.length === 0
+                            ? undefined
+                            : sourceContextFact.cardinality === "many"
+                              ? sourceInstances.map((instance) => instance.valueJson)
+                              : sourceInstances[0]?.valueJson
+                          : isFilePathPlainContextFact(sourceContextFact)
+                            ? sourceInstances.length === 0
+                              ? undefined
+                              : sourceInstances[0]?.valueJson
+                            : sourceContextFact?.kind === "work_unit_draft_spec_fact"
+                              ? sourceDraftTemplate?.artifactSlots
+                                  .find(
+                                    (slot) =>
+                                      slot.artifactSlotDefinitionId ===
+                                      binding.destination.artifactSlotDefinitionId,
+                                  )
+                                  ?.files.find((file) => file.clear !== true)?.relativePath
+                              : undefined
+                        : undefined;
+
+                  const artifactEditorMetadata = artifactOptionsFromContextFacts({
+                    destinationArtifactSlotDefinitionId:
+                      binding.destination.artifactSlotDefinitionId,
+                    workflowContextFacts,
+                    workflowEditorContextFacts: workflowEditor.contextFacts,
+                    projectRootPath: project?.projectRootPath ?? undefined,
+                    sandboxGit,
+                  });
+
+                  return {
+                    destinationKind: "artifact_slot",
+                    destinationDefinitionId: binding.destination.artifactSlotDefinitionId,
+                    destinationLabel:
+                      destination?.label ??
+                      humanizeKey(binding.destination.artifactSlotDefinitionId),
+                    destinationCardinality: destination?.cardinality,
+                    ...(artifactEditorMetadata.editorOptions
+                      ? { editorOptions: artifactEditorMetadata.editorOptions }
+                      : {}),
+                    ...(artifactEditorMetadata.editorEmptyState
+                      ? { editorEmptyState: artifactEditorMetadata.editorEmptyState }
                       : {}),
                     sourceKind: binding.source.kind,
                     sourceContextFactDefinitionId: sourceContextFactDefinitionId,
@@ -1225,6 +1699,9 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                     sourceContextFactKind: sourceContextFact?.kind,
                     sourceContextFactCardinality: sourceContextFact?.cardinality,
                     sourceContextFactValueType: getContextFactValueTypeLabel(sourceContextFact),
+                    ...(artifactEditorMetadata.sourceWarnings?.length
+                      ? { sourceWarnings: artifactEditorMetadata.sourceWarnings }
+                      : {}),
                     ...(typeof authoredPrefillValueJson !== "undefined"
                       ? {
                           authoredPrefillValueJson,
@@ -1233,97 +1710,8 @@ export const InvokeStepDetailServiceLive = Layer.effect(
                       : {}),
                     requiresRuntimeValue: binding.source.kind === "runtime",
                   };
-                }
-
-                const destination = artifactSlotDefinitionsById.get(
-                  binding.destination.artifactSlotDefinitionId,
-                );
-                const sourceContextFactDefinitionId =
-                  binding.source.kind === "context_fact"
-                    ? binding.source.contextFactDefinitionId
-                    : undefined;
-                const sourceContextFact = sourceContextFactDefinitionId
-                  ? contextFactsByDefinitionId.get(sourceContextFactDefinitionId)
-                  : undefined;
-                const sourceInstances = sourceContextFactDefinitionId
-                  ? workflowContextFacts
-                      .filter(
-                        (fact) => fact.contextFactDefinitionId === sourceContextFactDefinitionId,
-                      )
-                      .sort((left, right) => left.instanceOrder - right.instanceOrder)
-                  : [];
-                const sourceDraftTemplate = resolveDraftTemplateFromContextInstances({
-                  sourceContextFact,
-                  sourceInstances,
-                });
-                const authoredPrefillValueJson =
-                  binding.source.kind === "literal"
-                    ? binding.source.value
-                    : binding.source.kind === "context_fact"
-                      ? sourceContextFact?.kind === "artifact_slot_reference_fact" &&
-                        sourceContextFact.slotDefinitionId ===
-                          binding.destination.artifactSlotDefinitionId
-                        ? sourceInstances.length === 0
-                          ? undefined
-                          : sourceContextFact.cardinality === "many"
-                            ? sourceInstances.map((instance) => instance.valueJson)
-                            : sourceInstances[0]?.valueJson
-                        : isFilePathPlainContextFact(sourceContextFact)
-                          ? sourceInstances.length === 0
-                            ? undefined
-                            : sourceInstances[0]?.valueJson
-                          : sourceContextFact?.kind === "work_unit_draft_spec_fact"
-                            ? sourceDraftTemplate?.artifactSlots
-                                .find(
-                                  (slot) =>
-                                    slot.artifactSlotDefinitionId ===
-                                    binding.destination.artifactSlotDefinitionId,
-                                )
-                                ?.files.find((file) => file.clear !== true)?.relativePath
-                            : undefined
-                      : undefined;
-
-                const artifactEditorMetadata = artifactOptionsFromContextFacts({
-                  destinationArtifactSlotDefinitionId: binding.destination.artifactSlotDefinitionId,
-                  workflowContextFacts,
-                  workflowEditorContextFacts: workflowEditor.contextFacts,
-                  projectRootPath: project?.projectRootPath ?? undefined,
-                  sandboxGit,
-                });
-
-                return {
-                  destinationKind: "artifact_slot",
-                  destinationDefinitionId: binding.destination.artifactSlotDefinitionId,
-                  destinationLabel:
-                    destination?.label ?? humanizeKey(binding.destination.artifactSlotDefinitionId),
-                  destinationCardinality: destination?.cardinality,
-                  ...(artifactEditorMetadata.editorOptions
-                    ? { editorOptions: artifactEditorMetadata.editorOptions }
-                    : {}),
-                  ...(artifactEditorMetadata.editorEmptyState
-                    ? { editorEmptyState: artifactEditorMetadata.editorEmptyState }
-                    : {}),
-                  sourceKind: binding.source.kind,
-                  sourceContextFactDefinitionId: sourceContextFactDefinitionId,
-                  sourceContextFactKey: sourceContextFact?.key,
-                  sourceContextFactLabel: sourceContextFact
-                    ? getContextFactLabel(sourceContextFact)
-                    : undefined,
-                  sourceContextFactKind: sourceContextFact?.kind,
-                  sourceContextFactCardinality: sourceContextFact?.cardinality,
-                  sourceContextFactValueType: getContextFactValueTypeLabel(sourceContextFact),
-                  ...(artifactEditorMetadata.sourceWarnings?.length
-                    ? { sourceWarnings: artifactEditorMetadata.sourceWarnings }
-                    : {}),
-                  ...(typeof authoredPrefillValueJson !== "undefined"
-                    ? {
-                        authoredPrefillValueJson,
-                        resolvedValueJson: authoredPrefillValueJson,
-                      }
-                    : {}),
-                  requiresRuntimeValue: binding.source.kind === "runtime",
-                };
-              })
+                }),
+              ]
             : [];
 
         const workUnitBindingDebugSummary = invokeBindingPreview
@@ -1615,14 +2003,17 @@ export const InvokeStepDetailServiceLive = Layer.effect(
             const rowBindingPreview = invokeBindingPreview.map((binding) => {
               if (!row.projectWorkUnitId && frozenDraftTemplate) {
                 if (binding.destinationKind === "work_unit_fact") {
-                  const savedFactValue = frozenDraftTemplate.factValues.find(
-                    (entry) => entry.workUnitFactDefinitionId === binding.destinationDefinitionId,
-                  );
-                  if (savedFactValue) {
+                  const savedFactValue = resolveInvokeDraftFactValue({
+                    factValues: frozenDraftTemplate.factValues,
+                    destinationDefinitionId: binding.destinationDefinitionId,
+                    destinationFactType: binding.destinationFactType,
+                    destinationCardinality: binding.destinationCardinality,
+                  });
+                  if (typeof savedFactValue !== "undefined") {
                     return {
                       ...binding,
-                      savedDraftValueJson: savedFactValue.value,
-                      resolvedValueJson: savedFactValue.value,
+                      savedDraftValueJson: savedFactValue,
+                      resolvedValueJson: savedFactValue,
                     };
                   }
                 } else {

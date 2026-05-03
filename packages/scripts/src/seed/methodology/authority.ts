@@ -43,6 +43,7 @@ import {
   LOCKED_BMAD_SETUP_WORK_UNIT_FACT_KEYS,
   architectureSeedMetadata,
   brainstormingSeedMetadata,
+  implementationSeedMetadata,
   prdSeedMetadata,
   productBriefSeedMetadata,
   researchSeedMetadata,
@@ -148,6 +149,7 @@ export const methodologySeedSlices = {
   slice_a_research: researchSeedMetadata,
   slice_a_product_brief: productBriefSeedMetadata,
   slice_a_prd: prdSeedMetadata,
+  slice_a_implementation: implementationSeedMetadata,
   slice_a_ux_design: uxDesignSeedMetadata,
   slice_a_architecture: architectureSeedMetadata,
 } as const;

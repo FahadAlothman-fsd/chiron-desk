@@ -1,0 +1,24 @@
+flowchart TD
+    M[Methodology<br/>Defines the reusable delivery model]
+    WU[Work Units<br/>State-bearing categories of project work]
+    WF[Workflows<br/>Executable progression paths bound to transitions]
+    F[Facts<br/>Durable information about work and context]
+    T[Transitions<br/>Authored movement and gate policy between states]
+    A[Artifacts and Artifact Slots<br/>Durable output contracts and evidence]
+
+    M --> WU
+    M --> F
+    WU --> WF
+    WU --> T
+    WU --> A
+    WF --> F
+    T --> WF
+
+    classDef methodology fill:#f6f2df,stroke:#b59d3b,color:#5b4b16,stroke-width:2px;
+    classDef work fill:#eaf7f4,stroke:#0f766e,color:#134e4a,stroke-width:2px;
+    classDef flow fill:#eef6ff,stroke:#2563eb,color:#1e3a8a,stroke-width:2px;
+    classDef evidence fill:#fff7ed,stroke:#ea580c,color:#7c2d12,stroke-width:2px;
+    class M methodology;
+    class WU,F work;
+    class WF,T flow;
+    class A evidence;

@@ -25,10 +25,11 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
+import { resolvePublicAsset } from "@/lib/public-asset";
 
 type UserItem = React.ComponentProps<typeof NavUser>["user"];
 
-const CHIRON_BRAND_ICON = "/visuals/chiron-brand/asset-41.svg";
+const CHIRON_BRAND_ICON = resolvePublicAsset("visuals/chiron-brand/asset-41.svg");
 
 function SidebarScopeIcon() {
   return (
@@ -42,19 +43,19 @@ const CONTEXT_MODES = [
   {
     key: "system",
     label: "System",
-    assetSrc: "/visuals/context-switcher/system-asset-16.svg",
+    assetSrc: resolvePublicAsset("visuals/context-switcher/system-asset-16.svg"),
     to: "/",
   },
   {
     key: "methodology",
     label: "Methodology",
-    assetSrc: "/visuals/context-switcher/methodology-asset-08.svg",
+    assetSrc: resolvePublicAsset("visuals/context-switcher/methodology-asset-08.svg"),
     to: "/methodologies",
   },
   {
     key: "project",
     label: "Project",
-    assetSrc: "/visuals/context-switcher/project-asset-05.svg",
+    assetSrc: resolvePublicAsset("visuals/context-switcher/project-asset-05.svg"),
     to: "/projects",
   },
 ] as const;

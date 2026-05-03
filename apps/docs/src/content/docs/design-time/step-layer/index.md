@@ -5,9 +5,9 @@ The Step Layer explains the explicit nodes that make up a workflow.
 
 This is the most execution-facing layer in the public design-time model.
 
-## The six step types
+## The five step types
 
-Every workflow step in Chiron uses one of six types:
+Every workflow step in Chiron uses one of five types:
 
 | Step Type | Icon | Responsibility |
 |-----------|------|----------------|
@@ -15,7 +15,6 @@ Every workflow step in Chiron uses one of six types:
 | `agent` | <img class="step-page-icon" src="/step-icons/asset-58.svg" alt="Agent" /> | Runs bounded agent work |
 | `action` | <img class="step-page-icon" src="/step-icons/asset-08.svg" alt="Action" /> | Performs deterministic non-chat effects |
 | `invoke` | <img class="step-page-icon" src="/step-icons/asset-33.svg" alt="Invoke" /> | Starts other workflows or work-unit executions |
-| `display` | <img class="step-page-icon" src="/step-icons/asset-22.svg" alt="Display" /> | Shows read-only information |
 | `branch` | <img class="step-page-icon" src="/step-icons/asset-61.svg" alt="Branch" /> | Chooses the next route |
 
 Each type has a different responsibility. Chiron does not treat them as one generic step with arbitrary behavior.
@@ -28,7 +27,6 @@ This split keeps workflows inspectable.
 - `agent` runs bounded agent work
 - `action` performs deterministic non-chat effects
 - `invoke` starts other workflows or work-unit executions
-- `display` shows read-only information
 - `branch` chooses the next route
 
 That makes the execution grammar easier to author, audit, and review.
@@ -46,7 +44,6 @@ Their outputs differ by type.
 
 - some produce or update workflow context facts
 - some launch other executions
-- some only render information
 - some record a route choice for later completion
 
 ## Maturity framing
@@ -57,7 +54,7 @@ The implementation maturity is mixed.
 
 - `form`, `invoke`, and `branch` have strong current contract coverage
 - `action` has concrete authoring and runtime detail coverage, but some deeper engine convergence is still not fully implemented
-- `agent` and `display` remain partially deferred in runtime detail contracts
+- `agent` remains partially deferred in runtime detail contracts
 
 So the Step Layer is a real product layer, but not every step family has the same end-to-end depth yet.
 
@@ -67,17 +64,16 @@ Taskflow uses this sequence often:
 
 1. collect structured setup data with `form`
 2. run bounded drafting or analysis with `agent`
-3. show a review surface with `display`
-4. choose a route with `branch`
-5. trigger child work with `invoke`
-6. persist deterministic changes with `action`
+3. choose a route with `branch`
+4. trigger child work with `invoke`
+5. persist deterministic changes with `action`
 
-Not every Taskflow slice needs every step type, but the same six-type grammar stays consistent across the docs.
+Not every Taskflow slice needs every step type, but the same five-type grammar stays consistent across the docs.
 
-The setup slice leans on `form`, `agent`, and `branch`. The fan-out slice makes `invoke` and artifact-producing `action` more visible. The review slice leans on `display`, `branch`, and bounded `agent` rework help.
+The setup slice leans on `form`, `agent`, and `branch`. The fan-out slice makes `invoke` and artifact-producing `action` more visible. The review slice leans on `branch` and bounded `agent` rework help.
 
 > **Screenshot placeholder**
-> Step Layer overview for Taskflow, showing the six step types as one consistent grammar across setup, delegation, and review.
+> Step Layer overview for Taskflow, showing the five step types as one consistent grammar across setup, delegation, and review.
 
 ## Read the step pages next
 
@@ -85,7 +81,6 @@ The setup slice leans on `form`, `agent`, and `branch`. The fan-out slice makes 
 - [Agent step](/design-time/step-layer/agent)
 - [Action step](/design-time/step-layer/action)
 - [Invoke step](/design-time/step-layer/invoke)
-- [Display step](/design-time/step-layer/display)
 - [Branch step](/design-time/step-layer/branch)
 
 ## Advanced internal references

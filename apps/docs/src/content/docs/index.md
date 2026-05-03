@@ -3,7 +3,7 @@ title: Chiron Docs
 template: splash
 hero:
   title: Chiron
-  tagline: Turn agentic delivery into something you can inspect.
+  tagline: Turn agentic delivery into a safe, inspectable execution loop.
   actions:
     - text: Taskflow Example
       link: /taskflow/
@@ -16,19 +16,19 @@ hero:
       link: /getting-started
       variant: secondary
 features:
+  - title: Small primitives, clear flow
+    details: "Chiron gives you a small set of primitives for authoring a delivery method, then runs work through a simple loop: Intent, Scope, Pattern, Build, Verify, Next."
   - title: Two tracks, one system
     details: Design Time explains how a method is authored. Project Runtime shows what that method looks like while real work is moving.
   - title: One running example
-    details: Taskflow is the single public example used to explain setup, delegation, review, rework, branching, and artifact production.
-  - title: Clear public language
-    details: Public docs use Methodology Layer, Work Unit Layer, Workflow Layer, and Step Layer. Legacy layer labels are kept in bridge pages only.
+    details: Taskflow is the single public example used to explain how runtime work moves from setup through planning and into implementation.
 ---
 
 ## Shared intro
 
-Chiron is a methodology-first system for **modeling and supervising agentic software delivery** in a structured, inspectable way.
+Chiron is a system for **authoring and supervising safe agentic software delivery** in a structured, inspectable way.
 
-Instead of treating delivery as a loose chain of chats, Chiron gives you durable objects for:
+Instead of treating delivery as a loose chain of chats, Chiron gives you primitives for:
 
 - methodology versions
 - typed work units
@@ -36,6 +36,15 @@ Instead of treating delivery as a loose chain of chats, Chiron gives you durable
 - bound workflows
 - durable facts and artifact slots
 - human-in-the-loop runtime and review surfaces
+
+Those primitives are meant to support a simple default loop:
+
+1. **Intent** — what kind of work is this?
+2. **Scope** — what is in or out for this work unit?
+3. **Pattern** — which existing code, docs, or references should guide it?
+4. **Build** — ship the smallest useful slice.
+5. **Verify** — prove the slice worked.
+6. **Next** — stop, continue, or escalate.
 
 That means you can ask simple questions and get durable answers.
 
@@ -52,33 +61,29 @@ That means you can ask simple questions and get durable answers.
 
 You can think of Design Time as defining the method, and Project Runtime as watching that method run.
 
+The important point is that Chiron is not trying to force a heavyweight methodology before work can start. The public story is intentionally biased toward **verified progress**, with heavier planning branches used only when they actually unblock delivery.
+
 ## Taskflow, the running example
 
-These docs use **Taskflow** as one consistent example. Taskflow is not a hardcoded product requirement. It is a representative delivery method that makes the mental model easier to see.
+These docs use **Taskflow** as one consistent example. Taskflow is the product being initialized and moved through runtime. It is not the methodology itself.
 
-Taskflow appears in three scenario slices:
+The public Taskflow track follows one concrete path:
 
-### 1. Setup and onboarding
+1. `setup` creates the first durable baseline.
+2. `brainstorming` refines direction.
+3. `research` gathers evidence.
+4. `product_brief` synthesizes the upstream signal.
+5. `prd` turns that signal into a requirement contract and implementation drafts.
+6. `implementation` plans, executes, and validates code-oriented delivery.
 
-You start by shaping the method at Design Time. You define the work-unit catalog, the facts each kind of work owns, the artifact slots that should hold durable outputs, and the workflows that can move work forward.
+That gives the site one stable runtime story without forcing every page to explain methodology internals at the same time.
 
-Then a real project picks up that method at Project Runtime. You can see what work exists, what still needs input, and which onboarding artifacts are already present.
-
-### 2. Fan-out and delegation
-
-Once the project is in motion, a parent work unit can branch into child work. Taskflow uses that slice to show how one piece of work can fan out into several delegated paths without losing structure.
-
-That is where workflows, branching, and artifact production become concrete. Delegation is not just “go do more work.” It stays tied to a work unit, a workflow, and expected outputs.
-
-### 3. Review and rework
-
-Work does not end when an agent produces a draft. Taskflow also shows how review, evidence, approval, rejection, and rework loops fit into the same model.
-
-The result is a system where artifacts, transitions, and review decisions stay visible instead of disappearing into chat history.
+If you want the seeded BMAD-derived method behind that story, use the separate [Methodology](/methodology/) section.
 
 ## Read next
 
-- [/taskflow/](/taskflow/) for the full Taskflow overview and scenario spine
+- [/taskflow/](/taskflow/) for the Taskflow runtime overview and stage-by-stage walkthrough
+- [/methodology/](/methodology/) for the default seeded methodology reference
 - [/mental-model](/mental-model) for the layer map and Design Time versus Project Runtime split
 - [/reference/glossary](/reference/glossary) for shared vocabulary
 - [/reference/legacy-layer-bridge](/reference/legacy-layer-bridge) if you know the older internal layer labels

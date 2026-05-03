@@ -1,0 +1,21 @@
+flowchart LR
+    subgraph DT[Design Time]
+        DT1[Define methodology]
+        DT2[Define work-unit contracts]
+        DT3[Attach workflows and transitions]
+        DT4[Specify facts and artifacts]
+    end
+
+    subgraph RT[Project Runtime]
+        RT1[Instantiate project work]
+        RT2[Run workflows]
+        RT3[Agent steps operate on scoped project context]
+        RT4[Review evidence and state]
+    end
+
+    DT -->|Pinned method guides live execution| RT
+
+    classDef design fill:#eaf7f4,stroke:#0f766e,color:#134e4a,stroke-width:2px;
+    classDef runtime fill:#fff7ed,stroke:#ea580c,color:#7c2d12,stroke-width:2px;
+    class DT1,DT2,DT3,DT4 design;
+    class RT1,RT2,RT3,RT4 runtime;
