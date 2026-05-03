@@ -169,71 +169,6 @@
       vertical-align: middle;
     }
     .display.math{display: block; text-align: center; margin: 0.5rem auto;}
-    /* CSS for syntax highlighting */
-    html { -webkit-text-size-adjust: 100%; }
-    pre > code.sourceCode { white-space: pre; position: relative; }
-    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
-    pre > code.sourceCode > span:empty { height: 1.2em; }
-    .sourceCode { overflow: visible; }
-    code.sourceCode > span { color: inherit; text-decoration: inherit; }
-    div.sourceCode { margin: 1em 0; }
-    pre.sourceCode { margin: 0; }
-    @media screen {
-    div.sourceCode { overflow: auto; }
-    }
-    @media print {
-    pre > code.sourceCode { white-space: pre-wrap; }
-    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
-    }
-    pre.numberSource code
-      { counter-reset: source-line 0; }
-    pre.numberSource code > span
-      { position: relative; left: -4em; counter-increment: source-line; }
-    pre.numberSource code > span > a:first-child::before
-      { content: counter(source-line);
-        position: relative; left: -1em; text-align: right; vertical-align: baseline;
-        border: none; display: inline-block;
-        -webkit-touch-callout: none; -webkit-user-select: none;
-        -khtml-user-select: none; -moz-user-select: none;
-        -ms-user-select: none; user-select: none;
-        padding: 0 4px; width: 4em;
-        color: #aaaaaa;
-      }
-    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
-    div.sourceCode
-      {   }
-    @media screen {
-    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
-    }
-    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
-    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
-    code span.at { color: #7d9029; } /* Attribute */
-    code span.bn { color: #40a070; } /* BaseN */
-    code span.bu { color: #008000; } /* BuiltIn */
-    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
-    code span.ch { color: #4070a0; } /* Char */
-    code span.cn { color: #880000; } /* Constant */
-    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
-    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
-    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
-    code span.dt { color: #902000; } /* DataType */
-    code span.dv { color: #40a070; } /* DecVal */
-    code span.er { color: #ff0000; font-weight: bold; } /* Error */
-    code span.ex { } /* Extension */
-    code span.fl { color: #40a070; } /* Float */
-    code span.fu { color: #06287e; } /* Function */
-    code span.im { color: #008000; font-weight: bold; } /* Import */
-    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
-    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
-    code span.op { color: #666666; } /* Operator */
-    code span.ot { color: #007020; } /* Other */
-    code span.pp { color: #bc7a00; } /* Preprocessor */
-    code span.sc { color: #4070a0; } /* SpecialChar */
-    code span.ss { color: #bb6688; } /* SpecialString */
-    code span.st { color: #4070a0; } /* String */
-    code span.va { color: #19177c; } /* Variable */
-    code span.vs { color: #4070a0; } /* VerbatimString */
-    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
   </style>
   
 </head>
@@ -317,6 +252,9 @@ and Workflows</a></li>
 <li><a href="#facts-transitions-and-artifacts"
 id="toc-facts-transitions-and-artifacts">Facts, Transitions, and
 Artifacts</a></li>
+<li><a href="#transition-gates-and-workflow-binding"
+id="toc-transition-gates-and-workflow-binding">Transition Gates and
+Workflow Binding</a></li>
 </ul></li>
 <li><a href="#the-four-layers-of-chiron"
 id="toc-the-four-layers-of-chiron">The Four Layers of Chiron</a></li>
@@ -372,12 +310,6 @@ id="toc-conclusion-and-future-work">Conclusion and Future Work</a></li>
 <li><a href="#appendix-a.-figure-inventory"
 id="toc-appendix-a.-figure-inventory">Appendix A. Figure
 Inventory</a></li>
-<li><a
-href="#appendix-b.-screenshot-plan-and-outstanding-submission-placeholders"
-id="toc-appendix-b.-screenshot-plan-and-outstanding-submission-placeholders">Appendix
-B. Screenshot Plan and Outstanding Submission Placeholders</a></li>
-<li><a href="#appendix-c.-export-notes"
-id="toc-appendix-c.-export-notes">Appendix C. Export Notes</a></li>
 </ul>
 </nav>
 <h1 id="abstract">Abstract</h1>
@@ -705,11 +637,14 @@ and Workflows</h3>
 for delivery. It establishes the vocabulary, the categories of work that
 exist, and the boundaries within which that work can progress. A
 <strong>work unit</strong> is the durable contract for one kind of work
-within that methodology. It carries identity, cardinality, local state,
-facts, transitions, and artifact expectations. A
-<strong>workflow</strong> is the executable path through which a work
-unit performs or advances work. In current ownership terms, workflows
-belong within work-unit scope rather than floating independently at the
+within that methodology. In practice, a work unit is best understood as
+a richer representation of a stateful work object: it has identity,
+cardinality, a current state, possible transitions, facts, and artifact
+expectations. A <strong>workflow</strong> is not a free-floating
+automation script that runs whenever convenient. It is the executable
+path through which a work unit performs or advances work under the
+policy of a transition. In current ownership terms, workflows belong
+within work-unit scope rather than floating independently at the
 methodology level.</p>
 <p>This hierarchy matters because it prevents agentic work from
 degenerating into an undifferentiated task queue. Instead of asking only
@@ -718,20 +653,51 @@ exists, what contract governs it, and which workflow is valid for that
 contract.</p>
 <h3 id="facts-transitions-and-artifacts">Facts, Transitions, and
 Artifacts</h3>
-<p><strong>Facts</strong> are the durable state-bearing units through
-which context becomes explicit rather than conversational. Chiron
-distinguishes between methodology-level facts, work-unit facts, and
-workflow-context facts, allowing the system to preserve context at the
-level where it is semantically meaningful. <strong>Transitions</strong>
-formalize movement between states and make progression an authored
-policy decision rather than an implicit judgment.
-<strong>Artifacts</strong> and <strong>artifact slots</strong> define
+<p><strong>Facts</strong> are the durable information-bearing units
+through which context becomes explicit rather than conversational.
+Chiron distinguishes between methodology-level facts, work-unit facts,
+and workflow-context facts, allowing the system to preserve context at
+the level where it is semantically meaningful. Facts may change as work
+progresses, but they are not the same thing as the work unit’s state.
+The <strong>state</strong> of a work unit is a separate lifecycle
+property that records where the work unit currently stands in its
+authored state machine. Facts describe the work unit; state locates the
+work unit in its lifecycle.</p>
+<p><strong>Transitions</strong> formalize movement between states and
+make progression an authored policy decision rather than an implicit
+judgment. A transition is not merely an arrow between two labels. It
+carries gate policy, readiness semantics, and explicit workflow
+bindings. This means that the system can evaluate whether a transition
+is eligible to start and, once active, whether it is ready to complete
+into the next state. In practical terms, workflows operate under
+transitions rather than outside them: they are bound to lifecycle
+movement and therefore inherit the discipline of transition policy.</p>
+<p><strong>Artifacts</strong> and <strong>artifact slots</strong> define
 durable output contracts. They ensure that outputs are preserved as
 governed evidence rather than disappearing into transient model
 responses.</p>
 <p>Collectively, these entities transform delivery from a sequence of
 ephemeral exchanges into a method with explicit state, evidence, and
 movement semantics.</p>
+<h3 id="transition-gates-and-workflow-binding">Transition Gates and
+Workflow Binding</h3>
+<p>The relationship between states, transitions, and workflows is one of
+the most important parts of Chiron’s methodology. A work unit can have
+many possible transitions, but a workflow does not simply run because it
+exists. Instead, workflows are explicitly bound to transitions. This
+means that workflow execution is lifecycle-scoped: the workflow runs in
+service of moving a work unit from one state toward another under
+authored policy.</p>
+<p>The transition model also introduces gates at two distinct moments.
+First, there is the question of whether a transition is eligible to
+start. This is where start-gate conditions, dependency requirements, and
+bound-workflow readiness become relevant. Second, once a transition is
+active, there is the question of whether it is ready to complete. The
+runtime contract already reflects this distinction through concepts such
+as active transitions, possible transitions, start-gate inspection, and
+readiness-for-completion. This separation matters because it prevents
+lifecycle movement from being reduced to a single undifferentiated
+notion of readiness.</p>
 <figure>
 <img src="figures/chiron-methodology-entities.png" style="width:96.0%"
 alt="Entity model of Chiron, showing how methodology, work units, workflows, facts, transitions, and artifacts relate within the delivery method." />
@@ -754,11 +720,6 @@ alt="The four-layer structure used by Chiron to organize method definition, work
 to organize method definition, work contracts, execution flows, and
 concrete step behavior.</figcaption>
 </figure>
-<blockquote>
-<p><strong>Screenshot Placeholder 1.</strong> Insert a methodology
-overview or methodology-layer application screenshot that shows how
-these conceptual layers become visible in the interface.</p>
-</blockquote>
 <h2 id="step-model-and-execution-roles">Step Model and Execution
 Roles</h2>
 <p>Chiron defines an explicit step taxonomy, but the step types do not
@@ -787,11 +748,6 @@ alt="Chiron step model, highlighting the central role of the agent step and the 
 central role of the agent step and the supporting roles of the remaining
 step types.</figcaption>
 </figure>
-<blockquote>
-<p><strong>Screenshot Placeholder 2.</strong> Insert a workflow-editor
-screenshot that makes the agent step, invoke step, and at least several
-other step types visible in one authoring view.</p>
-</blockquote>
 <h2 id="agent-step-as-the-core-productive-unit">Agent Step as the Core
 Productive Unit</h2>
 <p>The implementation-facing semantics make the centrality of the agent
@@ -839,11 +795,6 @@ alt="Separation between design time and project runtime in Chiron. The authored 
 project runtime in Chiron. The authored method guides live execution,
 while runtime state remains inspectable and reviewable.</figcaption>
 </figure>
-<blockquote>
-<p><strong>Screenshot Placeholder 3.</strong> Insert a paired screenshot
-set or composite figure contrasting a design-time authoring surface with
-a project-runtime inspection surface.</p>
-</blockquote>
 <h2 id="governance-and-review-model">Governance and Review Model</h2>
 <p>The final major design principle is governance through explicit
 review boundaries. Chiron’s intended lifecycle does not treat validation
@@ -868,11 +819,6 @@ that execution is not represented as a flat stream of assistant turns.
 Instead, the system materializes authored workflow topology, typed step
 definitions, runtime step executions, and associated detail surfaces
 that make the current state of work observable.</p>
-<blockquote>
-<p><strong>Screenshot Placeholder 4.</strong> Insert a stable screenshot
-of the workflow-authoring surface, preferably one that shows step
-configuration, selection, or invoke/action routing detail.</p>
-</blockquote>
 <h2 id="human-review-and-validation-flow">Human Review and Validation
 Flow</h2>
 <p>At the implementation level, Chiron treats review and validation as
@@ -889,16 +835,6 @@ showing the relationship between method definition, workflow execution,
 deterministic checks, human review, and agent-assisted
 validation.</figcaption>
 </figure>
-<blockquote>
-<p><strong>Screenshot Placeholder 5.</strong> Insert a stable screenshot
-of the runtime guidance or execution-inspection surface once the exact
-capture is finalized.</p>
-</blockquote>
-<blockquote>
-<p><strong>Screenshot Placeholder 6.</strong> Insert a validation- or
-evidence-oriented screenshot that shows how review state, outputs, or
-transition readiness appear in the application.</p>
-</blockquote>
 <h2 id="current-scope-and-boundaries">Current Scope and Boundaries</h2>
 <p>The current implementation should be interpreted as a substantial but
 bounded realization of the conceptual model. Chiron’s contribution in
@@ -1038,50 +974,5 @@ AI-assisted software development.</li>
 <li>Figure 5: Design time and project runtime separation.</li>
 <li>Figure 6: Governance and validation flow.</li>
 </ol>
-<h1
-id="appendix-b.-screenshot-plan-and-outstanding-submission-placeholders">Appendix
-B. Screenshot Plan and Outstanding Submission Placeholders</h1>
-<p>The final submission should include a broader visual record of the
-application in addition to the conceptual diagrams. The following
-screenshot set is recommended:</p>
-<ol type="1">
-<li>Methodology dashboard or methodology overview page.</li>
-<li>Work-unit overview or work-unit catalog surface.</li>
-<li>Workflow editor view showing multiple step types.</li>
-<li>Step configuration or step detail panel.</li>
-<li>Design-time authoring surface for facts, transitions, or artifact
-rules.</li>
-<li>Design-time and runtime comparison figure or paired screenshot.</li>
-<li>Runtime guidance page showing work status and transition
-availability.</li>
-<li>Runtime transition or execution-inspection detail view.</li>
-<li>Validation or evidence-oriented surface showing review state or
-traceable outputs.</li>
-<li>Any additional screen that best demonstrates human review or
-governance boundaries.</li>
-</ol>
-<p>The following placeholders remain intentionally unresolved and should
-be finalized before submission:</p>
-<ol type="1">
-<li>Screenshot Placeholder 1: methodology overview or methodology-layer
-application screenshot.</li>
-<li>Screenshot Placeholder 2: paired design-time and project-runtime
-screenshot set.</li>
-<li>Screenshot Placeholder 3: workflow-editor screenshot showing
-multiple step types.</li>
-<li>Screenshot Placeholder 4: workflow-authoring screenshot with step
-configuration detail.</li>
-<li>Screenshot Placeholder 5: runtime guidance or execution-inspection
-screenshot.</li>
-<li>Screenshot Placeholder 6: validation-, evidence-, or review-oriented
-screenshot.</li>
-</ol>
-<h1 id="appendix-c.-export-notes">Appendix C. Export Notes</h1>
-<p>The report uses Mermaid-authored diagrams rendered to static SVG
-assets before document export. The recommended build flow is:</p>
-<div class="sourceCode" id="cb1"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> academic_reports/build-report.sh pdf</span></code></pre></div>
-<p>This build flow renders Mermaid assets first and then invokes Pandoc
-for PDF generation.</p>
 </body>
 </html>

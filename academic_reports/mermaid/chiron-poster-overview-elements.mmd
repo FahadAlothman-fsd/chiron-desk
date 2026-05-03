@@ -1,0 +1,20 @@
+%%{init: {"theme":"neutral","themeVariables":{"fontFamily":"Arial","fontSize":"28px","primaryColor":"#ddd6fe","primaryTextColor":"#0f172a","primaryBorderColor":"#7c3aed","secondaryColor":"#bfdbfe","secondaryTextColor":"#1e3a8a","secondaryBorderColor":"#2563eb","tertiaryColor":"#fde68a","tertiaryTextColor":"#713f12","tertiaryBorderColor":"#d97706","lineColor":"#111827","edgeLabelBackground":"#f8fafc","arrowheadColor":"#111827"},"flowchart":{"curve":"linear","nodeSpacing":100,"rankSpacing":70,"padding":26,"htmlLabels":true},"themeCSS":".marker path{transform:scale(2.4);transform-origin:center;fill:#111827 !important;stroke:#111827 !important;} .edge-thickness-thick{stroke-width:7px !important;} .edge-thickness-normal{stroke-width:6px !important;}"}}%%
+flowchart LR
+    A[SPECIFICATION<br/>ARTIFACT]
+    B[IMPLEMENTATION<br/>ARTIFACT]
+    C[WORKFLOW<br/>GUIDANCE]
+
+    C ==> A
+    C ==> B
+    A -.-> B
+
+    linkStyle 0,1 stroke:#111827,stroke-width:7px;
+    linkStyle 2 stroke:#475569,stroke-width:5px,stroke-dasharray: 8 4;
+
+    classDef spec fill:#ddd6fe,stroke:#7c3aed,color:#5b21b6,stroke-width:5px,font-size:34px;
+    classDef impl fill:#bfdbfe,stroke:#2563eb,color:#1e3a8a,stroke-width:5px,font-size:34px;
+    classDef flow fill:#fde68a,stroke:#d97706,color:#92400e,stroke-width:5px,font-size:34px;
+
+    class A spec;
+    class B impl;
+    class C flow;

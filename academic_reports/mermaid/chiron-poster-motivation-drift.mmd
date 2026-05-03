@@ -1,0 +1,18 @@
+%%{init: {"theme":"neutral","themeVariables":{"fontFamily":"Arial","fontSize":"28px","primaryColor":"#dbeafe","primaryTextColor":"#0f172a","primaryBorderColor":"#1d4ed8","secondaryColor":"#ccfbf1","secondaryTextColor":"#134e4a","secondaryBorderColor":"#0f766e","tertiaryColor":"#ffedd5","tertiaryTextColor":"#7c2d12","tertiaryBorderColor":"#ea580c","lineColor":"#111827","edgeLabelBackground":"#f8fafc","arrowheadColor":"#111827"},"flowchart":{"curve":"linear","nodeSpacing":100,"rankSpacing":70,"padding":26,"htmlLabels":true},"themeCSS":".marker path{transform:scale(2.4);transform-origin:center;fill:#111827 !important;stroke:#111827 !important;} .edge-thickness-thick{stroke-width:7px !important;} .edge-thickness-normal{stroke-width:6px !important;}"}}%%
+flowchart LR
+    A[FAST LIFECYCLE CHANGE]
+    B[ARTIFACT DIVERGENCE]
+    C[DRIFT AND STALENESS]
+
+    A ==> B
+    B ==> C
+
+    linkStyle 0,1 stroke:#111827,stroke-width:7px;
+
+    classDef start fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a,stroke-width:5px,font-size:34px;
+    classDef process fill:#ccfbf1,stroke:#0f766e,color:#134e4a,stroke-width:5px,font-size:34px;
+    classDef risk fill:#ffedd5,stroke:#ea580c,color:#7c2d12,stroke-width:5px,font-size:34px;
+
+    class A start;
+    class B process;
+    class C risk;

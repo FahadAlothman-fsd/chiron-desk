@@ -210,8 +210,6 @@ The four-layer model remains useful, but it should be read as a structural decom
 
 ![The four-layer structure used by Chiron to organize method definition, work contracts, execution flows, and concrete step behavior.](figures/chiron-four-layers.png){ width=86% }
 
-> **Screenshot Placeholder 1.** Insert a methodology overview or methodology-layer application screenshot that shows how these conceptual layers become visible in the interface.
-
 ## Step Model and Execution Roles
 
 Chiron defines an explicit step taxonomy, but the step types do not all play the same conceptual role. The **agent** step is the principal productive locus of AI work. The surrounding methodology exists largely to make that work coherent by scoping what the agent can read, what it can write, what counts as completion, and how its outputs become durable project state.
@@ -219,8 +217,6 @@ Chiron defines an explicit step taxonomy, but the step types do not all play the
 By contrast, the other step types provide structural support. **Form** captures structured input when the method requires explicit authored values. **Display** renders information for interpretation rather than mutating project state directly. **Branch** makes route conditions explicit and therefore prevents hidden control flow. **Action** is currently much narrower than a generic autonomous tool-execution concept; in implementation terms it is constrained to authored **propagation** actions over specific workflow context facts. **Invoke** is an orchestration bridge: it can start workflow targets in the current work-unit scope and also delegate into child work units when the method requires work-unit-level decomposition.
 
 ![Chiron step model, highlighting the central role of the agent step and the supporting roles of the remaining step types.](figures/chiron-step-taxonomy.png){ width=100% }
-
-> **Screenshot Placeholder 2.** Insert a workflow-editor screenshot that makes the agent step, invoke step, and at least several other step types visible in one authoring view.
 
 ## Agent Step as the Core Productive Unit
 
@@ -238,8 +234,6 @@ Chiron distinguishes between two major contexts: design time and project runtime
 
 ![Separation between design time and project runtime in Chiron. The authored method guides live execution, while runtime state remains inspectable and reviewable.](figures/chiron-design-runtime.png){ width=100% }
 
-> **Screenshot Placeholder 3.** Insert a paired screenshot set or composite figure contrasting a design-time authoring surface with a project-runtime inspection surface.
-
 ## Governance and Review Model
 
 The final major design principle is governance through explicit review boundaries. Chiron's intended lifecycle does not treat validation as a single terminal check. Instead, it privileges formal progression through deterministic validation, human review, and agent-assisted review activities, all embedded inside a larger workflow structure.
@@ -254,17 +248,11 @@ In implementation terms, Chiron realizes its conceptual model through an integra
 
 The workflow and step model is realized through explicit workflow paths and typed step configurations. In implementation terms, this means that execution is not represented as a flat stream of assistant turns. Instead, the system materializes authored workflow topology, typed step definitions, runtime step executions, and associated detail surfaces that make the current state of work observable.
 
-> **Screenshot Placeholder 4.** Insert a stable screenshot of the workflow-authoring surface, preferably one that shows step configuration, selection, or invoke/action routing detail.
-
 ## Human Review and Validation Flow
 
 At the implementation level, Chiron treats review and validation as part of the lifecycle rather than as a detached final judgment. Deterministic validation remains important for baseline correctness. Human review remains essential for governance and interpretation. Agent-assisted review may extend the evidence surface, but it does not remove the need for explicit progression criteria.
 
 ![Governance and validation flow in Chiron, showing the relationship between method definition, workflow execution, deterministic checks, human review, and agent-assisted validation.](figures/chiron-governance-flow.png){ width=92% }
-
-> **Screenshot Placeholder 5.** Insert a stable screenshot of the runtime guidance or execution-inspection surface once the exact capture is finalized.
-
-> **Screenshot Placeholder 6.** Insert a validation- or evidence-oriented screenshot that shows how review state, outputs, or transition readiness appear in the application.
 
 ## Current Scope and Boundaries
 
@@ -334,68 +322,3 @@ Future work should focus on deeper empirical evaluation, broader user studies, c
 4. Figure 4: Step model centered on the agent step.
 5. Figure 5: Design time and project runtime separation.
 6. Figure 6: Governance and validation flow.
-
-# Appendix B. Screenshot Plan and Outstanding Submission Placeholders
-
-The final submission should include a broader visual record of the application in addition to the conceptual diagrams. The most efficient capture sequence is to move through the product in the same narrative order used by the report.
-
-## Capture order and one-to-one placeholder mapping
-
-1. **Methodology overview or methodology-layer application screenshot**  
-   - Report location: `6.4 The Four Layers of Chiron`  
-   - Placeholder: **Screenshot Placeholder 1**  
-   - Capture goal: show the top-level methodology authoring space, with enough visible structure to connect the screenshot to the methodology layer and work-unit layer discussion.
-
-2. **Workflow-editor screenshot showing the agent step, invoke step, and multiple step types**  
-   - Report location: `6.5 Step Model and Execution Roles`  
-   - Placeholder: **Screenshot Placeholder 2**  
-   - Capture goal: show the workflow canvas or editor with a visible mix of step types so the reader can connect the screenshot to the revised step-model discussion.
-
-3. **Paired design-time and project-runtime screenshot set**  
-   - Report location: `6.8 Design Time and Project Runtime`  
-   - Placeholder: **Screenshot Placeholder 3**  
-   - Capture goal: show one design-time authoring surface and one project-runtime inspection surface, ideally combined into a single side-by-side figure.
-
-4. **Workflow-authoring screenshot with configuration detail**  
-   - Report location: `7.2 Workflow and Step Realization`  
-   - Placeholder: **Screenshot Placeholder 4**  
-   - Capture goal: show step configuration, selection, or invoke/action routing detail so the implementation discussion has concrete authored evidence.
-
-5. **Runtime guidance or execution-inspection screenshot**  
-   - Report location: `7.3 Human Review and Validation Flow`  
-   - Placeholder: **Screenshot Placeholder 5**  
-   - Capture goal: show active work, readiness, transition availability, or execution detail from the runtime side of the system.
-
-6. **Validation-, evidence-, or review-oriented screenshot**  
-   - Report location: `7.3 Human Review and Validation Flow`  
-   - Placeholder: **Screenshot Placeholder 6**  
-   - Capture goal: show how evidence, review state, outputs, or transition readiness become visible as part of governance rather than as hidden system behavior.
-
-## Optional supporting screenshots
-
-The following screenshots are not tied to mandatory placeholders, but they are strong candidates for appendix material, composite figures, or later in-text additions if space allows:
-
-1. Work-unit overview or work-unit catalog surface.
-2. Design-time authoring surface for facts, transitions, or artifact rules.
-3. Runtime transition detail or execution detail view.
-4. Any additional screen that best demonstrates human review or governance boundaries.
-
-## Capture rules
-
-For consistency across the final report:
-
-1. keep the application window maximized,
-2. use the same theme and zoom level throughout,
-3. avoid debug noise, temporary popups, or irrelevant side panels,
-4. prefer realistic but clean data,
-5. keep one main idea per screenshot unless the figure is intentionally a paired comparison.
-
-# Appendix C. Export Notes
-
-The report uses Mermaid-authored diagrams rendered to static SVG assets before document export. The recommended build flow is:
-
-```bash
-bash academic_reports/build-report.sh pdf
-```
-
-This build flow renders Mermaid assets first and then invokes Pandoc for PDF generation.

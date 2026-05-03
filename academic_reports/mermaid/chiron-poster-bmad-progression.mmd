@@ -1,0 +1,32 @@
+%%{init: {"theme":"neutral","themeVariables":{"fontFamily":"Arial","fontSize":"28px","lineColor":"#111827","arrowheadColor":"#111827","edgeLabelBackground":"#f8fafc"},"flowchart":{"curve":"linear","nodeSpacing":85,"rankSpacing":70,"padding":26,"htmlLabels":true},"themeCSS":".marker path{transform:scale(2.2);transform-origin:center;fill:#111827 !important;stroke:#111827 !important;} .edge-thickness-thick{stroke-width:7px !important;} .edge-thickness-normal{stroke-width:6px !important;}"}}%%
+flowchart LR
+    S[SETUP]
+    B[BRAINSTORMING]
+    R[RESEARCH]
+    PB[PRODUCT BRIEF]
+    PRD[PRD]
+    UX[UX DESIGN]
+    A[ARCHITECTURE]
+    I[IMPLEMENTATION]
+
+    S ==> B
+    S ==> R
+    B ==> PB
+    R ==> PB
+    PB ==> PRD
+    PRD ==> UX
+    PRD ==> A
+    UX ==> I
+    A ==> I
+
+    linkStyle 0,1,2,3,4,5,6,7,8 stroke:#111827,stroke-width:7px;
+
+    classDef start fill:#f6f2df,stroke:#b59d3b,color:#5b4b16,stroke-width:5px,font-size:30px;
+    classDef explore fill:#ccfbf1,stroke:#0f766e,color:#134e4a,stroke-width:5px,font-size:30px;
+    classDef plan fill:#dbeafe,stroke:#2563eb,color:#1e3a8a,stroke-width:5px,font-size:30px;
+    classDef execute fill:#ffedd5,stroke:#ea580c,color:#7c2d12,stroke-width:5px,font-size:30px;
+
+    class S start;
+    class B,R explore;
+    class PB,PRD,UX,A plan;
+    class I execute;
