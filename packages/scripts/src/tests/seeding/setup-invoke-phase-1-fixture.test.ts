@@ -477,18 +477,12 @@ describe("setup invoke phase-1 fixture", () => {
           .map((row) => row.key),
       ),
     ).toEqual([
-      "collect_setup_baseline",
-      "branch_project_kind",
       "greenfield_setup_agent",
-      "brownfield_scan_preferences",
-      "invoke_document_project",
+      "propagate_setup_outputs",
       "branch_need_brainstorming",
       "invoke_brainstorming_work",
       "branch_need_research",
       "invoke_research_work",
-      "branch_need_product_brief",
-      "invoke_product_brief_work",
-      "propagate_setup_outputs",
     ]);
   });
 });

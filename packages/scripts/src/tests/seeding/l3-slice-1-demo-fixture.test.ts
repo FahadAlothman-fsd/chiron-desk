@@ -142,16 +142,22 @@ describe("l3 slice-1 demo fixture", { timeout: SEED_ARTIFACT_TIMEOUT_MS }, () =>
       methodologyCanonicalTableSeedRows.work_unit_fact_definitions.map((row) => row.key),
     );
 
-    expect(slice1FixtureOnlyFactExamples.definitionBackedExternalFacts).toHaveLength(
-      methodologyDesignTimeSeedFacts.setupWorkUnitFactDefinitionKeys.length,
-    );
+    expect(slice1FixtureOnlyFactExamples.definitionBackedExternalFacts).toHaveLength(7);
     expect(slice1FixtureOnlyFactExamples.boundExternalFacts).toHaveLength(
       methodologyDesignTimeSeedFacts.methodologyFactDefinitionKeys.length,
     );
 
     expect(
       slice1FixtureOnlyFactExamples.definitionBackedExternalFacts.map((row) => row.factKey),
-    ).toEqual([...methodologyDesignTimeSeedFacts.setupWorkUnitFactDefinitionKeys]);
+    ).toEqual([
+      "workflow_mode",
+      "scan_level",
+      "requires_brainstorming",
+      "requires_research",
+      "branch_note",
+      "requires_product_brief",
+      "deep_dive_target",
+    ]);
     expect(slice1FixtureOnlyFactExamples.boundExternalFacts.map((row) => row.factKey)).toEqual([
       ...methodologyDesignTimeSeedFacts.methodologyFactDefinitionKeys,
     ]);

@@ -18,6 +18,8 @@ Methodology seeds are not authored as a one-shot full-platform dump. The long-te
 
 For this documentation pass, Slice A is the frozen seed target we are converging toward and documenting as the intended next seed shape.
 
+That slice should now be read through a simpler Chiron-first teaching rule: public-facing methodology guidance should emphasize the default execution loop of `Intent -> Scope -> Pattern -> Build -> Verify -> Next`. Supporting slices like brainstorming or research exist to unblock that loop, not to replace it as the main story.
+
 - Work unit scope: `WU.SETUP`, `WU.BRAINSTORMING`, `WU.RESEARCH`
 - Primary workflow scope: `setup_project`, `brainstorming`, `market_research`, `domain_research`, `technical_research`
 - Mapping authority: `docs/architecture/methodology-bmad-setup-mapping.md`
@@ -26,6 +28,12 @@ For this documentation pass, Slice A is the frozen seed target we are converging
 - Canonical seed-authoring policy: `docs/architecture/methodology-canonical-authority.md`
 
 The seeded methodology ships as one refined methodology definition plus two methodology versions, `draft` and `active`, sharing the same underlying Slice-A canonical data.
+
+Even while those slices remain active in the seed, the intended product framing is narrower:
+
+- `setup_project` is the default entry path.
+- `brainstorming` and research workflows are optional escalation branches.
+- Public docs should not imply that all projects must complete a brainstorming-heavy setup ritual before real implementation work can begin.
 
 The current runtime seed is sufficient for ongoing development and testing, but it remains transitional rather than the final locked seed truth.
 
@@ -51,6 +59,8 @@ Grow methodology seed truth slice by slice.
 5. Add only that mapped slice to the active seed.
 6. Validate the slice against canonical tables and current architecture docs.
 7. Append the next slice later.
+
+When a BMAD source workflow is too ceremony-heavy for Chiron's intended product story, simplify the Chiron-facing framing first. Preserve traceability, but do not preserve complexity as a teaching goal.
 
 For Slice A, stop after L1/L2 entities are locked. Do not treat workflow steps or workflow edges as in scope for this plan.
 

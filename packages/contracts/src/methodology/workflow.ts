@@ -26,7 +26,13 @@ export const WorkflowMetadataDialogInput = Schema.Struct({
 });
 export type WorkflowMetadataDialogInput = typeof WorkflowMetadataDialogInput.Type;
 
-export const FormFieldValueType = Schema.Literal("string", "number", "boolean", "json");
+export const FormFieldValueType = Schema.Literal(
+  "string",
+  "number",
+  "boolean",
+  "json",
+  "work_unit",
+);
 export type FormFieldValueType = typeof FormFieldValueType.Type;
 
 export const FormFieldUiMultiplicityMode = Schema.Literal("one", "many");

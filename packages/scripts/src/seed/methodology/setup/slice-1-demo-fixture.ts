@@ -1,10 +1,16 @@
 import { schema } from "@chiron/db";
 
-import {
-  LOCKED_BMAD_METHODOLOGY_FACT_KEYS,
-  LOCKED_BMAD_SETUP_WORK_UNIT_FACT_KEYS,
-  methodologyVersionIds,
-} from "./setup-bmad-mapping";
+import { LOCKED_BMAD_METHODOLOGY_FACT_KEYS, methodologyVersionIds } from "./setup-bmad-mapping";
+
+export const FIXTURE_ONLY_BMAD_SETUP_CONTEXT_FACT_KEYS = [
+  "workflow_mode",
+  "scan_level",
+  "requires_brainstorming",
+  "requires_research",
+  "branch_note",
+  "requires_product_brief",
+  "deep_dive_target",
+] as const;
 
 export const SLICE_1_DEMO_FIXTURE = {
   fixtureId: "slice_1_wu_setup_form_path",
@@ -64,7 +70,7 @@ function guidanceJson(human: string, agent = human) {
 }
 
 export const slice1FixtureOnlyFactExamples = {
-  definitionBackedExternalFacts: LOCKED_BMAD_SETUP_WORK_UNIT_FACT_KEYS.map(
+  definitionBackedExternalFacts: FIXTURE_ONLY_BMAD_SETUP_CONTEXT_FACT_KEYS.map(
     (factKey): Slice1FixtureOnlyFactExample => ({
       factKey,
       seedSource: "work_unit_fact_definition",
