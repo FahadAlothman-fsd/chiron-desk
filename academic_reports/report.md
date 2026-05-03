@@ -7,7 +7,7 @@ college: "College of Computer Sciences and Engineering"
 department: "Department of Information and Computer Science"
 program: "Master of Science in Data Science & Analytics"
 submission_note: "A Final Report Submitted to King Fahd University of Petroleum and Minerals in Partial Fulfillment of the Requirements for the Master of Science in Data Science & Analytics"
-supervisor: "Dr. Irfan Ahmad"
+advisor: "Dr. Irfan Ahmad"
 date: "2026-04-29"
 lang: en-US
 documentclass: article
@@ -292,9 +292,9 @@ Future work should focus on deeper empirical evaluation, broader user studies, c
 
 [1] K. Ahmad, M. Abdelrazek, C. Arora, M. Bano, and J. Grundy, "Requirements engineering for artificial intelligence systems: A systematic mapping study," *Inf. Softw. Technol.*, vol. 158, Art. no. 107176, 2023, doi: 10.1016/j.infsof.2023.107176.
 
-[2] U. Habiba, M. Haug, J. Bogner, and S. Wagner, "How mature is requirements engineering for AI-based systems? A systematic mapping study on practices, challenges, and future research directions," *Requirements Eng.*, early access, 2024. [Online]. Available: https://doi.org/10.48550/arXiv.2409.07192
+[2] U. Habiba, M. Haug, J. Bogner, and S. Wagner, "How mature is requirements engineering for AI-based systems? A systematic mapping study on practices, challenges, and future research directions," *Requirements Eng.*, early access, 2024. [Online]. Available: <https://doi.org/10.48550/arXiv.2409.07192>
 
-[3] K. Ahmad, M. Abdelrazek, C. Arora, A. A. Baniya, M. Bano, and J. Grundy, "Requirements engineering framework for human-centered artificial intelligence software systems," arXiv preprint, 2023. [Online]. Available: https://doi.org/10.48550/arXiv.2303.02920
+[3] K. Ahmad, M. Abdelrazek, C. Arora, A. A. Baniya, M. Bano, and J. Grundy, "Requirements engineering framework for human-centered artificial intelligence software systems," arXiv preprint, 2023. [Online]. Available: <https://doi.org/10.48550/arXiv.2303.02920>
 
 [4] V. Laporti, M. R. S. Borges, and V. Braganholo, "Athena: A collaborative approach to requirements elicitation," *Comput. Ind.*, vol. 60, no. 6, pp. 367-380, 2009, doi: 10.1016/j.compind.2009.02.011.
 
@@ -308,11 +308,11 @@ Future work should focus on deeper empirical evaluation, broader user studies, c
 
 [9] I. D. Raji, P. Xu, C. Honigsberg, and D. E. Ho, "Outsider oversight: Designing a third party audit ecosystem for AI governance," in *Proc. AAAI/ACM Conf. AI, Ethics, Soc.* 2022, pp. 557-571, doi: 10.1145/3514094.3534181.
 
-[10] C. Qian, W. Liu, H. Liu, N. Chen, Y. Dang, J. Li, C. Yang, W. Chen, Y. Su, X. Cong, J. Xu, D. Li, Z. Liu, and M. Sun, "ChatDev: Communicative agents for software development," in *Proc. 62nd Annu. Meeting Assoc. Comput. Linguistics (ACL)*, 2024. [Online]. Available: https://doi.org/10.48550/arXiv.2307.07924
+[10] C. Qian, W. Liu, H. Liu, N. Chen, Y. Dang, J. Li, C. Yang, W. Chen, Y. Su, X. Cong, J. Xu, D. Li, Z. Liu, and M. Sun, "ChatDev: Communicative agents for software development," in *Proc. 62nd Annu. Meeting Assoc. Comput. Linguistics (ACL)*, 2024. [Online]. Available: <https://doi.org/10.48550/arXiv.2307.07924>
 
 [11] A. R. Hevner, S. T. March, J. Park, and S. Ram, "Design science in information systems research," *MIS Q.*, vol. 28, no. 1, pp. 75-105, 2004, doi: 10.2307/25148625.
 
-[12] BMad Method, "Framework overview," 2026. [Online]. Available: https://bmad-code-org-bmad-method-6.mintlify.app/concepts/framework-overview
+[12] BMad Method, "Framework overview," 2026. [Online]. Available: <https://bmad-code-org-bmad-method-6.mintlify.app/concepts/framework-overview>
 
 # Appendix A. Figure Inventory
 
