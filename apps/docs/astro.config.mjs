@@ -15,9 +15,15 @@ export default defineConfig({
       logo: {
         src: "./src/assets/chiron-icon.svg",
       },
-      social: [{ icon: "github", label: "GitHub", href: "https://github.com/chiron" }],
+      social: [
+        {
+          icon: "github",
+          label: "GitHub",
+          href: "https://github.com/FahadAlothman-fsd/chiron-desk",
+        },
+      ],
       editLink: {
-        baseUrl: "https://github.com/chiron/chiron/edit/main/apps/docs/",
+        baseUrl: "https://github.com/FahadAlothman-fsd/chiron-desk/edit/main/apps/docs/",
       },
       tableOfContents: {
         minHeadingLevel: 2,

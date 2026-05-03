@@ -15,7 +15,22 @@ That makes it a good example for Chiron because the work naturally moves through
 
 ## The Taskflow runtime journey
 
-The public Taskflow section follows one concrete path:
+The public Taskflow section follows one concrete path.
+
+The first responsibility of the overview is simple: get the project to the point where the `Setup` transition can begin cleanly.
+
+That means the early part of the story is about:
+
+- creating the operator account
+- seeding the default methodology
+- creating the Taskflow project
+- pinning it to the methodology version
+- opening runtime guidance
+- launching the first `Setup` transition
+
+Only after that does the first real runtime step begin.
+
+From there, the runtime story continues like this:
 
 1. **Setup and Onboarding** creates the initial durable baseline.
 2. **Brainstorming** refines possible directions.
@@ -26,8 +41,14 @@ The public Taskflow section follows one concrete path:
 
 Each page in this section shows what is happening in the example at runtime, what work exists, what outputs become durable, and what gets created next.
 
-> **Screenshot placeholder**
-> Taskflow runtime map, showing the progression from setup through brainstorming, research, product brief, PRD, and implementation.
+So the boundary is:
+
+- **Taskflow Overview** gets the project ready to start the `Setup` transition
+- **Taskflow Setup And Onboarding** shows the first real runtime step once that transition is launched
+
+![Taskflow project overview before setup starts](/screenshots/taskflow/setup-onboarding/taskflow-project-overview-start.png)
+
+This is the moment where the example stops being abstract. The project exists, the methodology is pinned, and the runtime is ready to start the first `Setup` transition.
 
 ## Read the runtime walkthrough
 

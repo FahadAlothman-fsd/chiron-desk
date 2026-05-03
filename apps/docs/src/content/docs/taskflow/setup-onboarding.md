@@ -2,28 +2,103 @@
 title: Taskflow Setup And Onboarding
 ---
 
-This page shows the first Taskflow runtime move: a user starts `setup`, the setup agent asks what they are building, and the conversation produces the durable baseline that branches into both `Brainstorming` and `Research`.
+This page shows the first real runtime move in the Taskflow example.
 
-Taskflow is the example project being initialized.
+The overview work is already done. The project exists, the default methodology is seeded, Taskflow is pinned to it, and Chiron is ready to launch the first transition on the `Setup` work unit.
 
-Chiron is the system that runs the method.
+That is the point where the example stops being generic onboarding and starts becoming real runtime execution.
 
-## What this page is showing
+## What this page covers
 
-The goal here is to show the smallest honest runtime path from:
+This walkthrough follows one clean path:
 
-- a vague idea for **Taskflow**
-- through the first `setup` agent step
-- into durable setup outputs
-- and then into the first two supporting branches: `Brainstorming` and `Research`
+1. create the operator account
+2. seed the default methodology
+3. create the Taskflow project
+4. open runtime guidance
+5. launch the `Setup Project` workflow
+6. open the first step
+7. start the agent session
+8. show what the step actually wrote
 
-This is the point where the example stops being abstract. The setup agent is not supposed to generate generic project notes. It is supposed to leave behind durable structure that the rest of the Taskflow path can actually use.
+The important boundary is simple:
 
-Behind the scenes, this run is using Chiron's default seeded methodology, but this page stays focused on the runtime experience. If you want the contract behind `setup`, read the [Setup work-unit reference](/methodology/work-units/setup).
+- the [Taskflow Overview](/taskflow/) gets the project ready to start the `Setup` transition
+- this page shows what happens once that transition is actually launched
 
-## Workflow steps shown on this page
+## Before the first step runs
 
-This walkthrough follows the actual seeded `Setup Project` workflow in order:
+Before the first agent message is sent, the runtime story should already be easy to follow.
+
+The user signs in, seeds the default methodology, creates the Taskflow project, and then uses runtime guidance to launch the `Setup` transition.
+
+### 1. Create the operator account
+
+The runtime story starts with a normal account-creation step.
+
+![Sign up screen](/screenshots/taskflow/setup-onboarding/sign-up.png)
+
+The important thing this screen proves is not the styling. It proves that the user is entering Chiron as an operator who will seed a method, create a project, and run real work through it.
+
+### 2. Seed the default methodology
+
+Once inside Chiron, the first setup action is to seed the default methodology.
+
+![Seed default methodology](/screenshots/taskflow/setup-onboarding/seed-bmad-methodology.png)
+
+This is the moment where the repo stops being an empty shell and gets a real runnable method. In the public example, that method is the default seeded BMAD-derived structure discussed in the separate Methodology section.
+
+### 3. Create the Taskflow project
+
+Next, the user creates Taskflow and pins it to the seeded methodology version.
+
+![Create Taskflow project](/screenshots/taskflow/setup-onboarding/create-taskflow-project.png)
+
+This is where the runtime story becomes project-specific. The user is no longer just browsing methodology definitions. They are creating the actual project instance that will move through runtime.
+
+### 4. Open the project overview
+
+With the project created, the overview page shows what is ready to happen next.
+
+![Taskflow project overview before setup starts](/screenshots/taskflow/setup-onboarding/taskflow-project-overview-start.png)
+
+The most important point on this screen is that Taskflow is now ready to move into the `Setup` work. The overview is not the runtime work itself. It is the surface that makes the next action visible.
+
+### 5. Launch Setup from runtime guidance
+
+The guidance modal is where the first transition becomes explicit.
+
+![Launch Setup workflow](/screenshots/taskflow/setup-onboarding/guidance-page-start-setup.png)
+
+This is the handoff from “the project exists” to “the first runtime workflow is being launched.”
+
+### 6. See Setup as the active work
+
+Once launched, Setup appears as the active work unit and `Setup Project` becomes the current workflow.
+
+![Setup active in runtime guidance](/screenshots/taskflow/setup-onboarding/active-transition-setup.png)
+
+This screen matters because it makes runtime state visible. The project is no longer waiting for a user to decide what to do in a loose chat. Chiron is now tracking active work explicitly.
+
+### 7. Open the workflow execution
+
+The workflow execution page shows the structure of the runtime path before the first step is activated.
+
+![Setup workflow execution page](/screenshots/taskflow/setup-onboarding/workflow-exectuion-page.png)
+
+This is still pre-step runtime. It shows that `Setup Project` is real workflow state with an entry step, not just a conceptual diagram in the docs.
+
+### 8. Open the first step before the session starts
+
+The first step page is where the user sees the actual agent step surface before sending the first message.
+
+![First setup agent step before session start](/screenshots/taskflow/setup-onboarding/agent-step-setup-workflow.png)
+
+This screenshot is important because it marks the beginning of the first real runtime step: **Greenfield Setup Agent**. Up to this point, the overview has been setting everything up to start the Setup transition. Here, the step itself is finally ready to run.
+
+## The first real runtime step: Greenfield Setup Agent
+
+The seeded `Setup Project` workflow starts with:
 
 1. **Greenfield Setup Agent**
 2. **Propagate Setup Outputs**
@@ -32,296 +107,132 @@ This walkthrough follows the actual seeded `Setup Project` workflow in order:
 5. **Branch Need Research**
 6. **Invoke Research Work**
 
-Each section below uses the display name that should appear in the UI. Where useful, the internal step key is included secondarily.
+The first real runtime step is **Greenfield Setup Agent**.
 
-## At Project Runtime
+Its job is to understand what Taskflow is, ask for enough framing to proceed safely, and write the first setup-owned outputs that later steps can use.
 
-Now a real Taskflow project starts the `setup` work unit.
+## The full setup prompt
 
-The first runtime step is the setup agent step.
+For the public walkthrough, the clearest version is the full Taskflow framing prompt.
 
-Its job is to learn enough about Taskflow to write:
+![Full Taskflow setup prompt](/screenshots/taskflow/setup-onboarding/agent-full-prompt.png)
 
-- a durable `setup_path_summary`
-- the `PROJECT_OVERVIEW` artifact
-- a `Brainstorming` draft
-- a `Research` draft
+This prompt gives the step enough context to do four things well:
 
-It should not try to finish every planning activity itself. Its purpose is to define the baseline and launch the next right work.
+- understand the product and the target users
+- understand the product constraints and technical direction
+- decide that Brainstorming is needed
+- decide that Research is needed
 
-## The first setup agent step
+That is why this is the right place to start the runtime story. The point of the first step is not to produce generic notes. It is to create durable runtime outputs that justify the next work.
 
-The setup agent should start with a direct question such as:
+## What the first step writes
 
-> "Tell me about what you're building and what problem you're solving."
+By the end of the first agent step, Setup should have enough information to begin shaping the rest of the path.
 
-For Taskflow, the best walkthrough version is not a generic project summary. It is a Taskflow-specific initialization prompt that gives the setup agent enough context to confidently branch into both Brainstorming and Research.
+The most important outputs are:
 
-### Option A — Full prompt
+- `requires_brainstorming_ctx`
+- `requires_research_ctx`
+- `setup_path_summary_ctx`
+- `project_overview_artifact_ctx`
+- `brainstorming_draft_spec_ctx`
+- `research_draft_spec_ctx`
 
-Use this when you want the setup agent to have nearly everything it needs in one pass.
+The screenshots below focus on the outputs that matter most for the public story.
 
-```text
-I’m building a task management application called TaskFlow for small software development teams (2-5 people).
+### Brainstorming is required
 
-Problem:
-Existing task management tools are either too complex and heavy for small teams (like Jira or Linear) or too simple for real collaborative delivery. TaskFlow should sit in the middle: simple enough to adopt immediately, but structured enough for sprint planning, team collaboration, and developer workflows.
+![Greenfield Setup Agent writes requires_brainstorming_ctx](/screenshots/taskflow/setup-onboarding/agent-writes-requires-brainstorming.png)
 
-Target users:
-- Small software development teams (2-5 developers)
-- Indie hackers and solo founders managing contractors
-- Early-stage startups
-- Remote-first teams that need async collaboration
+This is the first major routing decision written by the agent step. Taskflow is not treated as a trivial project that can jump straight into implementation planning. The step decides that the product still needs directional refinement, so Brainstorming must be created.
 
-Key features:
-- Task creation, assignment, due dates, and priorities
-- Task dependencies, subtasks, and checklists
-- Comments, @mentions, attachments, and activity feed
-- Kanban boards and list views
-- Sprint and milestone planning
-- Simple progress reporting and team visibility
-- GitHub integration for linking issues and PRs to tasks
-- Real-time updates
+### The project overview artifact is created
 
-Technical direction:
-- Greenfield project, starting from scratch
-- React + TypeScript web app
-- PostgreSQL database
-- Real-time collaboration support
-- API/integration support
-- Mobile-responsive experience first
+![Greenfield Setup Agent writes project overview artifact reference](/screenshots/taskflow/setup-onboarding/agent-writes-artifact.png)
 
-Team and timeline:
-- Solo full-stack developer initially, with part-time design help
-- 3-4 months to MVP
+This is where setup proves it is creating durable runtime structure rather than disposable conversation. The project overview becomes a named artifact that later work can inspect directly.
 
-Business context:
-- Freemium model
-- Competing with Asana, ClickUp, Jira, and Linear
-- Main differentiation is simpler UX plus developer-friendly workflow support
+### The research draft is prepared
 
-Constraints:
-- Keep the product simple and fast to adopt
-- Must support collaborative team workflows without enterprise-heavy complexity
-- Should remain performant with active projects and many tasks
-- Should be accessible and credible as a real startup product
+![Greenfield Setup Agent writes research draft spec](/screenshots/taskflow/setup-onboarding/agent-writes-research-draft.png)
 
-Workflow guidance:
-- Brainstorming is needed because I want help refining the best onboarding, workflow, and differentiation directions for TaskFlow before locking downstream planning.
-- Research is also needed because I want explicit evidence about the market, competitive positioning, and product assumptions before finalizing the planning path.
-- For this run, I want the workflow to continue cleanly from setup into both Brainstorming and Research so we can test and document the full Taskflow path end to end.
-```
+This is the second major routing decision made visible as runtime data. The setup step is not just saying that research sounds useful. It is preparing the downstream draft input that later steps can use to create the `Research` work unit cleanly.
 
-### Option B — Multi-turn conversational path
+## What this first step actually accomplishes
 
-Use this when you want the walkthrough to feel more like a real conversation with the setup agent.
+By the end of **Greenfield Setup Agent**, the Taskflow run has established the baseline required for the rest of the workflow:
 
-#### User message 1
+- the project is clearly framed as a greenfield product
+- the initial setup summary exists
+- the canonical project overview artifact exists
+- Brainstorming is marked as required
+- Research is marked as required
+- downstream draft inputs are prepared
 
-```text
-I’m building TaskFlow, a task management app for small dev teams.
+That is enough for the rest of the `Setup Project` workflow to continue into propagation, branching, and work-unit creation.
 
-The problem is that existing tools are either too complicated for small teams or too simple for real collaborative delivery.
-```
+## What the remaining Setup workflow steps do
 
-#### If the agent asks for more detail
+The rest of Setup is deterministic runtime work built on top of what the first agent step already wrote.
 
-Add:
+### Propagate Setup Outputs
 
-```text
-The target users are small software teams, indie hackers, and early-stage startups.
+This action step takes the values written by **Greenfield Setup Agent** and turns them into durable Setup outputs.
 
-The main features I care about are task assignment, dependencies, comments, Kanban boards, sprint planning, GitHub integration, and real-time updates.
-```
+In the Taskflow run, that means:
 
-#### If the agent asks about stack or project shape
+- propagating the setup path summary into durable Setup state
+- propagating the project overview into the canonical Setup artifact slot
 
-Add:
+This is the moment where the agent&apos;s output stops being temporary workflow context and becomes durable runtime state.
 
-```text
-This is a greenfield project.
+### Branch Need Brainstorming
 
-The technical direction is React, TypeScript, PostgreSQL, and real-time collaboration support. It is a web-first, mobile-responsive product.
+This branch step checks whether the Setup run decided that Taskflow still needs ideation and directional refinement.
 
-The current team is one full-stack developer with part-time design help, aiming for an MVP in 3-4 months.
-```
+In the public example, the answer is yes. Taskflow is a coherent greenfield product idea, but it still needs deeper direction on onboarding, workflow shape, and differentiation before later planning hardens.
 
-#### If the agent asks what should happen after setup
+### Invoke Brainstorming Work
 
-Add:
+Once the branch resolves, the invoke step creates the downstream `Brainstorming` work unit from the draft input authored earlier in Setup.
 
-```text
-After setup I want to run both Brainstorming and Research.
+That matters because Setup is not just suggesting the next move. It is creating the next structured work unit with a prepared starting contract.
 
-Brainstorming is needed to refine onboarding, workflow shape, and differentiation.
-Research is needed to validate market assumptions, competitors, and product direction before later planning.
-```
+### Branch Need Research
 
-This path is slower than the full prompt, but it is often better for screenshots because it makes the branching logic visible in the conversation.
+This branch step checks whether the Setup run also determined that the product still has unanswered questions that need evidence.
 
-## Step-by-step runtime walkthrough
+In the public example, the answer is also yes. Taskflow still needs explicit validation around market assumptions, competitive positioning, and product direction.
 
-### 1. Greenfield Setup Agent
+### Invoke Research Work
 
-`greenfield_setup_agent`
+The final invoke step creates the downstream `Research` work unit from the research draft written during Setup.
 
-This is the first active runtime step.
+At that point, Setup has done its job:
 
-Its job is to read the user's Taskflow framing, ask follow-up questions when needed, and write the first setup-owned workflow outputs. In the public example, this is where the run decides that both Brainstorming and Research should be created later.
+- the baseline is durable
+- the overview artifact exists
+- Brainstorming has a structured entry point
+- Research has a structured entry point
 
-#### What to write in this section
+That is the handoff from setup work into the first two supporting branches of the Taskflow runtime path.
 
-Explain that this step is where setup stops being a generic onboarding chat and starts becoming structured runtime work. Call out that the agent is responsible for writing the setup summary, the project overview artifact reference, and the two downstream draft specs.
+## Why this matters
 
-#### Screenshot placeholder — prompt being sent
+This is the first moment where the public Taskflow example proves the main claim of the product.
 
-> **Screenshot placeholder — `01-greenfield-setup-agent-prompt.png`**
-> Capture the `Setup` work unit with the `Setup Project` workflow open and **Greenfield Setup Agent** active. The visible prompt should show the Taskflow product framing plus the instruction that both Brainstorming and Research are wanted after setup.
+The user does not just talk to an agent and lose the result. The result becomes:
 
-#### Screenshot placeholder — after the agent step runs
-
-> **Screenshot placeholder — `02-greenfield-setup-agent-after-run.png`**
-> Capture the same step after execution. Show the step output or context panel with the newly written values, especially `requires_brainstorming_ctx`, `requires_research_ctx`, `setup_path_summary_ctx`, `project_overview_artifact_ctx`, `brainstorming_draft_spec_ctx`, and `research_draft_spec_ctx`.
-
-### 2. Propagate Setup Outputs
-
-`propagate_setup_outputs`
-
-This is the deterministic action step that promotes the setup summary and project overview into durable setup outputs.
-
-#### What to write in this section
-
-Explain that the agent step writes workflow context first, then this action step turns the approved values into durable work-unit outputs. That distinction is important because it shows the difference between in-flight step state and durable methodology state.
-
-#### Screenshot placeholder
-
-> **Screenshot placeholder — `03-propagate-setup-outputs.png`**
-> Capture **Propagate Setup Outputs** with the action detail visible. The screenshot should make it clear that the setup summary and project overview are being promoted into durable outputs rather than remaining temporary context.
-
-### 3. Project Overview artifact
-
-The `PROJECT_OVERVIEW` artifact is one of the two main durable outputs that prove setup completed with usable structure.
-
-#### What to write in this section
-
-Explain that setup does not end with raw notes. It creates a canonical overview artifact that later work can inspect directly.
-
-#### Screenshot placeholder
-
-> **Screenshot placeholder — `04-project-overview-artifact.png`**
-> Capture the `PROJECT_OVERVIEW` artifact in the runtime UI. Best case: show the artifact slot name and a readable preview of the artifact content in the same shot.
-
-### 4. Branch Need Brainstorming
-
-`branch_need_brainstorming`
-
-This branch step checks whether setup decided the project still needs ideation and directional refinement.
-
-#### What to write in this section
-
-Explain that Taskflow intentionally routes to Brainstorming because the product still needs clearer direction on onboarding, collaboration shape, and differentiation before later planning hardens.
-
-#### Screenshot placeholder
-
-> **Screenshot placeholder — `05-branch-need-brainstorming.png`**
-> Capture **Branch Need Brainstorming** with the evaluated route visible. The screenshot should make it obvious that the branch resolved toward creating Brainstorming work.
-
-### 5. Invoke Brainstorming Work
-
-`invoke_brainstorming_work`
-
-This invoke step creates the downstream `Brainstorming` work unit from the draft spec authored earlier in setup.
-
-#### What to write in this section
-
-Explain that setup is not just recommending next work. It is actually creating the next work unit from structured draft input.
-
-#### Screenshot placeholder
-
-> **Screenshot placeholder — `06-invoke-brainstorming-work.png`**
-> Capture **Invoke Brainstorming Work** with the created downstream `Brainstorming` work unit visible. Best case: also show the draft spec or mapped values used for creation.
-
-### 6. Branch Need Research
-
-`branch_need_research`
-
-This branch step checks whether setup decided the project still has open questions that need evidence.
-
-#### What to write in this section
-
-Explain that Taskflow intentionally routes to Research because market assumptions, competitive positioning, and technical unknowns still need durable evidence before later planning should be trusted.
-
-#### Screenshot placeholder
-
-> **Screenshot placeholder — `07-branch-need-research.png`**
-> Capture **Branch Need Research** with the evaluated route visible. The screenshot should make it obvious that the branch resolved toward creating Research work.
-
-### 7. Invoke Research Work
-
-`invoke_research_work`
-
-This invoke step creates the downstream `Research` work unit from the research draft spec written during setup.
-
-#### What to write in this section
-
-Explain that the same runtime pattern used for Brainstorming repeats here: a branch decides the route, then an invoke step creates real downstream work with a structured starting contract.
-
-#### Screenshot placeholder
-
-> **Screenshot placeholder — `08-invoke-research-work.png`**
-> Capture **Invoke Research Work** with the created downstream `Research` work unit visible. Best case: also show the draft spec or mapped values used for creation.
-
-## What the setup work unit should decide
-
-For the Taskflow walkthrough, the setup agent should leave the first step with these conclusions:
-
-- the project is **greenfield**
-- the product is **Taskflow**, a lightweight but collaborative task-management app for small dev teams
-- the work is substantial enough to require follow-up planning support
-- `Brainstorming` should be created
-- `Research` should be created
-
-In other words, setup should not stop at a generic overview. It should create the durable baseline and the two downstream drafts that let the Taskflow path continue.
-
-## What durable outputs matter here
-
-At this point the important setup outputs are:
-
-- a durable setup path summary
-- a durable project overview artifact
-- a Brainstorming draft that captures the ideation focus
-- a Research draft that captures the evidence-gathering focus
-
-Those outputs are what turn the example from a setup chat into inspectable work.
-
-## Recommended UI improvements before final capture
-
-If the current UI still makes these states difficult to capture clearly, improve the setup work-unit detail surface before taking final screenshots.
-
-The most valuable UI changes would be:
-
-1. a stronger step header that emphasizes the display name over the internal key
-2. a written-values panel that separates newly written context from inherited context
-3. a clearer action-step result view that shows propagation into durable outputs
-4. explicit route evaluation on branch steps
-5. a created-work preview or reference card on invoke steps
-6. an easier-to-capture artifact preview panel for `PROJECT_OVERVIEW`
-
-## Why this slice matters
-
-This is the first moment where the Taskflow example proves the main claim of the product.
-
-The user does not just chat with an agent and lose the result. The result becomes:
-
-- durable facts
+- durable runtime facts
 - a durable setup artifact
-- explicit downstream work creation
+- explicit downstream branching decisions
+- structured draft inputs for the next work units
 
-That is the handoff from fuzzy initialization to structured execution.
+That is the handoff from vague project setup into structured execution.
 
 ## Continue reading
 
 - Back to overview: [/taskflow/](/taskflow/)
 - Next runtime stage: [/taskflow/brainstorming](/taskflow/brainstorming)
 - Runtime work-unit list: [/project-runtime/work-unit-instances](/project-runtime/work-unit-instances)
-- Screenshot drop folder: `apps/docs/public/screenshots/taskflow/setup-onboarding/`
