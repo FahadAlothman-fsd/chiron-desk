@@ -182,9 +182,9 @@ export function ProjectDashboardRoute() {
               className="group block"
             >
               <RuntimeStatCard
-                title="Fact types with instances"
-                value={`${runtimeOverview.stats.factTypesWithInstances.current ?? 0}/${runtimeOverview.stats.factTypesWithInstances.total ?? 0}`}
-                subtitle={runtimeOverview.stats.factTypesWithInstances.subtitle}
+                title="Facts created"
+                value={`${runtimeOverview.stats.factTypesWithInstances.current ?? 0}`}
+                subtitle={`Across ${runtimeOverview.stats.factTypesWithInstances.total ?? 0} available fact types`}
               />
             </Link>
 
@@ -195,9 +195,9 @@ export function ProjectDashboardRoute() {
               className="group block"
             >
               <RuntimeStatCard
-                title="Work-unit types with instances"
-                value={`${runtimeOverview.stats.workUnitTypesWithInstances.current ?? 0}/${runtimeOverview.stats.workUnitTypesWithInstances.total ?? 0}`}
-                subtitle={runtimeOverview.stats.workUnitTypesWithInstances.subtitle}
+                title="Work units created"
+                value={`${runtimeOverview.stats.workUnitTypesWithInstances.current ?? 0}`}
+                subtitle={`Across ${runtimeOverview.stats.workUnitTypesWithInstances.total ?? 0} available work-unit types`}
               />
             </Link>
 
@@ -208,7 +208,7 @@ export function ProjectDashboardRoute() {
               className="group block"
             >
               <RuntimeStatCard
-                title="Active transitions"
+                title="Transitions in progress"
                 value={`${runtimeOverview.stats.activeTransitions.count ?? 0}`}
                 subtitle={runtimeOverview.stats.activeTransitions.subtitle}
               />
@@ -254,7 +254,7 @@ export function ProjectDashboardRoute() {
             candidateCards={candidateCards}
             transitionResults={transitionResults}
             sectionId="project-dashboard-active-guidance"
-            title="Active guidance"
+            title="What you can do now"
             emptyMessage="No active transitions right now."
           />
 
@@ -276,7 +276,7 @@ export function ProjectDashboardRoute() {
                 "w-full justify-between rounded-none text-[0.72rem] uppercase tracking-[0.14em]",
               )}
             >
-              Go to Guidance
+              Open setup and transition guidance
               <ArrowRightIcon className="size-4" />
             </Link>
           </div>

@@ -374,10 +374,10 @@ function CreateProjectRoute() {
             <p className="text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground">
               Methodology pinning
             </p>
-            <h2 className="text-xl font-semibold">Create a project from a pinned methodology</h2>
+            <h2 className="text-xl font-semibold">Create Taskflow from a pinned methodology</h2>
             <p className="max-w-3xl text-sm text-muted-foreground">
-              Choose one methodology card, then select an exact published version from that card.
-              Default selection is deterministic and no implicit repin occurs.
+              Choose the methodology version Chiron should use for this project, then create the
+              runtime workspace from that pinned version.
             </p>
           </div>
           <Link to="/projects">
@@ -452,7 +452,8 @@ function CreateProjectRoute() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Required runtime git anchor. Stored in <code>projects.project_root_path</code>.
+              Choose the repository root Chiron should use for runtime work and file-aware
+              operations.
             </p>
             {!canBrowseProjectRootPath && !hasPartialDesktopBridge ? (
               <p className="text-xs text-muted-foreground">
@@ -469,11 +470,9 @@ function CreateProjectRoute() {
           </div>
 
           {normalizedProjectRootPath.length > 0 ? (
-            <p className="text-xs text-muted-foreground">Normalized: {normalizedProjectRootPath}</p>
+            <p className="text-xs text-muted-foreground">Using path: {normalizedProjectRootPath}</p>
           ) : (
-            <p className="text-xs text-muted-foreground">
-              Normalized: not set (runtime freshness checks remain unavailable).
-            </p>
+            <p className="text-xs text-muted-foreground">No project root path selected yet.</p>
           )}
 
           {projectRootPathValidationError ? (
@@ -652,7 +651,7 @@ function CreateProjectRoute() {
         <div className="flex flex-wrap items-center justify-between gap-3 border border-border/70 bg-background/20 p-4">
           <div className="space-y-1">
             <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-              Selected pin target: {selectedMethodology?.methodologyKey ?? "none"}{" "}
+              Pinned methodology: {selectedMethodology?.displayName ?? "none"}{" "}
               {selectedVersionLabel ? `@ ${selectedVersionLabel}` : ""}
             </p>
             <p className="text-xs text-muted-foreground">

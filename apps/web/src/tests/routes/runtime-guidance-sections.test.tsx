@@ -114,12 +114,12 @@ describe("runtime guidance sections visuals", () => {
       />,
     );
 
-    expect(markup).toContain("SETUP");
+    expect(markup).toContain("Setup");
     expect(markup).toContain("Activation");
     expect(markup).toContain("Done");
-    expect(markup).toContain("Open transition detail");
-    expect(markup).toContain("Open workflow detail");
-    expect(markup).toContain("Start-gate drill-in");
+    expect(markup).toContain("Open transition");
+    expect(markup).toContain("Open workflow");
+    expect(markup).toContain("Next up");
     expect(markup).toContain("Blocked");
     expect(markup).not.toContain("mver_bmad_v1_active");
   });
@@ -195,7 +195,7 @@ describe("runtime guidance sections visuals", () => {
     );
 
     expect(markup).toContain(
-      "No transition is active. Showing the next transitions ready to start now.",
+      "No transition is active yet. These are the next work units ready to start now.",
     );
     expect(markup).toContain("Available now");
     expect(markup).toContain("Brainstorming activation to done");

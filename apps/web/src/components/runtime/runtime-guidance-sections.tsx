@@ -98,10 +98,10 @@ function compactKey(value: string): string {
 function workUnitTitleFromKey(value: string): string {
   const compact = compactKey(value);
   if (compact.length === 0) {
-    return "WORK UNIT";
+    return "Work unit";
   }
 
-  return compact.toUpperCase();
+  return humanizeKey(compact);
 }
 
 function looksOpaqueIdentifier(value: string): boolean {
@@ -193,7 +193,7 @@ export function RuntimeGuidanceSections({
             id="runtime-guidance-open-future"
             className="font-geist-pixel-square text-sm uppercase tracking-[0.14em]"
           >
-            Open/Future
+            Next up
           </h2>
           <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
             stream {renderStreamStatus(streamStatus)}
@@ -208,7 +208,7 @@ export function RuntimeGuidanceSections({
 
         {candidateCards.length === 0 ? (
           <p className="border border-border/70 bg-background p-3 text-sm text-muted-foreground">
-            Waiting for runtime guidance candidates.
+            Waiting for available runtime actions.
           </p>
         ) : null}
 
@@ -224,8 +224,7 @@ export function RuntimeGuidanceSections({
                   )}
                 </CardTitle>
                 <CardDescription>
-                  {card.workUnitContext.workUnitTypeKey} · current{" "}
-                  {normalizeStateLabel(card.workUnitContext.currentStateLabel)}
+                  Ready from {normalizeStateLabel(card.workUnitContext.currentStateLabel)}
                 </CardDescription>
                 {card.workUnitContext.workUnitHumanGuidance ? (
                   <p className="text-sm text-muted-foreground">
@@ -253,9 +252,6 @@ export function RuntimeGuidanceSections({
                               "Transition",
                             )}
                           </p>
-                          <p className="text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
-                            {transition.transitionKey}
-                          </p>
                           <div className="mt-1 flex flex-wrap items-center gap-2 text-[0.68rem] uppercase tracking-[0.12em]">
                             <span className="border border-border/80 bg-background/80 px-2 py-1">
                               {normalizeStateLabel(card.workUnitContext.currentStateLabel)}
@@ -268,7 +264,7 @@ export function RuntimeGuidanceSections({
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="border border-border/70 bg-muted/30 px-2 py-1 uppercase tracking-[0.1em] text-muted-foreground">
-                            {transition.source}
+                            available now
                           </span>
                           <span
                             className={`border px-2 py-1 uppercase tracking-[0.1em] ${resultToken.className}`}
@@ -294,7 +290,12 @@ export function RuntimeGuidanceSections({
                           )}
                           onClick={() => onOpenStartGate(card, transition)}
                         >
-                          Start-gate drill-in
+                          Start{" "}
+                          {toReadableLabel(
+                            card.workUnitContext.workUnitTypeName,
+                            card.workUnitContext.workUnitTypeKey,
+                            "Work Unit",
+                          )}
                         </Button>
                       </div>
                     </div>
@@ -397,7 +398,7 @@ export function RuntimeGuidanceActiveCards({
       {showAvailableFallback ? (
         <div className="space-y-3">
           <p className="border border-primary/30 bg-primary/8 px-3 py-2 text-sm text-primary/90">
-            No transition is active. Showing the next transitions ready to start now.
+            No transition is active yet. These are the next work units ready to start now.
           </p>
 
           <div className="grid gap-3 lg:grid-cols-2">
@@ -410,12 +411,11 @@ export function RuntimeGuidanceActiveCards({
                 data-testid={`runtime-guidance-available-card-${card.candidateCardId}`}
               >
                 <CardHeader className="border-b border-border/70">
-                  <CardTitle className="uppercase tracking-[0.12em] text-primary">
+                  <CardTitle className="tracking-[0.02em] text-primary">
                     {workUnitTitleFromKey(card.workUnitContext.workUnitTypeKey)}
                   </CardTitle>
                   <CardDescription>
-                    {compactKey(card.workUnitContext.workUnitTypeKey)} · current state{" "}
-                    {normalizeStateLabel(card.workUnitContext.currentStateLabel)}
+                    Ready from {normalizeStateLabel(card.workUnitContext.currentStateLabel)}
                   </CardDescription>
                   {card.workUnitContext.workUnitHumanGuidance ? (
                     <p className="text-sm text-muted-foreground">
@@ -424,15 +424,18 @@ export function RuntimeGuidanceActiveCards({
                   ) : null}
                 </CardHeader>
                 <CardContent className="space-y-3 py-3">
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <p className="border border-border/70 bg-background/40 px-2 py-1 text-muted-foreground">
-                      facts {card.summaries.facts.currentCount}/{card.summaries.facts.totalCount}
-                    </p>
-                    <p className="border border-border/70 bg-background/40 px-2 py-1 text-muted-foreground">
-                      artifacts {card.summaries.artifactSlots.currentCount}/
-                      {card.summaries.artifactSlots.totalCount}
-                    </p>
-                  </div>
+                  {card.summaries.facts.currentCount > 0 ||
+                  card.summaries.artifactSlots.currentCount > 0 ? (
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <p className="border border-border/70 bg-background/40 px-2 py-1 text-muted-foreground">
+                        facts {card.summaries.facts.currentCount}/{card.summaries.facts.totalCount}
+                      </p>
+                      <p className="border border-border/70 bg-background/40 px-2 py-1 text-muted-foreground">
+                        artifacts {card.summaries.artifactSlots.currentCount}/
+                        {card.summaries.artifactSlots.totalCount}
+                      </p>
+                    </div>
+                  ) : null}
 
                   <div className="space-y-2 text-xs">
                     <p className="font-medium text-primary">Available now</p>
@@ -450,12 +453,9 @@ export function RuntimeGuidanceActiveCards({
                                 "Transition",
                               )}
                             </p>
-                            <p className="text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
-                              {transition.transitionKey}
-                            </p>
                           </div>
                           <span className="border border-emerald-500/40 bg-emerald-500/12 px-2 py-1 text-[0.68rem] uppercase tracking-[0.1em] text-emerald-200">
-                            {transition.source === "future" ? "future" : "open"}
+                            available now
                           </span>
                         </div>
 
@@ -477,7 +477,12 @@ export function RuntimeGuidanceActiveCards({
                               className="rounded-none uppercase tracking-[0.12em]"
                               onClick={() => onOpenStartGate(card, transition)}
                             >
-                              Start-gate drill-in
+                              Start{" "}
+                              {toReadableLabel(
+                                card.workUnitContext.workUnitTypeName,
+                                card.workUnitContext.workUnitTypeKey,
+                                "Work Unit",
+                              )}
                             </Button>
                           </div>
                         ) : null}
@@ -501,12 +506,11 @@ export function RuntimeGuidanceActiveCards({
             data-testid={`runtime-guidance-active-card-${card.projectWorkUnitId}`}
           >
             <CardHeader className="border-b border-border/70">
-              <CardTitle className="uppercase tracking-[0.12em] text-primary">
+              <CardTitle className="tracking-[0.02em] text-primary">
                 {workUnitTitleFromKey(card.workUnitTypeKey)}
               </CardTitle>
               <CardDescription>
-                {compactKey(card.workUnitTypeKey)} · current state{" "}
-                {normalizeStateLabel(card.currentStateLabel)}
+                In progress from {normalizeStateLabel(card.currentStateLabel)}
               </CardDescription>
               {card.workUnitHumanGuidance ? (
                 <p className="text-sm text-muted-foreground">{card.workUnitHumanGuidance}</p>
@@ -514,16 +518,13 @@ export function RuntimeGuidanceActiveCards({
             </CardHeader>
             <CardContent className="space-y-3 py-3">
               <div className="space-y-1 text-xs">
-                <p className="font-medium text-primary">Active transition</p>
+                <p className="font-medium text-primary">Transition in progress</p>
                 <p className="text-muted-foreground">
                   {toReadableLabel(
                     card.activeTransition.transitionName,
                     card.activeTransition.transitionKey,
                     "Transition",
                   )}
-                </p>
-                <p className="text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground">
-                  {card.activeTransition.transitionKey}
                 </p>
                 <div className="flex flex-wrap items-center gap-2 text-[0.68rem] uppercase tracking-[0.12em]">
                   <span className="border border-border/80 bg-background/80 px-2 py-1">
@@ -536,7 +537,7 @@ export function RuntimeGuidanceActiveCards({
                 </div>
               </div>
               <div className="space-y-1 text-xs">
-                <p className="font-medium text-primary">Primary workflow</p>
+                <p className="font-medium text-primary">Current workflow</p>
                 <p className="text-muted-foreground">
                   {toReadableLabel(
                     card.activePrimaryWorkflow.workflowName,
@@ -545,22 +546,21 @@ export function RuntimeGuidanceActiveCards({
                   )}
                 </p>
                 <div className="flex flex-wrap items-center gap-2 text-[0.68rem] uppercase tracking-[0.12em]">
-                  <span className="border border-border/70 bg-background/60 px-2 py-1 text-muted-foreground">
-                    {card.activePrimaryWorkflow.workflowKey}
-                  </span>
                   <span className="border border-sky-500/40 bg-sky-500/12 px-2 py-1 text-sky-200">
                     status {card.activePrimaryWorkflow.status}
                   </span>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <p className="border border-border/70 bg-background/40 px-2 py-1 text-muted-foreground">
-                  facts {card.factSummary.currentCount}/{card.factSummary.totalCount}
-                </p>
-                <p className="border border-border/70 bg-background/40 px-2 py-1 text-muted-foreground">
-                  artifacts {card.artifactSummary.currentCount}/{card.artifactSummary.totalCount}
-                </p>
-              </div>
+              {card.factSummary.currentCount > 0 || card.artifactSummary.currentCount > 0 ? (
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <p className="border border-border/70 bg-background/40 px-2 py-1 text-muted-foreground">
+                    facts {card.factSummary.currentCount}/{card.factSummary.totalCount}
+                  </p>
+                  <p className="border border-border/70 bg-background/40 px-2 py-1 text-muted-foreground">
+                    artifacts {card.artifactSummary.currentCount}/{card.artifactSummary.totalCount}
+                  </p>
+                </div>
+              ) : null}
             </CardContent>
             <CardFooter className="flex-wrap justify-between gap-2 text-[0.68rem] uppercase tracking-[0.12em]">
               <div className="flex flex-wrap gap-2">
@@ -577,7 +577,7 @@ export function RuntimeGuidanceActiveCards({
                     "rounded-none uppercase tracking-[0.12em]",
                   )}
                 >
-                  Open transition detail
+                  Open transition
                 </Link>
 
                 <Link
@@ -592,13 +592,13 @@ export function RuntimeGuidanceActiveCards({
                     "rounded-none uppercase tracking-[0.12em]",
                   )}
                 >
-                  Open workflow detail
+                  Open workflow
                 </Link>
               </div>
 
               {card.activeTransition.readyForCompletion ? (
                 <span className="border border-primary/40 bg-primary/15 px-2 py-1 text-primary">
-                  ready hint
+                  Ready to complete
                 </span>
               ) : (
                 <span className="text-muted-foreground">completion pending</span>

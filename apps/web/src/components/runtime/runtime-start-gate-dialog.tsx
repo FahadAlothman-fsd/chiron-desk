@@ -410,6 +410,14 @@ function WorkflowLaunchCombobox(props: {
   );
 }
 
+function hasStructuredConditions(tree: RuntimeConditionTree | null): boolean {
+  if (!tree) {
+    return false;
+  }
+
+  return tree.conditions.length > 0 || tree.groups.length > 0;
+}
+
 export function RuntimeStartGateDialog({
   open,
   onOpenChange,
@@ -449,14 +457,17 @@ export function RuntimeStartGateDialog({
     detail && isRuntimeConditionEvaluationTree(detail.evaluationTree)
       ? detail.evaluationTree
       : null;
+  const workUnitName = detail?.workUnitContext.workUnitTypeName ?? "Work unit";
+  const showConditionTree = hasStructuredConditions(conditionTree);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[min(92vh,60rem)] max-w-[min(92vw,64rem)] overflow-y-auto rounded-none border border-border/80 bg-background">
         <DialogHeader>
-          <DialogTitle>Start-gate drill-in</DialogTitle>
+          <DialogTitle>Launch {workUnitName} workflow</DialogTitle>
           <DialogDescription>
-            Inspect the current start gate and launch the selected transition workflow.
+            Review the current start conditions, confirm the workflow, and launch the next runtime
+            action.
           </DialogDescription>
         </DialogHeader>
 
@@ -473,10 +484,14 @@ export function RuntimeStartGateDialog({
         {!isLoading && detail ? (
           <div className="space-y-3 text-xs">
             <section className="space-y-2 border border-border/70 bg-background/40 p-3">
-              <DetailLabel>Transition</DetailLabel>
-              <DetailPrimary>
-                {detail.transition.transitionName} ({detail.transition.transitionKey})
-              </DetailPrimary>
+              <DetailLabel>Work and transition</DetailLabel>
+              <DetailPrimary>{workUnitName}</DetailPrimary>
+              <p className="text-sm text-muted-foreground">{detail.transition.transitionName}</p>
+              <p className="text-sm text-muted-foreground">
+                {detail.workUnitContext.source === "future"
+                  ? "This launch will create a new work unit."
+                  : "This launch will continue the selected work unit."}
+              </p>
               <div className="flex flex-wrap gap-2">
                 <ExecutionBadge label={`source ${detail.workUnitContext.source}`} tone="slate" />
                 <ExecutionBadge label={`target ${detail.transition.toStateKey}`} tone="sky" />
@@ -495,6 +510,11 @@ export function RuntimeStartGateDialog({
                   tone={detail.launchability.canLaunch ? "sky" : "amber"}
                 />
               </div>
+              {!showConditionTree ? (
+                <p className="text-sm text-muted-foreground">
+                  No explicit start conditions block this workflow.
+                </p>
+              ) : null}
             </section>
 
             <section className="space-y-2 border border-border/70 bg-background/40 p-3">
@@ -507,24 +527,26 @@ export function RuntimeStartGateDialog({
               />
             </section>
 
-            <section className="space-y-2 border border-border/70 bg-background/40 p-3">
-              <DetailLabel>Condition tree</DetailLabel>
-              {conditionTree ? (
-                <RuntimeConditionTreePanel
-                  tree={conditionTree}
-                  evaluation={evaluationTree ?? undefined}
-                />
-              ) : (
-                <div className="space-y-2 border border-border/70 bg-background/40 p-3">
-                  <p className="text-sm text-muted-foreground">
-                    The condition set could not be rendered as a structured gate tree.
-                  </p>
-                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap text-xs text-muted-foreground">
-                    {JSON.stringify(detail.conditionTree, null, 2)}
-                  </pre>
-                </div>
-              )}
-            </section>
+            {showConditionTree ? (
+              <section className="space-y-2 border border-border/70 bg-background/40 p-3">
+                <DetailLabel>Start conditions</DetailLabel>
+                {conditionTree ? (
+                  <RuntimeConditionTreePanel
+                    tree={conditionTree}
+                    evaluation={evaluationTree ?? undefined}
+                  />
+                ) : (
+                  <div className="space-y-2 border border-border/70 bg-background/40 p-3">
+                    <p className="text-sm text-muted-foreground">
+                      The condition set could not be rendered as a structured gate tree.
+                    </p>
+                    <pre className="max-h-48 overflow-auto whitespace-pre-wrap text-xs text-muted-foreground">
+                      {JSON.stringify(detail.conditionTree, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </section>
+            ) : null}
           </div>
         ) : null}
 

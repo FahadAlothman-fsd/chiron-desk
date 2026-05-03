@@ -76,7 +76,9 @@ export function LoginForm({ mode, onToggleMode }: LoginFormProps) {
             {mode === "signin" ? "Sign In" : "Create Account"}
           </h1>
           <p className="text-muted-foreground text-sm">
-            {mode === "signin" ? "Access the operator console" : "Register a new operator profile"}
+            {mode === "signin"
+              ? "Continue into your existing Chiron workspace"
+              : "Create an operator account for setup, guidance, and runtime work"}
           </p>
         </div>
 
@@ -85,6 +87,7 @@ export function LoginForm({ mode, onToggleMode }: LoginFormProps) {
             <FieldLabel htmlFor="name">Name</FieldLabel>
             <Input
               id="name"
+              placeholder="Jane Operator"
               value={name}
               onChange={(event) => setName(event.target.value)}
               required
@@ -109,6 +112,7 @@ export function LoginForm({ mode, onToggleMode }: LoginFormProps) {
           <Input
             id="password"
             type="password"
+            placeholder={mode === "signin" ? "Enter your password" : "Create a secure password"}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             required
@@ -132,7 +136,7 @@ export function LoginForm({ mode, onToggleMode }: LoginFormProps) {
         </FieldSeparator>
 
         <FieldDescription className="text-center">
-          {mode === "signin" ? "Need an account?" : "Already onboarded?"}{" "}
+          {mode === "signin" ? "Need an account first?" : "Already have an account?"}{" "}
           <button
             type="button"
             className="underline underline-offset-4"
@@ -142,7 +146,7 @@ export function LoginForm({ mode, onToggleMode }: LoginFormProps) {
               }
             }}
           >
-            {mode === "signin" ? "Sign up" : "Sign in"}
+            {mode === "signin" ? "Create one" : "Sign in instead"}
           </button>
         </FieldDescription>
       </FieldGroup>

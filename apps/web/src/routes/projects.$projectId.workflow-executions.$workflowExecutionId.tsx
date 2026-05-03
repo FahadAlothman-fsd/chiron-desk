@@ -2178,7 +2178,7 @@ function WorkflowStepSurfaceCard({
         <Card frame="flat" tone="runtime" className="border-border/70 bg-background/40">
           <CardHeader>
             <CardDescription>Workflow orchestration state</CardDescription>
-            <CardTitle>Entry step pending activation</CardTitle>
+            <CardTitle>Ready to start the first step</CardTitle>
             <CardAction>
               <span
                 className={cn(
@@ -2191,15 +2191,15 @@ function WorkflowStepSurfaceCard({
             </CardAction>
           </CardHeader>
           <CardContent className="space-y-2 text-xs text-muted-foreground">
-            <p>Entry step: {renderStepLabel(stepSurface.entryStep)}</p>
+            <p>First step: {renderStepLabel(stepSurface.entryStep)}</p>
             <p>Type: {stepSurface.entryStep.stepType}</p>
           </CardContent>
           <CardFooter className="justify-between gap-3">
             <p className="text-xs text-muted-foreground">
-              Activate the workflow entry shell from here.
+              Start the workflow by activating its first step.
             </p>
             <Button size="sm" onClick={activateWorkflowStep} disabled={isActivating}>
-              Activate entry step
+              Start first step
             </Button>
           </CardFooter>
         </Card>
@@ -2857,7 +2857,7 @@ export function WorkflowExecutionDetailRoute() {
           to: "/projects/$projectId/workflows",
           params: { projectId },
         },
-        { label: detail?.workflowExecution.workflowKey ?? workflowExecutionId },
+        { label: detail?.workflowExecution.workflowName ?? workflowExecutionId },
       ]}
     >
       <section
@@ -2879,12 +2879,12 @@ export function WorkflowExecutionDetailRoute() {
           <div className="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(16rem,0.8fr)]">
             <div className="space-y-2 border border-border/70 bg-background/40 p-3">
               <DetailLabel>Workflow execution</DetailLabel>
-              <DetailCode>
-                {detail?.workflowExecution.workflowExecutionId ?? workflowExecutionId}
-              </DetailCode>
               <DetailPrimary>
                 {detail?.workflowExecution.workflowName ?? "pending context"}
               </DetailPrimary>
+              <p className="text-sm text-muted-foreground">
+                Current step-by-step runtime for this workflow execution.
+              </p>
             </div>
             <div className="space-y-2 border border-border/70 bg-background/40 p-3">
               <DetailLabel>Execution state</DetailLabel>
@@ -2915,7 +2915,9 @@ export function WorkflowExecutionDetailRoute() {
                 <div>
                   <DetailLabel>Name</DetailLabel>
                   <DetailPrimary>{detail.workflowExecution.workflowName}</DetailPrimary>
-                  <DetailCode>{detail.workflowExecution.workflowKey}</DetailCode>
+                  <p className="text-sm text-muted-foreground">
+                    Workflow key: {detail.workflowExecution.workflowKey}
+                  </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <ExecutionBadge
@@ -2942,12 +2944,14 @@ export function WorkflowExecutionDetailRoute() {
                     {formatTimestamp(detail.workflowExecution.completedAt)}
                   </DetailPrimary>
                 </div>
-                <div>
-                  <DetailLabel>Superseded</DetailLabel>
-                  <DetailPrimary>
-                    {formatTimestamp(detail.workflowExecution.supersededAt)}
-                  </DetailPrimary>
-                </div>
+                {detail.workflowExecution.supersededAt ? (
+                  <div>
+                    <DetailLabel>Superseded</DetailLabel>
+                    <DetailPrimary>
+                      {formatTimestamp(detail.workflowExecution.supersededAt)}
+                    </DetailPrimary>
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -2987,90 +2991,98 @@ export function WorkflowExecutionDetailRoute() {
             </div>
           </section>
 
-          <section className="space-y-3 border border-border/80 bg-background p-4">
-            <DetailEyebrow className="text-[0.72rem]">Retry and supersession lineage</DetailEyebrow>
+          {(detail.lineage.previousPrimaryAttempts &&
+            detail.lineage.previousPrimaryAttempts.length > 0) ||
+          detail.lineage.supersedesWorkflowExecutionId ||
+          detail.lineage.supersededByWorkflowExecutionId ||
+          detail.retryAction ? (
+            <section className="space-y-3 border border-border/80 bg-background p-4">
+              <DetailEyebrow className="text-[0.72rem]">
+                Retry and supersession lineage
+              </DetailEyebrow>
 
-            <div className="space-y-1 text-sm">
-              <p>
-                <span className="text-muted-foreground">Supersedes workflow execution:</span>{" "}
-                {detail.lineage.supersedesWorkflowExecutionId ?? "—"}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Superseded by workflow execution:</span>{" "}
-                {detail.lineage.supersededByWorkflowExecutionId ?? "—"}
-              </p>
-            </div>
-
-            {detail.lineage.previousPrimaryAttempts &&
-            detail.lineage.previousPrimaryAttempts.length > 0 ? (
-              <div className="space-y-2">
-                <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
-                  Previous primary attempts
-                </p>
-                <ul className="space-y-2">
-                  {detail.lineage.previousPrimaryAttempts.map((attempt) => (
-                    <li
-                      key={attempt.workflowExecutionId}
-                      className="grid gap-1 border border-border/70 bg-background/40 px-3 py-2 text-xs md:grid-cols-[1fr_auto]"
-                    >
-                      <div>
-                        <p className="font-medium text-foreground">{attempt.workflowName}</p>
-                        <p className="text-muted-foreground">{attempt.workflowKey}</p>
-                      </div>
-                      <Link
-                        to="/projects/$projectId/workflow-executions/$workflowExecutionId"
-                        params={{ projectId, workflowExecutionId: attempt.workflowExecutionId }}
-                        className={cn(
-                          buttonVariants({ variant: "outline", size: "xs" }),
-                          "h-fit rounded-none text-[0.66rem] uppercase tracking-[0.12em]",
-                        )}
-                      >
-                        Open attempt
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-
-            {detail.retryAction?.enabled ? (
-              <button
-                type="button"
-                className={cn(
-                  buttonVariants({ variant: "default", size: "sm" }),
-                  "rounded-none text-[0.68rem] uppercase tracking-[0.12em]",
-                )}
-                disabled={retrySameWorkflowMutation.isPending}
-                onClick={async () => {
-                  await retrySameWorkflowMutation.mutateAsync({
-                    projectId,
-                    workflowExecutionId,
-                  });
-                }}
-              >
-                Retry same workflow
-              </button>
-            ) : null}
-
-            {detail.retryAction && !detail.retryAction.enabled ? (
-              <div className="space-y-1 border border-border/70 bg-background/40 px-3 py-2 text-sm text-muted-foreground">
-                <p className="font-medium text-foreground">Retry unavailable</p>
+              <div className="space-y-1 text-sm">
                 <p>
-                  {detail.retryAction.reasonIfDisabled ??
-                    "Retry is currently unavailable for this workflow execution."}
+                  <span className="text-muted-foreground">Supersedes workflow execution:</span>{" "}
+                  {detail.lineage.supersedesWorkflowExecutionId ?? "—"}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Superseded by workflow execution:</span>{" "}
+                  {detail.lineage.supersededByWorkflowExecutionId ?? "—"}
                 </p>
               </div>
-            ) : null}
 
-            {detail.impactDialog?.requiredForRetry ? (
-              <p className="text-xs text-muted-foreground">
-                Retry impact: transition{" "}
-                {detail.impactDialog.affectedEntitiesSummary.transitionExecutionId}
-                {" · workflows "}
-                {detail.impactDialog.affectedEntitiesSummary.workflowExecutionIds.join(", ")}
-              </p>
-            ) : null}
-          </section>
+              {detail.lineage.previousPrimaryAttempts &&
+              detail.lineage.previousPrimaryAttempts.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
+                    Previous primary attempts
+                  </p>
+                  <ul className="space-y-2">
+                    {detail.lineage.previousPrimaryAttempts.map((attempt) => (
+                      <li
+                        key={attempt.workflowExecutionId}
+                        className="grid gap-1 border border-border/70 bg-background/40 px-3 py-2 text-xs md:grid-cols-[1fr_auto]"
+                      >
+                        <div>
+                          <p className="font-medium text-foreground">{attempt.workflowName}</p>
+                          <p className="text-muted-foreground">{attempt.workflowKey}</p>
+                        </div>
+                        <Link
+                          to="/projects/$projectId/workflow-executions/$workflowExecutionId"
+                          params={{ projectId, workflowExecutionId: attempt.workflowExecutionId }}
+                          className={cn(
+                            buttonVariants({ variant: "outline", size: "xs" }),
+                            "h-fit rounded-none text-[0.66rem] uppercase tracking-[0.12em]",
+                          )}
+                        >
+                          Open attempt
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {detail.retryAction?.enabled ? (
+                <button
+                  type="button"
+                  className={cn(
+                    buttonVariants({ variant: "default", size: "sm" }),
+                    "rounded-none text-[0.68rem] uppercase tracking-[0.12em]",
+                  )}
+                  disabled={retrySameWorkflowMutation.isPending}
+                  onClick={async () => {
+                    await retrySameWorkflowMutation.mutateAsync({
+                      projectId,
+                      workflowExecutionId,
+                    });
+                  }}
+                >
+                  Retry same workflow
+                </button>
+              ) : null}
+
+              {detail.retryAction && !detail.retryAction.enabled ? (
+                <div className="space-y-1 border border-border/70 bg-background/40 px-3 py-2 text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground">Retry unavailable</p>
+                  <p>
+                    {detail.retryAction.reasonIfDisabled ??
+                      "Retry is currently unavailable for this workflow execution."}
+                  </p>
+                </div>
+              ) : null}
+
+              {detail.impactDialog?.requiredForRetry ? (
+                <p className="text-xs text-muted-foreground">
+                  Retry impact: transition{" "}
+                  {detail.impactDialog.affectedEntitiesSummary.transitionExecutionId}
+                  {" · workflows "}
+                  {detail.impactDialog.affectedEntitiesSummary.workflowExecutionIds.join(", ")}
+                </p>
+              ) : null}
+            </section>
+          ) : null}
 
           <section className="space-y-3 border border-border/80 bg-background p-4">
             <DetailEyebrow className="text-[0.72rem]">Workflow step surface</DetailEyebrow>

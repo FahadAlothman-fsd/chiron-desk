@@ -310,6 +310,28 @@ function formatBranchAvailabilitySummary(body: BranchBody): string {
   return `${validRouteCount} valid route${validRouteCount === 1 ? "" : "s"} available.`;
 }
 
+function formatRuntimeStepTargetLabel(stepId: string | null | undefined): string {
+  if (!stepId) {
+    return "No target";
+  }
+
+  const rawStepKey = stepId.includes(":step:") ? (stepId.split(":step:").at(-1) ?? stepId) : stepId;
+
+  return rawStepKey
+    .split(/[_:-]+/)
+    .filter((part) => part.length > 0)
+    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
+    .join(" ");
+}
+
+function formatBranchRouteDisplayName(routeId: string): string {
+  return routeId
+    .split(/[_:-]+/)
+    .filter((part) => part.length > 0)
+    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
+    .join(" ");
+}
+
 type InvokeWorkUnitBindingPreview = RuntimeInvokeWorkUnitTargetRow["bindingPreview"][number];
 
 type RepoFilePickerEntry = {
@@ -2050,19 +2072,26 @@ function getValueKindLabel(value: unknown): string {
 }
 
 function normalizeSchemaLabel(value: string): string {
-  return value.replaceAll(/[_-]+/g, " ");
+  const seededFactMatch = value.match(
+    /^seed:(?:work-unit-fact|methodology-fact):[^:]+:([^:]+):mver_.+$/i,
+  );
+  const seededArtifactMatch = value.match(/^seed:artifact-slot:[^:]+:([^:]+):mver_.+$/i);
+  const normalizedValue = seededFactMatch?.[1] ?? seededArtifactMatch?.[1] ?? value;
+  return normalizedValue.replaceAll(/[_-]+/g, " ");
 }
 
 function renderSchemaDisplayName(params: { label?: string; fallbackKey?: string }): string {
-  if (params.label) {
+  if (params.label && !params.label.startsWith("seed:")) {
     return params.label;
   }
 
-  if (!params.fallbackKey) {
+  const candidate = params.fallbackKey ?? params.label;
+
+  if (!candidate) {
     return "Value";
   }
 
-  return normalizeSchemaLabel(params.fallbackKey)
+  return normalizeSchemaLabel(candidate)
     .split(" ")
     .filter((segment) => segment.length > 0)
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
@@ -2231,13 +2260,34 @@ function DraftSpecNestedValueTable(props: { values: Record<string, unknown> }) {
               tone={getValueTone(nestedValue)}
             />
           </div>
-          <DetailPrimary className="break-words text-xs font-normal">
-            {formatPrimitiveValue(nestedValue)}
-          </DetailPrimary>
+          {typeof nestedValue === "string" && nestedValue.length > 120 ? (
+            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">
+              {nestedValue}
+            </p>
+          ) : (
+            <DetailPrimary className="break-words text-xs font-normal">
+              {formatPrimitiveValue(nestedValue)}
+            </DetailPrimary>
+          )}
         </div>
       ))}
     </div>
   );
+}
+
+function arePropagationValuesEquivalent(left: unknown, right: unknown): boolean {
+  return formatUnknown(left) === formatUnknown(right);
+}
+
+function renderPropagationValuePane(params: {
+  kind: WorkflowContextFactKind;
+  value: unknown;
+  schemas?: {
+    selectedFactSchemas?: Record<string, { label?: string | undefined; factKey: string }>;
+    selectedArtifactSchemas?: Record<string, { label?: string | undefined; slotKey: string }>;
+  };
+}) {
+  return renderContextFactInstanceValue(params.kind, params.value, params.schemas);
 }
 
 function ArtifactFileCard(props: { file: Record<string, unknown>; index: number }) {
@@ -2356,6 +2406,10 @@ function renderContextFactInstanceValue(
   if (kind === "bound_fact" && isRecord(value)) {
     const deleted = value.deleted === true;
     const boundValue = value.value;
+    const isSetupSummaryValue =
+      isRecord(boundValue) &&
+      typeof boundValue.selected_path === "string" &&
+      typeof boundValue.rationale === "string";
     return (
       <div className="space-y-2">
         <div className="flex flex-wrap gap-2">
@@ -2376,7 +2430,22 @@ function renderContextFactInstanceValue(
         ) : null}
         <div className="space-y-2">
           <DetailLabel>Value</DetailLabel>
-          {isRecord(boundValue) && !Array.isArray(boundValue) ? (
+          {isSetupSummaryValue ? (
+            <div className="space-y-3">
+              <div className="space-y-2 border border-border/60 bg-background/35 p-3">
+                <DetailLabel>Selected path</DetailLabel>
+                <DetailPrimary className="break-words text-sm font-medium">
+                  {String(boundValue.selected_path)}
+                </DetailPrimary>
+              </div>
+              <div className="space-y-2 border border-border/60 bg-background/35 p-3">
+                <DetailLabel>Why this path was chosen</DetailLabel>
+                <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">
+                  {String(boundValue.rationale)}
+                </p>
+              </div>
+            </div>
+          ) : isRecord(boundValue) && !Array.isArray(boundValue) ? (
             <DraftSpecNestedValueTable values={boundValue} />
           ) : Array.isArray(boundValue) ? (
             <div className="space-y-2">
@@ -3251,6 +3320,67 @@ function formatActionPolicyLabel(
     case "idempotent_noop":
       return "Idempotent no-op";
   }
+}
+
+function getActionStepPurposeCopy(params: { actionKeys: readonly string[] }): {
+  title: string;
+  description: string;
+  summary: string;
+} {
+  const { actionKeys } = params;
+
+  if (
+    actionKeys.includes("propagate_setup_bound_facts") &&
+    actionKeys.includes("propagate_project_overview")
+  ) {
+    return {
+      title: "Make the Setup outputs durable",
+      description:
+        "This step takes the values written by the first Setup agent step and promotes them into durable Setup outputs.",
+      summary:
+        "It propagates the setup path summary and the project overview artifact so later work can inspect them directly.",
+    };
+  }
+
+  return {
+    title: "Run propagation rows under the authored action rules",
+    description:
+      "Action rows stay lazy until first execution, retry remains in-place for needs-attention rows, and completion stays manual until at least one action succeeds with no rows left running.",
+    summary: "This step promotes authored workflow outputs into durable runtime targets.",
+  };
+}
+
+function getActionRuntimeRowTitle(action: ActionBody["actions"][number]): string {
+  switch (action.actionKey) {
+    case "propagate_setup_bound_facts":
+      return "Propagate Setup Path Summary";
+    case "propagate_project_overview":
+      return "Propagate Project Overview Artifact";
+    default:
+      return action.label ?? action.actionKey;
+  }
+}
+
+function getInvokeStepPurposeCopy(params: {
+  targetKind: InvokeBody["targetKind"];
+  sourceMode: InvokeBody["sourceMode"];
+}): {
+  title: string;
+  description: string;
+} {
+  if (params.targetKind === "work_unit" && params.sourceMode === "fact_backed") {
+    return {
+      title: "Create downstream work from the saved draft input",
+      description:
+        "This step uses the saved draft input from the current workflow context to create the next work unit with an explicit transition and primary workflow.",
+    };
+  }
+
+  return {
+    title: "Invoke the next runtime target",
+    description:
+      "This step materializes a downstream workflow or work-unit path from the current runtime payload.",
+  };
 }
 
 function formatActionAffectedTarget(target: RuntimeActionAffectedTarget): string {
@@ -4308,7 +4438,7 @@ function BoundFactFieldRow(props: {
                 (field.widget.options?.length ?? 0) <= 1)
             }
           />
-          {createNewDisabled ? (
+          {isPlainRecord(normalizedValue) && "value" in normalizedValue ? (
             <PrimitiveFieldEditor
               field={valueField}
               value={getBoundFactInlineValue(normalizedValue)}
@@ -5104,6 +5234,9 @@ function ActionInteractionSurface(props: {
     }),
     [body.actions],
   );
+  const actionStepPurpose = getActionStepPurposeCopy({
+    actionKeys: body.actions.map((action) => action.actionKey),
+  });
 
   return (
     <div className="space-y-4">
@@ -5130,16 +5263,18 @@ function ActionInteractionSurface(props: {
         <CardHeader>
           <div className="space-y-1">
             <DetailEyebrow>Action runtime</DetailEyebrow>
-            <CardTitle>Run propagation rows under the locked Plan A rules</CardTitle>
-            <CardDescription>
-              Action rows stay lazy until first execution, retry remains in-place for
-              needs-attention rows, and completion stays manual until at least one action succeeds
-              with no rows left running.
-            </CardDescription>
+            <CardTitle>{actionStepPurpose.title}</CardTitle>
+            <CardDescription>{actionStepPurpose.description}</CardDescription>
           </div>
         </CardHeader>
 
         <CardContent className="space-y-4">
+          <div className="border border-primary/30 bg-primary/8 p-3">
+            <DetailLabel>Action step purpose</DetailLabel>
+            <DetailPrimary>{actionStepPurpose.title}</DetailPrimary>
+            <p className="mt-1 text-sm text-muted-foreground">{actionStepPurpose.summary}</p>
+          </div>
+
           <div className="grid gap-3 md:grid-cols-3">
             <div className="border border-border/70 bg-background/40 p-3">
               <DetailLabel>Execution mode</DetailLabel>
@@ -5176,7 +5311,7 @@ function ActionInteractionSurface(props: {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <DetailEyebrow>Completion rule</DetailEyebrow>
-                  <CardTitle>Manual completion stays locked to runtime truth</CardTitle>
+                  <CardTitle>Step completes after successful propagation</CardTitle>
                 </div>
                 <ExecutionBadge
                   label={completionOutcome}
@@ -5184,8 +5319,8 @@ function ActionInteractionSurface(props: {
                 />
               </div>
               <p className="text-sm text-muted-foreground">
-                Requires at least one succeeded action and blocks while any action row is still
-                running.
+                Both Setup propagation rows should finish successfully before the step is treated as
+                done.
               </p>
               {!body.completionSummary.eligible && body.completionSummary.reasonIfIneligible ? (
                 <p className="text-xs text-muted-foreground">
@@ -5254,7 +5389,7 @@ function ActionInteractionSurface(props: {
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="space-y-1">
                         <CardTitle className="text-sm">
-                          {action.label ?? action.actionKey}
+                          {getActionRuntimeRowTitle(action)}
                         </CardTitle>
                         <CardDescription>
                           {action.actionKey}
@@ -5315,7 +5450,20 @@ function ActionInteractionSurface(props: {
                       </div>
                     </div>
 
-                    {action.resultSummaryJson ? (
+                    {action.status === "succeeded" ? (
+                      <div className="border border-emerald-500/25 bg-emerald-500/8 p-3">
+                        <DetailLabel>Action result</DetailLabel>
+                        <DetailPrimary>
+                          {getActionRuntimeRowTitle(action)} completed successfully.
+                        </DetailPrimary>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          The propagated values below are now the durable runtime result of this
+                          action.
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {action.resultSummaryJson && action.status !== "succeeded" ? (
                       <div className="space-y-2">
                         <DetailLabel>Action result summary</DetailLabel>
                         <pre className="whitespace-pre-wrap break-words border border-border/70 bg-background/50 p-2 text-xs text-foreground">
@@ -5324,7 +5472,7 @@ function ActionInteractionSurface(props: {
                       </div>
                     ) : null}
 
-                    {action.resultJson ? (
+                    {action.resultJson && action.status !== "succeeded" ? (
                       <div className="space-y-2">
                         <DetailLabel>Action result payload</DetailLabel>
                         <pre className="whitespace-pre-wrap break-words border border-border/70 bg-background/50 p-2 text-xs text-foreground">
@@ -5435,69 +5583,109 @@ function ActionInteractionSurface(props: {
                                             key={`${item.itemId}-${mapping.targetKind}-${mapping.targetId ?? index}`}
                                             className="space-y-3 border border-border/70 bg-background/45 p-3"
                                           >
-                                            <div className="flex flex-wrap items-start justify-between gap-2">
-                                              <div className="space-y-1">
-                                                <DetailPrimary>
-                                                  {mapping.label ??
-                                                    mapping.targetId ??
-                                                    `mapping ${index + 1}`}
-                                                </DetailPrimary>
-                                                {mapping.targetId ? (
-                                                  <DetailCode>{mapping.targetId}</DetailCode>
-                                                ) : null}
-                                              </div>
-                                              <div className="flex flex-wrap gap-2">
-                                                <ExecutionBadge
-                                                  label={formatPropagationOperationLabel(
-                                                    mapping.operationKind,
-                                                  )}
-                                                  tone={getPropagationOperationTone(
-                                                    mapping.operationKind,
-                                                  )}
-                                                />
-                                                <ExecutionBadge
-                                                  label={mapping.targetKind.replaceAll("_", " ")}
-                                                  tone="slate"
-                                                />
-                                              </div>
-                                            </div>
+                                            {(() => {
+                                              const valuesInSync =
+                                                showAppliedStateLabels &&
+                                                arePropagationValuesEquivalent(
+                                                  mapping.previousValueJson,
+                                                  mapping.nextValueJson,
+                                                );
 
-                                            <div className="grid gap-3 md:grid-cols-2">
-                                              <div className="space-y-2 border border-border/60 bg-background/35 p-3">
-                                                <DetailLabel>
-                                                  {showAppliedStateLabels
-                                                    ? "Current external value"
-                                                    : "Previous external value"}
-                                                </DetailLabel>
-                                                {mapping.previousValueJson === undefined ? (
-                                                  <p className="text-xs text-muted-foreground">
-                                                    No external instance/value.
-                                                  </p>
-                                                ) : (
-                                                  renderContextFactInstanceValue(
-                                                    item.targetContextFactKind,
-                                                    mapping.previousValueJson,
-                                                  )
-                                                )}
-                                              </div>
-                                              <div className="space-y-2 border border-border/60 bg-background/35 p-3">
-                                                <DetailLabel>
-                                                  {showAppliedStateLabels
-                                                    ? "Current context value"
-                                                    : "Next propagated value"}
-                                                </DetailLabel>
-                                                {mapping.nextValueJson === undefined ? (
-                                                  <p className="text-xs text-muted-foreground">
-                                                    No propagated value.
-                                                  </p>
-                                                ) : (
-                                                  renderContextFactInstanceValue(
-                                                    item.targetContextFactKind,
-                                                    mapping.nextValueJson,
-                                                  )
-                                                )}
-                                              </div>
-                                            </div>
+                                              return (
+                                                <>
+                                                  <div className="flex flex-wrap items-start justify-between gap-2">
+                                                    <div className="space-y-1">
+                                                      <DetailPrimary>
+                                                        {mapping.label ??
+                                                          mapping.targetId ??
+                                                          `mapping ${index + 1}`}
+                                                      </DetailPrimary>
+                                                      {mapping.targetId ? (
+                                                        <DetailCode>{mapping.targetId}</DetailCode>
+                                                      ) : null}
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-2">
+                                                      <ExecutionBadge
+                                                        label={formatPropagationOperationLabel(
+                                                          mapping.operationKind,
+                                                        )}
+                                                        tone={getPropagationOperationTone(
+                                                          mapping.operationKind,
+                                                        )}
+                                                      />
+                                                      <ExecutionBadge
+                                                        label={mapping.targetKind.replaceAll(
+                                                          "_",
+                                                          " ",
+                                                        )}
+                                                        tone="slate"
+                                                      />
+                                                      {valuesInSync ? (
+                                                        <ExecutionBadge
+                                                          label="already in sync"
+                                                          tone="emerald"
+                                                        />
+                                                      ) : null}
+                                                    </div>
+                                                  </div>
+
+                                                  {valuesInSync ? (
+                                                    <div className="space-y-2 border border-emerald-500/25 bg-emerald-500/8 p-3">
+                                                      <DetailLabel>
+                                                        Current durable value
+                                                      </DetailLabel>
+                                                      {mapping.nextValueJson === undefined ? (
+                                                        <p className="text-xs text-muted-foreground">
+                                                          No propagated value.
+                                                        </p>
+                                                      ) : (
+                                                        renderPropagationValuePane({
+                                                          kind: item.targetContextFactKind,
+                                                          value: mapping.nextValueJson,
+                                                        })
+                                                      )}
+                                                    </div>
+                                                  ) : (
+                                                    <div className="grid gap-3 md:grid-cols-2">
+                                                      <div className="space-y-2 border border-border/60 bg-background/35 p-3">
+                                                        <DetailLabel>
+                                                          {showAppliedStateLabels
+                                                            ? "Current external value"
+                                                            : "Before propagation"}
+                                                        </DetailLabel>
+                                                        {mapping.previousValueJson === undefined ? (
+                                                          <p className="text-xs text-muted-foreground">
+                                                            No external instance/value.
+                                                          </p>
+                                                        ) : (
+                                                          renderPropagationValuePane({
+                                                            kind: item.targetContextFactKind,
+                                                            value: mapping.previousValueJson,
+                                                          })
+                                                        )}
+                                                      </div>
+                                                      <div className="space-y-2 border border-border/60 bg-background/35 p-3">
+                                                        <DetailLabel>
+                                                          {showAppliedStateLabels
+                                                            ? "Current context value"
+                                                            : "After propagation"}
+                                                        </DetailLabel>
+                                                        {mapping.nextValueJson === undefined ? (
+                                                          <p className="text-xs text-muted-foreground">
+                                                            No propagated value.
+                                                          </p>
+                                                        ) : (
+                                                          renderPropagationValuePane({
+                                                            kind: item.targetContextFactKind,
+                                                            value: mapping.nextValueJson,
+                                                          })
+                                                        )}
+                                                      </div>
+                                                    </div>
+                                                  )}
+                                                </>
+                                              );
+                                            })()}
                                           </div>
                                         ))}
                                       </div>
@@ -5716,10 +5904,10 @@ function BranchInteractionSurface(props: {
         <CardHeader>
           <div className="space-y-1">
             <DetailEyebrow>Branch runtime</DetailEyebrow>
-            <CardTitle>Persist a route selection before completion</CardTitle>
+            <CardTitle>Choose the route that should happen next</CardTitle>
             <CardDescription>
-              Suggestions stay advisory. Only the saved target selection can unlock branch
-              completion.
+              The branch can suggest a route automatically, but only the saved route selection can
+              unlock completion.
             </CardDescription>
           </div>
         </CardHeader>
@@ -5729,8 +5917,13 @@ function BranchInteractionSurface(props: {
             <div className="border border-border/70 bg-background/40 p-3">
               <DetailLabel>Saved selection</DetailLabel>
               <DetailPrimary>
-                {body.persistedSelection.selectedTargetStepId ?? "No target saved"}
+                {formatRuntimeStepTargetLabel(body.persistedSelection.selectedTargetStepId)}
               </DetailPrimary>
+              {body.persistedSelection.selectedTargetStepId ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {body.persistedSelection.selectedTargetStepId}
+                </p>
+              ) : null}
               {body.persistedSelection.savedAt ? (
                 <p className="mt-1 text-xs text-muted-foreground">
                   Saved {formatTimestamp(body.persistedSelection.savedAt)}
@@ -5741,8 +5934,13 @@ function BranchInteractionSurface(props: {
             <div className="border border-border/70 bg-background/40 p-3">
               <DetailLabel>Suggestion</DetailLabel>
               <DetailPrimary>
-                {body.suggestion.suggestedTargetStepId ?? "No current suggestion"}
+                {formatRuntimeStepTargetLabel(body.suggestion.suggestedTargetStepId)}
               </DetailPrimary>
+              {body.suggestion.suggestedTargetStepId ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {body.suggestion.suggestedTargetStepId}
+                </p>
+              ) : null}
               <p className="mt-1 text-xs text-muted-foreground">
                 {formatBranchSuggestionSourceLabel(body.suggestion.source)}
                 {body.suggestion.routeId ? ` · ${body.suggestion.routeId}` : ""}
@@ -5752,9 +5950,11 @@ function BranchInteractionSurface(props: {
             <div className="border border-border/70 bg-background/40 p-3">
               <DetailLabel>Route availability</DetailLabel>
               <DetailPrimary>{formatBranchAvailabilitySummary(body)}</DetailPrimary>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Default target: {body.defaultTargetStepId ?? "None"}
-              </p>
+              {body.defaultTargetStepId ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Default target: {formatRuntimeStepTargetLabel(body.defaultTargetStepId)}
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -5772,8 +5972,9 @@ function BranchInteractionSurface(props: {
             <div className="flex items-start gap-2 border border-sky-300/40 bg-sky-500/10 px-3 py-2 text-sm text-sky-100">
               <RadioIcon className="mt-0.5 size-4 shrink-0" />
               <span>
-                Suggested target {body.suggestion.suggestedTargetStepId} is advisory only until you
-                save it.
+                Suggested route{" "}
+                {formatRuntimeStepTargetLabel(body.suggestion.suggestedTargetStepId)} is advisory
+                only until you save it.
               </span>
             </div>
           ) : null}
@@ -5793,9 +5994,9 @@ function BranchInteractionSurface(props: {
           <div className="space-y-3 border border-border/70 bg-background/40 p-3">
             <div className="space-y-1">
               <DetailEyebrow>Selection</DetailEyebrow>
-              <CardTitle>Save the target that should govern completion</CardTitle>
+              <CardTitle>Save the route that should govern completion</CardTitle>
               <CardDescription>
-                The dropdown only offers server-approved targets from the current runtime payload.
+                The dropdown only offers server-approved routes from the current runtime payload.
               </CardDescription>
             </div>
 
@@ -5815,7 +6016,7 @@ function BranchInteractionSurface(props: {
                   <SelectContent className="border border-border/80 bg-[#0b0f12] text-foreground">
                     {availableTargetStepIds.map((targetStepId) => (
                       <SelectItem key={targetStepId} value={targetStepId}>
-                        {targetStepId}
+                        {formatRuntimeStepTargetLabel(targetStepId)}
                         {targetStepId === body.defaultTargetStepId && validRoutes.length === 0
                           ? " (default)"
                           : ""}
@@ -5874,9 +6075,9 @@ function BranchInteractionSurface(props: {
           <div className="space-y-3">
             <div className="space-y-1">
               <DetailEyebrow>Conditional routes</DetailEyebrow>
-              <CardTitle>Valid route list</CardTitle>
+              <CardTitle>Available route outcomes</CardTitle>
               <CardDescription>
-                Single, none, and multi-match states all come from the locked server payload.
+                This list shows which authored routes currently match and where each one would go.
               </CardDescription>
             </div>
 
@@ -5896,8 +6097,12 @@ function BranchInteractionSurface(props: {
                     <CardHeader className="border-b border-border/70">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="space-y-1">
-                          <CardTitle className="text-sm">{route.routeId}</CardTitle>
-                          <CardDescription>Target step {route.targetStepId}</CardDescription>
+                          <CardTitle className="text-sm">
+                            {formatBranchRouteDisplayName(route.routeId)}
+                          </CardTitle>
+                          <CardDescription>
+                            Target step {formatRuntimeStepTargetLabel(route.targetStepId)}
+                          </CardDescription>
                         </div>
 
                         <div className="flex flex-wrap gap-2">
@@ -5924,7 +6129,10 @@ function BranchInteractionSurface(props: {
                         </div>
                         <div>
                           <DetailLabel>Target step</DetailLabel>
-                          <DetailPrimary>{route.targetStepId}</DetailPrimary>
+                          <DetailPrimary>
+                            {formatRuntimeStepTargetLabel(route.targetStepId)}
+                          </DetailPrimary>
+                          <p className="mt-1 text-xs text-muted-foreground">{route.targetStepId}</p>
                         </div>
                         <div>
                           <DetailLabel>Evaluation</DetailLabel>
@@ -5933,7 +6141,21 @@ function BranchInteractionSurface(props: {
                       </div>
 
                       {route.evaluationTree ? (
-                        <BranchConditionEvaluationTreePanel tree={route.evaluationTree} />
+                        <Collapsible>
+                          <div className="border border-border/70 bg-background/50">
+                            <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground transition hover:bg-background/80">
+                              <span>
+                                Why this route {route.isValid ? "matched" : "did not match"}
+                              </span>
+                              <span className="inline-flex items-center gap-1">Expand</span>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              <div className="border-t border-border/70 p-3">
+                                <BranchConditionEvaluationTreePanel tree={route.evaluationTree} />
+                              </div>
+                            </CollapsibleContent>
+                          </div>
+                        </Collapsible>
                       ) : null}
                     </CardContent>
                   </Card>
@@ -6268,6 +6490,10 @@ function InvokeInteractionSurface(props: {
     completeStepMutation.error;
   const surfacedError =
     runtimeBindingValidationError ?? (mutationError ? toErrorMessage(mutationError) : null);
+  const invokeStepPurpose = getInvokeStepPurposeCopy({
+    targetKind: body.targetKind,
+    sourceMode: body.sourceMode,
+  });
 
   return (
     <div className="space-y-4">
@@ -6295,22 +6521,57 @@ function InvokeInteractionSurface(props: {
         <CardHeader>
           <div className="space-y-1">
             <DetailEyebrow>Invoke runtime</DetailEyebrow>
-            <CardTitle>Invoke targets, completion rule &amp; propagation preview</CardTitle>
-            <CardDescription>
-              Invoke steps keep the shared shell above, then materialize frozen child targets with
-              explicit start/open actions and completion-time propagation only.
-            </CardDescription>
+            <CardTitle>{invokeStepPurpose.title}</CardTitle>
+            <CardDescription>{invokeStepPurpose.description}</CardDescription>
           </div>
         </CardHeader>
 
         <CardContent className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="border border-sky-500/30 bg-sky-500/5 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <DetailLabel>Target kind</DetailLabel>
-                <ExecutionBadge label={formatInvokeTargetKindLabel(body.targetKind)} tone="sky" />
+          <div className="border border-primary/30 bg-primary/8 p-3">
+            <DetailLabel>Invoke step purpose</DetailLabel>
+            <DetailPrimary>{invokeStepPurpose.title}</DetailPrimary>
+            <p className="mt-1 text-sm text-muted-foreground">{invokeStepPurpose.description}</p>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-[minmax(13rem,0.7fr)_minmax(0,1.9fr)] md:items-start">
+            <div className="space-y-3">
+              <div className="border border-sky-500/30 bg-sky-500/5 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <DetailLabel>Target kind</DetailLabel>
+                  <ExecutionBadge label={formatInvokeTargetKindLabel(body.targetKind)} tone="sky" />
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  This invoke step creates a downstream{" "}
+                  {formatInvokeTargetKindLabel(body.targetKind).toLowerCase()}.
+                </p>
               </div>
-              <DetailPrimary>{formatInvokeTargetKindLabel(body.targetKind)}</DetailPrimary>
+              <div
+                className={cn(
+                  "p-3",
+                  body.completionSummary.eligible
+                    ? "border border-emerald-500/30 bg-emerald-500/5"
+                    : "border border-amber-500/30 bg-amber-500/5",
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <DetailLabel>Downstream work readiness</DetailLabel>
+                  <ExecutionBadge
+                    label={body.completionSummary.eligible ? "Ready" : "Pending"}
+                    tone={body.completionSummary.eligible ? "emerald" : "amber"}
+                  />
+                </div>
+                <DetailPrimary>
+                  {formatInvokeProgressLabel(
+                    body.completionSummary.completedTargets,
+                    body.completionSummary.totalTargets,
+                  )}
+                </DetailPrimary>
+                {!body.completionSummary.eligible && body.completionSummary.reasonIfIneligible ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {body.completionSummary.reasonIfIneligible}
+                  </p>
+                ) : null}
+              </div>
             </div>
             <div
               className={cn(
@@ -6321,24 +6582,19 @@ function InvokeInteractionSurface(props: {
               )}
             >
               <div className="flex items-center justify-between gap-2">
-                <DetailLabel>Source mode</DetailLabel>
+                <DetailLabel>Source input</DetailLabel>
                 <ExecutionBadge
                   label={formatInvokeSourceModeLabel(body.sourceMode)}
                   tone={body.sourceMode === "fact_backed" ? "violet" : "amber"}
                 />
               </div>
-              <DetailPrimary>{formatInvokeSourceModeLabel(body.sourceMode)}</DetailPrimary>
+              <DetailPrimary>
+                {body.sourceContextFactLabel ??
+                  body.sourceContextFactKey ??
+                  formatInvokeSourceModeLabel(body.sourceMode)}
+              </DetailPrimary>
               {body.sourceMode === "fact_backed" ? (
                 <div className="mt-1 space-y-1 text-xs text-muted-foreground">
-                  <p>
-                    Bound context fact:{" "}
-                    {body.sourceContextFactLabel ??
-                      body.sourceContextFactKey ??
-                      "(key unavailable)"}
-                    {body.sourceContextFactDefinitionId
-                      ? ` · ${body.sourceContextFactDefinitionId}`
-                      : ""}
-                  </p>
                   {formatInvokeSourceMetadata({
                     kind: body.sourceContextFactKind,
                     cardinality: body.sourceContextFactCardinality,
@@ -6359,40 +6615,22 @@ function InvokeInteractionSurface(props: {
                   ) : null}
                   <p>Runtime instances: {(body.sourceContextFactInstanceValues ?? []).length}</p>
                   {(body.sourceContextFactInstanceValues ?? []).length > 0 ? (
-                    <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all border border-border/60 bg-background/30 p-2 text-[11px] leading-relaxed text-foreground/85">
-                      {body.sourceContextFactInstanceValues
-                        ?.map((value, index) => `#${index + 1}: ${formatUnknown(value)}`)
-                        .join("\n")}
-                    </pre>
+                    <div className="mt-3 space-y-2 border border-border/60 bg-background/30 p-3">
+                      <DetailLabel>Current draft input</DetailLabel>
+                      {renderContextFactInstanceValue(
+                        body.sourceContextFactKind,
+                        body.sourceContextFactInstanceValues?.[0],
+                      )}
+                      {(body.sourceContextFactInstanceValues?.length ?? 0) > 1 ? (
+                        <p className="text-xs text-muted-foreground">
+                          Showing the first runtime instance.{" "}
+                          {body.sourceContextFactInstanceValues?.length} total instances are
+                          available.
+                        </p>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
-              ) : null}
-            </div>
-            <div
-              className={cn(
-                "p-3",
-                body.completionSummary.eligible
-                  ? "border border-emerald-500/30 bg-emerald-500/5"
-                  : "border border-amber-500/30 bg-amber-500/5",
-              )}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <DetailLabel>Completion progress</DetailLabel>
-                <ExecutionBadge
-                  label={body.completionSummary.eligible ? "Ready" : "Pending"}
-                  tone={body.completionSummary.eligible ? "emerald" : "amber"}
-                />
-              </div>
-              <DetailPrimary>
-                {formatInvokeProgressLabel(
-                  body.completionSummary.completedTargets,
-                  body.completionSummary.totalTargets,
-                )}
-              </DetailPrimary>
-              {!body.completionSummary.eligible && body.completionSummary.reasonIfIneligible ? (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {body.completionSummary.reasonIfIneligible}
-                </p>
               ) : null}
             </div>
           </div>
@@ -6404,7 +6642,7 @@ function InvokeInteractionSurface(props: {
             </div>
             <DetailPrimary>{formatInvokeCompletionRuleLabel(body.targetKind)}</DetailPrimary>
             <p className="mt-1 text-xs text-muted-foreground">
-              Completion remains manual and uses the shared complete-step action in the shell.
+              Use the shared complete-step action after the downstream work is created and ready.
             </p>
           </div>
 
@@ -6955,7 +7193,7 @@ function InvokeInteractionSurface(props: {
                                       work-unit when started.
                                     </p>
 
-                                    <ul className="space-y-2">
+                                    <ul className="max-h-[42rem] space-y-2 overflow-y-auto pr-1">
                                       {row.bindingPreview.map((binding) => {
                                         const runtimeRawValue =
                                           rowRuntimeInputs[binding.destinationDefinitionId] ?? "";
@@ -7058,9 +7296,6 @@ function InvokeInteractionSurface(props: {
                                                 <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
                                                   {formatInvokeDestinationMetadata(binding)}
                                                 </p>
-                                                <DetailCode>
-                                                  {binding.destinationDefinitionId}
-                                                </DetailCode>
                                               </div>
                                               <div>
                                                 <DetailLabel>Source</DetailLabel>
@@ -7080,11 +7315,6 @@ function InvokeInteractionSurface(props: {
                                                       valueType: binding.sourceContextFactValueType,
                                                     })}
                                                   </p>
-                                                ) : null}
-                                                {binding.sourceContextFactDefinitionId ? (
-                                                  <DetailCode>
-                                                    {binding.sourceContextFactDefinitionId}
-                                                  </DetailCode>
                                                 ) : null}
                                               </div>
                                             </div>
@@ -7862,6 +8092,13 @@ function AgentInteractionSurface(props: {
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
   const [sidePanelOpen, setSidePanelOpen] = useState(true);
   const [sidePanelTab, setSidePanelTab] = useState<"read" | "write">("write");
+  const [contextSearch, setContextSearch] = useState("");
+  const [readVisibilityFilter, setReadVisibilityFilter] = useState<"all" | "with-values" | "empty">(
+    "all",
+  );
+  const [writeStatusFilter, setWriteStatusFilter] = useState<
+    "all" | "blocked" | "ready" | "applied"
+  >("all");
   const [metadataOpen, setMetadataOpen] = useState(false);
   const [objectiveOpen, setObjectiveOpen] = useState(false);
   const [instructionsOpen, setInstructionsOpen] = useState(false);
@@ -8244,6 +8481,40 @@ function AgentInteractionSurface(props: {
       applied: writeItems.filter((entry) => entry.status === "applied").length,
     }),
     [writeItems],
+  );
+  const normalizedContextSearch = contextSearch.trim().toLowerCase();
+  const filteredReadItems = useMemo(
+    () =>
+      readItems.filter((entry) => {
+        const label = renderContextFactLabel(
+          entry.group,
+          entry.contextFactDefinitionId,
+        ).toLowerCase();
+        const matchesSearch =
+          normalizedContextSearch.length === 0 || label.includes(normalizedContextSearch);
+        const instanceCount = entry.group?.instances.length ?? 0;
+        const matchesVisibility =
+          readVisibilityFilter === "all" ||
+          (readVisibilityFilter === "with-values" ? instanceCount > 0 : instanceCount === 0);
+
+        return matchesSearch && matchesVisibility;
+      }),
+    [normalizedContextSearch, readItems, readVisibilityFilter],
+  );
+  const filteredWriteItems = useMemo(
+    () =>
+      writeItems.filter((entry) => {
+        const label = renderContextFactLabel(
+          entry.group,
+          entry.item.contextFactDefinitionId,
+        ).toLowerCase();
+        const matchesSearch =
+          normalizedContextSearch.length === 0 || label.includes(normalizedContextSearch);
+        const matchesStatus = writeStatusFilter === "all" || entry.status === writeStatusFilter;
+
+        return matchesSearch && matchesStatus;
+      }),
+    [normalizedContextSearch, writeItems, writeStatusFilter],
   );
 
   const completionOutcome =
@@ -8687,9 +8958,9 @@ function AgentInteractionSurface(props: {
                 <div className="flex items-center justify-between gap-2 border-b border-border/70 px-3 py-2">
                   <div className="space-y-0.5">
                     <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
-                      Context side panel
+                      Step context
                     </p>
-                    <p className="text-sm font-medium">Read / Write</p>
+                    <p className="text-sm font-medium">Inputs / Outputs</p>
                   </div>
                   {sidePanelOpen ? (
                     <Button
@@ -8710,6 +8981,79 @@ function AgentInteractionSurface(props: {
                     sidePanelOpen ? "opacity-100" : "opacity-0",
                   )}
                 >
+                  <div className="space-y-2 border border-border/70 bg-background/55 p-3">
+                    <Input
+                      value={contextSearch}
+                      onChange={(event) => setContextSearch(event.currentTarget.value)}
+                      placeholder="Search inputs and outputs..."
+                    />
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      {sidePanelTab === "read" ? (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={readVisibilityFilter === "all" ? "default" : "outline"}
+                            onClick={() => setReadVisibilityFilter("all")}
+                          >
+                            All inputs
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={readVisibilityFilter === "with-values" ? "default" : "outline"}
+                            onClick={() => setReadVisibilityFilter("with-values")}
+                          >
+                            With values
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={readVisibilityFilter === "empty" ? "default" : "outline"}
+                            onClick={() => setReadVisibilityFilter("empty")}
+                          >
+                            Empty
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={writeStatusFilter === "all" ? "default" : "outline"}
+                            onClick={() => setWriteStatusFilter("all")}
+                          >
+                            All outputs
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={writeStatusFilter === "blocked" ? "default" : "outline"}
+                            onClick={() => setWriteStatusFilter("blocked")}
+                          >
+                            Blocked
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={writeStatusFilter === "ready" ? "default" : "outline"}
+                            onClick={() => setWriteStatusFilter("ready")}
+                          >
+                            Ready
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={writeStatusFilter === "applied" ? "default" : "outline"}
+                            onClick={() => setWriteStatusFilter("applied")}
+                          >
+                            Applied
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="flex gap-2">
                     <Button
                       type="button"
@@ -8718,7 +9062,7 @@ function AgentInteractionSurface(props: {
                       className="flex-1"
                       onClick={() => setSidePanelTab("read")}
                     >
-                      Read
+                      Inputs
                     </Button>
                     <Button
                       type="button"
@@ -8727,7 +9071,7 @@ function AgentInteractionSurface(props: {
                       className="flex-1"
                       onClick={() => setSidePanelTab("write")}
                     >
-                      Write
+                      Outputs
                     </Button>
                   </div>
 
@@ -8739,12 +9083,12 @@ function AgentInteractionSurface(props: {
                     </div>
                   ) : sidePanelTab === "read" ? (
                     <div className="space-y-3" data-testid="agent-step-side-panel-read">
-                      {readItems.length === 0 ? (
+                      {filteredReadItems.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
-                          No readable context facts are exposed.
+                          No matching step inputs are visible.
                         </p>
                       ) : (
-                        readItems.map((entry) => (
+                        filteredReadItems.map((entry) => (
                           <article
                             key={entry.contextFactDefinitionId}
                             className="space-y-3 border border-border/70 bg-background/55 p-3"
@@ -8776,10 +9120,10 @@ function AgentInteractionSurface(props: {
                         <div className="flex items-center justify-between gap-2">
                           <div>
                             <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
-                              Progression
+                              Output status
                             </p>
                             <h3 className="text-sm font-medium text-foreground">
-                              Requirement-gated write exposure
+                              Values this step can write
                             </h3>
                           </div>
                           <ExecutionBadge
@@ -8800,12 +9144,12 @@ function AgentInteractionSurface(props: {
                         </div>
                       </article>
 
-                      {writeItems.length === 0 ? (
+                      {filteredWriteItems.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
-                          No write targets are configured.
+                          No matching step outputs are visible.
                         </p>
                       ) : (
-                        writeItems.map((entry) => (
+                        filteredWriteItems.map((entry) => (
                           <article
                             key={entry.item.writeItemId}
                             className="space-y-3 border border-border/70 bg-background/55 p-3"
@@ -8860,7 +9204,7 @@ function AgentInteractionSurface(props: {
 
                             <div className="space-y-2">
                               <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
-                                Requirements
+                                Blocked until
                               </p>
                               {entry.requirements.length === 0 ? (
                                 <p className="text-xs text-muted-foreground">
@@ -8895,7 +9239,7 @@ function AgentInteractionSurface(props: {
 
                             <div className="space-y-2">
                               <p className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
-                                Applied values
+                                Current values
                               </p>
                               <ContextFactInstances
                                 group={entry.group}
@@ -8921,7 +9265,7 @@ function AgentInteractionSurface(props: {
                       Composer
                     </CardDescription>
                     <CardTitle className="text-sm">
-                      PromptInput baseline + next-turn model selection
+                      Start the agent session and send the setup framing
                     </CardTitle>
                   </div>
                   {composerUiState.startSessionVisible ? (
@@ -9004,7 +9348,7 @@ function AgentInteractionSurface(props: {
                       onChange={(event) => setComposerText(event.target.value)}
                       placeholder={
                         composerUiState.enabled
-                          ? "Send the next runtime turn..."
+                          ? "Send the first setup prompt or next runtime turn..."
                           : (composerUiState.reason ?? "Session start is required first.")
                       }
                       className={!composerUiState.enabled ? "blur-sm" : undefined}
@@ -9164,7 +9508,7 @@ function AgentInteractionSurface(props: {
                 <div className="grid gap-2 text-xs text-muted-foreground md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
                   <p>
                     {runtimeState === "not_started"
-                      ? "Choose a provider/model now to influence the first session turn."
+                      ? "Choose an agent or model now if you want to influence the first setup turn."
                       : "Provider/model changes are persisted for the next turn only and do not interrupt the current live session."}
                   </p>
                   <div className="grid gap-1">
